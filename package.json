@@ -16,6 +16,7 @@
     "build": "npm run build --workspaces --if-present",
     "test": "node --import tsx --test --test-concurrency=1 tests/review.test.ts",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "hygiene": "tsc -p packages/core/tsconfig.json --noEmit --noUnusedLocals --noUnusedParameters && tsc -p apps/web-app/tsconfig.json --noEmit --noUnusedLocals --noUnusedParameters && tsc -p apps/wa-worker/tsconfig.json --noEmit --noUnusedLocals --noUnusedParameters && tsc -p apps/scheduler/tsconfig.json --noEmit --noUnusedLocals --noUnusedParameters",
     "start": "pm2-runtime start ecosystem.config.cjs --env production",
     "db:migrate": "npm run migrate --workspace @nuoma/core",
     "db:seed": "npm run seed --workspace @nuoma/core",

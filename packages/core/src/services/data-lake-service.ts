@@ -38,11 +38,6 @@ type DataLakeProviderStatus = {
   imageProvider: "openai" | "local-ollama" | "none";
 };
 
-type RankedTerm = {
-  term: string;
-  count: number;
-};
-
 type IntentSignal = {
   key: string;
   label: string;

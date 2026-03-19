@@ -5,6 +5,29 @@ const logger = createLogger("wa-worker");
 
 async function start() {
   const worker = new WhatsAppWorker();
+  let shuttingDown = false;
+
+  const shutdown = async (signal: "SIGINT" | "SIGTERM") => {
+    if (shuttingDown) {
+      return;
+    }
+
+    shuttingDown = true;
+    logger.info({ signal }, "Stopping WhatsApp worker");
+    recordSystemEvent("wa-worker", "info", "Stopping WhatsApp worker", {
+      signal
+    });
+    await worker.stop();
+    process.exit(0);
+  };
+
+  process.once("SIGINT", () => {
+    void shutdown("SIGINT");
+  });
+  process.once("SIGTERM", () => {
+    void shutdown("SIGTERM");
+  });
+
   await worker.start();
 }
 

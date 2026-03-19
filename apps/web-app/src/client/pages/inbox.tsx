@@ -1,15 +1,13 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, CheckCheck, Filter, Instagram, MessageCircleMore, Search, SendHorizonal, User, Phone, Info, Zap } from "lucide-react";
+import { ArrowUpRight, CheckCheck, Instagram, Search, SendHorizonal, User, Phone, Info, Zap } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
-import { ErrorPanel } from "@/components/shared/error-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, toJsonBody } from "@/lib/api";
-import { formatChannelDisplayValue } from "@/lib/contact-utils";
 import { cn } from "@/lib/utils";
 
 type ConversationRecord = {
@@ -265,7 +263,7 @@ export function InboxPage() {
           </header>
 
           <div className="flex-1 overflow-y-auto px-10 py-12 space-y-8 relative z-10 custom-scrollbar scroll-smooth">
-            {messagesQuery.data?.map((msg, idx) => (
+            {messagesQuery.data?.map((msg) => (
               <div key={msg.id} className={cn("flex flex-col gap-2", msg.direction === "outgoing" ? "items-end" : "items-start")}>
                 <div className={cn(
                   "group relative max-w-[75%] px-6 py-4 transition-all duration-500 hover:scale-[1.01]",

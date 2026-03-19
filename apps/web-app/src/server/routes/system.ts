@@ -1,5 +1,3 @@
-import { readdir, readFile, stat } from "node:fs/promises";
-import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import {
   ensureDefaultChannelAccounts,
@@ -100,62 +98,6 @@ function parseMetaJson(input: unknown) {
   } catch {
     return {};
   }
-}
-
-async function listRecentProfileArtifacts(profileDir: string, relativePath: string, limit = 6) {
-  if (!profileDir) {
-    return [];
-  }
-
-  try {
-    const directory = path.join(profileDir, relativePath);
-    const entries = await readdir(directory);
-    const files = await Promise.all(
-      entries.map(async (entry) => {
-        const absolutePath = path.join(directory, entry);
-        const metadata = await stat(absolutePath);
-        return metadata.isFile() ? { absolutePath, mtimeMs: metadata.mtimeMs, size: metadata.size } : null;
-      })
-    );
-
-    return files
-      .filter((item): item is { absolutePath: string; mtimeMs: number; size: number } => Boolean(item))
-      .filter((item) => item.size > 0 && item.size < 8 * 1024 * 1024)
-      .sort((left, right) => right.mtimeMs - left.mtimeMs)
-      .slice(0, limit);
-  } catch {
-    return [];
-  }
-}
-
-async function readProfileArtifacts(profileDir: string, relativePaths: string[]) {
-  const buckets = await Promise.all(relativePaths.map((relativePath) => listRecentProfileArtifacts(profileDir, relativePath)));
-  const files = buckets.flat().sort((left, right) => right.mtimeMs - left.mtimeMs).slice(0, 8);
-  const contents = await Promise.all(
-    files.map(async (file) => {
-      try {
-        const buffer = await readFile(file.absolutePath);
-        return buffer.toString("latin1");
-      } catch {
-        return "";
-      }
-    })
-  );
-
-  return contents.join("\n");
-}
-
-async function resolveProfileWhatsAppPhone(profileDir: string) {
-  const raw = await readProfileArtifacts(profileDir, ["Default/Local Storage/leveldb", "Default/Session Storage"]);
-  const matches = Array.from(raw.matchAll(/([1-9]\d{9,14})@(?:c\.us|s\.whatsapp\.net)/g)).map((match) => match[1]);
-  const preferred = matches.find((value) => value.startsWith("55") && value.length >= 12);
-  return preferred ?? matches[0] ?? null;
-}
-
-async function resolveProfileInstagramUsername(profileDir: string) {
-  const raw = await readProfileArtifacts(profileDir, ["Default/Local Storage/leveldb", "Default/Session Storage"]);
-  const matches = Array.from(raw.matchAll(/"username":"([a-z0-9._]+)"/gi)).map((match) => match[1]?.toLowerCase() ?? "");
-  return matches.find(Boolean) ?? null;
 }
 
 export async function registerSystemRoutes(app: FastifyInstance) {

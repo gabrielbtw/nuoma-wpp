@@ -1,14 +1,12 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Cog, HardDriveUpload, Palette, Pencil, Search, ServerCog, ShieldCheck, Tags, Workflow } from "lucide-react";
+import { Cog, HardDriveUpload, Pencil, Search, ServerCog, ShieldCheck, Tags, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/shared/page-header";
-import { ErrorPanel } from "@/components/shared/error-panel";
 import { TagPill } from "@/components/tags/tag-pill";
 import { apiFetch, toJsonBody } from "@/lib/api";
 import { cn } from "@/lib/utils";

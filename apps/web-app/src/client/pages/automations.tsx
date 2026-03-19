@@ -5,7 +5,6 @@ import { AutomationEditor, type AutomationDraft } from "@/components/automations
 import { ErrorPanel } from "@/components/shared/error-panel";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { apiFetch, toJsonBody } from "@/lib/api";
@@ -78,6 +77,7 @@ function buildAutomationTemplate(category: AutomationDraft["category"] = "follow
 }
 
 const emptyAutomation = buildAutomationTemplate();
+type AutomationRecord = AutomationDraft & { id: string };
 
 export function AutomationsPage() {
   const queryClient = useQueryClient();
@@ -86,7 +86,7 @@ export function AutomationsPage() {
 
   const automationsQuery = useQuery({
     queryKey: ["automations"],
-    queryFn: () => apiFetch<any[]>("/automations")
+    queryFn: () => apiFetch<AutomationRecord[]>("/automations")
   });
 
   const saveMutation = useMutation({

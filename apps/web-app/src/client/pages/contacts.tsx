@@ -4,7 +4,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, ChevronLeft, ChevronRight, Pencil, Plus, Search, SlidersHorizontal } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +13,7 @@ import { TagChipInput } from "@/components/tags/tag-chip-input";
 import { TagPill } from "@/components/tags/tag-pill";
 import { ChannelIndicators } from "@/components/contacts/channel-indicators";
 import { apiFetch, toJsonBody } from "@/lib/api";
+import { contactProcedureLabelMap, contactStatusLabelMap, contactStatusTone, formatInstagramRelationship } from "@/lib/contact-display";
 import { cn } from "@/lib/utils";
 import {
   formatChannelDisplayValue,
@@ -96,35 +96,6 @@ const emptyContact: ContactDraft = {
   tags: []
 };
 
-const statusLabelMap: Record<string, string> = {
-  novo: "Novo",
-  aguardando_resposta: "Aguardando resposta",
-  em_atendimento: "Em atendimento",
-  cliente: "Cliente",
-  sem_retorno: "Sem retorno",
-  perdido: "Perdido"
-};
-
-const procedureLabelMap: Record<ContactDraft["procedureStatus"], string> = {
-  yes: "Sim",
-  no: "Não",
-  unknown: "Não definido"
-};
-
-function statusTone(status: string): "success" | "warning" | "danger" | "info" | "default" {
-  switch (status) {
-    case "cliente":
-      return "success";
-    case "aguardando_resposta":
-    case "em_atendimento":
-      return "warning";
-    case "perdido":
-      return "danger";
-    default:
-      return "default";
-  }
-}
-
 function channelSummary(contact: ContactRecord) {
   if (contact.channels.length > 0) {
     return contact.channels
@@ -134,22 +105,6 @@ function channelSummary(contact: ContactRecord) {
   }
 
   return [contact.phone ? formatPhoneForDisplay(contact.phone) : null, formatChannelDisplayValue("instagram", contact.instagram)].filter(Boolean).join(" • ");
-}
-
-function instagramRelationshipLabel(contact: ContactRecord) {
-  if (contact.instagramFollowsMe === true && contact.instagramFollowedByMe === true) {
-    return "Mutuo";
-  }
-  if (contact.instagramFollowsMe === true) {
-    return "Segue voce";
-  }
-  if (contact.instagramFollowedByMe === true) {
-    return "Voce segue";
-  }
-  if (contact.instagramFollowsMe === false && contact.instagramFollowedByMe === false) {
-    return "Sem vinculo";
-  }
-  return "Sem leitura";
 }
 
 function LoadingRows() {
@@ -355,7 +310,7 @@ export function ContactsPage() {
                         <div className="space-y-1.5">
                           <label className="ml-1 text-[10px] font-black uppercase tracking-widest text-slate-500">Ciclo de Atendimento</label>
                           <select className="w-full h-12 rounded-2xl border border-white/5 bg-black/20 px-4 text-sm font-bold text-white outline-none focus:border-cmm-blue/30" value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value })}>
-                            {Object.entries(statusLabelMap).map(([v, l]) => <option key={v} value={v} className="bg-slate-900">{l}</option>)}
+                            {Object.entries(contactStatusLabelMap).map(([v, l]) => <option key={v} value={v} className="bg-slate-900">{l}</option>)}
                           </select>
                         </div>
                         <div className="space-y-1.5">
@@ -406,7 +361,7 @@ export function ContactsPage() {
             </div>
             <select className="h-14 rounded-2xl border border-white/5 bg-white/[0.02] px-6 text-sm font-bold text-slate-300 outline-none transition hover:bg-white/[0.04] focus:border-cmm-blue/30" value={status} onChange={(e) => setStatus(e.target.value)}>
               <option value="all" className="bg-slate-900">Todos os Status</option>
-              {Object.entries(statusLabelMap).map(([v, l]) => <option key={v} value={v} className="bg-slate-900">{l}</option>)}
+              {Object.entries(contactStatusLabelMap).map(([v, l]) => <option key={v} value={v} className="bg-slate-900">{l}</option>)}
             </select>
             <select className="h-14 rounded-2xl border border-white/5 bg-white/[0.02] px-6 text-sm font-bold text-slate-300 outline-none transition hover:bg-white/[0.04] focus:border-cmm-blue/30" value={tag} onChange={(e) => setTag(e.target.value)}>
               <option value="all" className="bg-slate-900">Todas as Tags</option>
@@ -439,7 +394,7 @@ export function ContactsPage() {
               <tbody className="divide-y divide-white/5">
                 {contactsQuery.isLoading ? (
                   <tr><td colSpan={4}><LoadingRows /></td></tr>
-                ) : (contactsQuery.data?.items ?? []).map((contact, index) => (
+                ) : (contactsQuery.data?.items ?? []).map((contact) => (
                   <tr key={contact.id} className="group hover:bg-white/[0.02] transition-colors">
                     <td className="px-8 py-6">
                       <div className="flex items-center gap-6">
@@ -456,8 +411,8 @@ export function ContactsPage() {
                     </td>
                     <td className="px-8 py-6">
                       <div className="space-y-3">
-                        <Badge className="rounded-full px-3 py-0.5 text-[9px] font-black uppercase tracking-widest" tone={statusTone(contact.status)}>
-                          {statusLabelMap[contact.status] ?? contact.status}
+                        <Badge className="rounded-full px-3 py-0.5 text-[9px] font-black uppercase tracking-widest" tone={contactStatusTone(contact.status)}>
+                          {contactStatusLabelMap[contact.status] ?? contact.status}
                         </Badge>
                         <div className="flex flex-wrap gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
                           {contact.tags.slice(0, 2).map((item) => (
@@ -472,8 +427,8 @@ export function ContactsPage() {
                         <ChannelIndicators compact phone={contact.phone} instagram={contact.instagram} channels={contact.channels} />
                         <div className="h-4 w-px bg-white/5" />
                         <div className="flex flex-col">
-                          <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{procedureLabelMap[contact.procedureStatus]} Proc.</span>
-                          {contact.instagram && <span className="text-[9px] font-bold text-cmm-blue uppercase tracking-widest mt-0.5">{instagramRelationshipLabel(contact)}</span>}
+                          <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{contactProcedureLabelMap[contact.procedureStatus]} Proc.</span>
+                          {contact.instagram && <span className="text-[9px] font-bold text-cmm-blue uppercase tracking-widest mt-0.5">{formatInstagramRelationship(contact)}</span>}
                         </div>
                       </div>
                     </td>

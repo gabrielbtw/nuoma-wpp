@@ -29,6 +29,8 @@ process.env.DATA_LAKE_DIR = dataLakeDir;
 process.env.CHROMIUM_PROFILE_DIR = chromiumProfileDir;
 process.env.IG_CHROMIUM_PROFILE_DIR = instagramProfileDir;
 process.env.CHROMIUM_CHANNEL = "chromium";
+process.env.AI_PROVIDER = "openai";
+process.env.OPENAI_API_KEY = "";
 
 const core = await import("../packages/core/src/index.ts");
 const { registerCampaignRoutes } = await import("../apps/web-app/src/server/routes/campaigns.ts");

@@ -9,7 +9,6 @@ import { PageHeader } from "@/components/shared/page-header";
 import { ChromeTabs } from "@/components/ui/chrome-tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { apiFetch, toJsonBody } from "@/lib/api";
@@ -169,18 +168,6 @@ function recipientTone(status: string): "success" | "warning" | "danger" | "info
       return "info";
     default:
       return "default";
-  }
-}
-
-function parseRecipientExtra(recipient: CampaignRecipientRecord) {
-  if (!recipient.extra_json) {
-    return {};
-  }
-
-  try {
-    return JSON.parse(recipient.extra_json) as Record<string, string | string[]>;
-  } catch {
-    return {};
   }
 }
 

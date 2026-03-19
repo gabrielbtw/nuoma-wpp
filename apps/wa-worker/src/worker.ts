@@ -7,7 +7,6 @@ import { promisify } from "node:util";
 import { chromium, type BrowserContext, type Locator, type Page } from "playwright";
 import {
   addMessage,
-  advanceCampaignRecipient,
   claimDueJobForTypes,
   completeJob,
   createLogger,
@@ -122,7 +121,6 @@ export class WhatsAppWorker {
   private browserTask: "idle" | "job" | "sync" = "idle";
   private browserTaskStartedAt = 0;
   private processJobInFlight = false;
-  private audioCapturePath: string | null = null;
   private browserSessionKey: string | null = null;
   private sessionManifestCache = "";
   private state: {
@@ -204,6 +202,25 @@ export class WhatsAppWorker {
     }
   }
 
+  async stop() {
+    for (const timer of [this.heartbeatTimer, this.syncTimer, this.instagramSyncTimer, this.jobTimer]) {
+      if (timer) {
+        clearInterval(timer);
+      }
+    }
+
+    this.heartbeatTimer = null;
+    this.syncTimer = null;
+    this.instagramSyncTimer = null;
+    this.jobTimer = null;
+
+    await this.context?.close().catch(() => null);
+    this.context = null;
+    this.page = null;
+    this.instagramPage = null;
+    this.webAppPage = null;
+  }
+
   private async runLoopTask(label: string, task: () => Promise<void>) {
     try {
       await task();
@@ -265,7 +282,6 @@ export class WhatsAppWorker {
       permissions: audioCapturePath ? ["microphone"] : [],
       args: extraArgs
     });
-    this.audioCapturePath = audioCapturePath ?? null;
     await this.context.grantPermissions(["microphone"], {
       origin: this.env.WA_URL
     }).catch(() => null);
@@ -333,20 +349,6 @@ export class WhatsAppWorker {
 
     const host = this.env.APP_HOST && this.env.APP_HOST !== "0.0.0.0" ? this.env.APP_HOST : "127.0.0.1";
     return `http://${host}:${this.env.APP_PORT}`;
-  }
-
-  private normalizeComparableUrl(value?: string | null) {
-    const raw = String(value ?? "").trim();
-    if (!raw) {
-      return "";
-    }
-
-    try {
-      const parsed = new URL(raw);
-      return `${parsed.origin}${parsed.pathname}`.replace(/\/+$/, "");
-    } catch {
-      return raw.replace(/\/+$/, "");
-    }
   }
 
   private resolveOrigin(value?: string | null) {

@@ -11,6 +11,7 @@ import { ContactHistoryPanel } from "@/components/contacts/contact-history-panel
 import { ChannelIndicators } from "@/components/contacts/channel-indicators";
 import { TagPill } from "@/components/tags/tag-pill";
 import { apiFetch } from "@/lib/api";
+import { contactProcedureLabelMap, contactStatusLabelMap, contactStatusTone, formatInstagramRelationship } from "@/lib/contact-display";
 import { formatChannelDisplayValue, formatCpfInput, formatPhoneForDisplay } from "@/lib/contact-utils";
 
 type ContactChannel = {
@@ -50,35 +51,6 @@ type TagRecord = {
   color: string;
 };
 
-const statusLabelMap: Record<string, string> = {
-  novo: "Novo",
-  aguardando_resposta: "Aguardando resposta",
-  em_atendimento: "Em atendimento",
-  cliente: "Cliente",
-  sem_retorno: "Sem retorno",
-  perdido: "Perdido"
-};
-
-const procedureLabelMap: Record<ContactRecord["procedureStatus"], string> = {
-  yes: "Sim",
-  no: "Não",
-  unknown: "Não definido"
-};
-
-function statusTone(status: string): "success" | "warning" | "danger" | "info" | "default" {
-  switch (status) {
-    case "cliente":
-      return "success";
-    case "aguardando_resposta":
-    case "em_atendimento":
-      return "warning";
-    case "perdido":
-      return "danger";
-    default:
-      return "default";
-  }
-}
-
 function formatDateTime(value?: string | null) {
   if (!value) {
     return "-";
@@ -88,22 +60,6 @@ function formatDateTime(value?: string | null) {
     dateStyle: "short",
     timeStyle: "short"
   }).format(new Date(value));
-}
-
-function formatInstagramRelationship(contact: ContactRecord) {
-  if (contact.instagramFollowsMe === true && contact.instagramFollowedByMe === true) {
-    return "Mútuo";
-  }
-  if (contact.instagramFollowsMe === true) {
-    return "Segue você";
-  }
-  if (contact.instagramFollowedByMe === true) {
-    return "Você segue";
-  }
-  if (contact.instagramFollowsMe === false && contact.instagramFollowedByMe === false) {
-    return "Sem vínculo atual";
-  }
-  return "Sem leitura";
 }
 
 export function ContactDetailPage() {
@@ -159,7 +115,7 @@ export function ContactDetailPage() {
                   <div>
                     <div className="flex flex-wrap items-center gap-3">
                       <CardTitle>{query.data.name || "Sem nome"}</CardTitle>
-                      <Badge tone={statusTone(query.data.status)}>{statusLabelMap[query.data.status] ?? query.data.status}</Badge>
+                      <Badge tone={contactStatusTone(query.data.status)}>{contactStatusLabelMap[query.data.status] ?? query.data.status}</Badge>
                     </div>
                     <p className="mt-2 max-w-xl text-sm text-slate-400">Dados principais do contato e leitura rápida dos canais disponíveis.</p>
                   </div>
@@ -172,8 +128,8 @@ export function ContactDetailPage() {
                   ["Email", query.data.email || "-"],
                   ["Instagram", query.data.instagram || "-"],
                   ["CPF", query.data.cpf ? formatCpfInput(query.data.cpf) : "-"],
-                  ["Status", statusLabelMap[query.data.status] ?? query.data.status],
-                  ["Procedimento", procedureLabelMap[query.data.procedureStatus]],
+                  ["Status", contactStatusLabelMap[query.data.status] ?? query.data.status],
+                  ["Procedimento", contactProcedureLabelMap[query.data.procedureStatus]],
                   ["Vínculo Instagram", formatInstagramRelationship(query.data)],
                   ["Msgs recebidas no Instagram", query.data.instagramIncomingMessagesCount],
                   ["Mais de 3 msgs no Instagram", query.data.instagramSentMoreThanThreeMessages ? "Sim" : "Não"]
