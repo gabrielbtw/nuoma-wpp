@@ -1,0 +1,24 @@
+{
+  "name": "@nuoma/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "migrate": "tsx src/cli/migrate.ts",
+    "seed": "tsx src/cli/seed.ts",
+    "import:instagram": "tsx src/cli/import-instagram-contacts.ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "pino": "^9.7.0",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^24.3.0",
+    "tsx": "^4.20.5"
+  }
+}

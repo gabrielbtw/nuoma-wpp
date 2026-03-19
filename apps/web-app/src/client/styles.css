@@ -1,0 +1,95 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 240 10% 3.9%;
+  --foreground: 0 0% 98%;
+  --card: 240 10% 3.9%;
+  --card-foreground: 0 0% 98%;
+  --popover: 240 10% 3.9%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 159 70% 58%;
+  --primary-foreground: 240 5.9% 10%;
+  --secondary: 240 3.7% 15.9%;
+  --secondary-foreground: 0 0% 98%;
+  --success: 159 70% 58%;
+  --warning: 38 92% 50%;
+  --danger: 346 77% 49%;
+  --muted: 240 3.7% 15.9%;
+  --muted-foreground: 240 5% 64.9%;
+  --accent: 240 3.7% 15.9%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 3.7% 15.9%;
+  --input: 240 3.7% 15.9%;
+  --ring: 240 4.9% 83.9%;
+  --radius: 1rem;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+* {
+  border-color: hsl(var(--border) / 0.4);
+}
+
+body {
+  margin: 0;
+  background-color: #0c0c0e;
+  background-image: 
+    radial-gradient(at 0% 0%, hsla(159, 70%, 58%, 0.08) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, hsla(217, 91%, 60%, 0.08) 0px, transparent 50%);
+  @apply font-body text-foreground antialiased selection:bg-cmm-blue selection:text-white;
+  overflow: hidden;
+}
+
+/* Custom Scrollbar - Cleaner Mac style */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.glass {
+  @apply backdrop-blur-xl bg-black/40 border border-white/5 shadow-glass;
+}
+
+.glass-card {
+  @apply backdrop-blur-md bg-white/[0.02] border border-white/5 shadow-panel;
+}
+
+.cmm-gradient-emerald {
+  @apply bg-gradient-to-br from-emerald-400 to-cyan-500;
+}
+
+.cmm-gradient-blue {
+  @apply bg-gradient-to-br from-blue-500 to-indigo-600;
+}
+
+.cmm-gradient-purple {
+  @apply bg-gradient-to-br from-purple-500 to-pink-500;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
