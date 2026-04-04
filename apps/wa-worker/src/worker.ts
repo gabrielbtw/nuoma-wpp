@@ -1375,18 +1375,32 @@ export class WhatsAppWorker {
   }
 
   private async sendVoiceRecording(phone: string, audioPath: string, correlationId: string) {
-    // Get audio duration to know how long to record
-    let durationMs = 5_000; // default 5s
+    // Convert to WAV first (same as prepareMediaForUpload) so we can measure duration
+    let wavPath = audioPath;
+    const ext = path.extname(audioPath).toLowerCase();
+    if (ext !== ".wav") {
+      try {
+        wavPath = path.join(this.env.TEMP_DIR, `${Date.now()}-voice-${randomUUID()}.wav`);
+        await fs.mkdir(this.env.TEMP_DIR, { recursive: true });
+        await execFileAsync("afconvert", ["-f", "WAVE", "-d", "LEI16@24000", audioPath, wavPath]);
+      } catch {
+        wavPath = audioPath;
+      }
+    }
+
+    // Calculate duration from WAV file: 24kHz, 16-bit, mono = 48000 bytes/sec
+    let durationMs = 8_000; // default 8s
     try {
-      const stat = await fs.stat(audioPath);
-      // Rough estimate: OGG ~12KB/s, WAV ~176KB/s, MP3 ~16KB/s
-      const sizeKB = stat.size / 1024;
-      const ext = audioPath.split(".").pop()?.toLowerCase() ?? "ogg";
-      const bytesPerSec = ext === "wav" ? 176 : ext === "mp3" ? 16 : 12;
-      durationMs = Math.max(3_000, Math.min(120_000, Math.round((sizeKB / bytesPerSec) * 1000) + 2_000));
+      const stat = await fs.stat(wavPath);
+      const wavHeaderBytes = 44;
+      const dataBytes = stat.size - wavHeaderBytes;
+      const bytesPerSec = 24000 * 2; // 24kHz 16-bit mono
+      const secs = dataBytes / bytesPerSec;
+      durationMs = Math.max(3_000, Math.min(120_000, Math.round(secs * 1000) + 1_500));
+      this.logger.info({ durationMs, fileSize: stat.size, secs: Math.round(secs) }, "Audio duration calculated from WAV");
     } catch { /* use default */ }
 
-    await this.relaunchBrowser(audioPath);
+    await this.relaunchBrowser(wavPath);
 
     if (!this.page) {
       throw new Error("browser_failure: page not initialized");
