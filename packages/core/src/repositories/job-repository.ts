@@ -52,28 +52,30 @@ export function claimDueJobForTypes(workerId: string, allowedTypes: JobType[] | 
   const typeFilter =
     allowedTypes && allowedTypes.length > 0 ? `AND type IN (${allowedTypes.map(() => "?").join(", ")})` : "";
 
+  // Use IMMEDIATE transaction to prevent double-claim (Arch fix #5)
   return withSqliteBusyRetry(() => {
-    const row = db
-      .prepare(
-        `
-          WITH next_job AS (
-            SELECT id
-            FROM jobs
-            WHERE status = 'pending'
-              AND datetime(scheduled_at) <= datetime('now')
-              ${typeFilter}
-            ORDER BY datetime(scheduled_at) ASC, created_at ASC
-            LIMIT 1
-          )
-          UPDATE jobs
-          SET status = 'processing', locked_at = ?, locked_by = ?, attempts = attempts + 1, updated_at = ?
-          WHERE id = (SELECT id FROM next_job)
-          RETURNING *
-        `
-      )
-      .get(...(allowedTypes ?? []), timestamp, workerId, timestamp) as Record<string, unknown> | undefined;
-
-    return row ?? null;
+    const claim = db.transaction(() => {
+      return db
+        .prepare(
+          `
+            WITH next_job AS (
+              SELECT id
+              FROM jobs
+              WHERE status = 'pending'
+                AND datetime(scheduled_at) <= datetime('now')
+                ${typeFilter}
+              ORDER BY datetime(scheduled_at) ASC, created_at ASC
+              LIMIT 1
+            )
+            UPDATE jobs
+            SET status = 'processing', locked_at = ?, locked_by = ?, attempts = attempts + 1, updated_at = ?
+            WHERE id = (SELECT id FROM next_job)
+            RETURNING *
+          `
+        )
+        .get(...(allowedTypes ?? []), timestamp, workerId, timestamp) as Record<string, unknown> | undefined;
+    });
+    return claim.immediate() ?? null;
   });
 }
 
@@ -91,7 +93,7 @@ export function completeJob(jobId: string) {
   });
 }
 
-export function failJob(jobId: string, errorMessage: string) {
+export function failJob(jobId: string, errorMessage: string, correlationId?: string) {
   const db = getDb();
   const timestamp = nowIso();
   withSqliteBusyRetry(() => {
@@ -127,7 +129,7 @@ export function failJob(jobId: string, errorMessage: string) {
   });
 }
 
-export function failJobPermanently(jobId: string, errorMessage: string) {
+export function failJobPermanently(jobId: string, errorMessage: string, correlationId?: string) {
   const db = getDb();
   const timestamp = nowIso();
   withSqliteBusyRetry(() => {

@@ -29,4 +29,5 @@ export * from "./utils/logger.js";
 export * from "./utils/phone.js";
 export * from "./utils/cpf.js";
 export * from "./utils/channels.js";
+export * from "./utils/json.js";
 export * from "./utils/template-vars.js";

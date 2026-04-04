@@ -805,5 +805,16 @@ export const migrations = [
       ALTER TABLE chatbots ADD COLUMN fallback_action TEXT NOT NULL DEFAULT 'silence_and_flag';
       ALTER TABLE chatbots ADD COLUMN fallback_tag TEXT NOT NULL DEFAULT 'chatbot_nao_entendeu';
     `
+  },
+  {
+    id: "0010_performance_indices",
+    sql: `
+      CREATE INDEX IF NOT EXISTS idx_jobs_type_status_scheduled
+        ON jobs(type, status, scheduled_at);
+      CREATE INDEX IF NOT EXISTS idx_campaign_recipients_campaign_status_step
+        ON campaign_recipients(campaign_id, status, step_index);
+      CREATE INDEX IF NOT EXISTS idx_contacts_status_last_interaction
+        ON contacts(status, last_interaction_at);
+    `
   }
 ] as const;

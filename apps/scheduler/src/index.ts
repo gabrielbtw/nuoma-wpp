@@ -144,16 +144,33 @@ async function runCycle() {
   }
 }
 
+let cycleInterval: ReturnType<typeof setInterval> | null = null;
+
 async function start() {
   getDb();
-  await publishSchedulerState({
-    startedAt: new Date().toISOString()
-  });
+  await publishSchedulerState({ startedAt: new Date().toISOString() });
   await runCycle();
-  setInterval(() => {
-    void runCycle();
-  }, env.SCHEDULER_INTERVAL_SEC * 1000);
+  cycleInterval = setInterval(() => { void runCycle(); }, env.SCHEDULER_INTERVAL_SEC * 1000);
 }
+
+async function shutdown(signal: string) {
+  logger.info({ signal }, "Scheduler shutting down gracefully");
+  if (cycleInterval) clearInterval(cycleInterval);
+
+  // Wait for in-flight cycle to complete (max 30s)
+  const maxWait = 30_000;
+  const start = Date.now();
+  while (cycleInFlight && Date.now() - start < maxWait) {
+    await new Promise((r) => setTimeout(r, 500));
+  }
+
+  await publishSchedulerState({ stoppedAt: new Date().toISOString(), signal });
+  recordSystemEvent("scheduler", "info", `Scheduler stopped (${signal})`);
+  process.exit(0);
+}
+
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));
 
 start().catch((error) => {
   logger.error({ err: error }, "Failed to start scheduler");
