@@ -631,6 +631,27 @@ export function addMessage(input: {
       lastOutgoingAt: input.direction === "outgoing" ? input.sentAt ?? timestamp : null,
       lastIncomingAt: input.direction === "incoming" ? input.sentAt ?? timestamp : null
     });
+
+    // Auto-detect phone number from incoming messages and update contact
+    if (input.direction === "incoming" && input.body) {
+      const phoneMatch = input.body.match(/(?:\+?55\s?)?(?:\(?0?\d{2}\)?\s?)?\d{4,5}[-.\s]?\d{4}/);
+      if (phoneMatch) {
+        const rawPhone = phoneMatch[0].replace(/[\s\-.\(\)]/g, "").replace(/^0+/, "").replace(/^55/, "");
+        if (rawPhone.length >= 10 && rawPhone.length <= 11) {
+          const contact = getContactById(input.contactId);
+          if (contact && (!contact.phone || contact.phone.trim() === "")) {
+            db.prepare("UPDATE contacts SET phone = ?, updated_at = ? WHERE id = ?").run(rawPhone, timestamp, input.contactId);
+            recordContactHistory(input.contactId, {
+              field: "phone",
+              label: "Telefone (auto-detectado)",
+              previousValue: null,
+              nextValue: rawPhone,
+              source: "auto-detect-from-message"
+            });
+          }
+        }
+      }
+    }
   }
 
   recordAuditLog({

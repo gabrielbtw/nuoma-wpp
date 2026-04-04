@@ -6,10 +6,37 @@
  * scans messages for Brazilian phone numbers, and patches matching
  * contacts in the Nuoma web-app.
  *
- * Usage:  npx tsx scripts/extract-phones-from-ig.ts
+ * Usage:  npx tsx scripts/extract-phones-from-ig.ts [--max-threads N] [--exclude-phone PHONE]
+ *
+ * Options:
+ *   --max-threads N       Maximum number of threads to fetch (default: all)
+ *   --exclude-phone NUM   Phone number to ignore (e.g. business owner). Repeatable.
  */
 
 import { chromium } from "playwright";
+
+// ---------------------------------------------------------------------------
+// CLI args
+// ---------------------------------------------------------------------------
+function parseArgs(): { maxThreads: number; excludePhones: Set<string> } {
+  const args = process.argv.slice(2);
+  let maxThreads = Infinity;
+  const excludePhones = new Set<string>();
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--max-threads" && args[i + 1]) {
+      maxThreads = parseInt(args[i + 1], 10);
+      if (isNaN(maxThreads) || maxThreads < 1) maxThreads = Infinity;
+      i++;
+    } else if (args[i] === "--exclude-phone" && args[i + 1]) {
+      excludePhones.add(args[i + 1].replace(/\D/g, ""));
+      i++;
+    }
+  }
+  return { maxThreads, excludePhones };
+}
+
+const CLI = parseArgs();
 
 // ---------------------------------------------------------------------------
 // Config
@@ -115,7 +142,7 @@ interface NuomaContact {
 }
 
 interface NuomaContactsPage {
-  data: NuomaContact[];
+  items: NuomaContact[];
   total: number;
   page: number;
   pageSize: number;
@@ -131,14 +158,14 @@ async function searchContact(username: string): Promise<NuomaContact | null> {
     return null;
   }
   const result = (await resp.json()) as NuomaContactsPage;
-  if (result.data.length === 0) return null;
+  if (!result.items || result.items.length === 0) return null;
 
   // Find exact match on instagram field
-  const match = result.data.find(
+  const match = result.items.find(
     (c) =>
       c.instagram?.replace(/^@/, "").toLowerCase() === username.toLowerCase()
   );
-  return match ?? result.data[0];
+  return match ?? result.items[0];
 }
 
 async function updateContactPhone(
@@ -152,7 +179,12 @@ async function updateContactPhone(
     body: JSON.stringify({ phone }),
   });
   if (!resp.ok) {
-    console.error(`  [NUOMA] Failed to update contact ${contactId}: ${resp.status}`);
+    let detail = "";
+    try {
+      const body = await resp.json() as { message?: string };
+      detail = body.message ?? "";
+    } catch { /* ignore */ }
+    console.error(`  [NUOMA] Failed to update contact ${contactId}: ${resp.status} ${detail}`);
     return false;
   }
   return true;
@@ -191,12 +223,13 @@ async function main() {
   // ---------------------------------------------------------------------------
   // Step 1: Fetch all threads from inbox (with pagination)
   // ---------------------------------------------------------------------------
-  console.log("\n[*] Fetching inbox threads...");
+  const maxLabel = CLI.maxThreads === Infinity ? "all" : String(CLI.maxThreads);
+  console.log(`\n[*] Fetching inbox threads (max: ${maxLabel})...`);
   const allThreads: IgThread[] = [];
   let hasOlder = true;
   let cursor: string | null = null;
 
-  while (hasOlder) {
+  while (hasOlder && allThreads.length < CLI.maxThreads) {
     let path = `/api/v1/direct_v2/inbox/?limit=${THREADS_LIMIT}`;
     if (cursor) {
       path += `&cursor=${cursor}`;
@@ -215,6 +248,11 @@ async function main() {
     }
 
     await sleep(RATE_LIMIT_MS);
+  }
+
+  // Trim to max if we overshot
+  if (allThreads.length > CLI.maxThreads) {
+    allThreads.length = CLI.maxThreads;
   }
 
   console.log(`\n[*] Total threads found: ${allThreads.length}`);
@@ -268,9 +306,18 @@ async function main() {
       continue;
     }
 
-    const phones = Array.from(phonesInThread);
-    phonesFound += phones.length;
-    console.log(`  Phone numbers found: ${phones.join(", ")}`);
+    // Filter out excluded phones (e.g. business owner's number)
+    const allPhones = Array.from(phonesInThread);
+    const filteredPhones = allPhones.filter((p) => !CLI.excludePhones.has(p));
+    phonesFound += allPhones.length;
+    console.log(`  Phone numbers found: ${allPhones.join(", ")}`);
+
+    if (filteredPhones.length === 0) {
+      console.log("  All phones matched exclude list. Skipping.");
+      continue;
+    }
+
+    const phones = filteredPhones;
 
     // Search for the contact in Nuoma
     const contact = await searchContact(username);
