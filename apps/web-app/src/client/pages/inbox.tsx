@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 
 // ----- Types -----
 
-const INBOX_PAGE_SIZE = 40;
+const INBOX_PAGE_SIZE = 20;
 
 type UnifiedInboxEntry = {
   contactId: string;
@@ -441,7 +441,7 @@ export function InboxPage() {
         description="Todas as conversas de WhatsApp e Instagram em uma timeline unica por contato."
       />
 
-      <div className="grid flex-1 gap-3 overflow-hidden xl:grid-cols-[340px_1fr_280px]">
+      <div className="grid flex-1 gap-2 overflow-hidden xl:grid-cols-[300px_1fr_260px]" style={{ height: "calc(100vh - 7rem)" }}>
         {/* Contact list (left panel) */}
         <div className="flex flex-col gap-3 overflow-hidden">
           <div className="flex flex-col gap-2">

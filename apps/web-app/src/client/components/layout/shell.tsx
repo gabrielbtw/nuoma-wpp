@@ -111,21 +111,17 @@ export function AppShell() {
           <div className="h-6 w-6 rounded-md bg-n-surface-2" />
         </div>
 
-        {/* Desktop Header */}
-        <header className="hidden items-center justify-between border-b border-n-border bg-n-surface px-6 py-2.5 lg:flex">
-          <div className="flex items-center gap-3">
-            <span className="text-caption text-n-text-muted">{currentSection.label}</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className={cn("hidden min-w-[360px] xl:block", !showHeaderSessionStrip && "xl:hidden")}>
-              <ChannelSessionStrip compact />
-            </div>
+        {/* Desktop Header - minimal */}
+        <header className="hidden items-center justify-between border-b border-n-border bg-n-surface px-4 py-1 lg:flex">
+          <span className="text-caption text-n-text-muted">{currentSection.label}</span>
+          <div className={cn("hidden xl:flex items-center gap-2", !showHeaderSessionStrip && "xl:hidden")}>
+            <ChannelSessionStrip compact />
           </div>
         </header>
 
         {/* Page Content */}
         <div className="flex-1 overflow-y-auto custom-scrollbar">
-          <div className="px-4 py-4 lg:px-6 lg:py-5">
+          <div className="px-3 py-3 lg:px-4 lg:py-3">
             <Outlet />
           </div>
         </div>

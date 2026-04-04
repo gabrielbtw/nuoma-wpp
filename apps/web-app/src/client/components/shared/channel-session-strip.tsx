@@ -136,20 +136,16 @@ function SessionChip({ session, compact = false }: { session: SessionViewModel; 
   const Icon = session.state === "loading" ? LoaderCircle : session.icon;
 
   return (
-    <div className={cn("flex items-center justify-between gap-3 rounded-[1.75rem] border border-white/6 bg-n-surface-2", compact ? "px-4 py-3" : "px-5 py-4")}>
-      <div className="flex min-w-0 items-center gap-3">
-        <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border", toneMap.iconBox)}>
-          <Icon className={cn("h-5 w-5", session.state === "loading" && "animate-spin")} />
+    <div className={cn("flex items-center gap-2 rounded-lg border border-n-border bg-n-surface-2", compact ? "px-2 py-1" : "px-3 py-2")}>
+      <div className="flex min-w-0 items-center gap-2">
+        <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-md border", toneMap.iconBox)}>
+          <Icon className={cn("h-3 w-3", session.state === "loading" && "animate-spin")} />
         </div>
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{session.label}</p>
-          <p className={cn("truncate text-sm font-semibold tracking-tight", toneMap.text)}>{session.statusText}</p>
-          <p className="truncate text-xs text-slate-500">{session.detail}</p>
+          <p className={cn("truncate text-label font-semibold", toneMap.text)}>{session.statusText}</p>
         </div>
       </div>
-      <Badge tone={toneMap.badge} className="shrink-0 rounded-full px-3 py-0.5 text-[9px] font-black uppercase tracking-widest">
-        {session.statusText}
-      </Badge>
+      <span className={cn("signal-dot shrink-0", session.state === "ready" ? "active" : session.state === "attention" ? "warning" : session.state === "offline" ? "error" : "idle")} />
     </div>
   );
 }
