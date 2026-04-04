@@ -54,8 +54,8 @@ function formatDate(value?: string | null) {
 }
 
 function ChannelIcon({ channel, size = 14 }: { channel: string; size?: number }) {
-  if (channel === "instagram") return <Instagram style={{ width: size, height: size }} className="text-cmm-orange" />;
-  return <MessageCircleMore style={{ width: size, height: size }} className="text-cmm-emerald" />;
+  if (channel === "instagram") return <Instagram style={{ width: size, height: size }} className="text-n-ig" />;
+  return <MessageCircleMore style={{ width: size, height: size }} className="text-n-wa" />;
 }
 
 // ----- Component -----
@@ -124,35 +124,35 @@ export function InboxPage() {
   const messages = messagesQuery.data ?? [];
 
   return (
-    <div className="flex h-full flex-col gap-6 overflow-hidden animate-in fade-in duration-700">
+    <div className="flex h-full flex-col gap-4 overflow-hidden animate-in fade-in duration-500">
       <PageHeader
         eyebrow="Atendimento Omnichannel"
         title="Inbox Unificada"
         description="Todas as conversas de WhatsApp e Instagram em uma timeline unica por contato."
       />
 
-      <div className="grid flex-1 gap-6 overflow-hidden xl:grid-cols-[380px_1fr_320px]">
+      <div className="grid flex-1 gap-3 overflow-hidden xl:grid-cols-[340px_1fr_280px]">
         {/* Contact list (left panel) */}
-        <div className="flex flex-col gap-4 overflow-hidden">
-          <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 overflow-hidden">
+          <div className="flex flex-col gap-2">
             <div className="relative group">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 group-focus-within:text-cmm-blue transition-colors" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-n-text-dim group-focus-within:text-n-blue transition-fast" />
               <Input
-                className="h-11 rounded-2xl border-white/5 bg-white/[0.02] pl-11 pr-4 font-bold text-white tracking-tight focus:border-cmm-blue/30"
+                className="h-9 rounded-lg border-n-border bg-n-surface pl-9 pr-3 text-body text-n-text focus:border-n-blue/40 transition-fast"
                 placeholder="Buscar contato..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               {[
                 { value: "all", label: "Todos", icon: Globe2 },
                 { value: "whatsapp", label: "WA", icon: MessageCircleMore },
                 { value: "instagram", label: "IG", icon: Instagram }
               ].map((opt) => (
                 <button key={opt.value} onClick={() => setChannel(opt.value)}
-                  className={cn("flex-1 flex items-center justify-center gap-1.5 h-9 rounded-xl border text-[10px] font-bold uppercase tracking-widest transition-all",
-                    channel === opt.value ? "border-cmm-blue/30 bg-cmm-blue/10 text-cmm-blue" : "border-white/5 bg-white/[0.02] text-slate-500 hover:bg-white/[0.04]")}>
+                  className={cn("flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg border text-micro uppercase transition-fast",
+                    channel === opt.value ? "border-n-blue/30 bg-n-blue/10 text-n-blue" : "border-n-border bg-n-surface text-n-text-dim hover:bg-n-surface-2")}>
                   <opt.icon className="h-3.5 w-3.5" />
                   {opt.label}
                 </button>
@@ -160,45 +160,45 @@ export function InboxPage() {
             </div>
           </div>
 
-          <div className="glass-card flex-1 rounded-[2rem] border-white/5 bg-white/[0.01] overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Contatos</h3>
-              <span className="text-[9px] font-bold text-slate-600">{entries.length}</span>
+          <div className="flex-1 rounded-xl border border-n-border bg-n-surface overflow-hidden flex flex-col">
+            <div className="px-3 py-2.5 border-b border-n-border flex items-center justify-between">
+              <h3 className="text-micro uppercase text-n-text-dim">Contatos</h3>
+              <span className="text-micro text-n-text-dim">{entries.length}</span>
             </div>
-            <div className="flex-1 overflow-y-auto space-y-1 p-3 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto space-y-0.5 p-1.5 custom-scrollbar">
               {entries.map((entry) => {
                 const isSelected = selectedEntry?.contactId === entry.contactId;
                 return (
                   <button key={entry.contactId} onClick={() => setSelectedContactId(entry.contactId)}
-                    className={cn("group relative flex w-full items-center gap-4 rounded-2xl p-4 text-left transition-all duration-300",
-                      isSelected ? "bg-cmm-blue text-white shadow-xl shadow-blue-500/20" : "hover:bg-white/[0.04] opacity-70 hover:opacity-100")}>
-                    <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-lg font-black border transition-colors",
-                      isSelected ? "bg-white/20 border-white/10" : "bg-black/40 border-white/5 text-slate-500")}>
+                    className={cn("group relative flex w-full items-center gap-3 rounded-lg p-2.5 text-left transition-fast",
+                      isSelected ? "bg-n-blue text-white" : "hover:bg-n-surface-2 opacity-70 hover:opacity-100")}>
+                    <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-body font-semibold border transition-fast",
+                      isSelected ? "bg-white/20 border-white/10" : "bg-n-bg border-n-border text-n-text-dim")}>
                       {(entry.contactName || "?").charAt(0)}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <p className={cn("truncate font-bold text-sm tracking-tight", isSelected ? "text-white" : "text-slate-200")}>
+                        <p className={cn("truncate text-h4", isSelected ? "text-white" : "text-n-text")}>
                           {entry.contactName || entry.contactPhone || entry.contactInstagram || "Contato"}
                         </p>
-                        <span className={cn("text-[9px] font-bold shrink-0", isSelected ? "text-blue-200" : "text-slate-600")}>
+                        <span className={cn("text-micro shrink-0", isSelected ? "text-blue-200" : "text-n-text-dim")}>
                           {formatTime(entry.lastMessageAt)}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-1.5 mt-0.5">
                         {/* Channel indicators */}
                         <div className="flex gap-1">
                           {entry.channels.map((ch) => (
                             <ChannelIcon key={ch} channel={ch} size={11} />
                           ))}
                         </div>
-                        <p className={cn("truncate text-xs font-medium flex-1", isSelected ? "text-blue-100/70" : "text-slate-500")}>
+                        <p className={cn("truncate text-caption flex-1", isSelected ? "text-blue-100/70" : "text-n-text-muted")}>
                           {entry.lastMessagePreview || "..."}
                         </p>
                       </div>
                     </div>
                     {entry.totalUnread > 0 && !isSelected && (
-                      <div className="flex h-5 min-w-5 items-center justify-center rounded-full bg-cmm-blue px-1.5 text-[9px] font-black text-white">
+                      <div className="flex h-5 min-w-5 items-center justify-center rounded-full bg-n-blue px-1.5 text-micro font-bold text-white">
                         {entry.totalUnread}
                       </div>
                     )}
@@ -206,9 +206,9 @@ export function InboxPage() {
                 );
               })}
               {entries.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-16 text-center text-slate-600">
-                  <BookOpen className="h-8 w-8 mb-3 opacity-30" />
-                  <p className="text-xs font-bold">Nenhuma conversa encontrada</p>
+                <div className="flex flex-col items-center justify-center py-12 text-center text-n-text-dim">
+                  <BookOpen className="h-7 w-7 mb-2 opacity-30" />
+                  <p className="text-caption">Nenhuma conversa encontrada</p>
                 </div>
               )}
             </div>
@@ -216,30 +216,26 @@ export function InboxPage() {
         </div>
 
         {/* Chat area (center) - Mixed timeline */}
-        <div className="glass-card flex flex-col rounded-[2.5rem] border-white/5 bg-white/[0.01] overflow-hidden relative">
+        <div className="flex flex-col rounded-xl border border-n-border bg-n-surface overflow-hidden relative">
           {/* Header */}
-          <header className="px-8 py-5 border-b border-white/5 flex items-center justify-between backdrop-blur-md bg-white/[0.01]">
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-cmm-blue to-cmm-purple p-0.5">
-                  <div className="h-full w-full rounded-[0.6rem] bg-slate-950 flex items-center justify-center font-bold text-white">
-                    {(selectedEntry?.contactName || "?").charAt(0)}
-                  </div>
-                </div>
+          <header className="px-4 py-3 border-b border-n-border flex items-center justify-between bg-n-surface">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-n-surface-2 border border-n-border text-h4 text-n-text">
+                {(selectedEntry?.contactName || "?").charAt(0)}
               </div>
               <div>
-                <h3 className="font-display text-lg font-bold text-white tracking-tight">
+                <h3 className="text-h4 text-n-text">
                   {selectedEntry?.contactName || "Selecione um contato"}
                 </h3>
                 <div className="flex items-center gap-2 mt-0.5">
                   {selectedEntry?.channels.map((ch) => (
-                    <span key={ch} className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-slate-500">
+                    <span key={ch} className="flex items-center gap-1 text-micro uppercase text-n-text-dim">
                       <ChannelIcon channel={ch} size={10} />
                       {ch === "whatsapp" ? "WA" : "IG"}
                     </span>
                   ))}
                   {selectedEntry && (
-                    <Badge tone="default" className="text-[8px] px-2 py-0">{selectedEntry.conversationCount} threads</Badge>
+                    <Badge tone="default" className="text-micro px-1.5 py-0">{selectedEntry.conversationCount} threads</Badge>
                   )}
                 </div>
               </div>
@@ -247,27 +243,27 @@ export function InboxPage() {
           </header>
 
           {/* Messages timeline */}
-          <div className="flex-1 overflow-y-auto px-8 py-8 space-y-4 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 custom-scrollbar">
             {messages.map((msg) => (
-              <div key={msg.id} className={cn("flex flex-col gap-1", msg.direction === "outgoing" ? "items-end" : "items-start")}>
+              <div key={msg.id} className={cn("flex flex-col gap-0.5", msg.direction === "outgoing" ? "items-end" : "items-start")}>
                 {/* Channel indicator */}
-                <div className="flex items-center gap-1.5 px-2">
+                <div className="flex items-center gap-1 px-1">
                   <ChannelIcon channel={msg.channel} size={10} />
-                  <span className="text-[8px] font-bold uppercase tracking-widest text-slate-600">
+                  <span className="text-micro uppercase text-n-text-dim">
                     {msg.channel === "instagram" ? "IG" : "WA"}
                   </span>
                 </div>
                 {/* Message bubble */}
                 <div className={cn(
-                  "max-w-[75%] px-5 py-3 transition-all",
+                  "max-w-[75%] px-3 py-2 transition-fast",
                   msg.direction === "outgoing"
-                    ? "bg-gradient-to-br from-cmm-blue to-cmm-blue/80 text-white rounded-2xl rounded-br-md shadow-lg shadow-blue-500/10"
+                    ? "bg-n-blue text-white rounded-xl rounded-br-sm"
                     : msg.direction === "system"
-                      ? "bg-white/[0.02] text-slate-500 rounded-xl text-center mx-auto italic text-xs"
-                      : "bg-white/[0.04] text-slate-200 rounded-2xl rounded-bl-md border border-white/5"
+                      ? "bg-n-surface-2 text-n-text-muted rounded-lg text-center mx-auto italic text-caption"
+                      : "bg-n-surface-2 text-n-text rounded-xl rounded-bl-sm border border-n-border"
                 )}>
-                  <p className="text-sm leading-relaxed">{msg.body}</p>
-                  <div className={cn("mt-1.5 flex items-center gap-2 text-[8px] font-bold uppercase tracking-widest opacity-50",
+                  <p className="text-body leading-relaxed">{msg.body}</p>
+                  <div className={cn("mt-1 flex items-center gap-1.5 text-micro opacity-50",
                     msg.direction === "outgoing" ? "flex-row-reverse" : "")}>
                     <span>{formatTime(msg.sentAt || msg.createdAt)}</span>
                     {msg.direction === "outgoing" && <CheckCheck className="h-3 w-3" />}
@@ -276,30 +272,30 @@ export function InboxPage() {
               </div>
             ))}
             {messages.length === 0 && selectedEntry && (
-              <div className="flex flex-col items-center justify-center py-20 text-slate-600">
-                <MessageCircleMore className="h-10 w-10 mb-3 opacity-20" />
-                <p className="text-xs font-bold">Nenhuma mensagem encontrada</p>
+              <div className="flex flex-col items-center justify-center py-16 text-n-text-dim">
+                <MessageCircleMore className="h-8 w-8 mb-2 opacity-20" />
+                <p className="text-caption">Nenhuma mensagem encontrada</p>
               </div>
             )}
           </div>
 
           {/* Composer with channel selector */}
-          <footer className="p-6 border-t border-white/5 bg-black/30 backdrop-blur-xl">
-            <div className="flex items-end gap-3">
+          <footer className="p-3 border-t border-n-border bg-n-bg">
+            <div className="flex items-end gap-2">
               {/* Channel toggle */}
               <div className="flex flex-col gap-1">
                 {selectedEntry?.channels.includes("whatsapp") && (
                   <button onClick={() => setSendChannel("whatsapp")}
-                    className={cn("h-8 w-8 rounded-lg flex items-center justify-center border transition-all",
-                      sendChannel === "whatsapp" ? "border-cmm-emerald/40 bg-cmm-emerald/10" : "border-white/5 bg-white/[0.02] hover:bg-white/[0.04]")}>
-                    <MessageCircleMore className={cn("h-3.5 w-3.5", sendChannel === "whatsapp" ? "text-cmm-emerald" : "text-slate-500")} />
+                    className={cn("h-8 w-8 rounded-lg flex items-center justify-center border transition-fast",
+                      sendChannel === "whatsapp" ? "border-n-wa/40 bg-n-wa/10" : "border-n-border bg-n-surface hover:bg-n-surface-2")}>
+                    <MessageCircleMore className={cn("h-3.5 w-3.5", sendChannel === "whatsapp" ? "text-n-wa" : "text-n-text-dim")} />
                   </button>
                 )}
                 {selectedEntry?.channels.includes("instagram") && (
                   <button onClick={() => setSendChannel("instagram")}
-                    className={cn("h-8 w-8 rounded-lg flex items-center justify-center border transition-all",
-                      sendChannel === "instagram" ? "border-cmm-orange/40 bg-cmm-orange/10" : "border-white/5 bg-white/[0.02] hover:bg-white/[0.04]")}>
-                    <Instagram className={cn("h-3.5 w-3.5", sendChannel === "instagram" ? "text-cmm-orange" : "text-slate-500")} />
+                    className={cn("h-8 w-8 rounded-lg flex items-center justify-center border transition-fast",
+                      sendChannel === "instagram" ? "border-n-ig/40 bg-n-ig/10" : "border-n-border bg-n-surface hover:bg-n-surface-2")}>
+                    <Instagram className={cn("h-3.5 w-3.5", sendChannel === "instagram" ? "text-n-ig" : "text-n-text-dim")} />
                   </button>
                 )}
               </div>
@@ -307,7 +303,7 @@ export function InboxPage() {
               <div className="flex-1">
                 <Textarea
                   placeholder={`Enviar via ${sendChannel === "whatsapp" ? "WhatsApp" : "Instagram"}...`}
-                  className="min-h-[56px] max-h-[100px] resize-none rounded-2xl bg-white/[0.02] border-white/5 px-5 py-3 text-sm focus:border-cmm-blue/30"
+                  className="min-h-[48px] max-h-[100px] resize-none rounded-lg bg-n-surface border-n-border px-3 py-2 text-body text-n-text focus:border-n-blue/40 transition-fast"
                   value={composer}
                   onChange={(e) => setComposer(e.target.value)}
                   onKeyDown={(e) => {
@@ -322,66 +318,66 @@ export function InboxPage() {
               <button
                 disabled={!composer.trim() || !selectedEntry || sendMutation.isPending}
                 onClick={() => selectedEntry && sendMutation.mutate({ contactId: selectedEntry.contactId, text: composer.trim(), ch: sendChannel })}
-                className="h-14 w-14 rounded-2xl bg-cmm-blue text-white flex items-center justify-center shadow-xl disabled:opacity-20 transition-all active:scale-90">
-                <SendHorizonal className="h-5 w-5" />
+                className="h-10 w-10 rounded-lg bg-n-blue text-white flex items-center justify-center disabled:opacity-20 transition-fast active:scale-95">
+                <SendHorizonal className="h-4 w-4" />
               </button>
             </div>
           </footer>
         </div>
 
         {/* Context sidebar (right) */}
-        <div className="hidden xl:flex flex-col gap-6 overflow-y-auto custom-scrollbar pr-2">
-          <div className="glass-card rounded-[2rem] border-white/5 bg-white/[0.01] p-8 space-y-6 flex flex-col items-center">
-            <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 border border-white/10 flex items-center justify-center">
-              <User className="h-10 w-10 text-slate-600" />
+        <div className="hidden xl:flex flex-col gap-3 overflow-y-auto custom-scrollbar pr-1">
+          <div className="rounded-xl border border-n-border bg-n-surface p-4 space-y-4 flex flex-col items-center">
+            <div className="h-14 w-14 rounded-xl bg-n-surface-2 border border-n-border flex items-center justify-center">
+              <User className="h-7 w-7 text-n-text-dim" />
             </div>
 
-            <div className="text-center space-y-2">
-              <h4 className="font-display text-xl font-bold text-white tracking-tight">
+            <div className="text-center space-y-1.5">
+              <h4 className="text-h3 text-n-text">
                 {selectedEntry?.contactName || "Sem contato"}
               </h4>
-              <div className="flex flex-wrap justify-center gap-1.5">
+              <div className="flex flex-wrap justify-center gap-1">
                 {selectedEntry?.channels.map((ch) => (
-                  <Badge key={ch} tone={ch === "whatsapp" ? "success" : "warning"} className="text-[8px] px-2 py-0.5">
+                  <Badge key={ch} tone={ch === "whatsapp" ? "success" : "warning"} className="text-micro px-1.5 py-0.5">
                     {ch === "whatsapp" ? "WhatsApp" : "Instagram"}
                   </Badge>
                 ))}
               </div>
             </div>
 
-            <div className="w-full space-y-3 pt-4 border-t border-white/5">
+            <div className="w-full space-y-2 pt-3 border-t border-n-border">
               {selectedEntry?.contactPhone && (
-                <div className="rounded-xl bg-black/20 p-4 space-y-1">
-                  <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest text-slate-600">
+                <div className="rounded-lg bg-n-bg border border-n-border-subtle p-3 space-y-0.5">
+                  <div className="flex items-center gap-1.5 text-micro uppercase text-n-text-dim">
                     <Phone className="h-3 w-3" /> WhatsApp
                   </div>
-                  <p className="text-sm font-bold text-white">{selectedEntry.contactPhone}</p>
+                  <p className="text-body font-medium text-n-text">{selectedEntry.contactPhone}</p>
                 </div>
               )}
               {selectedEntry?.contactInstagram && (
-                <div className="rounded-xl bg-black/20 p-4 space-y-1">
-                  <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest text-slate-600">
+                <div className="rounded-lg bg-n-bg border border-n-border-subtle p-3 space-y-0.5">
+                  <div className="flex items-center gap-1.5 text-micro uppercase text-n-text-dim">
                     <Instagram className="h-3 w-3" /> Instagram
                   </div>
-                  <p className="text-sm font-bold text-white">{selectedEntry.contactInstagram}</p>
+                  <p className="text-body font-medium text-n-text">{selectedEntry.contactInstagram}</p>
                 </div>
               )}
-              <div className="rounded-xl bg-black/20 p-4 space-y-1">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600">Ultima atividade</p>
-                <p className="text-xs font-bold text-slate-400">{formatDate(selectedEntry?.lastMessageAt)}</p>
+              <div className="rounded-lg bg-n-bg border border-n-border-subtle p-3 space-y-0.5">
+                <p className="text-micro uppercase text-n-text-dim">Ultima atividade</p>
+                <p className="text-caption text-n-text-muted">{formatDate(selectedEntry?.lastMessageAt)}</p>
               </div>
-              <div className="rounded-xl bg-black/20 p-4 space-y-1">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600">Mensagens carregadas</p>
-                <p className="text-xs font-bold text-slate-400">{messages.length}</p>
+              <div className="rounded-lg bg-n-bg border border-n-border-subtle p-3 space-y-0.5">
+                <p className="text-micro uppercase text-n-text-dim">Mensagens carregadas</p>
+                <p className="text-caption text-n-text-muted">{messages.length}</p>
               </div>
             </div>
           </div>
 
           {selectedEntry?.contactId && (
             <Link to={`/contacts/${selectedEntry.contactId}`}>
-              <Button className="w-full h-12 rounded-2xl bg-white/[0.02] border-white/5 text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:bg-cmm-blue hover:text-white transition-all group">
+              <Button className="w-full h-9 rounded-lg bg-n-surface border border-n-border text-label text-n-text-muted hover:bg-n-blue hover:text-white hover:border-n-blue transition-fast group">
                 Ver perfil completo
-                <ArrowUpRight className="ml-2 h-3.5 w-3.5 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                <ArrowUpRight className="ml-1.5 h-3.5 w-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-fast" />
               </Button>
             </Link>
           )}
