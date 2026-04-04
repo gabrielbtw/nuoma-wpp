@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, Zap } from "lucide-react";
 import { AutomationEditor, type AutomationDraft } from "@/components/automations/editor";
 import { ErrorPanel } from "@/components/shared/error-panel";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -13,10 +14,10 @@ import { cn } from "@/lib/utils";
 function buildAutomationTemplate(category: AutomationDraft["category"] = "follow-up"): AutomationDraft {
   if (category === "instagram-incoming") {
     return {
-      name: "Resposta automática Instagram",
+      name: "Resposta automatica Instagram",
       category,
       enabled: true,
-      description: "Responde no Direct quando entra uma nova mensagem no Instagram, usando o thread já sincronizado.",
+      description: "Responde no Direct quando entra uma nova mensagem no Instagram, usando o thread ja sincronizado.",
       triggerTags: [],
       excludeTags: ["nao_insistir"],
       requiredStatus: null,
@@ -33,7 +34,7 @@ function buildAutomationTemplate(category: AutomationDraft["category"] = "follow
       actions: [
         {
           type: "send-text",
-          content: "Oi! Recebi sua mensagem aqui no Instagram e já vou seguir com seu atendimento.",
+          content: "Oi! Recebi sua mensagem aqui no Instagram e ja vou seguir com seu atendimento.",
           mediaPath: null,
           waitSeconds: null,
           tagName: null,
@@ -65,7 +66,7 @@ function buildAutomationTemplate(category: AutomationDraft["category"] = "follow
     actions: [
       {
         type: "send-text",
-        content: "Oi! Passando para saber se você quer retomar o atendimento.",
+        content: "Oi! Passando para saber se voce quer retomar o atendimento.",
         mediaPath: null,
         waitSeconds: null,
         tagName: null,
@@ -112,62 +113,71 @@ export function AutomationsPage() {
     }
   });
 
+  const automations = automationsQuery.data ?? [];
+
   return (
-    <div className="space-y-8 pb-20 animate-in fade-in duration-700">
+    <div className="space-y-6">
       <PageHeader
         eyebrow="Regras Operacionais"
-        title="Automações"
-        description="Configure gatilhos, restrições e ações automáticas com foco em operação real, sem etapas cenográficas."
+        title="Automacoes"
+        description="Configure gatilhos, restricoes e acoes automaticas."
         actions={
-          <div className="flex items-center gap-3 bg-white/5 p-1.5 rounded-2xl border border-white/5 backdrop-blur-md">
+          <div className="flex items-center gap-2">
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-10 rounded-xl text-[10px] font-black uppercase tracking-widest text-cmm-blue hover:bg-cmm-blue/10"
+                  className="h-8 rounded-lg text-label text-n-ig hover:bg-n-surface-2 transition-fast"
                   onClick={() => setDraft(buildAutomationTemplate("instagram-incoming"))}
                 >
-                  <Plus className="mr-2 h-3.5 w-3.5" />
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
                   Auto-Resposta IG
                 </Button>
               </DialogTrigger>
-              <div className="h-4 w-px bg-white/10" />
+              <div className="h-4 w-px bg-n-border" />
               <DialogTrigger asChild>
                 <Button
                   onClick={() => setDraft(buildAutomationTemplate())}
-                  className="h-10 rounded-xl bg-cmm-blue px-6 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:scale-[1.02] transition-transform"
+                  className="h-8 rounded-lg bg-n-blue px-4 text-label text-white transition-fast hover:brightness-110"
                 >
-                  <Plus className="mr-2 h-3.5 w-3.5" />
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
                   Nova Regra
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-4xl border-white/10 bg-slate-950/90 backdrop-blur-3xl rounded-[2.5rem] p-0 overflow-hidden shadow-2xl">
-                <div className="p-10 space-y-8">
-                  <div className="space-y-2">
-                    <DialogTitle className="font-display text-3xl font-bold text-white tracking-tight">
-                      {draft.id ? "Editar automação" : "Nova automação"}
+
+              <DialogContent className="max-w-4xl rounded-xl border border-n-border bg-n-surface p-0 overflow-hidden">
+                <div className="p-4 space-y-4">
+                  <div className="space-y-1">
+                    <DialogTitle className="text-h3 text-n-text">
+                      {draft.id ? "Editar automacao" : "Nova automacao"}
                     </DialogTitle>
-                    <DialogDescription className="text-sm font-medium text-slate-400">
+                    <DialogDescription className="text-caption text-n-text-muted">
                       Defina quando a regra dispara, quais bloqueios se aplicam e o que deve acontecer em seguida.
                     </DialogDescription>
                   </div>
 
                   <AutomationEditor value={draft} onChange={setDraft} />
 
-                  <div className="flex items-center justify-between border-t border-white/5 pt-8">
-                    <div className="flex items-center gap-3">
-                      <div className="h-2 w-2 rounded-full bg-cmm-blue animate-pulse" />
-                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Persistência local imediata</span>
+                  <div className="flex items-center justify-between border-t border-n-border pt-4">
+                    <div className="flex items-center gap-2">
+                      <span className="signal-dot active" />
+                      <span className="text-micro text-n-text-dim">Persistencia local imediata</span>
                     </div>
-                    <div className="flex gap-4">
-                      <Button variant="ghost" className="h-12 rounded-2xl px-8 text-xs font-black uppercase tracking-widest text-slate-400 hover:bg-white/5" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+                    <div className="flex gap-3">
                       <Button
-                        className="h-12 rounded-2xl bg-cmm-blue px-10 text-xs font-black uppercase tracking-widest shadow-xl shadow-blue-500/20"
+                        variant="ghost"
+                        className="h-9 rounded-lg px-4 text-label text-n-text-muted hover:bg-n-surface-2 transition-fast"
+                        onClick={() => setDialogOpen(false)}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        className="h-9 rounded-lg bg-n-blue px-6 text-label text-white transition-fast hover:brightness-110"
                         onClick={() => saveMutation.mutate(draft)}
                         disabled={saveMutation.isPending}
                       >
-                        {saveMutation.isPending ? "PROCESSANDO..." : draft.id ? "SALVAR ALTERAÇÕES" : "ATIVAR REGRA"}
+                        {saveMutation.isPending ? "Processando..." : draft.id ? "Salvar" : "Ativar Regra"}
                       </Button>
                     </div>
                   </div>
@@ -180,89 +190,100 @@ export function AutomationsPage() {
 
       {automationsQuery.error ? <ErrorPanel message={(automationsQuery.error as Error).message} /> : null}
 
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-        {(automationsQuery.data ?? []).map((automation) => (
-          <div key={automation.id} className="group relative glass-card rounded-[2rem] border-white/5 bg-white/[0.01] overflow-hidden transition-all duration-500 hover:bg-white/[0.03] hover:scale-[1.01] hover:shadow-2xl">
-            <div className="p-8 space-y-6">
-              <div className="flex items-start justify-between">
-                <div className="h-12 w-12 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-cmm-blue group-hover:text-white transition-colors duration-500">
-                  {automation.category === "instagram-incoming" ? <Plus className="h-5 w-5" /> : <Pencil className="h-5 w-5" />}
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <Badge tone={automation.enabled ? "success" : "warning"} className="rounded-full px-3 py-0.5 text-[9px] font-black uppercase tracking-widest">
-                    {automation.enabled ? "Ativo" : "Pausado"}
-                  </Badge>
-                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">ID: {automation.id.split('-')[0]}</p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="font-display text-xl font-bold text-white tracking-tight leading-tight">{automation.name || "Sem Nome"}</h3>
-                <p className="text-sm font-medium text-slate-400 line-clamp-2 min-h-[40px] opacity-70">{automation.description || "Nenhuma descrição definida para esta regra operacional."}</p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <Badge tone="info" className="bg-cmm-blue/10 text-cmm-blue border-white/5 text-[9px] font-black uppercase tracking-widest">
-                  {automation.category.replace('-', ' ')}
-                </Badge>
-                {automation.triggerTags.length > 0 && (
-                  <div className="flex -space-x-2">
-                    {automation.triggerTags.slice(0, 3).map((tag: string) => (
-                      <div key={tag} className="h-6 px-3 rounded-full bg-slate-900 border border-white/10 flex items-center shadow-lg">
-                        <span className="text-[8px] font-bold text-slate-300">#{tag}</span>
-                      </div>
-                    ))}
-                    {automation.triggerTags.length > 3 && (
-                      <div className="h-6 w-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[8px] font-bold text-slate-500">
-                        +{automation.triggerTags.length - 3}
-                      </div>
+      {automations.length === 0 && !automationsQuery.isLoading ? (
+        <EmptyState
+          icon={Zap}
+          title="Nenhuma automacao configurada"
+          description="Crie sua primeira regra para automatizar acoes operacionais."
+          actionLabel="Nova Regra"
+          onAction={() => {
+            setDraft(buildAutomationTemplate());
+            setDialogOpen(true);
+          }}
+        />
+      ) : (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {automations.map((automation) => (
+            <div
+              key={automation.id}
+              className="rounded-xl border border-n-border bg-n-surface p-3 space-y-3 transition-fast hover:border-n-border hover:bg-n-surface-2"
+            >
+              {/* Header: icon + status */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="h-8 w-8 rounded-lg bg-n-surface-2 flex items-center justify-center shrink-0">
+                    {automation.category === "instagram-incoming" ? (
+                      <Plus className="h-4 w-4 text-n-ig" />
+                    ) : (
+                      <Pencil className="h-4 w-4 text-n-text-muted" />
                     )}
                   </div>
+                  <h3 className="text-body text-n-text font-medium truncate">
+                    {automation.name || "Sem Nome"}
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={cn("signal-dot", automation.enabled ? "active" : "idle")} />
+                  <span className="text-micro text-n-text-dim">
+                    {automation.enabled ? "Ativo" : "Pausado"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Description */}
+              {automation.description && (
+                <p className="text-caption text-n-text-muted line-clamp-2">
+                  {automation.description}
+                </p>
+              )}
+
+              {/* Category + trigger tags */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge tone="info" className="text-micro">
+                  {automation.category.replace("-", " ")}
+                </Badge>
+                {automation.triggerTags.slice(0, 3).map((tag: string) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center rounded-md bg-n-surface-2 border border-n-border-subtle px-1.5 py-0.5 text-micro text-n-text-dim"
+                  >
+                    #{tag}
+                  </span>
+                ))}
+                {automation.triggerTags.length > 3 && (
+                  <span className="text-micro text-n-text-dim">
+                    +{automation.triggerTags.length - 3}
+                  </span>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <Button
-                  variant="ghost"
-                  className="h-12 rounded-2xl bg-white/5 border border-white/5 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:bg-cmm-blue/10 hover:text-cmm-blue group-hover:border-cmm-blue/20"
+              {/* Actions */}
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  className="flex-1 rounded-lg border border-n-border bg-n-surface-2 py-1.5 text-label text-n-text-muted transition-fast hover:text-n-text hover:border-n-blue/40"
                   onClick={() => {
                     setDraft(automation);
                     setDialogOpen(true);
                   }}
                 >
                   Ajustar
-                </Button>
-                <Button
-                  variant="secondary"
+                </button>
+                <button
                   className={cn(
-                    "h-12 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all",
-                    automation.enabled ? "bg-white/5 text-slate-500" : "bg-cmm-emerald/10 text-cmm-emerald shadow-lg shadow-emerald-500/10"
+                    "flex-1 rounded-lg py-1.5 text-label transition-fast",
+                    automation.enabled
+                      ? "border border-n-border bg-n-surface-2 text-n-text-dim hover:text-n-amber"
+                      : "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
                   )}
                   onClick={() => toggleMutation.mutate(automation.id)}
                 >
                   {automation.enabled ? "Pausar" : "Ativar"}
-                </Button>
+                </button>
               </div>
             </div>
-          </div>
-        ))}
-
-        <button
-          onClick={() => {
-            setDraft(buildAutomationTemplate());
-            setDialogOpen(true);
-          }}
-          className="group h-full min-h-[340px] rounded-[2rem] border-2 border-dashed border-white/5 bg-transparent p-8 flex flex-col items-center justify-center text-center gap-4 transition-all hover:border-cmm-blue/30 hover:bg-cmm-blue/[0.02]"
-        >
-          <div className="h-14 w-14 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-cmm-blue/10 group-hover:scale-110 transition-all duration-500">
-            <Plus className="h-6 w-6 text-slate-500 group-hover:text-cmm-blue" />
-          </div>
-          <div>
-            <p className="font-display text-lg font-bold text-slate-400 group-hover:text-white transition-colors">Nova Regra</p>
-            <p className="text-xs font-medium text-slate-600 mt-1">Crie um novo fluxo de ações automáticas</p>
-          </div>
-        </button>
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

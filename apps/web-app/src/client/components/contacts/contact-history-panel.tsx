@@ -88,7 +88,7 @@ export function ContactHistoryPanel({
           {query.isLoading ? (
             <div className="space-y-3">
               {Array.from({ length: 3 }).map((_, index) => (
-                <div key={index} className="rounded-[1.25rem] border border-white/8 bg-slate-950/45 p-4">
+                <div key={index} className="rounded-[1.25rem] border border-n-border bg-slate-950/45 p-4">
                   <div className="h-4 w-32 rounded-full bg-white/8" />
                   <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto_1fr]">
                     <div className="h-12 rounded-2xl bg-white/6" />
@@ -102,7 +102,7 @@ export function ContactHistoryPanel({
           {!query.isLoading && (query.data ?? []).length === 0 ? <div className="text-sm text-slate-400">Nenhuma alteração relevante registrada até agora.</div> : null}
           <div className="space-y-3">
             {(query.data ?? []).map((item) => (
-              <div key={item.id} className="rounded-[1.25rem] border border-white/8 bg-slate-950/45 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+              <div key={item.id} className="rounded-[1.25rem] border border-n-border bg-slate-950/45 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className="font-medium text-white">{item.label}</div>
@@ -114,11 +114,11 @@ export function ContactHistoryPanel({
                   </div>
                 </div>
                 <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto_1fr] lg:items-center">
-                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
+                  <div className="rounded-2xl border border-n-border bg-n-surface-2 px-4 py-3">
                     <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Anterior</div>
                     <div className="mt-1 text-sm text-slate-300">{item.previousValue || "Sem valor"}</div>
                   </div>
-                  <div className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-slate-400">
+                  <div className="mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-n-border bg-n-surface-2 text-slate-400">
                     <ArrowRightLeft className="h-4 w-4" />
                   </div>
                   <div className="rounded-2xl border border-primary/15 bg-primary/[0.06] px-4 py-3">

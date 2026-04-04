@@ -200,7 +200,7 @@ function StepNode({
 
         {/* Channel scope indicator */}
         {step.channelScope !== "any" && (
-          <div className="absolute -top-2 -right-2 rounded-full bg-slate-900 border border-white/10 px-2 py-0.5 text-[9px] font-bold text-slate-400">
+          <div className="absolute -top-2 -right-2 rounded-full bg-slate-900 border border-n-border px-2 py-0.5 text-[9px] font-bold text-slate-400">
             {step.channelScope === "whatsapp" ? "WA" : "IG"}
           </div>
         )}

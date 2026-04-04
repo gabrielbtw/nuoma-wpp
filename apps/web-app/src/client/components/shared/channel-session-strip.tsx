@@ -130,13 +130,13 @@ function SessionChip({ session, compact = false }: { session: SessionViewModel; 
     loading: {
       badge: "default" as const,
       text: "text-slate-300",
-      iconBox: "bg-white/5 text-slate-300 border-white/10"
+      iconBox: "bg-white/5 text-slate-300 border-n-border"
     }
   }[session.state];
   const Icon = session.state === "loading" ? LoaderCircle : session.icon;
 
   return (
-    <div className={cn("flex items-center justify-between gap-3 rounded-[1.75rem] border border-white/6 bg-white/[0.03]", compact ? "px-4 py-3" : "px-5 py-4")}>
+    <div className={cn("flex items-center justify-between gap-3 rounded-[1.75rem] border border-white/6 bg-n-surface-2", compact ? "px-4 py-3" : "px-5 py-4")}>
       <div className="flex min-w-0 items-center gap-3">
         <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border", toneMap.iconBox)}>
           <Icon className={cn("h-5 w-5", session.state === "loading" && "animate-spin")} />

@@ -22,7 +22,7 @@ function ChannelDot({
       className={cn(
         "inline-flex items-center justify-center rounded-full border shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition",
         compact ? "h-7 w-7" : "h-9 w-9",
-        active ? "border-white/15 bg-white/8 text-white" : "border-white/8 bg-white/4 text-slate-500",
+        active ? "border-white/15 bg-white/8 text-white" : "border-n-border bg-white/4 text-slate-500",
         className
       )}
     >
@@ -96,13 +96,13 @@ export function ChannelIndicators({
 
   return (
     <div className={cn("flex flex-wrap items-center", compact ? "gap-1.5" : "gap-2")}>
-      <div className={cn("inline-flex items-center rounded-full border border-white/8 bg-white/[0.03]", compact ? "gap-1.5 px-1.5 py-1" : "gap-2 px-2 py-1.5")}>
+      <div className={cn("inline-flex items-center rounded-full border border-n-border bg-n-surface-2", compact ? "gap-1.5 px-1.5 py-1" : "gap-2 px-2 py-1.5")}>
         <ChannelDot active={whatsapp.hasValue} compact={compact} title={whatsapp.hasValue ? "WhatsApp disponível" : "Sem WhatsApp"}>
           <MessageCircleMore className={cn("h-4 w-4", whatsapp.hasValue ? "text-emerald-300" : undefined)} />
         </ChannelDot>
         {showLabels ? <span className="text-xs text-slate-300">{whatsapp.value}</span> : null}
       </div>
-      <div className={cn("inline-flex items-center rounded-full border border-white/8 bg-white/[0.03]", compact ? "gap-1.5 px-1.5 py-1" : "gap-2 px-2 py-1.5")}>
+      <div className={cn("inline-flex items-center rounded-full border border-n-border bg-n-surface-2", compact ? "gap-1.5 px-1.5 py-1" : "gap-2 px-2 py-1.5")}>
         <ChannelDot active={instagramChannel.hasValue} compact={compact} title={instagramChannel.hasValue ? "Instagram disponível" : "Sem Instagram"}>
           <Instagram className={cn("h-4 w-4", instagramChannel.hasValue ? "text-rose-300" : undefined)} />
         </ChannelDot>

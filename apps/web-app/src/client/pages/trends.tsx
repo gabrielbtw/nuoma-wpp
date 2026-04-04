@@ -136,7 +136,7 @@ export function TrendsPage() {
         ].map(([label, value]) => (
           <Card key={String(label)}>
             <CardContent>
-              <div className="text-xs uppercase tracking-[0.16em] text-slate-500">{label}</div>
+              <div className="text-xs uppercase tracking-[0.16em] text-n-text-dim">{label}</div>
               <div className="mt-3 text-3xl font-semibold text-white">{String(value)}</div>
             </CardContent>
           </Card>
@@ -169,24 +169,24 @@ export function TrendsPage() {
           <CardContent className="space-y-4">
             {report ? (
               <>
-                <div className="rounded-2xl border border-white/6 bg-white/[0.03] px-4 py-4 text-sm text-slate-200">{report.summaryText}</div>
-                <div className="text-xs text-slate-500">Gerado em {formatDateTime(report.createdAt)}</div>
+                <div className="rounded-2xl border border-n-border bg-n-surface-2 px-4 py-4 text-sm text-slate-200">{report.summaryText}</div>
+                <div className="text-xs text-n-text-dim">Gerado em {formatDateTime(report.createdAt)}</div>
 
                 <div className="grid gap-3 md:grid-cols-2">
                   {report.intentSignals.slice(0, 6).map((signal) => (
-                    <div key={signal.key} className="rounded-2xl border border-white/6 bg-white/[0.03] px-4 py-3">
+                    <div key={signal.key} className="rounded-2xl border border-n-border bg-n-surface-2 px-4 py-3">
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-sm font-medium text-white">{signal.label}</div>
                         <Badge tone="info">{signal.count}</Badge>
                       </div>
-                      {signal.sample ? <div className="mt-2 text-xs text-slate-400">{signal.sample}</div> : null}
+                      {signal.sample ? <div className="mt-2 text-xs text-n-text-muted">{signal.sample}</div> : null}
                     </div>
                   ))}
                 </div>
 
                 <div className="grid gap-4 lg:grid-cols-2">
                   <div>
-                    <div className="mb-2 text-xs uppercase tracking-[0.16em] text-slate-500">Palavras-chave</div>
+                    <div className="mb-2 text-xs uppercase tracking-[0.16em] text-n-text-dim">Palavras-chave</div>
                     <div className="flex flex-wrap gap-2">
                       {report.topKeywords.slice(0, 12).map((item) => (
                         <Badge key={item.term} tone="default">
@@ -196,12 +196,12 @@ export function TrendsPage() {
                     </div>
                   </div>
                   <div>
-                    <div className="mb-2 text-xs uppercase tracking-[0.16em] text-slate-500">Bigrams</div>
+                    <div className="mb-2 text-xs uppercase tracking-[0.16em] text-n-text-dim">Bigrams</div>
                     <div className="space-y-2">
                       {report.topBigrams.slice(0, 6).map((item) => (
-                        <div key={item.term} className="flex items-center justify-between rounded-2xl border border-white/6 bg-white/[0.03] px-3 py-2 text-sm">
+                        <div key={item.term} className="flex items-center justify-between rounded-2xl border border-n-border bg-n-surface-2 px-3 py-2 text-sm">
                           <span className="text-slate-200">{item.term}</span>
-                          <span className="text-slate-500">{item.count}</span>
+                          <span className="text-n-text-dim">{item.count}</span>
                         </div>
                       ))}
                     </div>
@@ -209,7 +209,7 @@ export function TrendsPage() {
                 </div>
               </>
             ) : (
-              <div className="text-sm text-slate-400">Rode o pipeline para gerar o primeiro relatório de tendências.</div>
+              <div className="text-sm text-n-text-muted">Rode o pipeline para gerar o primeiro relatório de tendências.</div>
             )}
           </CardContent>
         </Card>
@@ -221,23 +221,23 @@ export function TrendsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <div className="mb-2 text-xs uppercase tracking-[0.16em] text-slate-500">Threads mais recorrentes</div>
+                <div className="mb-2 text-xs uppercase tracking-[0.16em] text-n-text-dim">Threads mais recorrentes</div>
                 <div className="space-y-2">
                   {(report?.topThreads ?? []).slice(0, 6).map((item) => (
-                    <div key={item.term} className="flex items-center justify-between rounded-2xl border border-white/6 bg-white/[0.03] px-3 py-2 text-sm">
+                    <div key={item.term} className="flex items-center justify-between rounded-2xl border border-n-border bg-n-surface-2 px-3 py-2 text-sm">
                       <span className="truncate text-slate-200">{item.term}</span>
-                      <span className="text-slate-500">{item.count}</span>
+                      <span className="text-n-text-dim">{item.count}</span>
                     </div>
                   ))}
                 </div>
               </div>
               <div>
-                <div className="mb-2 text-xs uppercase tracking-[0.16em] text-slate-500">Remetentes mais ativos</div>
+                <div className="mb-2 text-xs uppercase tracking-[0.16em] text-n-text-dim">Remetentes mais ativos</div>
                 <div className="space-y-2">
                   {(report?.topSenders ?? []).slice(0, 6).map((item) => (
-                    <div key={item.term} className="flex items-center justify-between rounded-2xl border border-white/6 bg-white/[0.03] px-3 py-2 text-sm">
+                    <div key={item.term} className="flex items-center justify-between rounded-2xl border border-n-border bg-n-surface-2 px-3 py-2 text-sm">
                       <span className="truncate text-slate-200">{item.term}</span>
-                      <span className="text-slate-500">{item.count}</span>
+                      <span className="text-n-text-dim">{item.count}</span>
                     </div>
                   ))}
                 </div>
@@ -252,21 +252,21 @@ export function TrendsPage() {
             <CardContent className="space-y-3">
               {pendingAssets.length > 0 ? (
                 pendingAssets.map((asset) => (
-                  <div key={asset.id} className="rounded-2xl border border-white/6 bg-white/[0.03] px-4 py-3">
+                  <div key={asset.id} className="rounded-2xl border border-n-border bg-n-surface-2 px-4 py-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <div className="text-sm font-medium text-white">{asset.title}</div>
-                        <div className="mt-1 text-xs text-slate-500">
+                        <div className="mt-1 text-xs text-n-text-dim">
                           {asset.assetKind} · {formatDateTime(asset.capturedAt)}
                         </div>
                       </div>
                       <Badge tone={asset.enrichmentStatus === "failed" ? "danger" : "warning"}>{asset.enrichmentStatus}</Badge>
                     </div>
-                    {asset.enrichmentError ? <div className="mt-2 text-xs text-slate-400">{asset.enrichmentError}</div> : null}
+                    {asset.enrichmentError ? <div className="mt-2 text-xs text-n-text-muted">{asset.enrichmentError}</div> : null}
                   </div>
                 ))
               ) : (
-                <div className="text-sm text-slate-400">Nenhum ativo pendente de enriquecimento.</div>
+                <div className="text-sm text-n-text-muted">Nenhum ativo pendente de enriquecimento.</div>
               )}
             </CardContent>
           </Card>
@@ -278,19 +278,19 @@ export function TrendsPage() {
             <CardContent className="space-y-3">
               {(overview?.sources ?? []).length > 0 ? (
                 overview?.sources.map((source) => (
-                  <div key={source.id} className="rounded-2xl border border-white/6 bg-white/[0.03] px-4 py-3">
+                  <div key={source.id} className="rounded-2xl border border-n-border bg-n-surface-2 px-4 py-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <div className="text-sm font-medium text-white">{source.label}</div>
-                        <div className="mt-1 text-xs text-slate-500">{source.rootPath}</div>
+                        <div className="mt-1 text-xs text-n-text-dim">{source.rootPath}</div>
                       </div>
                       <Badge tone="default">{source.sourceType}</Badge>
                     </div>
-                    <div className="mt-2 text-xs text-slate-500">Último scan: {formatDateTime(source.lastScanAt)}</div>
+                    <div className="mt-2 text-xs text-n-text-dim">Último scan: {formatDateTime(source.lastScanAt)}</div>
                   </div>
                 ))
               ) : (
-                <div className="text-sm text-slate-400">As fontes aparecem aqui depois da primeira execução do pipeline.</div>
+                <div className="text-sm text-n-text-muted">As fontes aparecem aqui depois da primeira execução do pipeline.</div>
               )}
             </CardContent>
           </Card>

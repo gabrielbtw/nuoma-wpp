@@ -144,9 +144,9 @@ export function SegmentBuilder({
         const isDate = isDateField(filter.field);
 
         return (
-          <div key={index} className="flex flex-wrap items-center gap-2 rounded-xl border border-white/5 bg-white/[0.02] p-2.5">
+          <div key={index} className="flex flex-wrap items-center gap-2 rounded-xl border border-n-border bg-n-surface p-2.5">
             {/* Field */}
-            <select className="h-8 rounded-lg border border-white/10 bg-black/30 px-2 text-xs font-semibold text-white outline-none"
+            <select className="h-8 rounded-lg border border-n-border bg-black/30 px-2 text-xs font-semibold text-white outline-none"
               value={filter.field} onChange={(e) => {
                 const newField = e.target.value as SegmentFilterField;
                 const newFieldDef = fieldOptions.find((f) => f.value === newField);
@@ -161,7 +161,7 @@ export function SegmentBuilder({
 
             {/* Operator */}
             {operators.length > 1 && (
-              <select className="h-8 rounded-lg border border-white/10 bg-black/30 px-2 text-xs font-semibold text-white outline-none"
+              <select className="h-8 rounded-lg border border-n-border bg-black/30 px-2 text-xs font-semibold text-white outline-none"
                 value={filter.operator} onChange={(e) => updateFilter(index, { operator: e.target.value as SegmentFilterOperator })}>
                 {operators.map((op) => <option key={op} value={op} className="bg-slate-900">{operatorLabels[op]}</option>)}
               </select>
@@ -169,16 +169,16 @@ export function SegmentBuilder({
 
             {/* Value */}
             {valOpts ? (
-              <select className="h-8 flex-1 min-w-[120px] rounded-lg border border-white/10 bg-black/30 px-2 text-xs font-semibold text-white outline-none"
+              <select className="h-8 flex-1 min-w-[120px] rounded-lg border border-n-border bg-black/30 px-2 text-xs font-semibold text-white outline-none"
                 value={filter.value} onChange={(e) => updateFilter(index, { value: e.target.value })}>
                 <option value="" className="bg-slate-900">Selecione...</option>
                 {valOpts.map((v) => <option key={v.value} value={v.value} className="bg-slate-900">{v.label}</option>)}
               </select>
             ) : isDate ? (
-              <input type="date" className="h-8 flex-1 min-w-[140px] rounded-lg border border-white/10 bg-black/30 px-2 text-xs font-semibold text-white outline-none"
+              <input type="date" className="h-8 flex-1 min-w-[140px] rounded-lg border border-n-border bg-black/30 px-2 text-xs font-semibold text-white outline-none"
                 value={filter.value} onChange={(e) => updateFilter(index, { value: e.target.value })} />
             ) : (
-              <input type="text" className="h-8 flex-1 min-w-[120px] rounded-lg border border-white/10 bg-black/30 px-2 text-xs font-semibold text-white outline-none"
+              <input type="text" className="h-8 flex-1 min-w-[120px] rounded-lg border border-n-border bg-black/30 px-2 text-xs font-semibold text-white outline-none"
                 placeholder="Valor..." value={filter.value} onChange={(e) => updateFilter(index, { value: e.target.value })} />
             )}
 
@@ -201,7 +201,7 @@ export function SegmentBuilder({
       })}
 
       {value.filters.length === 0 && (
-        <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.01] px-4 py-6 text-center">
+        <div className="rounded-xl border border-dashed border-n-border bg-n-surface px-4 py-6 text-center">
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-600">
             Nenhum filtro aplicado. Clique em "+ Filtro" para comecar.
           </p>

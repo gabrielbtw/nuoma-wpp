@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorPanel } from "@/components/shared/error-panel";
 import { PageHeader } from "@/components/shared/page-header";
 import { apiFetch } from "@/lib/api";
@@ -28,25 +27,15 @@ type ImportEvent = {
 type ImportsResponse = {
   latestBatch: ImportEvent | null;
   totals: {
-    files: number;
-    created: number;
-    updated: number;
-    unchanged: number;
-    processedThreads: number;
-    processedFollowers: number;
-    processedFollowing: number;
-    phonesDiscovered: number;
-    whatsappCsvMatches: number;
-    whatsappCsvNamesApplied: number;
-    namesFromPhones: number;
-    deletedSources: number;
+    files: number; created: number; updated: number; unchanged: number;
+    processedThreads: number; processedFollowers: number; processedFollowing: number;
+    phonesDiscovered: number; whatsappCsvMatches: number; whatsappCsvNamesApplied: number;
+    namesFromPhones: number; deletedSources: number;
   };
   fileRuns: ImportEvent[];
 };
 
-function asNumber(input: unknown) {
-  return Number(input ?? 0);
-}
+function n(input: unknown) { return Number(input ?? 0); }
 
 export function ImportsPage() {
   const query = useQuery({
@@ -55,140 +44,117 @@ export function ImportsPage() {
     refetchInterval: 15_000
   });
 
-  const latestBatch = query.data?.latestBatch ?? null;
-  const batchAggregate = latestBatch?.meta.aggregate ?? {};
-  const batchWhatsappCsvImport = latestBatch?.meta.whatsappCsvImport ?? {};
-  const batchWhatsappConversationEnrichment = latestBatch?.meta.whatsappConversationEnrichment ?? {};
-  const batchWhatsappMessageEnrichment = latestBatch?.meta.whatsappMessageEnrichment ?? {};
-  const batchBackfill = latestBatch?.meta.backfill ?? {};
+  const batch = query.data?.latestBatch ?? null;
+  const agg = batch?.meta.aggregate ?? {};
+  const csvImport = batch?.meta.whatsappCsvImport ?? {};
+  const convEnrich = batch?.meta.whatsappConversationEnrichment ?? {};
+  const msgEnrich = batch?.meta.whatsappMessageEnrichment ?? {};
+  const backfill = batch?.meta.backfill ?? {};
   const fileRuns = query.data?.fileRuns ?? [];
   const totals = query.data?.totals;
 
   return (
-    <div>
-      <PageHeader
-        eyebrow="Operações"
-        title="Importações"
-        description="Resumo persistido das importações do Instagram, com matching pelo CSV do WhatsApp, enriquecimento por conversas e limpeza dos artefatos após processamento."
-      />
-      {query.error ? <ErrorPanel message={(query.error as Error).message} /> : null}
+    <div className="space-y-4 animate-fade-in">
+      <PageHeader eyebrow="Operacoes" title="Importacoes" description="Instagram import, CSV matching, enriquecimento e limpeza." />
+      {query.error && <ErrorPanel message={(query.error as Error).message} />}
 
-      <div className="grid gap-4 lg:grid-cols-4">
+      {/* Summary metrics */}
+      <div className="grid gap-2 md:grid-cols-4">
         {[
-          ["Arquivos processados", asNumber(batchAggregate.processedFiles || totals?.files)],
-          ["Contatos criados", asNumber(batchAggregate.created || totals?.created)],
-          ["Contatos atualizados", asNumber(batchAggregate.updated || totals?.updated)],
-          ["Fontes removidas", asNumber(batchAggregate.deletedSources || totals?.deletedSources)]
+          ["Arquivos", n(agg.processedFiles || totals?.files)],
+          ["Criados", n(agg.created || totals?.created)],
+          ["Atualizados", n(agg.updated || totals?.updated)],
+          ["Removidos", n(agg.deletedSources || totals?.deletedSources)]
         ].map(([label, value]) => (
-          <Card key={String(label)}>
-            <CardContent>
-              <div className="text-xs uppercase tracking-[0.16em] text-slate-500">{label}</div>
-              <div className="mt-3 text-3xl font-semibold text-white">{String(value)}</div>
-            </CardContent>
-          </Card>
+          <div key={String(label)} className="rounded-xl border border-n-border bg-n-surface p-3">
+            <p className="text-micro uppercase text-n-text-dim">{label}</p>
+            <p className="mt-1 font-mono text-h2 text-n-text">{String(value)}</p>
+          </div>
         ))}
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Último lote</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {latestBatch ? (
+      <div className="grid gap-4 xl:grid-cols-[1fr_380px]">
+        {/* Batch detail */}
+        <div className="rounded-xl border border-n-border bg-n-surface overflow-hidden">
+          <div className="border-b border-n-border px-4 py-2.5">
+            <h3 className="text-label text-n-text">Ultimo lote</h3>
+          </div>
+          <div className="p-4 space-y-3">
+            {batch ? (
               <>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone={latestBatch.level === "error" ? "danger" : latestBatch.level === "warn" ? "warning" : "info"}>{latestBatch.level}</Badge>
-                  <span className="text-sm text-slate-300">{latestBatch.message}</span>
+                <div className="flex items-center gap-2">
+                  <Badge tone={batch.level === "error" ? "danger" : batch.level === "warn" ? "warning" : "info"}>{batch.level}</Badge>
+                  <span className="text-body text-n-text-muted">{batch.message}</span>
+                  <span className="ml-auto text-micro text-n-text-dim">{new Date(batch.created_at).toLocaleString()}</span>
                 </div>
-                <div className="text-xs text-slate-500">{new Date(latestBatch.created_at).toLocaleString()}</div>
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-2 md:grid-cols-2">
                   {[
-                    ["Threads lidas", asNumber(batchAggregate.processedThreads)],
-                    ["Seguidores criados/avaliados", asNumber(batchAggregate.processedFollowers)],
-                    ["Seguindo criados/avaliados", asNumber(batchAggregate.processedFollowing)],
-                    ["Telefones encontrados", asNumber(batchAggregate.phonesDiscovered)],
-                    ["Matches no CSV", asNumber(batchAggregate.whatsappCsvMatches)],
-                    ["Nomes aplicados do CSV", asNumber(batchAggregate.whatsappCsvNamesApplied)],
-                    ["Nomes definidos pelo telefone", asNumber(batchAggregate.namesFromPhones)],
-                    ["Arquivos sem JSON útil", asNumber(batchAggregate.skippedNoSupportedData)]
+                    ["Threads", n(agg.processedThreads)], ["Seguidores", n(agg.processedFollowers)],
+                    ["Seguindo", n(agg.processedFollowing)], ["Telefones", n(agg.phonesDiscovered)],
+                    ["CSV matches", n(agg.whatsappCsvMatches)], ["Nomes CSV", n(agg.whatsappCsvNamesApplied)],
+                    ["Nomes tel", n(agg.namesFromPhones)], ["Sem JSON", n(agg.skippedNoSupportedData)]
                   ].map(([label, value]) => (
-                    <div key={String(label)} className="rounded-2xl border border-white/6 bg-white/[0.03] px-4 py-3">
-                      <div className="text-xs uppercase tracking-[0.16em] text-slate-500">{label}</div>
-                      <div className="mt-2 text-sm text-slate-200">{String(value)}</div>
+                    <div key={String(label)} className="flex items-center justify-between rounded-lg bg-n-surface-2 px-3 py-2">
+                      <span className="text-caption text-n-text-muted">{label}</span>
+                      <span className="font-mono text-body font-semibold text-n-text">{String(value)}</span>
                     </div>
                   ))}
                 </div>
-                {latestBatch.meta.csvPath ? (
-                  <div className="rounded-2xl border border-white/6 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
-                    CSV usado: {latestBatch.meta.csvPath}
+                {batch.meta.csvPath && <div className="rounded-lg bg-n-surface-2 px-3 py-2 text-caption text-n-text-muted">CSV: {batch.meta.csvPath}</div>}
+                {(n(csvImport.created) > 0 || n(csvImport.updated) > 0) && (
+                  <div className="rounded-lg border border-n-blue/20 bg-n-blue/5 px-3 py-2 text-caption text-n-text">
+                    CSV WA: {n(csvImport.created)} criados, {n(csvImport.updated)} atualizados
                   </div>
-                ) : null}
-                {(asNumber(batchWhatsappCsvImport.created) > 0 || asNumber(batchWhatsappCsvImport.updated) > 0) ? (
-                  <div className="rounded-2xl border border-sky-400/15 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
-                    CSV de WhatsApp: {asNumber(batchWhatsappCsvImport.created)} contatos criados, {asNumber(batchWhatsappCsvImport.updated)} atualizados, {asNumber(batchWhatsappCsvImport.whatsappConversationNamesApplied)} nomes vindos de conversas e {asNumber(batchWhatsappCsvImport.phoneNamesApplied)} contatos salvos com o telefone.
+                )}
+                {n(convEnrich.updatedContacts) > 0 && (
+                  <div className="rounded-lg border border-n-cyan/20 bg-n-cyan/5 px-3 py-2 text-caption text-n-text">
+                    Conversas WA: {n(convEnrich.updatedContacts)} contatos enriquecidos
                   </div>
-                ) : null}
-                {asNumber(batchWhatsappConversationEnrichment.updatedContacts) > 0 ? (
-                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
-                    Enriquecimento via conversas do WhatsApp: {asNumber(batchWhatsappConversationEnrichment.updatedContacts)} contatos atualizados em uma nova passada.
+                )}
+                {n(msgEnrich.updatedContacts) > 0 && (
+                  <div className="rounded-lg border border-n-ig/20 bg-n-ig/5 px-3 py-2 text-caption text-n-text">
+                    Mensagens: {n(msgEnrich.updatedContacts)} contatos, {n(msgEnrich.namesApplied)} nomes, {n(msgEnrich.cpfsApplied)} CPFs
                   </div>
-                ) : null}
-                {asNumber(batchWhatsappMessageEnrichment.updatedContacts) > 0 ? (
-                  <div className="rounded-2xl border border-fuchsia-400/15 bg-fuchsia-500/10 px-4 py-3 text-sm text-fuchsia-100">
-                    Enriquecimento por mensagens recebidas: {asNumber(batchWhatsappMessageEnrichment.updatedContacts)} contatos atualizados, {asNumber(batchWhatsappMessageEnrichment.namesApplied)} nomes confirmados pela própria pessoa, {asNumber(batchWhatsappMessageEnrichment.cpfsApplied)} CPF(s) e {asNumber(batchWhatsappMessageEnrichment.emailsApplied)} e-mail(s).
+                )}
+                {(n(backfill.updatedContacts) > 0) && (
+                  <div className="rounded-lg border border-n-wa/20 bg-n-wa/5 px-3 py-2 text-caption text-n-text">
+                    Backfill: {n(backfill.updatedContacts)} revisitados
                   </div>
-                ) : null}
-                {(asNumber(batchBackfill.updatedContacts) > 0 || asNumber(batchBackfill.whatsappCsvNamesApplied) > 0 || asNumber(batchBackfill.namesFromPhones) > 0) ? (
-                  <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-                    Backfill pós-importação: {asNumber(batchBackfill.updatedContacts)} contatos revisitados, {asNumber(batchBackfill.whatsappCsvNamesApplied)} nomes vindos do CSV, {asNumber(batchBackfill.whatsappContactNamesApplied)} nomes vindos de contatos do WhatsApp, {asNumber(batchBackfill.cpfsApplied)} CPF(s), {asNumber(batchBackfill.emailsApplied)} e {asNumber(batchBackfill.namesFromPhones)} nomes substituídos pelo telefone.
-                  </div>
-                ) : null}
-                {(latestBatch.meta.pendingIncompleteFiles ?? []).length > 0 ? (
-                  <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-                    Arquivos ainda incompletos e não importados: {(latestBatch.meta.pendingIncompleteFiles ?? []).length}
-                  </div>
-                ) : null}
+                )}
               </>
             ) : (
-              <div className="text-sm text-slate-400">Nenhum lote registrado ainda.</div>
+              <p className="py-8 text-center text-caption text-n-text-dim">Nenhum lote registrado</p>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Arquivos recentes</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {fileRuns.length > 0 ? (
-              fileRuns.slice(0, 24).map((event) => {
-                const summary = event.meta.summary ?? {};
-                return (
-                  <div key={event.id} className="rounded-2xl border border-white/6 bg-white/[0.03] px-4 py-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-medium text-white">{event.meta.sourcePath?.split("/").pop() ?? event.message}</div>
-                        <div className="mt-1 text-xs text-slate-500">{new Date(event.created_at).toLocaleString()}</div>
-                      </div>
-                      <Badge tone={asNumber(summary.skippedNoSupportedData) > 0 ? "warning" : "success"}>
-                        {asNumber(summary.skippedNoSupportedData) > 0 ? "sem JSON útil" : "importado"}
-                      </Badge>
-                    </div>
-                    <div className="mt-3 grid gap-2 text-sm text-slate-300 sm:grid-cols-2">
-                      <div>Criados: {asNumber(summary.created)}</div>
-                      <div>Atualizados: {asNumber(summary.updated)}</div>
-                      <div>Threads: {asNumber(summary.processedThreads)}</div>
-                      <div>Telefones: {asNumber(summary.phonesDiscovered)}</div>
-                    </div>
+        {/* File runs */}
+        <div className="rounded-xl border border-n-border bg-n-surface overflow-hidden">
+          <div className="border-b border-n-border px-4 py-2.5">
+            <h3 className="text-label text-n-text">Arquivos recentes</h3>
+          </div>
+          <div className="max-h-[calc(100vh-18rem)] overflow-y-auto custom-scrollbar divide-y divide-n-border-subtle">
+            {fileRuns.length > 0 ? fileRuns.slice(0, 24).map((event) => {
+              const summary = event.meta.summary ?? {};
+              return (
+                <div key={event.id} className="px-4 py-2.5 hover:bg-n-surface-2/50 transition-fast">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-body font-medium text-n-text truncate">{event.meta.sourcePath?.split("/").pop() ?? event.message}</span>
+                    <Badge tone={n(summary.skippedNoSupportedData) > 0 ? "warning" : "success"} className="shrink-0 text-micro">
+                      {n(summary.skippedNoSupportedData) > 0 ? "skip" : "ok"}
+                    </Badge>
                   </div>
-                );
-              })
-            ) : (
-              <div className="text-sm text-slate-400">Nenhum arquivo processado ainda.</div>
-            )}
-          </CardContent>
-        </Card>
+                  <div className="flex gap-3 mt-1 text-micro text-n-text-dim">
+                    <span>+{n(summary.created)}</span>
+                    <span>~{n(summary.updated)}</span>
+                    <span>{n(summary.processedThreads)} threads</span>
+                    <span className="ml-auto">{new Date(event.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                  </div>
+                </div>
+              );
+            }) : <p className="py-8 text-center text-caption text-n-text-dim">Nenhum arquivo processado</p>}
+          </div>
+        </div>
       </div>
     </div>
   );

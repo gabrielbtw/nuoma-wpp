@@ -571,7 +571,7 @@ export function CampaignsPage() {
             </DialogTrigger>
             <DialogContent className="h-[min(94dvh,980px)] w-[min(1280px,96vw)] overflow-hidden p-0">
               <div className="flex h-full flex-col">
-                <div className="border-b border-white/8 px-6 py-5">
+                <div className="border-b border-n-border px-6 py-5">
                   <DialogTitle className="font-display text-2xl text-white">Nova campanha omnichannel</DialogTitle>
                   <DialogDescription className="mt-1 text-sm text-slate-400">
                     Monte o fluxo, salve o rascunho e depois importe ou vincule os destinatários no painel principal.
@@ -581,7 +581,7 @@ export function CampaignsPage() {
                   {createMutation.error ? <ErrorPanel message={(createMutation.error as Error).message} /> : null}
                   <CampaignBuilder value={draft} onChange={(next) => setDraft(normalizeCampaignDraft(next))} />
                 </div>
-                <div className="flex items-center justify-between border-t border-white/8 px-6 py-4">
+                <div className="flex items-center justify-between border-t border-n-border px-6 py-4">
                   <div className="text-sm text-slate-400">Ao salvar, o rascunho entra na lista principal e fica pronto para importação.</div>
                   <Button disabled={createMutation.isPending} onClick={() => createMutation.mutate(draft)}>
                     {createMutation.isPending ? "Salvando..." : "Salvar rascunho"}
@@ -602,7 +602,7 @@ export function CampaignsPage() {
 
       <div className="grid gap-8 xl:grid-cols-[380px_1fr]">
         <div className="space-y-6">
-          <div className="glass-card rounded-[2.5rem] border-white/5 bg-white/[0.01] p-8">
+          <div className="glass-card rounded-[2.5rem] border-n-border bg-n-surface p-8">
             <div className="space-y-6">
               <div>
                 <h3 className="text-sm font-bold uppercase tracking-[0.2em] text-slate-500">Catálogo</h3>
@@ -613,7 +613,7 @@ export function CampaignsPage() {
                 <div className="relative group">
                   <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 transition-colors group-focus-within:text-cmm-blue" />
                   <Input
-                    className="h-12 border-white/5 bg-white/[0.02] pl-11 rounded-2xl focus:border-cmm-blue/30 focus:ring-cmm-blue/10"
+                    className="h-12 border-n-border bg-n-surface pl-11 rounded-2xl focus:border-cmm-blue/30 focus:ring-cmm-blue/10"
                     placeholder="Buscar por nome..."
                     value={filters.query}
                     onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))}
@@ -622,7 +622,7 @@ export function CampaignsPage() {
 
                 <div className="grid grid-cols-1 gap-3">
                   <select
-                    className="h-12 rounded-2xl border border-white/5 bg-white/[0.02] px-4 text-sm font-bold text-slate-300 outline-none transition hover:bg-white/[0.04] focus:border-cmm-blue/30"
+                    className="h-12 rounded-2xl border border-n-border bg-n-surface px-4 text-sm font-bold text-slate-300 outline-none transition hover:bg-n-surface-2 focus:border-cmm-blue/30"
                     value={filters.status}
                     onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}
                   >
@@ -644,7 +644,7 @@ export function CampaignsPage() {
             </div>
           </div>
 
-          <div className="glass-card overflow-hidden rounded-[2.5rem] border-white/5 bg-white/[0.01]">
+          <div className="glass-card overflow-hidden rounded-[2.5rem] border-n-border bg-n-surface">
             <div className="max-h-[calc(100dvh-24rem)] divide-y divide-white/5 overflow-y-auto custom-scrollbar">
               {filteredCampaigns.map((campaign) => {
                 const isSelected = selectedCampaign?.id === campaign.id;
@@ -654,7 +654,7 @@ export function CampaignsPage() {
                     key={campaign.id}
                     className={cn(
                       "group relative flex flex-col p-6 text-left transition-all duration-300",
-                      isSelected ? "bg-cmm-blue/5" : "hover:bg-white/[0.03]"
+                      isSelected ? "bg-cmm-blue/5" : "hover:bg-n-surface-2"
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -672,7 +672,7 @@ export function CampaignsPage() {
                         <button
                           type="button"
                           aria-label={`Ver fluxo ${campaign.name}`}
-                          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-slate-400 transition hover:border-cmm-purple/30 hover:bg-cmm-purple/10 hover:text-cmm-purple"
+                          className="flex h-9 w-9 items-center justify-center rounded-full border border-n-border bg-n-surface-2 text-slate-400 transition hover:border-cmm-purple/30 hover:bg-cmm-purple/10 hover:text-cmm-purple"
                           onClick={(event) => {
                             event.stopPropagation();
                             setViewerCampaignId(campaign.id);
@@ -683,7 +683,7 @@ export function CampaignsPage() {
                         <button
                           type="button"
                           aria-label={`Duplicar ${campaign.name}`}
-                          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-slate-400 transition hover:border-cmm-blue/30 hover:bg-cmm-blue/10 hover:text-cmm-blue"
+                          className="flex h-9 w-9 items-center justify-center rounded-full border border-n-border bg-n-surface-2 text-slate-400 transition hover:border-cmm-blue/30 hover:bg-cmm-blue/10 hover:text-cmm-blue"
                           onClick={(event) => {
                             event.stopPropagation();
                             duplicateMutation.mutate(campaign.id);
@@ -694,7 +694,7 @@ export function CampaignsPage() {
                         <button
                           type="button"
                           aria-label={`Excluir ${campaign.name}`}
-                          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-slate-400 transition hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-300"
+                          className="flex h-9 w-9 items-center justify-center rounded-full border border-n-border bg-n-surface-2 text-slate-400 transition hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-300"
                           onClick={(event) => {
                             event.stopPropagation();
                             setPendingCommand({ action: "delete", campaignId: campaign.id, campaignName: campaign.name });
@@ -750,7 +750,7 @@ export function CampaignsPage() {
         <div className="space-y-6">
           {selectedCampaign ? (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="glass-card rounded-[2rem] border-white/5 bg-white/[0.01] p-7">
+              <div className="glass-card rounded-[2rem] border-n-border bg-n-surface p-7">
                 <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.9fr)_270px]">
                   <div className="min-w-0">
                     <div className="space-y-3">
@@ -775,7 +775,7 @@ export function CampaignsPage() {
                                 key={channel.key}
                                 className={cn(
                                   "flex h-10 w-10 items-center justify-center rounded-full border transition-all",
-                                  channel.active ? channel.tone : "border-white/8 bg-white/[0.02] text-slate-600"
+                                  channel.active ? channel.tone : "border-n-border bg-n-surface text-slate-600"
                                 )}
                                 title={channel.key === "instagram" ? "Instagram" : "WhatsApp"}
                               >
@@ -791,7 +791,7 @@ export function CampaignsPage() {
                             { label: "Contatos", value: selectedCampaign.totalRecipients },
                             { label: "Processados", value: selectedCampaign.processedRecipients }
                           ].map((item) => (
-                            <div key={item.label} className="rounded-full border border-white/5 bg-white/[0.02] px-3 py-1.5">
+                            <div key={item.label} className="rounded-full border border-n-border bg-n-surface px-3 py-1.5">
                               <span className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">{item.label}</span>
                               <span className="ml-2 text-sm font-bold tracking-tight text-white">{item.value}</span>
                             </div>
@@ -801,7 +801,7 @@ export function CampaignsPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-[1.4rem] border border-white/5 bg-black/20 p-3.5">
+                  <div className="rounded-[1.4rem] border border-n-border bg-black/20 p-3.5">
                     <div className="space-y-1.5">
                       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Janela operacional</p>
                       <p className="text-[15px] font-bold tracking-tight text-white">{selectedCampaign.sendWindowStart}h - {selectedCampaign.sendWindowEnd}h</p>
@@ -853,8 +853,8 @@ export function CampaignsPage() {
 
               </div>
 
-              <div className="glass-card overflow-hidden rounded-[2.5rem] border-white/5 bg-white/[0.01]">
-                <div className="border-b border-white/5 px-4 bg-white/[0.02]">
+              <div className="glass-card overflow-hidden rounded-[2.5rem] border-n-border bg-n-surface">
+                <div className="border-b border-n-border px-4 bg-n-surface">
                   <ChromeTabs
                     value={activeTab}
                     onChange={setActiveTab}
@@ -869,7 +869,7 @@ export function CampaignsPage() {
                   <div className="animate-in space-y-9 p-8 fade-in duration-500">
                     <div className="space-y-8">
                       {editorCampaign ? <CampaignBuilder value={editorCampaign} onChange={(next) => setEditorCampaign(normalizeCampaignDraft(next))} /> : null}
-                      <div className="flex justify-end border-t border-white/5 pt-5">
+                      <div className="flex justify-end border-t border-n-border pt-5">
                         <Button
                           className="h-12 rounded-2xl bg-cmm-blue px-8 text-sm font-bold shadow-xl shadow-blue-500/20 transition-transform hover:scale-[1.02]"
                           disabled={!editorCampaign?.id || saveExistingMutation.isPending}
@@ -880,13 +880,13 @@ export function CampaignsPage() {
                       </div>
                     </div>
 
-                    <div className="border-t border-white/5 pt-12">
+                    <div className="border-t border-n-border pt-12">
                       <div className="flex flex-wrap items-center justify-between gap-6">
                         <div className="space-y-1">
                           <h3 className="font-display text-2xl font-bold text-white tracking-tight">Importação de Base</h3>
                           <p className="text-sm font-medium text-slate-400">Arraste seu arquivo CSV para processar e vincular contatos automaticamente.</p>
                         </div>
-                        <label className="group flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-8 py-4 transition-all hover:bg-white/[0.04] hover:border-cmm-blue/50">
+                        <label className="group flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-n-border bg-n-surface px-8 py-4 transition-all hover:bg-n-surface-2 hover:border-cmm-blue/50">
                           <Upload className="h-5 w-5 text-slate-500 group-hover:text-cmm-blue transition-colors" />
                           <span className="text-sm font-bold text-slate-300">CARREGAR CSV</span>
                           <input className="hidden" type="file" accept=".csv,text/csv" onChange={handleCsvUpload} />
@@ -905,7 +905,7 @@ export function CampaignsPage() {
                               <div key={field.key} className="space-y-1.5">
                                 <label className="ml-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">{field.label}</label>
                                 <select
-                                  className="w-full h-12 rounded-2xl border border-white/5 bg-white/[0.02] px-4 text-sm font-bold text-slate-300 outline-none transition hover:bg-white/[0.04] focus:border-cmm-blue/30"
+                                  className="w-full h-12 rounded-2xl border border-n-border bg-n-surface px-4 text-sm font-bold text-slate-300 outline-none transition hover:bg-n-surface-2 focus:border-cmm-blue/30"
                                   value={field.value}
                                   onChange={(event) => setMapping((current) => ({ ...current, [field.key]: event.target.value }))}
                                 >
@@ -919,7 +919,7 @@ export function CampaignsPage() {
                           </div>
 
                           <div className="flex flex-wrap gap-3">
-                            <Badge tone="default" className="bg-white/5 border-white/5 text-[10px] uppercase font-bold tracking-widest px-3 py-1">{csvUpload.totalRows} linhas no arquivo</Badge>
+                            <Badge tone="default" className="bg-white/5 border-n-border text-[10px] uppercase font-bold tracking-widest px-3 py-1">{csvUpload.totalRows} linhas no arquivo</Badge>
                             <Badge tone="default" className="bg-cmm-blue/10 border-cmm-blue/20 text-cmm-blue text-[10px] uppercase font-bold tracking-widest px-3 py-1">{selectedCampaign.eligibleChannels.join(" + ")}</Badge>
                             {csvValidating ? <Badge tone="info" className="animate-pulse">Validando…</Badge> : null}
                           </div>
@@ -935,17 +935,17 @@ export function CampaignsPage() {
                                   { label: "Parcial", value: csvValidation.summary.insufficient_link, tone: "warning" as const },
                                   { label: "Inválidos", value: csvValidation.summary.invalid, tone: "danger" as const }
                                 ].map((item) => (
-                                  <div key={item.label} className="rounded-3xl border border-white/5 bg-white/[0.01] p-5">
+                                  <div key={item.label} className="rounded-3xl border border-n-border bg-n-surface p-5">
                                     <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">{item.label}</div>
                                     <div className="mt-2 text-2xl font-bold text-white tracking-tighter">{item.value}</div>
                                   </div>
                                 ))}
                               </div>
 
-                              <div className="overflow-hidden rounded-3xl border border-white/5 bg-white/[0.01]">
+                              <div className="overflow-hidden rounded-3xl border border-n-border bg-n-surface">
                                 <div className="max-h-[30rem] overflow-auto">
                                   <table className="w-full text-left text-sm">
-                                    <thead className="sticky top-0 bg-slate-950 border-b border-white/5 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                    <thead className="sticky top-0 bg-slate-950 border-b border-n-border text-[10px] font-black uppercase tracking-widest text-slate-500">
                                       <tr>
                                         {csvValidation.headers.map((header) => <th key={header} className="px-6 py-4">{header}</th>)}
                                         <th className="px-6 py-4">Canal</th>
@@ -954,7 +954,7 @@ export function CampaignsPage() {
                                     </thead>
                                     <tbody className="divide-y divide-white/5">
                                       {csvValidation.preview.map((row, index) => (
-                                        <tr key={index} className="group hover:bg-white/[0.02] transition-colors">
+                                        <tr key={index} className="group hover:bg-n-surface transition-colors">
                                           {csvValidation.headers.map((header) => (
                                             <td key={header} className="px-6 py-4 text-xs font-medium text-slate-300">{previewCellValue(row[header]) || "-"}</td>
                                           ))}
@@ -982,13 +982,13 @@ export function CampaignsPage() {
                               </div>
                             </div>
                           ) : (
-                            <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.01] px-6 py-10 text-center text-xs font-medium text-slate-500 uppercase tracking-widest">
+                            <div className="rounded-3xl border border-dashed border-n-border bg-n-surface px-6 py-10 text-center text-xs font-medium text-slate-500 uppercase tracking-widest">
                               Defina o mapeamento acima para ver o preview omnichannel.
                             </div>
                           )}
                         </div>
                       ) : (
-                        <div className="mt-8 rounded-3xl border border-dashed border-white/5 bg-white/[0.01] px-6 py-12 text-center">
+                        <div className="mt-8 rounded-3xl border border-dashed border-n-border bg-n-surface px-6 py-12 text-center">
                           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white/5 text-slate-500">
                             <Upload className="h-8 w-8" />
                           </div>
@@ -998,7 +998,7 @@ export function CampaignsPage() {
                     </div>
 
                     {/* Manual recipient input */}
-                    <div className="border-t border-white/5 pt-12">
+                    <div className="border-t border-n-border pt-12">
                       <div className="space-y-1 mb-6">
                         <h3 className="font-display text-2xl font-bold text-white tracking-tight">Adicionar manualmente</h3>
                         <p className="text-sm font-medium text-slate-400">Digite numeros de WhatsApp ou usernames do Instagram, um por linha.</p>
@@ -1013,7 +1013,7 @@ export function CampaignsPage() {
                                 "flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold transition-all",
                                 manualChannel === "whatsapp"
                                   ? "border-cmm-emerald/40 bg-cmm-emerald/10 text-cmm-emerald"
-                                  : "border-white/10 bg-white/[0.02] text-slate-400 hover:bg-white/[0.04]"
+                                  : "border-n-border bg-n-surface text-slate-400 hover:bg-n-surface-2"
                               )}
                             >
                               <MessageCircleMore className="h-4 w-4" />
@@ -1026,7 +1026,7 @@ export function CampaignsPage() {
                                 "flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold transition-all",
                                 manualChannel === "instagram"
                                   ? "border-cmm-orange/40 bg-cmm-orange/10 text-cmm-orange"
-                                  : "border-white/10 bg-white/[0.02] text-slate-400 hover:bg-white/[0.04]"
+                                  : "border-n-border bg-n-surface text-slate-400 hover:bg-n-surface-2"
                               )}
                             >
                               <Instagram className="h-4 w-4" />
@@ -1034,7 +1034,7 @@ export function CampaignsPage() {
                             </button>
                           </div>
                           <Textarea
-                            className="min-h-[120px] rounded-2xl border-white/5 bg-white/[0.03] px-4 py-3 text-sm font-mono"
+                            className="min-h-[120px] rounded-2xl border-n-border bg-n-surface-2 px-4 py-3 text-sm font-mono"
                             placeholder={manualChannel === "whatsapp" ? "5511999998888\n5521988887777\n5531977776666" : "@usuario1\n@usuario2\n@usuario3"}
                             value={manualInput}
                             onChange={(e) => setManualInput(e.target.value)}
@@ -1063,7 +1063,7 @@ export function CampaignsPage() {
                   </div>
                 ) : (
                   <div className="animate-in fade-in duration-500">
-                    <div className="flex flex-wrap items-center gap-2 border-b border-white/5 bg-white/[0.01] p-3.5">
+                    <div className="flex flex-wrap items-center gap-2 border-b border-n-border bg-n-surface p-3.5">
                       {[
                         { key: "all", label: "Geral", count: recipientCounts.all },
                         { key: "sent", label: "Executados", count: recipientCounts.sent },
@@ -1075,7 +1075,7 @@ export function CampaignsPage() {
                           onClick={() => setRecipientFilter(item.key)}
                           className={cn(
                             "group flex items-center gap-2 rounded-2xl border px-3 py-1.5 transition-all duration-300",
-                            recipientFilter === item.key ? "border-cmm-blue/30 bg-cmm-blue/10 text-white" : "border-white/5 bg-white/[0.02] text-slate-400 hover:bg-white/[0.04]"
+                            recipientFilter === item.key ? "border-cmm-blue/30 bg-cmm-blue/10 text-white" : "border-n-border bg-n-surface text-slate-400 hover:bg-n-surface-2"
                           )}
                         >
                           <span className="text-[10px] font-black uppercase tracking-widest">{item.label}</span>
@@ -1095,7 +1095,7 @@ export function CampaignsPage() {
                                 onClick={() => setSelectedRecipientId(recipient.id)}
                                 className={cn(
                                   "group relative flex w-full items-center justify-between px-4 py-3.5 text-left transition-all duration-300",
-                                  isSelected ? "bg-cmm-blue/5" : "hover:bg-white/[0.02]"
+                                  isSelected ? "bg-cmm-blue/5" : "hover:bg-n-surface"
                                 )}
                               >
                                 <div className="flex min-w-0 items-center gap-3">
@@ -1127,7 +1127,7 @@ export function CampaignsPage() {
                           )}
                         </div>
                         {filteredRecipients.length > 0 ? (
-                          <div className="flex items-center justify-between border-t border-white/5 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                          <div className="flex items-center justify-between border-t border-n-border px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500">
                             <span>
                               Mostrando {(recipientPage - 1) * RECIPIENTS_PER_PAGE + 1}
                               {" - "}
@@ -1140,7 +1140,7 @@ export function CampaignsPage() {
                                 type="button"
                                 onClick={() => setRecipientPage((current) => Math.max(1, current - 1))}
                                 disabled={recipientPage === 1}
-                                className="rounded-xl border border-white/10 px-3 py-1.5 text-slate-300 transition hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-40"
+                                className="rounded-xl border border-n-border px-3 py-1.5 text-slate-300 transition hover:bg-n-surface-2 disabled:cursor-not-allowed disabled:opacity-40"
                               >
                                 Anterior
                               </button>
@@ -1149,7 +1149,7 @@ export function CampaignsPage() {
                                 type="button"
                                 onClick={() => setRecipientPage((current) => Math.min(recipientTotalPages, current + 1))}
                                 disabled={recipientPage === recipientTotalPages}
-                                className="rounded-xl border border-white/10 px-3 py-1.5 text-slate-300 transition hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-40"
+                                className="rounded-xl border border-n-border px-3 py-1.5 text-slate-300 transition hover:bg-n-surface-2 disabled:cursor-not-allowed disabled:opacity-40"
                               >
                                 Próxima
                               </button>
@@ -1158,7 +1158,7 @@ export function CampaignsPage() {
                         ) : null}
                       </div>
 
-                      <div className="border-l border-white/5 bg-slate-950/60 p-5">
+                      <div className="border-l border-n-border bg-slate-950/60 p-5">
                         <h5 className="mb-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Detalhes do contato</h5>
                         {selectedRecipient ? (
                           <div className="animate-in space-y-6 fade-in slide-in-from-right-4 duration-500">
@@ -1168,11 +1168,11 @@ export function CampaignsPage() {
                             </div>
 
                             <div className="grid grid-cols-2 gap-2.5">
-                              <div className="rounded-2xl border border-white/5 bg-white/5 p-3.5">
+                              <div className="rounded-2xl border border-n-border bg-white/5 p-3.5">
                                 <div className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Status</div>
                                 <Badge tone={recipientTone(selectedRecipient.status)} className="mt-2 text-[9px] uppercase font-black">{recipientStatusLabels[selectedRecipient.status]}</Badge>
                               </div>
-                              <div className="rounded-2xl border border-white/5 bg-white/5 p-3.5">
+                              <div className="rounded-2xl border border-n-border bg-white/5 p-3.5">
                                 <div className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Step Atual</div>
                                 <div className="mt-2 text-lg font-bold text-white tracking-tighter">#{Math.max(Number(selectedRecipient.step_index), 0) + 1}</div>
                               </div>
@@ -1184,7 +1184,7 @@ export function CampaignsPage() {
                                 { label: "Próximo Agendamento", value: formatCampaignDateTime(selectedRecipient.next_run_at) },
                                 { label: "Canal Ativo", value: selectedRecipient.channel === 'instagram' ? 'Instagram' : 'WhatsApp' }
                               ].map(item => (
-                                <div key={item.label} className="flex items-center justify-between border-b border-white/5 py-2">
+                                <div key={item.label} className="flex items-center justify-between border-b border-n-border py-2">
                                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{item.label}</span>
                                   <span className="text-xs font-bold text-slate-300">{item.value}</span>
                                 </div>
@@ -1213,7 +1213,7 @@ export function CampaignsPage() {
               </div>
             </div>
           ) : (
-            <div className="glass-card flex flex-col items-center justify-center p-20 text-center rounded-[2.5rem] border-white/5 bg-white/[0.01]">
+            <div className="glass-card flex flex-col items-center justify-center p-20 text-center rounded-[2.5rem] border-n-border bg-n-surface">
               <div className="h-24 w-24 rounded-3xl bg-white/5 flex items-center justify-center mb-8">
                 <Plus className="h-10 w-10 text-slate-600" />
               </div>
@@ -1244,7 +1244,7 @@ export function CampaignsPage() {
 
       {/* Workflow Viewer Dialog */}
       <Dialog open={Boolean(viewerCampaignId)} onOpenChange={(open) => !open && setViewerCampaignId(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[#0c0c0e] border-white/10">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[#0c0c0e] border-n-border">
           <DialogTitle className="sr-only">Visualizador de Workflow</DialogTitle>
           <DialogDescription className="sr-only">Fluxo visual da campanha com estatisticas por etapa</DialogDescription>
           {viewerCampaign && (

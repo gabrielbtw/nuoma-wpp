@@ -151,7 +151,7 @@ function SectionHeading({ title, icon: Icon }: { title: string; icon?: LucideIco
   return (
     <div className="flex items-center gap-2.5">
       {Icon && (
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-white/5 bg-white/5 shadow-inner">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-n-border bg-white/5 shadow-inner">
           <Icon className="h-4.5 w-4.5 text-cmm-blue" />
         </div>
       )}
@@ -183,11 +183,11 @@ function StepTypeSelector({
               "flex h-10 min-w-[80px] items-center gap-2 rounded-xl border px-3 text-left transition-all duration-300",
               active
                 ? "bg-white/10 border-white/20 shadow-xl"
-                : "bg-white/[0.02] border-transparent hover:bg-white/5"
+                : "bg-n-surface border-transparent hover:bg-white/5"
             )}
             title={option.description}
           >
-            <div className={cn("rounded-full border border-white/5 bg-white/5 p-1.5", active ? colorClass : "text-slate-500")}>
+            <div className={cn("rounded-full border border-n-border bg-white/5 p-1.5", active ? colorClass : "text-slate-500")}>
               <Icon className="h-3.5 w-3.5" />
             </div>
             <span className={cn("text-[10px] font-bold tracking-tight", active ? "text-white" : "text-slate-400")}>
@@ -219,7 +219,7 @@ function ConditionEditor({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 rounded-xl border border-dashed border-white/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 transition-all hover:border-cmm-purple/30 hover:text-cmm-purple"
+        className="flex items-center gap-1.5 rounded-xl border border-dashed border-n-border px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 transition-all hover:border-cmm-purple/30 hover:text-cmm-purple"
       >
         <Filter className="h-3 w-3" />
         Adicionar condicao
@@ -253,7 +253,7 @@ function ConditionEditor({
         <div>
           <p className="mb-1 text-[9px] font-bold uppercase tracking-widest text-slate-500">Se...</p>
           <select
-            className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-2 text-xs font-semibold text-white outline-none"
+            className="h-9 w-full rounded-lg border border-n-border bg-black/30 px-2 text-xs font-semibold text-white outline-none"
             value={step.conditionType ?? ""}
             onChange={(e) =>
               onChange({
@@ -273,7 +273,7 @@ function ConditionEditor({
         <div>
           <p className="mb-1 text-[9px] font-bold uppercase tracking-widest text-slate-500">Entao...</p>
           <select
-            className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-2 text-xs font-semibold text-white outline-none"
+            className="h-9 w-full rounded-lg border border-n-border bg-black/30 px-2 text-xs font-semibold text-white outline-none"
             value={step.conditionAction ?? ""}
             onChange={(e) =>
               onChange({
@@ -294,7 +294,7 @@ function ConditionEditor({
         <div>
           <p className="mb-1 text-[9px] font-bold uppercase tracking-widest text-slate-500">Tag</p>
           <select
-            className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-2 text-xs font-semibold text-white outline-none"
+            className="h-9 w-full rounded-lg border border-n-border bg-black/30 px-2 text-xs font-semibold text-white outline-none"
             value={step.conditionValue ?? ""}
             onChange={(e) => onChange({ ...step, conditionValue: e.target.value || null })}
           >
@@ -310,7 +310,7 @@ function ConditionEditor({
         <div>
           <p className="mb-1 text-[9px] font-bold uppercase tracking-widest text-slate-500">Canal</p>
           <select
-            className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-2 text-xs font-semibold text-white outline-none"
+            className="h-9 w-full rounded-lg border border-n-border bg-black/30 px-2 text-xs font-semibold text-white outline-none"
             value={step.conditionValue ?? ""}
             onChange={(e) => onChange({ ...step, conditionValue: e.target.value || null })}
           >
@@ -325,7 +325,7 @@ function ConditionEditor({
         <div>
           <p className="mb-1 text-[9px] font-bold uppercase tracking-widest text-slate-500">Ir para etapa</p>
           <select
-            className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-2 text-xs font-semibold text-white outline-none"
+            className="h-9 w-full rounded-lg border border-n-border bg-black/30 px-2 text-xs font-semibold text-white outline-none"
             value={step.conditionJumpTo ?? ""}
             onChange={(e) => onChange({ ...step, conditionJumpTo: e.target.value ? Number(e.target.value) : null })}
           >
@@ -369,7 +369,7 @@ function MediaDropzone({
         onDrop={(event) => { event.preventDefault(); setDragging(false); onFile(event.dataTransfer.files?.[0]); }}
         className={cn(
           "flex min-h-[8rem] cursor-pointer flex-col justify-between rounded-[1.25rem] border border-dashed p-4 transition-all duration-300",
-          dragging ? "border-cmm-blue bg-cmm-blue/5" : "border-white/10 bg-white/[0.01] hover:bg-white/[0.03]"
+          dragging ? "border-cmm-blue bg-cmm-blue/5" : "border-n-border bg-n-surface hover:bg-n-surface-2"
         )}
       >
         <div className="flex flex-col items-center gap-3 text-center">
@@ -470,13 +470,13 @@ function SortableStep({
       {!isLast && <div className="absolute left-[1rem] top-10 h-[calc(100%-0.75rem)] w-px bg-white/[0.06]" />}
 
       <div className={cn(
-        "absolute left-0 top-2 flex h-8 w-8 items-center justify-center rounded-xl border border-white/5 bg-[#16161a] text-white shadow-xl"
+        "absolute left-0 top-2 flex h-8 w-8 items-center justify-center rounded-xl border border-n-border bg-[#16161a] text-white shadow-xl"
       )}>
         <span className="text-[10px] font-bold tracking-widest">{String(index + 1).padStart(2, '0')}</span>
       </div>
 
-      <div className="glass-card mb-2.5 overflow-hidden rounded-[1.4rem] border-white/5 bg-white/[0.01] p-0 shadow-sm transition-all hover:bg-white/[0.03]">
-        <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-white/5 bg-white/[0.02] px-3.5 py-2.5">
+      <div className="glass-card mb-2.5 overflow-hidden rounded-[1.4rem] border-n-border bg-n-surface p-0 shadow-sm transition-all hover:bg-n-surface-2">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-n-border bg-n-surface px-3.5 py-2.5">
           <div className="flex items-center gap-3">
             <button type="button" className="rounded-xl p-1.5 text-slate-500 transition-colors hover:bg-white/5 hover:text-white" {...attributes} {...listeners}>
               <GripVertical className="h-4 w-4" />
@@ -510,7 +510,7 @@ function SortableStep({
         <div className="space-y-3 p-3.5">
           <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between">
             <StepTypeSelector value={step.type} onChange={(type) => onChange(normalizeCampaignStepForType(step, type))} />
-            <div className="flex items-center gap-2 rounded-full border border-white/5 bg-black/20 px-2 py-1.5">
+            <div className="flex items-center gap-2 rounded-full border border-n-border bg-black/20 px-2 py-1.5">
               {stepChannelOptions.map((opt) => (
                 <button
                   key={opt.value}
@@ -535,7 +535,7 @@ function SortableStep({
                   <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Minutos de espera</p>
                   <Input
                     type="number"
-                    className="h-10 rounded-xl border-white/10 bg-black/20 font-semibold"
+                    className="h-10 rounded-xl border-n-border bg-black/20 font-semibold"
                     value={step.waitMinutes ?? 5}
                     onChange={(e) => onChange({ ...step, waitMinutes: Number(e.target.value) })}
                   />
@@ -545,7 +545,7 @@ function SortableStep({
                   <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Tag</p>
                   <Input
                     list={tagListId}
-                    className="h-10 rounded-xl border-white/10 bg-black/20 font-semibold"
+                    className="h-10 rounded-xl border-n-border bg-black/20 font-semibold"
                     value={step.tagName ?? ""}
                     onChange={(e) => onChange({ ...step, tagName: e.target.value })}
                     placeholder="ex: Lead Quente"
@@ -558,7 +558,7 @@ function SortableStep({
                 <div className="space-y-1.5">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{contentFieldLabel}</p>
                   <Textarea
-                    className="min-h-[80px] rounded-2xl border-white/5 bg-white/[0.03] px-3.5 py-3 text-sm leading-relaxed"
+                    className="min-h-[80px] rounded-2xl border-n-border bg-n-surface-2 px-3.5 py-3 text-sm leading-relaxed"
                     value={step.content}
                     onChange={(e) => onChange({ ...step, content: e.target.value, caption: step.type === "text" || step.type === "link" ? step.caption : e.target.value })}
                     placeholder={contentPlaceholder}
@@ -586,7 +586,7 @@ function SortableStep({
                   <div className="flex-1">
                     <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">Midia</p>
                     {step.mediaPath ? (
-                      <div className="glass-card relative rounded-[1.25rem] border-white/5 bg-cmm-blue/5 p-3.5 text-center">
+                      <div className="glass-card relative rounded-[1.25rem] border-n-border bg-cmm-blue/5 p-3.5 text-center">
                         <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-white/5 shadow-inner">
                           {(() => { const MI = mediaIcon; return <MI className="h-6 w-6 text-cmm-blue" />; })()}
                         </div>
@@ -604,7 +604,7 @@ function SortableStep({
                   </div>
                 )}
                 {step.type === "wait" && (
-                  <div className="flex h-full min-h-[96px] flex-col items-center justify-center rounded-[1.25rem] border border-white/5 bg-white/[0.03] p-3 text-center">
+                  <div className="flex h-full min-h-[96px] flex-col items-center justify-center rounded-[1.25rem] border border-n-border bg-n-surface-2 p-3 text-center">
                     <Clock3 className="mb-2 h-6 w-6 text-cmm-orange opacity-70" />
                     <p className="text-[11px] font-medium text-slate-400">Pausa entre etapas.</p>
                   </div>
@@ -650,7 +650,7 @@ export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onC
   return (
     <div className="space-y-6 pb-8">
       {/* Config base */}
-      <div className="glass-card rounded-[2rem] border-white/5 bg-white/[0.01] p-5">
+      <div className="glass-card rounded-[2rem] border-n-border bg-n-surface p-5">
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_160px]">
           <div className="space-y-4">
             <SectionHeading icon={Target} title="Configuracao base" />
@@ -658,7 +658,7 @@ export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onC
               <div className="space-y-2">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Nome da campanha</p>
                 <Input
-                  className="h-11 rounded-2xl border-white/5 bg-white/[0.03] text-sm font-semibold focus:border-cmm-blue/30"
+                  className="h-11 rounded-2xl border-n-border bg-n-surface-2 text-sm font-semibold focus:border-cmm-blue/30"
                   value={value.name}
                   onChange={(e) => onChange({ ...value, name: e.target.value })}
                   placeholder="ex: Follow-up Vendas"
@@ -667,7 +667,7 @@ export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onC
               <div className="space-y-2">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Status</p>
                 <select
-                  className="h-11 w-full rounded-2xl border border-white/5 bg-white/[0.03] px-4 text-sm font-semibold text-white outline-none focus:border-cmm-blue/30"
+                  className="h-11 w-full rounded-2xl border border-n-border bg-n-surface-2 px-4 text-sm font-semibold text-white outline-none focus:border-cmm-blue/30"
                   value={value.status}
                   onChange={(e) => onChange({ ...value, status: e.target.value })}
                 >
@@ -681,7 +681,7 @@ export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onC
             <div className="space-y-2">
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Descricao</p>
               <Textarea
-                className="min-h-[84px] rounded-2xl border-white/5 bg-white/[0.03] px-4 py-3 text-sm focus:border-cmm-blue/30"
+                className="min-h-[84px] rounded-2xl border-n-border bg-n-surface-2 px-4 py-3 text-sm focus:border-cmm-blue/30"
                 value={value.description}
                 onChange={(e) => onChange({ ...value, description: e.target.value })}
                 placeholder="Resumo curto da campanha"
@@ -703,7 +703,7 @@ export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onC
                       ? opt.value === "instagram"
                         ? "border-cmm-orange/40 bg-cmm-orange/10 text-cmm-orange"
                         : "border-cmm-emerald/40 bg-cmm-emerald/10 text-cmm-emerald"
-                      : "border-white/8 bg-white/[0.02] text-slate-600 hover:bg-white/[0.05]"
+                      : "border-n-border bg-n-surface text-slate-600 hover:bg-white/[0.05]"
                   )}
                   title={opt.label}
                 >
@@ -721,7 +721,7 @@ export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onC
                   "flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-left transition-all",
                   value.isEvergreen
                     ? "border-cmm-emerald/30 bg-cmm-emerald/10"
-                    : "border-white/5 bg-white/[0.02] hover:bg-white/[0.04]"
+                    : "border-n-border bg-n-surface hover:bg-n-surface-2"
                 )}
               >
                 <InfinityIcon className={cn("h-4 w-4", value.isEvergreen ? "text-cmm-emerald" : "text-slate-500")} />
@@ -736,7 +736,7 @@ export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onC
       </div>
 
       {/* Janela e cadencia */}
-      <div className="glass-card rounded-[2rem] border-white/5 bg-white/[0.01] p-5">
+      <div className="glass-card rounded-[2rem] border-n-border bg-n-surface p-5">
         <SectionHeading icon={Settings2} title="Janela e cadencia" />
 
         <div className="mt-4 grid gap-2.5 md:grid-cols-2 xl:grid-cols-4">
@@ -746,11 +746,11 @@ export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onC
             { label: "Limite (Envios)", value: value.rateLimitCount, field: "rateLimitCount", type: "number" },
             { label: "Janela (Min)", value: value.rateLimitWindowMinutes, field: "rateLimitWindowMinutes", type: "number" }
           ].map((f) => (
-            <div key={f.field} className="rounded-[1.25rem] border border-white/5 bg-white/[0.03] p-3">
+            <div key={f.field} className="rounded-[1.25rem] border border-n-border bg-n-surface-2 p-3">
               <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500">{f.label}</p>
               <Input
                 type={f.type || "text"}
-                className="h-10 rounded-xl border-white/5 bg-black/20 font-semibold text-center"
+                className="h-10 rounded-xl border-n-border bg-black/20 font-semibold text-center"
                 value={f.value}
                 placeholder={f.placeholder}
                 onChange={(e) => onChange({ ...value, [f.field]: f.type === "number" ? Number(e.target.value) : e.target.value })}
@@ -764,14 +764,14 @@ export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onC
             { label: "Delay Minimo (s)", value: value.randomDelayMinSeconds, field: "randomDelayMinSeconds" },
             { label: "Delay Maximo (s)", value: value.randomDelayMaxSeconds, field: "randomDelayMaxSeconds" }
           ].map((f) => (
-            <div key={f.field} className="flex items-center justify-between rounded-[1.25rem] border border-white/5 bg-white/[0.03] p-3">
+            <div key={f.field} className="flex items-center justify-between rounded-[1.25rem] border border-n-border bg-n-surface-2 p-3">
               <div>
                 <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 leading-none">{f.label}</p>
                 <p className="text-xs text-slate-400 font-medium">Delay aleatorio</p>
               </div>
               <Input
                 type="number"
-                className="h-10 w-24 rounded-xl border-white/5 bg-black/20 font-semibold text-center"
+                className="h-10 w-24 rounded-xl border-n-border bg-black/20 font-semibold text-center"
                 value={f.value}
                 onChange={(e) => onChange({ ...value, [f.field]: Number(e.target.value) })}
               />
@@ -788,12 +788,12 @@ export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onC
             {/* Stats badges */}
             <div className="hidden md:flex items-center gap-2">
               {duration > 0 && (
-                <span className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.03] px-2.5 py-1 text-[10px] font-bold text-slate-400">
+                <span className="flex items-center gap-1.5 rounded-lg border border-n-border bg-n-surface-2 px-2.5 py-1 text-[10px] font-bold text-slate-400">
                   <Timer className="h-3 w-3 text-cmm-orange" />
                   {formatDuration(duration)}
                 </span>
               )}
-              <span className="flex items-center gap-1.5 rounded-lg border border-white/5 bg-white/[0.03] px-2.5 py-1 text-[10px] font-bold text-slate-400">
+              <span className="flex items-center gap-1.5 rounded-lg border border-n-border bg-n-surface-2 px-2.5 py-1 text-[10px] font-bold text-slate-400">
                 <Workflow className="h-3 w-3 text-cmm-blue" />
                 {stepCount} {stepCount === 1 ? "etapa" : "etapas"}
               </span>

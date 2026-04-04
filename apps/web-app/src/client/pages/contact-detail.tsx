@@ -143,7 +143,7 @@ export function ContactDetailPage() {
           {/* Left: Contact card */}
           <div className="space-y-4">
             {/* Profile card */}
-            <div className="glass-card rounded-[2rem] border-white/5 bg-white/[0.01] p-6 space-y-5">
+            <div className="glass-card rounded-[2rem] border-n-border bg-n-surface p-6 space-y-5">
               <div className="flex flex-col items-center text-center gap-3">
                 <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-cmm-blue to-cmm-purple p-0.5">
                   <div className="h-full w-full rounded-[0.9rem] bg-slate-950 flex items-center justify-center text-2xl font-black text-white">
@@ -160,7 +160,7 @@ export function ContactDetailPage() {
               </div>
 
               {/* Quick info */}
-              <div className="space-y-2 pt-3 border-t border-white/5">
+              <div className="space-y-2 pt-3 border-t border-n-border">
                 {contact.phone && (
                   <div className="flex items-center gap-3 rounded-xl bg-black/20 px-3 py-2.5">
                     <Phone className="h-3.5 w-3.5 text-cmm-emerald" />
@@ -183,7 +183,7 @@ export function ContactDetailPage() {
 
               {/* Tags */}
               {contact.tags.length > 0 && (
-                <div className="pt-3 border-t border-white/5">
+                <div className="pt-3 border-t border-n-border">
                   <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600 mb-2">Tags</p>
                   <div className="flex flex-wrap gap-1.5">
                     {contact.tags.map((tag) => (
@@ -194,7 +194,7 @@ export function ContactDetailPage() {
               )}
 
               {/* Meta */}
-              <div className="pt-3 border-t border-white/5 space-y-2">
+              <div className="pt-3 border-t border-n-border space-y-2">
                 <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest text-slate-600">
                   <Calendar className="h-3 w-3" /> Criado {formatDateTime(contact.createdAt)}
                 </div>
@@ -205,7 +205,7 @@ export function ContactDetailPage() {
 
               {/* Notes */}
               {contact.notes && (
-                <div className="pt-3 border-t border-white/5">
+                <div className="pt-3 border-t border-n-border">
                   <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600 mb-1.5">Observacoes</p>
                   <p className="text-xs text-slate-400 leading-relaxed">{contact.notes}</p>
                 </div>
@@ -213,7 +213,7 @@ export function ContactDetailPage() {
             </div>
 
             {/* Stats */}
-            <div className="glass-card rounded-2xl border-white/5 bg-white/[0.01] p-4 space-y-2">
+            <div className="glass-card rounded-2xl border-n-border bg-n-surface p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[9px] font-bold uppercase tracking-widest text-slate-600">Total mensagens</span>
                 <span className="text-sm font-bold text-white">{messages.length}</span>
@@ -230,8 +230,8 @@ export function ContactDetailPage() {
           </div>
 
           {/* Right: Narrative Ledger (message timeline) */}
-          <div className="glass-card rounded-[2rem] border-white/5 bg-white/[0.01] overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-white/5 flex items-center gap-3">
+          <div className="glass-card rounded-[2rem] border-n-border bg-n-surface overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-n-border flex items-center gap-3">
               <MessageSquareText className="h-4 w-4 text-cmm-blue" />
               <h3 className="text-sm font-bold text-white tracking-tight">Narrative Ledger</h3>
               <Badge tone="default" className="text-[8px] ml-auto">{messages.length} mensagens</Badge>
@@ -268,8 +268,8 @@ export function ContactDetailPage() {
                           msg.direction === "outgoing"
                             ? "bg-gradient-to-br from-cmm-blue to-cmm-blue/80 text-white rounded-2xl rounded-br-md shadow-lg shadow-blue-500/10"
                             : msg.direction === "system"
-                              ? "bg-white/[0.02] text-slate-500 rounded-xl text-center mx-auto italic text-xs"
-                              : "bg-white/[0.04] text-slate-200 rounded-2xl rounded-bl-md border border-white/5"
+                              ? "bg-n-surface text-slate-500 rounded-xl text-center mx-auto italic text-xs"
+                              : "bg-n-surface-2 text-slate-200 rounded-2xl rounded-bl-md border border-n-border"
                         )}>
                           {msg.body}
                           {msg.direction === "outgoing" && (
