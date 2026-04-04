@@ -166,8 +166,9 @@ export function listConversations(filters?: { channel?: string; status?: string;
 /**
  * Lists conversations grouped by contact for the unified inbox.
  * Returns one entry per contact with their latest message across all channels.
+ * Supports pagination via page/pageSize params.
  */
-export function listUnifiedInbox(filters?: { channel?: string; status?: string; query?: string }) {
+export function listUnifiedInbox(filters?: { channel?: string; status?: string; query?: string; page?: number; pageSize?: number }) {
   const db = getDb();
   const where: string[] = ["conv.contact_id IS NOT NULL"];
   const params: unknown[] = [];
@@ -191,6 +192,25 @@ export function listUnifiedInbox(filters?: { channel?: string; status?: string; 
   }
 
   const whereClause = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
+
+  // Count total grouped contacts matching filters
+  const countRow = db.prepare(
+    `SELECT COUNT(*) AS cnt FROM (
+      SELECT c.id
+      FROM conversations conv
+      INNER JOIN contacts c ON c.id = conv.contact_id
+      ${whereClause}
+      GROUP BY c.id
+    )`
+  ).get(...params) as { cnt: number };
+  const total = countRow.cnt;
+
+  const page = Math.max(1, filters?.page ?? 1);
+  const pageSize = Math.max(1, Math.min(200, filters?.pageSize ?? 40));
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const offset = (safePage - 1) * pageSize;
+
   // Single query with subquery to avoid N+1 (architecture fix)
   const rows = db.prepare(
     `SELECT
@@ -213,10 +233,11 @@ export function listUnifiedInbox(filters?: { channel?: string; status?: string; 
     INNER JOIN contacts c ON c.id = conv.contact_id
     ${whereClause}
     GROUP BY c.id
-    ORDER BY MAX(datetime(COALESCE(conv.last_message_at, conv.updated_at))) DESC`
-  ).all(...params) as Array<Record<string, unknown>>;
+    ORDER BY MAX(datetime(COALESCE(conv.last_message_at, conv.updated_at))) DESC
+    LIMIT ? OFFSET ?`
+  ).all(...params, pageSize, offset) as Array<Record<string, unknown>>;
 
-  return rows.map((row) => ({
+  const items = rows.map((row) => ({
     contactId: String(row.contact_id),
     contactName: String(row.contact_name ?? ""),
     contactPhone: (row.contact_phone as string) ?? null,
@@ -229,6 +250,8 @@ export function listUnifiedInbox(filters?: { channel?: string; status?: string; 
     totalUnread: Number(row.total_unread ?? 0),
     conversationCount: Number(row.conversation_count ?? 0)
   }));
+
+  return { items, total, page: safePage, pageSize, totalPages };
 }
 
 /**

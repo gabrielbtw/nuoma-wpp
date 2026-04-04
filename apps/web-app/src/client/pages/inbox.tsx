@@ -2,7 +2,7 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
-  ArrowUpRight, BookOpen, CheckCheck, FileText, Globe2, Instagram, MessageCircleMore,
+  ArrowUpRight, BookOpen, CheckCheck, ChevronLeft, ChevronRight, FileText, Globe2, Instagram, MessageCircleMore,
   Paperclip, Phone, Search, SendHorizonal, Tag as TagIcon, User, Zap
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
@@ -14,6 +14,8 @@ import { apiFetch, toJsonBody } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 // ----- Types -----
+
+const INBOX_PAGE_SIZE = 40;
 
 type UnifiedInboxEntry = {
   contactId: string;
@@ -27,6 +29,14 @@ type UnifiedInboxEntry = {
   lastMessageChannel: string | null;
   totalUnread: number;
   conversationCount: number;
+};
+
+type UnifiedInboxResponse = {
+  items: UnifiedInboxEntry[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
 };
 
 type UnifiedMessage = {
@@ -70,19 +80,26 @@ export function InboxPage() {
   const [sendChannel, setSendChannel] = useState<"whatsapp" | "instagram">("whatsapp");
   const [attachment, setAttachment] = useState<{ file: File; path: string; type: string } | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [page, setPage] = useState(1);
   const deferredSearch = useDeferredValue(search);
+
+  // Reset page when filters change
+  useEffect(() => { setPage(1); }, [search, channel]);
 
   // Unified inbox query (grouped by contact)
   const inboxQuery = useQuery({
-    queryKey: ["unified-inbox", deferredSearch, channel],
+    queryKey: ["unified-inbox", deferredSearch, channel, page],
     queryFn: () =>
-      apiFetch<UnifiedInboxEntry[]>(
-        `/inbox/unified?channel=${encodeURIComponent(channel === "all" ? "" : channel)}&q=${encodeURIComponent(deferredSearch)}`
+      apiFetch<UnifiedInboxResponse>(
+        `/inbox/unified?channel=${encodeURIComponent(channel === "all" ? "" : channel)}&q=${encodeURIComponent(deferredSearch)}&page=${page}&pageSize=${INBOX_PAGE_SIZE}`
       ),
     refetchInterval: 10_000
   });
 
-  const entries = inboxQuery.data ?? [];
+  const entries = inboxQuery.data?.items ?? [];
+  const inboxTotal = inboxQuery.data?.total ?? 0;
+  const inboxTotalPages = inboxQuery.data?.totalPages ?? 1;
+  const inboxCurrentPage = inboxQuery.data?.page ?? page;
   const selectedEntry = useMemo(
     () => entries.find((e) => e.contactId === selectedContactId) ?? entries[0] ?? null,
     [entries, selectedContactId]
@@ -195,7 +212,7 @@ export function InboxPage() {
           <div className="flex-1 rounded-xl border border-n-border bg-n-surface overflow-hidden flex flex-col">
             <div className="px-3 py-2.5 border-b border-n-border flex items-center justify-between">
               <h3 className="text-micro uppercase text-n-text-dim">Contatos</h3>
-              <span className="text-micro text-n-text-dim">{entries.length}</span>
+              <span className="text-micro text-n-text-dim">{inboxTotal}</span>
             </div>
             <div className="flex-1 overflow-y-auto space-y-0.5 p-1.5 custom-scrollbar">
               {entries.map((entry) => {
@@ -244,6 +261,29 @@ export function InboxPage() {
                 </div>
               )}
             </div>
+
+            {/* Pagination */}
+            {inboxTotalPages > 1 && (
+              <div className="flex items-center justify-between px-3 py-2 border-t border-n-border bg-n-surface">
+                <button
+                  disabled={inboxCurrentPage <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="h-7 w-7 rounded-lg border border-n-border bg-n-bg flex items-center justify-center text-n-text-dim hover:bg-n-surface-2 hover:text-n-text disabled:opacity-30 disabled:cursor-not-allowed transition-fast"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </button>
+                <span className="text-micro text-n-text-dim">
+                  {inboxCurrentPage} / {inboxTotalPages}
+                </span>
+                <button
+                  disabled={inboxCurrentPage >= inboxTotalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="h-7 w-7 rounded-lg border border-n-border bg-n-bg flex items-center justify-center text-n-text-dim hover:bg-n-surface-2 hover:text-n-text disabled:opacity-30 disabled:cursor-not-allowed transition-fast"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

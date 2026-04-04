@@ -35,11 +35,13 @@ export async function registerConversationRoutes(app: FastifyInstance) {
   });
 
   app.get("/inbox/unified", async (request) => {
-    const query = request.query as { channel?: string; status?: string; q?: string };
+    const query = request.query as { channel?: string; status?: string; q?: string; page?: string; pageSize?: string };
     return listUnifiedInbox({
       channel: query.channel,
       status: query.status,
-      query: query.q
+      query: query.q,
+      page: query.page ? Number(query.page) : undefined,
+      pageSize: query.pageSize ? Number(query.pageSize) : undefined
     });
   });
 
