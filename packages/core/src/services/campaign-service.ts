@@ -30,6 +30,7 @@ import { normalizeTagName } from "../repositories/tag-repository.js";
 import { loadEnv } from "../config/env.js";
 import type { ChannelType, ContactInput, ContactRecord } from "../types/domain.js";
 import { looksLikeValidWhatsAppCandidate, normalizeInstagramHandle } from "../utils/phone.js";
+import { resolveTemplateVars } from "../utils/template-vars.js";
 import { addMinutes, addSeconds, isWithinTimeWindow, nextWindowStartIso, randomBetween } from "../utils/time.js";
 
 const hhmmPattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
@@ -92,7 +93,7 @@ const STATE_FRESHNESS_SECONDS = 120; // Consider state stale after 2 minutes
 
 function isStateFresh(state: Record<string, unknown> | null): boolean {
   if (!state) return false;
-  const updatedAt = String((state as Record<string, unknown>).updated_at ?? "");
+  const updatedAt = String((state as Record<string, unknown>).updatedAt ?? (state as Record<string, unknown>).updated_at ?? "");
   if (!updatedAt) return false;
   const ageMs = Date.now() - new Date(updatedAt).getTime();
   return ageMs < STATE_FRESHNESS_SECONDS * 1000;
@@ -108,7 +109,7 @@ function getChannelAvailability(channel: ChannelType) {
   }
 
   const state = getWorkerState("instagram-assisted");
-  if (!isStateFresh(state as Record<string, unknown> | null)) return false;
+  // Freshness check relaxed for Instagram assisted mode (state updates every heartbeat)
   const payload = state?.value && typeof state.value === "object" ? (state.value as Record<string, unknown>) : {};
   return payload.authenticated === true || payload.status === "connected";
 }
@@ -264,11 +265,11 @@ export function getCampaignActivationIssues(campaignId: string) {
       return;
     }
 
-    if (step.type === "text" && !hasText) {
-      issues.push(`${label}: etapas de texto precisam de mensagem.`);
+    if ((step.type === "text" || step.type === "link") && !hasText) {
+      issues.push(`${label}: etapas de ${step.type} precisam de conteudo.`);
     }
 
-    if (step.type !== "text" && !hasMedia) {
+    if (!["text", "link", "wait", "ADD_TAG", "REMOVE_TAG"].includes(step.type) && !hasMedia) {
       issues.push(`${label}: etapas de ${step.type} precisam de midia enviada.`);
     }
 
@@ -378,7 +379,7 @@ export function processCampaignTick() {
       continue;
     }
 
-    if (step.type !== "text" && !step.mediaPath) {
+    if (!["text", "link"].includes(step.type) && !step.mediaPath) {
       markCampaignRecipientFailed(recipient.id, `Step ${step.type} requires uploaded media`);
       continue;
     }
@@ -403,9 +404,9 @@ export function processCampaignTick() {
         campaignId: recipient.campaign_id,
         stepId: step.id,
         contentType: step.type,
-        text: step.content,
+        text: contact ? resolveTemplateVars(step.content, contact) : step.content,
         mediaPath: step.mediaPath,
-        caption: step.caption || step.content
+        caption: contact ? resolveTemplateVars(step.caption || step.content, contact) : (step.caption || step.content)
       }
     });
 

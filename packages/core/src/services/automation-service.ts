@@ -19,6 +19,7 @@ import { createReminder } from "../repositories/reminder-repository.js";
 import { normalizeTagName } from "../repositories/tag-repository.js";
 import { getWorkerState, recordSystemEvent } from "../repositories/system-repository.js";
 import { loadEnv } from "../config/env.js";
+import { resolveTemplateVars } from "../utils/template-vars.js";
 import { addSeconds, isWithinTimeWindow, nextWindowStartIso, randomBetween } from "../utils/time.js";
 import type { AutomationRuleRecord, ChannelType } from "../types/domain.js";
 
@@ -368,9 +369,9 @@ export function processAutomationTick() {
             recipientDisplayValue: String(contact.name ?? contact.instagram ?? contact.phone ?? ""),
             recipientNormalizedValue,
             contentType: action.type.replace("send-", ""),
-            text: action.content,
+            text: resolveTemplateVars(action.content, contact),
             mediaPath: action.mediaPath,
-            caption: action.content
+            caption: resolveTemplateVars(action.content, contact)
           }
         });
 
