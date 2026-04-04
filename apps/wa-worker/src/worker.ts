@@ -1375,30 +1375,43 @@ export class WhatsAppWorker {
   }
 
   private async sendVoiceRecording(phone: string, audioPath: string, correlationId: string) {
-    // Convert to WAV first (same as prepareMediaForUpload) so we can measure duration
+    // Get exact audio duration using ffprobe
+    let durationSecs = 8;
+    try {
+      const { stdout } = await execFileAsync("ffprobe", [
+        "-i", audioPath,
+        "-show_entries", "format=duration",
+        "-v", "quiet",
+        "-of", "csv=p=0"
+      ]);
+      const parsed = parseFloat(stdout.trim());
+      if (!isNaN(parsed) && parsed > 0) {
+        durationSecs = parsed;
+      }
+    } catch {
+      // Fallback: estimate from file size
+      try {
+        const stat = await fs.stat(audioPath);
+        durationSecs = Math.max(3, stat.size / 1024 / 8);
+      } catch { /* use default */ }
+    }
+
+    // Convert to WAV for Chromium fake audio capture
     let wavPath = audioPath;
     const ext = path.extname(audioPath).toLowerCase();
     if (ext !== ".wav") {
       try {
         wavPath = path.join(this.env.TEMP_DIR, `${Date.now()}-voice-${randomUUID()}.wav`);
         await fs.mkdir(this.env.TEMP_DIR, { recursive: true });
-        await execFileAsync("afconvert", ["-f", "WAVE", "-d", "LEI16@24000", audioPath, wavPath]);
+        await execFileAsync("afconvert", ["-f", "WAVE", "-d", "LEI16@48000", "-c", "1", audioPath, wavPath]);
       } catch {
         wavPath = audioPath;
       }
     }
 
-    // Calculate duration from WAV file: 24kHz, 16-bit, mono = 48000 bytes/sec
-    let durationMs = 8_000; // default 8s
-    try {
-      const stat = await fs.stat(wavPath);
-      const wavHeaderBytes = 44;
-      const dataBytes = stat.size - wavHeaderBytes;
-      const bytesPerSec = 24000 * 2; // 24kHz 16-bit mono
-      const secs = dataBytes / bytesPerSec;
-      durationMs = Math.max(3_000, Math.min(120_000, Math.round(secs * 1000) + 1_500));
-      this.logger.info({ durationMs, fileSize: stat.size, secs: Math.round(secs) }, "Audio duration calculated from WAV");
-    } catch { /* use default */ }
+    // Recording time = exact audio duration + small buffer for UI latency
+    const recordingMs = Math.round(durationSecs * 1000) + 800;
+    this.logger.info({ durationSecs: Math.round(durationSecs * 10) / 10, recordingMs, wavPath }, "Voice recording: starting with exact duration");
 
     await this.relaunchBrowser(wavPath);
 
@@ -1409,19 +1422,23 @@ export class WhatsAppWorker {
     await this.page.goto(`${this.env.WA_URL}/send?phone=${encodeURIComponent(phone)}`, {
       waitUntil: "domcontentloaded"
     });
-    await this.page.waitForTimeout(8_000);
+    await this.page.waitForTimeout(10_000);
 
+    // Click mic button to START recording
     const micButton = this.page.getByRole("button", { name: /mensagem de voz/i }).last();
     await micButton.waitFor({ timeout: 20_000 });
     await micButton.click({ force: true });
 
-    // Wait for the actual audio duration (file plays through fake mic capture)
-    await this.page.waitForTimeout(durationMs);
+    this.logger.info({ recordingMs }, "Voice recording: started, waiting for duration...");
 
+    // Wait for the audio to play through fake mic capture
+    await this.page.waitForTimeout(recordingMs);
+
+    // Click send button to STOP and SEND the recording
     const sendButton = this.page
-      .locator("button[aria-label='Enviar'], div[aria-label='Enviar'], div[role='button'][aria-label='Enviar'], span[data-icon='send']")
+      .locator("button[aria-label='Enviar'], span[data-icon='send'], div[role='button'][aria-label='Enviar']")
       .last();
-    await sendButton.waitFor({ timeout: 20_000 });
+    await sendButton.waitFor({ timeout: 10_000 });
     await sendButton.click({ force: true });
 
     // Wait for send to complete
@@ -1431,7 +1448,8 @@ export class WhatsAppWorker {
       correlationId,
       phone,
       audioPath,
-      durationMs
+      recordingMs,
+      durationSecs: Math.round(durationSecs * 10) / 10
     });
   }
 
@@ -1512,7 +1530,7 @@ export class WhatsAppWorker {
       try {
         const outputPath = path.join(this.env.TEMP_DIR, `${Date.now()}-${randomUUID()}.wav`);
         await fs.mkdir(this.env.TEMP_DIR, { recursive: true });
-        await execFileAsync("afconvert", ["-f", "WAVE", "-d", "LEI16@24000", filePath, outputPath]);
+        await execFileAsync("afconvert", ["-f", "WAVE", "-d", "LEI16@48000", "-c", "1", filePath, outputPath]);
         recordSystemEvent("wa-worker", "info", "Audio converted to wav for WhatsApp voice capture", {
           correlationId,
           sourcePath: filePath,

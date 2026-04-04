@@ -86,9 +86,9 @@ export async function registerConversationRoutes(app: FastifyInstance) {
   // Send message to a contact via unified inbox (picks the right conversation/channel)
   app.post("/conversations/send-to-contact", async (request, reply) => {
     const body = request.body as { contactId: string; text: string; channel: string; mediaPath?: string; contentType?: string };
-    if (!body?.contactId || !body?.text?.trim()) {
+    if (!body?.contactId || (!body?.text?.trim() && !body?.mediaPath)) {
       reply.code(400);
-      return { message: "contactId e text sao obrigatorios" };
+      return { message: "contactId e (text ou mediaPath) sao obrigatorios" };
     }
 
     const contact = getContactById(body.contactId);
