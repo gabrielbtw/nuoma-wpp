@@ -13,7 +13,7 @@ import { TagChipInput } from "@/components/tags/tag-chip-input";
 import { TagPill } from "@/components/tags/tag-pill";
 import { ChannelIndicators } from "@/components/contacts/channel-indicators";
 import { apiFetch, toJsonBody } from "@/lib/api";
-import { contactProcedureLabelMap, contactStatusLabelMap, contactStatusTone, formatInstagramRelationship } from "@/lib/contact-display";
+import { type ContactProcedureStatus, contactProcedureLabelMap, contactStatusLabelMap, contactStatusTone, formatInstagramRelationship } from "@/lib/contact-display";
 import { cn } from "@/lib/utils";
 import {
   formatChannelDisplayValue,
@@ -80,7 +80,7 @@ type ContactDraft = {
   instagram: string;
   notes: string;
   status: string;
-  procedureStatus: "yes" | "no" | "unknown";
+  procedureStatus: ContactProcedureStatus;
   tags: string[];
 };
 
@@ -146,20 +146,20 @@ export function ContactsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
-  const [status, setStatus] = useState("all");
-  const [tag, setTag] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [tagFilter, setTagFilter] = useState("all");
   const [page, setPage] = useState(1);
 
   useEffect(() => {
     setPage(1);
-  }, [search, status, tag]);
+  }, [search, statusFilter, tagFilter]);
 
   const contactsQuery = useQuery({
-    queryKey: ["contacts", deferredSearch, status, tag, page],
+    queryKey: ["contacts", deferredSearch, statusFilter, tagFilter, page],
     queryFn: () =>
       apiFetch<ContactsResponse>(
-        `/contacts?q=${encodeURIComponent(deferredSearch)}&status=${encodeURIComponent(status === "all" ? "" : status)}&tag=${encodeURIComponent(
-          tag === "all" ? "" : tag
+        `/contacts?q=${encodeURIComponent(deferredSearch)}&status=${encodeURIComponent(statusFilter === "all" ? "" : statusFilter)}&tag=${encodeURIComponent(
+          tagFilter === "all" ? "" : tagFilter
         )}&page=${page}&pageSize=${CONTACTS_PER_PAGE}`
       )
   });
@@ -253,6 +253,11 @@ export function ContactsPage() {
               <ArrowLeft className="mr-2 h-3.5 w-3.5" />
               Voltar
             </Button>
+            <Link to="/contacts/lab/client-tab">
+              <Button variant="ghost" size="sm" className="h-10 rounded-xl border border-white/10 bg-white/[0.03] px-4 text-[10px] font-black uppercase tracking-widest text-slate-300 hover:border-cmm-blue/30 hover:text-white">
+                Ver 4 versões
+              </Button>
+            </Link>
             <div className="h-4 w-px bg-white/10" />
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
@@ -315,7 +320,7 @@ export function ContactsPage() {
                         </div>
                         <div className="space-y-1.5">
                           <label className="ml-1 text-[10px] font-black uppercase tracking-widest text-slate-500">Já Fez Procedimento?</label>
-                          <select className="w-full h-12 rounded-2xl border border-white/5 bg-black/20 px-4 text-sm font-bold text-white outline-none focus:border-cmm-blue/30" value={draft.procedureStatus} onChange={(e) => setDraft({ ...draft, procedureStatus: e.target.value as any })}>
+                          <select className="w-full h-12 rounded-2xl border border-white/5 bg-black/20 px-4 text-sm font-bold text-white outline-none focus:border-cmm-blue/30" value={draft.procedureStatus} onChange={(e) => setDraft({ ...draft, procedureStatus: e.target.value as ContactProcedureStatus })}>
                             <option value="unknown" className="bg-slate-900">Não Definido</option>
                             <option value="yes" className="bg-slate-900">Sim</option>
                             <option value="no" className="bg-slate-900">Não</option>
@@ -359,11 +364,11 @@ export function ContactsPage() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <select className="h-14 rounded-2xl border border-white/5 bg-white/[0.02] px-6 text-sm font-bold text-slate-300 outline-none transition hover:bg-white/[0.04] focus:border-cmm-blue/30" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <select className="h-14 rounded-2xl border border-white/5 bg-white/[0.02] px-6 text-sm font-bold text-slate-300 outline-none transition hover:bg-white/[0.04] focus:border-cmm-blue/30" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="all" className="bg-slate-900">Todos os Status</option>
               {Object.entries(contactStatusLabelMap).map(([v, l]) => <option key={v} value={v} className="bg-slate-900">{l}</option>)}
             </select>
-            <select className="h-14 rounded-2xl border border-white/5 bg-white/[0.02] px-6 text-sm font-bold text-slate-300 outline-none transition hover:bg-white/[0.04] focus:border-cmm-blue/30" value={tag} onChange={(e) => setTag(e.target.value)}>
+            <select className="h-14 rounded-2xl border border-white/5 bg-white/[0.02] px-6 text-sm font-bold text-slate-300 outline-none transition hover:bg-white/[0.04] focus:border-cmm-blue/30" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)}>
               <option value="all" className="bg-slate-900">Todas as Tags</option>
               {(tagsQuery.data ?? []).map((item) => <option key={item.id} value={item.name} className="bg-slate-900">{item.name}</option>)}
             </select>

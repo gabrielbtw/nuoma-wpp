@@ -1,14 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Clock3, Database, Globe, Instagram, MessageCircleMore, RefreshCw, ShieldAlert, ShieldCheck, Terminal as TerminalIcon } from "lucide-react";
+import { AlertTriangle, Clock3, Database, Globe, Instagram, MessageCircleMore, RefreshCw, ShieldAlert, ShieldCheck, Terminal as TerminalIcon, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
 import { ErrorPanel } from "@/components/shared/error-panel";
 import { apiFetch } from "@/lib/api";
 import { formatChannelDisplayValue } from "@/lib/contact-utils";
+import type { ChannelHealthRecord, HealthResponse, LogsResponse } from "@/lib/system-types";
 import { cn } from "@/lib/utils";
 
-function stateTone(status?: string) {
+type BadgeTone = "success" | "warning" | "danger" | "info" | "default";
+
+function statusTone(status?: string): BadgeTone {
   if (!status) return "default";
   const normalized = status.toLowerCase();
   if (["authenticated", "online", "ok", "active", "connected", "assisted"].includes(normalized)) return "success";
@@ -17,7 +20,7 @@ function stateTone(status?: string) {
   return "info";
 }
 
-function HealthWidget({
+function HealthStatusCard({
   label,
   value,
   status,
@@ -27,10 +30,10 @@ function HealthWidget({
   label: string;
   value: string;
   status: string;
-  icon: any;
+  icon: LucideIcon;
   subvalue?: string;
 }) {
-  const tone = stateTone(status);
+  const tone = statusTone(status);
   const colors = {
     success: "text-cmm-emerald shadow-emerald-500/20",
     warning: "text-cmm-orange shadow-cmm-orange-500/20",
@@ -61,7 +64,7 @@ function HealthWidget({
   );
 }
 
-function basename(value?: string) {
+function fileNameFromPath(value?: string) {
   if (!value) {
     return "não configurado";
   }
@@ -70,7 +73,7 @@ function basename(value?: string) {
   return parts[parts.length - 1] || value;
 }
 
-function channelIdentity(channel: any) {
+function formatChannelIdentity(channel: ChannelHealthRecord) {
   const type = String(channel?.account?.type ?? channel?.label ?? "").toLowerCase();
   const identifier = typeof channel?.sessionIdentifier === "string" ? channel.sessionIdentifier.trim() : "";
 
@@ -81,7 +84,7 @@ function channelIdentity(channel: any) {
   return type.includes("instagram") ? (identifier.startsWith("@") ? identifier : `@${identifier}`) : formatChannelDisplayValue("whatsapp", identifier);
 }
 
-function channelVisual(channel: any) {
+function getChannelVisual(channel: ChannelHealthRecord) {
   const identity = String(channel?.label ?? channel?.mode ?? "").toLowerCase();
 
   if (identity.includes("instagram")) {
@@ -104,21 +107,21 @@ function channelVisual(channel: any) {
 export function SystemHealthPage() {
   const healthQuery = useQuery({
     queryKey: ["health"],
-    queryFn: () => apiFetch<any>("/health"),
+    queryFn: () => apiFetch<HealthResponse>("/health"),
     refetchInterval: 15_000
   });
 
   const logsQuery = useQuery({
     queryKey: ["logs", "recent"],
-    queryFn: () => apiFetch<any>("/logs?limit=20"),
+    queryFn: () => apiFetch<LogsResponse>("/logs?limit=20"),
     refetchInterval: 10_000
   });
 
-  const data = healthQuery.data ?? {};
+  const data: HealthResponse = healthQuery.data ?? {};
   const worker = data.worker?.value ?? {};
   const scheduler = data.scheduler?.value ?? {};
   const channels = data.channels ?? {};
-  const channelList = Object.values(channels) as any[];
+  const channelList: ChannelHealthRecord[] = Object.values(channels);
   const instagramWorkerStatus = channels.instagram?.worker?.status ?? channels.instagram?.mode ?? "unknown";
   const databasePath = typeof data.databasePath === "string" ? data.databasePath : "";
   const hasCriticalFailure = Boolean(worker.lastFailureSummary || worker.lastErrorType || worker.lastFailureAt);
@@ -155,13 +158,13 @@ export function SystemHealthPage() {
 
       <div className="space-y-6">
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          <HealthWidget label="Saúde do sistema" value={String(data.overallStatus ?? "unknown").toUpperCase()} status={data.overallStatus ?? "unknown"} icon={ShieldCheck} subvalue="Leitura consolidada" />
-          <HealthWidget label="Scheduler" value={String(scheduler.status ?? "offline").toUpperCase()} status={scheduler.status ?? "offline"} icon={Clock3} subvalue="Execução da fila" />
-          <HealthWidget label="Banco local" value="SQLITE" status="online" icon={Database} subvalue={basename(databasePath)} />
+          <HealthStatusCard label="Saúde do sistema" value={String(data.overallStatus ?? "unknown").toUpperCase()} status={String(data.overallStatus ?? "unknown")} icon={ShieldCheck} subvalue="Leitura consolidada" />
+          <HealthStatusCard label="Scheduler" value={String(scheduler.status ?? "offline").toUpperCase()} status={String(scheduler.status ?? "offline")} icon={Clock3} subvalue="Execução da fila" />
+          <HealthStatusCard label="Banco local" value="SQLITE" status="online" icon={Database} subvalue={fileNameFromPath(databasePath)} />
         </div>
         <div className="grid gap-6 md:grid-cols-2">
-          <HealthWidget label="Worker WhatsApp" value={String(worker.status ?? "offline").toUpperCase()} status={worker.status ?? "offline"} icon={MessageCircleMore} subvalue={channels.whatsapp ? channelIdentity(channels.whatsapp) : `${worker.memoryMb ?? 0} MB em memória`} />
-          <HealthWidget label="Instagram assistido" value={String(instagramWorkerStatus).toUpperCase()} status={instagramWorkerStatus} icon={Instagram} subvalue={channels.instagram ? channelIdentity(channels.instagram) : "Sessão não confirmada"} />
+          <HealthStatusCard label="Worker WhatsApp" value={String(worker.status ?? "offline").toUpperCase()} status={String(worker.status ?? "offline")} icon={MessageCircleMore} subvalue={channels.whatsapp ? formatChannelIdentity(channels.whatsapp) : `${worker.memoryMb ?? 0} MB em memória`} />
+          <HealthStatusCard label="Instagram assistido" value={String(instagramWorkerStatus).toUpperCase()} status={String(instagramWorkerStatus)} icon={Instagram} subvalue={channels.instagram ? formatChannelIdentity(channels.instagram) : "Sessão não confirmada"} />
         </div>
       </div>
 
@@ -177,7 +180,7 @@ export function SystemHealthPage() {
             </div>
             <div className="h-[500px] overflow-auto p-8 font-mono text-[13px] leading-relaxed custom-scrollbar selection:bg-cmm-blue selection:text-white">
               <div className="space-y-2">
-                {(logsQuery.data?.events ?? []).map((event: any, index: number) => (
+                {(logsQuery.data?.events ?? []).map((event, index) => (
                   <div key={event.id || index} className="group flex gap-4 animate-in fade-in slide-in-from-left-2 duration-300">
                     <span className="shrink-0 text-slate-600">[{new Date(event.created_at).toLocaleTimeString()}]</span>
                     <span
@@ -217,7 +220,7 @@ export function SystemHealthPage() {
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{metric.label}</span>
                   <div className="flex items-end justify-between">
                     <span className="text-2xl font-black tracking-tighter text-white">{metric.value}</span>
-                    <Badge tone={stateTone(metric.status)} className="rounded-full px-3 py-0.5 text-[9px] font-black uppercase tracking-widest">
+                    <Badge tone={statusTone(metric.status)} className="rounded-full px-3 py-0.5 text-[9px] font-black uppercase tracking-widest">
                       {metric.status.toUpperCase()}
                     </Badge>
                   </div>
@@ -245,7 +248,7 @@ export function SystemHealthPage() {
             </div>
             <div className="space-y-5">
               {channelList.map((channel) => {
-                const visual = channelVisual(channel);
+                const visual = getChannelVisual(channel);
                 const ChannelIcon = visual.icon;
 
                 return (
@@ -265,10 +268,10 @@ export function SystemHealthPage() {
                           </div>
                           <div className="space-y-1">
                             <h4 className="font-display text-lg font-bold tracking-tight text-white">{channel.label}</h4>
-                            <p className="text-sm text-slate-400">{channelIdentity(channel)}</p>
+                            <p className="text-sm text-slate-400">{formatChannelIdentity(channel)}</p>
                           </div>
                         </div>
-                        <Badge tone={stateTone(channel.account?.status || channel.worker?.status || channel.mode)} className="rounded-full px-3 py-0.5 text-[9px] font-black uppercase tracking-widest">
+                        <Badge tone={statusTone(channel.account?.status || channel.worker?.status || channel.mode)} className="rounded-full px-3 py-0.5 text-[9px] font-black uppercase tracking-widest">
                           {channel.account?.status || channel.worker?.status || channel.mode}
                         </Badge>
                       </div>

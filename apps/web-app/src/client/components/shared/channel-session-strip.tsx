@@ -4,6 +4,7 @@ import { AlertTriangle, Instagram, LoaderCircle, MessageCircleMore } from "lucid
 import { Badge } from "@/components/ui/badge";
 import { apiFetch } from "@/lib/api";
 import { formatChannelDisplayValue } from "@/lib/contact-utils";
+import type { HealthResponse, InstagramSessionResponse, RuntimeProcessState } from "@/lib/system-types";
 import { cn } from "@/lib/utils";
 
 type SessionViewModel = {
@@ -15,7 +16,7 @@ type SessionViewModel = {
   icon: typeof MessageCircleMore;
 };
 
-function normalizeText(value: unknown) {
+function readTrimmedText(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : "";
 }
 
@@ -32,7 +33,7 @@ function formatInstagramDetail(value: string) {
   return normalized.includes(" ") ? normalized : `@${normalized}`;
 }
 
-function buildWhatsAppSession(health: any, loading: boolean): SessionViewModel {
+function buildWhatsAppSessionViewModel(health: HealthResponse | undefined, loading: boolean): SessionViewModel {
   if (loading && !health) {
     return {
       key: "whatsapp",
@@ -44,22 +45,22 @@ function buildWhatsAppSession(health: any, loading: boolean): SessionViewModel {
     };
   }
 
-  const worker = health?.worker?.value ?? health?.channels?.whatsapp?.worker ?? {};
+  const worker: RuntimeProcessState = health?.worker?.value ?? health?.channels?.whatsapp?.worker ?? {};
   const phoneLabel =
-    normalizeText(worker.sessionPhone) ||
-    normalizeText(worker.phoneNumber) ||
-    normalizeText(worker.phone) ||
-    normalizeText(health?.channels?.whatsapp?.sessionIdentifier) ||
+    readTrimmedText(worker.sessionPhone) ||
+    readTrimmedText(worker.phoneNumber) ||
+    readTrimmedText(worker.phone) ||
+    readTrimmedText(health?.channels?.whatsapp?.sessionIdentifier) ||
     "";
-  const status = normalizeText(worker.status).toLowerCase();
-  const authStatus = normalizeText(worker.authStatus).toLowerCase();
+  const status = readTrimmedText(worker.status).toLowerCase();
+  const authStatus = readTrimmedText(worker.authStatus).toLowerCase();
   const workerLive = worker.live !== false;
   const ready = workerLive && (authStatus === "authenticated" || status === "authenticated" || status === "degraded");
   const attention = workerLive && !ready && ["starting", "restarting", "connecting"].includes(status);
   const accountLabel = phoneLabel
     ? formatChannelDisplayValue("whatsapp", phoneLabel)
     : ready
-      ? normalizeText(worker.profileName) || normalizeText(worker.sessionName) || "Sessão ativa"
+      ? readTrimmedText(worker.profileName) || readTrimmedText(worker.sessionName) || "Sessão ativa"
       : "Sessão indisponível";
 
   return {
@@ -72,7 +73,11 @@ function buildWhatsAppSession(health: any, loading: boolean): SessionViewModel {
   };
 }
 
-function buildInstagramSession(health: any, session: any, loading: boolean): SessionViewModel {
+function buildInstagramSessionViewModel(
+  health: HealthResponse | undefined,
+  session: InstagramSessionResponse | undefined,
+  loading: boolean
+): SessionViewModel {
   if (loading && !session && !health) {
     return {
       key: "instagram",
@@ -84,14 +89,14 @@ function buildInstagramSession(health: any, session: any, loading: boolean): Ses
     };
   }
 
-  const worker = health?.channels?.instagram?.worker ?? {};
+  const worker: RuntimeProcessState = health?.channels?.instagram?.worker ?? {};
   const accountLabel =
-    normalizeText(session?.username) ||
-    normalizeText(session?.accountUsername) ||
-    normalizeText(health?.channels?.instagram?.sessionIdentifier) ||
+    readTrimmedText(session?.username) ||
+    readTrimmedText(session?.accountUsername) ||
+    readTrimmedText(health?.channels?.instagram?.sessionIdentifier) ||
     "";
-  const sessionStatus = normalizeText(session?.status).toLowerCase();
-  const workerStatus = normalizeText(worker.status).toLowerCase();
+  const sessionStatus = readTrimmedText(session?.status).toLowerCase();
+  const workerStatus = readTrimmedText(worker.status).toLowerCase();
   const ready = session?.authenticated === true || sessionStatus === "connected" || worker.authenticated === true || workerStatus === "connected";
   const attention = !ready && (sessionStatus === "assisted" || workerStatus === "assisted" || workerStatus === "starting");
 
@@ -152,20 +157,20 @@ function SessionChip({ session, compact = false }: { session: SessionViewModel; 
 export function ChannelSessionStrip({ className, compact = false }: { className?: string; compact?: boolean }) {
   const healthQuery = useQuery({
     queryKey: ["health", "channel-sessions"],
-    queryFn: () => apiFetch<any>("/health"),
+    queryFn: () => apiFetch<HealthResponse>("/health"),
     refetchInterval: 15_000
   });
 
   const instagramSessionQuery = useQuery({
     queryKey: ["instagram-session", "channel-sessions"],
-    queryFn: () => apiFetch<any>("/instagram/session"),
+    queryFn: () => apiFetch<InstagramSessionResponse>("/instagram/session"),
     refetchInterval: 15_000
   });
 
   const sessions = useMemo(
     () => [
-      buildWhatsAppSession(healthQuery.data, healthQuery.isLoading),
-      buildInstagramSession(healthQuery.data, instagramSessionQuery.data, instagramSessionQuery.isLoading)
+      buildWhatsAppSessionViewModel(healthQuery.data, healthQuery.isLoading),
+      buildInstagramSessionViewModel(healthQuery.data, instagramSessionQuery.data, instagramSessionQuery.isLoading)
     ],
     [healthQuery.data, healthQuery.isLoading, instagramSessionQuery.data, instagramSessionQuery.isLoading]
   );

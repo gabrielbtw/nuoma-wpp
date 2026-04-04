@@ -45,6 +45,8 @@ type TagRecord = {
   contactCount: number;
 };
 
+type TagStatusFilter = "all" | "active" | "inactive";
+
 const emptyTag: TagDraft = {
   name: "",
   color: TAG_COLORS[0].value,
@@ -116,7 +118,7 @@ export function SettingsPage() {
   const [tagDraft, setTagDraft] = useState<TagDraft>(emptyTag);
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [tagSearch, setTagSearch] = useState("");
-  const [tagStatusFilter, setTagStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [tagStatusFilter, setTagStatusFilter] = useState<TagStatusFilter>("all");
 
   const merged = useMemo(
     () =>
@@ -397,7 +399,7 @@ export function SettingsPage() {
                         onChange={(e) => setTagSearch(e.target.value)}
                       />
                     </div>
-                    <select className="h-14 rounded-2xl border border-white/5 bg-white/[0.02] px-6 text-xs font-black uppercase tracking-widest text-slate-500 outline-none hover:bg-white/[0.04]" value={tagStatusFilter} onChange={(e) => setTagStatusFilter(e.target.value as any)}>
+                    <select className="h-14 rounded-2xl border border-white/5 bg-white/[0.02] px-6 text-xs font-black uppercase tracking-widest text-slate-500 outline-none hover:bg-white/[0.04]" value={tagStatusFilter} onChange={(e) => setTagStatusFilter(e.target.value as TagStatusFilter)}>
                       <option value="all" className="bg-slate-900">Todas</option>
                       <option value="active" className="bg-slate-900">Ativas</option>
                       <option value="inactive" className="bg-slate-900">Inativas</option>

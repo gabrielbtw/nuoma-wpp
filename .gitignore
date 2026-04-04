@@ -6,3 +6,6 @@ storage/
 .env
 coverage
 *.tsbuildinfo
+docs/sora/nuoma-explainer-ptbr/jobs-v1/
+docs/sora/nuoma-explainer-ptbr/renders/
+docs/sora/nuoma-explainer-ptbr/*.mp4

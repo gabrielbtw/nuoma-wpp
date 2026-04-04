@@ -20,18 +20,19 @@ function DashboardMetricCard({
   colorClass: string;
 }) {
   return (
-    <div className="group relative glass-card overflow-hidden rounded-[2rem] border-white/5 bg-white/[0.01] p-8 transition-all duration-500 hover:bg-white/[0.04] hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/40">
-      <div className={cn("absolute -right-6 -top-6 h-32 w-32 rounded-full opacity-[0.03] blur-3xl transition-opacity group-hover:opacity-10", colorClass.replace("text-", "bg-"))} />
-      <div className="flex flex-col gap-6">
-        <div className={cn("flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 shadow-inner transition-colors group-hover:bg-white/10", colorClass)}>
-          <Icon className="h-6 w-6" />
+    <div className="group rounded-xl border border-n-border bg-n-surface p-4 transition-fast hover:border-n-border hover:bg-n-surface-2">
+      <div className="flex items-center gap-3">
+        <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-n-surface-2", colorClass)}>
+          <Icon className="h-4 w-4" />
         </div>
-        <div>
-          <h3 className="font-display text-4xl font-bold tracking-tight text-white">{value}</h3>
-          <p className="mt-1 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{title}</p>
-          <p className="mt-3 text-sm text-slate-400">{detail}</p>
+        <div className="min-w-0 flex-1">
+          <p className="text-micro uppercase text-n-text-dim">{title}</p>
+          <div className="flex items-baseline gap-2">
+            <span className="font-mono text-h2 text-n-text">{value}</span>
+          </div>
         </div>
       </div>
+      <p className="mt-2 text-caption text-n-text-muted">{detail}</p>
     </div>
   );
 }
@@ -106,82 +107,39 @@ export function DashboardPage() {
   const pendingJobs = Number(counts.pendingJobs ?? 0);
 
   return (
-    <div className="space-y-12 pb-20 animate-in fade-in duration-1000">
-      <PageHeader
-        eyebrow="Visão Operacional"
-        title="Dashboard"
-        description="Resumo factual da operação local: canais, filas, campanhas e conversas mais recentes."
-      />
+    <div className="space-y-5 animate-fade-in">
+      {/* Compact status bar */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-h1 text-n-text">Dashboard</h1>
+          <p className="text-caption text-n-text-muted mt-0.5">Visao operacional em tempo real</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className={cn(
+            "flex items-center gap-2 rounded-lg border px-3 py-1.5 transition-fast",
+            overallStatus === "ok" ? "border-n-wa/20 bg-n-wa/5" : "border-n-amber/20 bg-n-amber/5"
+          )}>
+            <span className={cn("signal-dot", overallStatus === "ok" ? "active" : "warning")} />
+            <span className={cn("text-label", overallStatus === "ok" ? "text-n-wa" : "text-n-amber")}>
+              {overallStatus === "ok" ? "Operacional" : "Atencao"}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 rounded-lg border border-n-border px-3 py-1.5">
+            <Clock className="h-3.5 w-3.5 text-n-text-dim" />
+            <span className="text-label text-n-text-muted">{unreadConversations} nao lidas</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => { window.location.hash = "#/health"; }}
+            className="rounded-lg bg-n-blue px-3 py-1.5 text-label text-white transition-fast hover:bg-n-blue/90"
+          >
+            Saude
+          </button>
+        </div>
+      </div>
 
       {dashboardQuery.error ? <ErrorPanel message={(dashboardQuery.error as Error).message} /> : null}
       {healthQuery.error ? <ErrorPanel message={(healthQuery.error as Error).message} /> : null}
-
-      <section className="relative overflow-hidden rounded-[3rem] border border-white/5 bg-white/[0.01] p-12 shadow-2xl lg:p-20">
-        <div className="absolute inset-0 bg-gradient-to-br from-cmm-blue/5 via-transparent to-cmm-emerald/5 opacity-70" />
-
-        <div className="relative flex flex-col items-center gap-16 lg:flex-row lg:gap-24">
-          <div className="relative flex h-80 w-80 shrink-0 items-center justify-center">
-            <div
-              className={cn(
-                "absolute inset-0 rounded-full border-[2px] opacity-10 transition-colors duration-1000",
-                overallStatus === "ok" ? "animate-pulse border-cmm-blue" : "border-cmm-orange"
-              )}
-            />
-            <div
-              className={cn(
-                "absolute inset-10 rounded-full border border-dashed opacity-20 transition-colors duration-1000",
-                overallStatus === "ok" ? "border-cmm-blue" : "border-cmm-orange"
-              )}
-            />
-            <div
-              className={cn(
-                "absolute h-56 w-56 rounded-full blur-[60px] opacity-30 transition-all duration-1000",
-                overallStatus === "ok" ? "bg-cmm-blue shadow-[0_0_100px_rgba(59,130,246,0.3)]" : "bg-cmm-orange shadow-[0_0_100px_rgba(245,158,11,0.3)]"
-              )}
-            />
-            <div className="relative flex h-60 w-60 flex-col items-center justify-center rounded-full border border-white/10 bg-white/[0.03] shadow-[inset_0_0_40px_rgba(255,255,255,0.05)] backdrop-blur-3xl">
-              {overallStatus === "ok" ? <CheckCircle2 className="h-20 w-20 text-cmm-blue" /> : <AlertCircle className="h-20 w-20 text-cmm-orange" />}
-              <div className="mt-4 text-center">
-                <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">Estado atual</p>
-                <p className={cn("text-sm font-black tracking-widest", overallStatus === "ok" ? "text-cmm-blue" : "text-cmm-orange")}>
-                  {overallStatus === "ok" ? "SEM ALERTAS" : overallStatus.toUpperCase()}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex-1 space-y-8 text-center lg:text-left">
-            <div className="space-y-4">
-              <h2 className="font-display text-4xl font-bold leading-tight tracking-tight text-white lg:text-5xl">{getDashboardHeadline(overallStatus)}</h2>
-              <p className="max-w-2xl text-lg font-medium leading-relaxed text-slate-400">
-                {getDashboardDescription({
-                  overallStatus,
-                  workerStatus,
-                  schedulerStatus,
-                  activeChannelCount,
-                  pendingJobs
-                })}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-center gap-6 lg:justify-start">
-              <button
-                type="button"
-                onClick={() => {
-                  window.location.hash = "#/health";
-                }}
-                className="h-16 rounded-[2rem] bg-cmm-blue px-10 text-xs font-black uppercase tracking-[0.2em] text-white shadow-2xl shadow-blue-500/20 transition-all hover:scale-105 active:scale-95"
-              >
-                Abrir saúde do sistema
-              </button>
-              <div className="flex h-16 items-center gap-3 rounded-[2rem] border border-white/5 bg-white/[0.02] px-6 text-[10px] font-black uppercase tracking-widest text-slate-500">
-                <Clock className="h-4 w-4 text-cmm-orange" />
-                {unreadConversations} conversa(s) não lida(s)
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
         <DashboardMetricCard
