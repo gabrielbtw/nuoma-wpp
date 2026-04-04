@@ -64,6 +64,10 @@ function mapAutomation(row: Record<string, unknown>, actions: Array<Record<strin
         metadata
       };
     }),
+    triggerType: String(row.trigger_type ?? "tag") as AutomationRuleRecord["triggerType"],
+    triggerEvent: (row.trigger_event as AutomationRuleRecord["triggerEvent"]) ?? null,
+    triggerConditions: parseJsonArray(row.trigger_conditions_json as string | null) as unknown as AutomationRuleRecord["triggerConditions"],
+    customCategory: (row.custom_category as string | null) ?? null,
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at)
   };

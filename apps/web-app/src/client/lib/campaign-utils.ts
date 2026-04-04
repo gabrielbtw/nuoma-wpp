@@ -1,12 +1,20 @@
+export type ConditionType = "replied" | "has_tag" | "channel_is" | "outside_window" | null;
+export type ConditionAction = "skip" | "exit" | "jump_to_step" | "wait" | null;
+
 export type CampaignStepDraft = {
   id?: string;
-  type: "text" | "audio" | "image" | "video" | "wait" | "ADD_TAG" | "REMOVE_TAG";
+  type: "text" | "audio" | "image" | "video" | "document" | "link" | "wait" | "ADD_TAG" | "REMOVE_TAG";
   content: string;
   mediaPath?: string | null;
   waitMinutes?: number | null;
   caption?: string;
   tagName?: string | null;
   channelScope: "any" | "whatsapp" | "instagram";
+  templateId?: string | null;
+  conditionType?: ConditionType;
+  conditionValue?: string | null;
+  conditionAction?: ConditionAction;
+  conditionJumpTo?: number | null;
 };
 
 export type CampaignDraft = {
@@ -21,9 +29,22 @@ export type CampaignDraft = {
   randomDelayMinSeconds: number;
   randomDelayMaxSeconds: number;
   eligibleChannels: Array<"whatsapp" | "instagram">;
+  isEvergreen?: boolean;
+  evergreenCriteria?: Record<string, unknown>;
   steps: CampaignStepDraft[];
   totalRecipients?: number;
   processedRecipients?: number;
+};
+
+export type TemplateRecord = {
+  id: string;
+  name: string;
+  contentType: string;
+  body: string;
+  mediaPath: string | null;
+  category: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export const campaignStatusOptions = [
@@ -38,12 +59,28 @@ export const campaignStatusOptions = [
 
 export const campaignStepOptions = [
   { value: "text", label: "Texto", description: "Mensagem simples enviada direto no fluxo." },
-  { value: "audio", label: "Áudio", description: "Envio de áudio gravado pela campanha." },
+  { value: "audio", label: "Audio", description: "Envio de audio gravado pela campanha." },
   { value: "image", label: "Imagem", description: "Mensagem com imagem e legenda opcional." },
-  { value: "video", label: "Vídeo", description: "Mensagem com vídeo e legenda opcional." },
-  { value: "wait", label: "Espera", description: "Pausa controlada antes da próxima etapa." },
-  { value: "ADD_TAG", label: "Adicionar tag", description: "Inclui uma tag no cadastro vinculado antes de seguir o fluxo." },
-  { value: "REMOVE_TAG", label: "Remover tag", description: "Remove uma tag do cadastro vinculado antes de seguir o fluxo." }
+  { value: "video", label: "Video", description: "Mensagem com video e legenda opcional." },
+  { value: "document", label: "Documento", description: "Envio de PDF ou documento." },
+  { value: "link", label: "Link", description: "Envio de link com texto descritivo." },
+  { value: "wait", label: "Espera", description: "Pausa controlada antes da proxima etapa." },
+  { value: "ADD_TAG", label: "Adicionar tag", description: "Inclui uma tag no cadastro vinculado." },
+  { value: "REMOVE_TAG", label: "Remover tag", description: "Remove uma tag do cadastro vinculado." }
+] as const;
+
+export const conditionTypeOptions = [
+  { value: "replied", label: "Se respondeu", description: "Contato respondeu alguma mensagem" },
+  { value: "has_tag", label: "Se tem tag", description: "Contato possui uma tag especifica" },
+  { value: "channel_is", label: "Se canal e", description: "Contato esta num canal especifico" },
+  { value: "outside_window", label: "Fora da janela", description: "Fora do horario de envio" }
+] as const;
+
+export const conditionActionOptions = [
+  { value: "skip", label: "Pular step", description: "Pula esta etapa e vai pra proxima" },
+  { value: "exit", label: "Sair da campanha", description: "Remove o contato da campanha" },
+  { value: "jump_to_step", label: "Ir para step", description: "Desvia para uma etapa especifica" },
+  { value: "wait", label: "Aguardar", description: "Aguarda ate a condicao mudar" }
 ] as const;
 
 export const emptyCampaignStep = (): CampaignStepDraft => ({
@@ -53,7 +90,12 @@ export const emptyCampaignStep = (): CampaignStepDraft => ({
   waitMinutes: null,
   caption: "",
   tagName: null,
-  channelScope: "any"
+  channelScope: "any",
+  templateId: null,
+  conditionType: null,
+  conditionValue: null,
+  conditionAction: null,
+  conditionJumpTo: null
 });
 
 export const emptyCampaignDraft = (): CampaignDraft => ({
@@ -67,6 +109,8 @@ export const emptyCampaignDraft = (): CampaignDraft => ({
   randomDelayMinSeconds: 15,
   randomDelayMaxSeconds: 60,
   eligibleChannels: ["whatsapp"],
+  isEvergreen: false,
+  evergreenCriteria: {},
   steps: [emptyCampaignStep()],
   totalRecipients: 0,
   processedRecipients: 0
@@ -126,6 +170,16 @@ export function normalizeCampaignStepForType(step: CampaignStepDraft, type: Camp
     };
   }
 
+  if (type === "link") {
+    return {
+      ...step,
+      type,
+      waitMinutes: null,
+      tagName: null,
+      mediaPath: null
+    };
+  }
+
   return {
     ...step,
     type,
@@ -167,7 +221,7 @@ export function getCampaignActivationIssues(campaign: CampaignDraft | null | und
   }
 
   if (!campaign.eligibleChannels.length) {
-    issues.push("Selecione ao menos um canal elegível.");
+    issues.push("Selecione ao menos um canal elegivel.");
   }
 
   if (campaign.sendWindowStart === campaign.sendWindowEnd) {
@@ -200,7 +254,7 @@ export function getCampaignActivationIssues(campaign: CampaignDraft | null | und
     }
 
     if (step.channelScope !== "any" && !campaign.eligibleChannels.includes(step.channelScope)) {
-      issues.push(`${label}: o escopo da etapa precisa estar entre os canais elegíveis.`);
+      issues.push(`${label}: o escopo da etapa precisa estar entre os canais elegiveis.`);
     }
 
     if (step.type === "ADD_TAG" || step.type === "REMOVE_TAG") {
@@ -214,7 +268,15 @@ export function getCampaignActivationIssues(campaign: CampaignDraft | null | und
       issues.push(`${label}: mensagem obrigatoria.`);
     }
 
-    if (step.type !== "text" && !hasMedia) {
+    if (step.type === "link" && !hasText) {
+      issues.push(`${label}: URL obrigatoria.`);
+    }
+
+    if (step.type === "document" && !hasMedia) {
+      issues.push(`${label}: envie o documento.`);
+    }
+
+    if ((step.type === "audio" || step.type === "image" || step.type === "video") && !hasMedia) {
       issues.push(`${label}: envie a midia correspondente.`);
     }
 
@@ -224,4 +286,23 @@ export function getCampaignActivationIssues(campaign: CampaignDraft | null | und
   });
 
   return [...new Set(issues)];
+}
+
+/** Estimate total campaign duration in minutes based on wait steps */
+export function estimateCampaignDuration(steps: CampaignStepDraft[]): number {
+  return steps.reduce((total, step) => {
+    if (step.type === "wait" && step.waitMinutes) {
+      return total + step.waitMinutes;
+    }
+    return total;
+  }, 0);
+}
+
+/** Format minutes as human-readable duration */
+export function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes}min`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (mins === 0) return `${hours}h`;
+  return `${hours}h ${mins}min`;
 }

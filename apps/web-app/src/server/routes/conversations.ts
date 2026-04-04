@@ -4,7 +4,9 @@ import {
   enqueueJob,
   getConversationById,
   listConversations,
+  listMessagesForContact,
   listMessagesForConversation,
+  listUnifiedInbox,
   rememberInstagramThreadForContact,
   sendJobPayloadSchema,
   updateConversationInternalStatus
@@ -28,6 +30,21 @@ export async function registerConversationRoutes(app: FastifyInstance) {
       status: query.status,
       query: query.q
     });
+  });
+
+  app.get("/inbox/unified", async (request) => {
+    const query = request.query as { channel?: string; status?: string; q?: string };
+    return listUnifiedInbox({
+      channel: query.channel,
+      status: query.status,
+      query: query.q
+    });
+  });
+
+  app.get("/inbox/contact/:contactId/messages", async (request) => {
+    const params = request.params as { contactId: string };
+    const query = request.query as { limit?: string };
+    return listMessagesForContact(params.contactId, query.limit ? Number(query.limit) : 200);
   });
 
   app.get("/conversations/:id", async (request, reply) => {

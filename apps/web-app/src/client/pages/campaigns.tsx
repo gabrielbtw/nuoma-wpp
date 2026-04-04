@@ -1,6 +1,7 @@
 import { type ChangeEvent, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, Instagram, MessageCircleMore, PauseCircle, PlayCircle, Plus, Search, StopCircle, Trash2, Upload } from "lucide-react";
+import { Copy, Eye, Instagram, MessageCircleMore, PauseCircle, PlayCircle, Plus, Search, StopCircle, Trash2, Upload } from "lucide-react";
+import { WorkflowViewer } from "@/components/campaigns/workflow-viewer";
 import { CampaignBuilder } from "@/components/campaigns/builder";
 import { ChannelSessionStrip } from "@/components/shared/channel-session-strip";
 import { ConfirmActionDialog } from "@/components/shared/confirm-action-dialog";
@@ -11,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, toJsonBody } from "@/lib/api";
 import {
   campaignStatusOptions,
@@ -222,6 +224,9 @@ export function CampaignsPage() {
   const [activeTab, setActiveTab] = useState<"campaign" | "status">("campaign");
   const [filters, setFilters] = useState({ query: "", status: "all" });
   const [flashMessage, setFlashMessage] = useState<string | null>(null);
+  const [manualInput, setManualInput] = useState("");
+  const [manualChannel, setManualChannel] = useState<"whatsapp" | "instagram">("whatsapp");
+  const [viewerCampaignId, setViewerCampaignId] = useState<string | null>(null);
 
   const campaignsQuery = useQuery({
     queryKey: ["campaigns"],
@@ -242,6 +247,11 @@ export function CampaignsPage() {
   const selectedCampaign = useMemo(
     () => filteredCampaigns.find((campaign) => campaign.id === selectedCampaignId) ?? filteredCampaigns[0] ?? null,
     [filteredCampaigns, selectedCampaignId]
+  );
+
+  const viewerCampaign = useMemo(
+    () => (campaignsQuery.data ?? []).find((c) => c.id === viewerCampaignId) ?? null,
+    [campaignsQuery.data, viewerCampaignId]
   );
 
   const recipientsQuery = useQuery({
@@ -477,6 +487,20 @@ export function CampaignsPage() {
     }
   });
 
+  const addManualMutation = useMutation({
+    mutationFn: ({ campaignId, entries }: { campaignId: string; entries: Array<{ value: string; channel: "whatsapp" | "instagram"; name?: string }> }) =>
+      apiFetch(`/campaigns/${campaignId}/add-recipients`, {
+        method: "POST",
+        body: toJsonBody({ entries })
+      }),
+    onSuccess: async () => {
+      setFlashMessage("Destinatarios adicionados manualmente.");
+      setManualInput("");
+      await queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      await queryClient.invalidateQueries({ queryKey: ["campaign-recipients"] });
+    }
+  });
+
   const activationIssues = getCampaignActivationIssues(editorCampaign ?? selectedCampaign);
   const hasCsvMapping = Boolean(mapping.phone || mapping.instagram);
   const canActivateCampaign = Boolean(selectedCampaign && activationIssues.length === 0 && !["active", "completed", "cancelled"].includes(selectedCampaign.status));
@@ -645,6 +669,17 @@ export function CampaignsPage() {
                         <p className="mt-2 line-clamp-1 text-xs font-medium text-slate-400 group-hover:text-slate-300">{campaign.description || "Sem resumo informado."}</p>
                       </button>
                       <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          aria-label={`Ver fluxo ${campaign.name}`}
+                          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-slate-400 transition hover:border-cmm-purple/30 hover:bg-cmm-purple/10 hover:text-cmm-purple"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setViewerCampaignId(campaign.id);
+                          }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
                         <button
                           type="button"
                           aria-label={`Duplicar ${campaign.name}`}
@@ -961,6 +996,70 @@ export function CampaignsPage() {
                         </div>
                       )}
                     </div>
+
+                    {/* Manual recipient input */}
+                    <div className="border-t border-white/5 pt-12">
+                      <div className="space-y-1 mb-6">
+                        <h3 className="font-display text-2xl font-bold text-white tracking-tight">Adicionar manualmente</h3>
+                        <p className="text-sm font-medium text-slate-400">Digite numeros de WhatsApp ou usernames do Instagram, um por linha.</p>
+                      </div>
+                      <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setManualChannel("whatsapp")}
+                              className={cn(
+                                "flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold transition-all",
+                                manualChannel === "whatsapp"
+                                  ? "border-cmm-emerald/40 bg-cmm-emerald/10 text-cmm-emerald"
+                                  : "border-white/10 bg-white/[0.02] text-slate-400 hover:bg-white/[0.04]"
+                              )}
+                            >
+                              <MessageCircleMore className="h-4 w-4" />
+                              WhatsApp
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setManualChannel("instagram")}
+                              className={cn(
+                                "flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold transition-all",
+                                manualChannel === "instagram"
+                                  ? "border-cmm-orange/40 bg-cmm-orange/10 text-cmm-orange"
+                                  : "border-white/10 bg-white/[0.02] text-slate-400 hover:bg-white/[0.04]"
+                              )}
+                            >
+                              <Instagram className="h-4 w-4" />
+                              Instagram
+                            </button>
+                          </div>
+                          <Textarea
+                            className="min-h-[120px] rounded-2xl border-white/5 bg-white/[0.03] px-4 py-3 text-sm font-mono"
+                            placeholder={manualChannel === "whatsapp" ? "5511999998888\n5521988887777\n5531977776666" : "@usuario1\n@usuario2\n@usuario3"}
+                            value={manualInput}
+                            onChange={(e) => setManualInput(e.target.value)}
+                          />
+                          <p className="text-[10px] text-slate-500">
+                            {manualInput.split("\n").filter((l) => l.trim()).length} {manualChannel === "whatsapp" ? "numeros" : "usernames"} digitados
+                          </p>
+                        </div>
+                        <div className="flex items-end">
+                          <Button
+                            variant="secondary"
+                            className="h-12 rounded-2xl bg-white/10 px-6 text-xs font-bold uppercase tracking-widest text-white hover:bg-white/20"
+                            disabled={!manualInput.trim() || !selectedCampaign?.id || addManualMutation.isPending}
+                            onClick={() => {
+                              if (!selectedCampaign?.id) return;
+                              const lines = manualInput.split("\n").map((l) => l.trim()).filter(Boolean);
+                              const entries = lines.map((value) => ({ value, channel: manualChannel }));
+                              addManualMutation.mutate({ campaignId: selectedCampaign.id, entries });
+                            }}
+                          >
+                            {addManualMutation.isPending ? "ADICIONANDO..." : "ADICIONAR"}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="animate-in fade-in duration-500">
@@ -1142,6 +1241,21 @@ export function CampaignsPage() {
           }}
         />
       ) : null}
+
+      {/* Workflow Viewer Dialog */}
+      <Dialog open={Boolean(viewerCampaignId)} onOpenChange={(open) => !open && setViewerCampaignId(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-[#0c0c0e] border-white/10">
+          <DialogTitle className="sr-only">Visualizador de Workflow</DialogTitle>
+          <DialogDescription className="sr-only">Fluxo visual da campanha com estatisticas por etapa</DialogDescription>
+          {viewerCampaign && (
+            <WorkflowViewer
+              campaignId={viewerCampaign.id}
+              steps={viewerCampaign.steps as unknown as import("@/lib/campaign-utils").CampaignStepDraft[]}
+              campaignName={viewerCampaign.name}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

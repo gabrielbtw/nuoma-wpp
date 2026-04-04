@@ -33,9 +33,35 @@ export function getDashboardSummary() {
     )
     .all() as Array<Record<string, unknown>>;
 
+  const failedJobs = db.prepare(
+    `SELECT j.id, j.type, j.error_message, j.updated_at, j.payload_json
+     FROM jobs j
+     WHERE j.status = 'failed'
+     ORDER BY datetime(j.updated_at) DESC
+     LIMIT 20`
+  ).all() as Array<Record<string, unknown>>;
+
+  const failedJobsCount = Number(
+    (db.prepare("SELECT COUNT(*) AS count FROM jobs WHERE status = 'failed' AND datetime(updated_at) >= datetime('now', '-24 hours')").get() as { count: number }).count
+  );
+
+  const failedCampaignRecipients = Number(
+    (db.prepare("SELECT COUNT(*) AS count FROM campaign_recipients WHERE status = 'failed'").get() as { count: number }).count
+  );
+
   return {
     counts,
     recentConversations,
-    recentEvents: listSystemEvents(20)
+    recentEvents: listSystemEvents(20),
+    failures: {
+      recentFailedJobs: failedJobsCount,
+      totalFailedRecipients: failedCampaignRecipients,
+      failedJobs: failedJobs.map((j) => ({
+        id: String(j.id),
+        type: String(j.type),
+        error: String(j.error_message ?? ""),
+        updatedAt: String(j.updated_at)
+      }))
+    }
   };
 }

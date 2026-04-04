@@ -56,6 +56,11 @@ function mapStep(row: Record<string, unknown>): CampaignStepRecord {
     caption: String(row.caption ?? ""),
     tagName: (metadata.tagName as string | null) ?? null,
     channelScope: String(row.channel_scope ?? "any") as CampaignStepRecord["channelScope"],
+    templateId: (row.template_id as string | null) ?? null,
+    conditionType: (row.condition_type as CampaignStepRecord["conditionType"]) ?? null,
+    conditionValue: (row.condition_value as string | null) ?? null,
+    conditionAction: (row.condition_action as CampaignStepRecord["conditionAction"]) ?? null,
+    conditionJumpTo: row.condition_jump_to == null ? null : Number(row.condition_jump_to),
     createdAt: String(row.created_at)
   };
 }
@@ -83,6 +88,9 @@ function mapCampaign(row: Record<string, unknown>): CampaignRecord {
     rateLimitWindowMinutes: Number(row.rate_limit_window_minutes ?? 60),
     randomDelayMinSeconds: Number(row.random_delay_min_seconds ?? 15),
     randomDelayMaxSeconds: Number(row.random_delay_max_seconds ?? 60),
+    isEvergreen: Boolean(row.is_evergreen),
+    evergreenCriteria: parseJsonObject(row.evergreen_criteria_json as string | null),
+    evergreenLastEvaluatedAt: (row.evergreen_last_evaluated_at as string | null) ?? null,
     totalRecipients: Number(row.total_recipients ?? 0),
     processedRecipients: Number(row.processed_recipients ?? 0),
     startedAt: (row.started_at as string | null) ?? null,
@@ -101,8 +109,9 @@ function replaceSteps(campaignId: string, steps: CampaignStepInput[]) {
     const insert = db.prepare(
       `
         INSERT INTO campaign_steps (
-          id, campaign_id, sort_order, type, content, media_asset_id, wait_minutes, caption, metadata_json, channel_scope, created_at
-        ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)
+          id, campaign_id, sort_order, type, content, media_asset_id, wait_minutes, caption, metadata_json, channel_scope,
+          template_id, condition_type, condition_value, condition_action, condition_jump_to, created_at
+        ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
     );
 
@@ -120,6 +129,11 @@ function replaceSteps(campaignId: string, steps: CampaignStepInput[]) {
           tagName: step.tagName ?? null
         }),
         step.channelScope ?? "any",
+        step.templateId ?? null,
+        step.conditionType ?? null,
+        step.conditionValue ?? null,
+        step.conditionAction ?? null,
+        step.conditionJumpTo ?? null,
         timestamp
       );
     });
@@ -149,9 +163,10 @@ export function createCampaign(input: CampaignInput) {
     `
       INSERT INTO campaigns (
         id, name, description, status, csv_path, send_window_start, send_window_end, rate_limit_count,
-        rate_limit_window_minutes, random_delay_min_seconds, random_delay_max_seconds, eligible_channels_json, total_recipients,
+        rate_limit_window_minutes, random_delay_min_seconds, random_delay_max_seconds, eligible_channels_json,
+        is_evergreen, evergreen_criteria_json, total_recipients,
         processed_recipients, started_at, finished_at, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 0, 0, NULL, NULL, ?, ?)
+      ) VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, NULL, NULL, ?, ?)
     `
   ).run(
     id,
@@ -165,6 +180,8 @@ export function createCampaign(input: CampaignInput) {
     input.randomDelayMinSeconds,
     input.randomDelayMaxSeconds,
     JSON.stringify(input.eligibleChannels ?? ["whatsapp"]),
+    input.isEvergreen ? 1 : 0,
+    JSON.stringify(input.evergreenCriteria ?? {}),
     timestamp,
     timestamp
   );
@@ -190,6 +207,8 @@ export function updateCampaign(campaignId: string, input: CampaignInput) {
         random_delay_min_seconds = ?,
         random_delay_max_seconds = ?,
         eligible_channels_json = ?,
+        is_evergreen = ?,
+        evergreen_criteria_json = ?,
         updated_at = ?
       WHERE id = ?
     `
@@ -204,6 +223,8 @@ export function updateCampaign(campaignId: string, input: CampaignInput) {
     input.randomDelayMinSeconds,
     input.randomDelayMaxSeconds,
     JSON.stringify(input.eligibleChannels ?? ["whatsapp"]),
+    input.isEvergreen ? 1 : 0,
+    JSON.stringify(input.evergreenCriteria ?? {}),
     timestamp,
     campaignId
   );
@@ -258,6 +279,8 @@ export function duplicateCampaign(campaignId: string) {
     rateLimitWindowMinutes: existing.rateLimitWindowMinutes,
     randomDelayMinSeconds: existing.randomDelayMinSeconds,
     randomDelayMaxSeconds: existing.randomDelayMaxSeconds,
+    isEvergreen: existing.isEvergreen,
+    evergreenCriteria: existing.evergreenCriteria,
     steps: existing.steps.map((step) => ({
       type: step.type,
       content: step.content,
@@ -265,7 +288,12 @@ export function duplicateCampaign(campaignId: string) {
       waitMinutes: step.waitMinutes ?? null,
       caption: step.caption ?? "",
       tagName: step.tagName ?? null,
-      channelScope: step.channelScope ?? "any"
+      channelScope: step.channelScope ?? "any",
+      templateId: step.templateId ?? null,
+      conditionType: step.conditionType ?? null,
+      conditionValue: step.conditionValue ?? null,
+      conditionAction: step.conditionAction ?? null,
+      conditionJumpTo: step.conditionJumpTo ?? null
     }))
   });
 }
@@ -326,6 +354,70 @@ export function importCampaignRecipients(campaignId: string, recipients: Importe
   return getCampaign(campaignId);
 }
 
+export function addManualRecipients(
+  campaignId: string,
+  entries: Array<{ value: string; channel: "whatsapp" | "instagram"; name?: string }>
+) {
+  const db = getDb();
+  const timestamp = nowIso();
+  const insert = db.prepare(
+    `INSERT INTO campaign_recipients (
+      id, campaign_id, contact_id, channel, phone, instagram, target_display_value, target_normalized_value,
+      name, tags_json, extra_json, status, step_index, next_run_at, last_attempt_at, last_error, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`
+  );
+
+  const transaction = db.transaction(() => {
+    let added = 0;
+    for (const entry of entries) {
+      const val = entry.value.trim();
+      if (!val) continue;
+
+      const isIg = entry.channel === "instagram";
+      const igHandle = isIg ? val.replace(/^@+/, "").toLowerCase() : null;
+      const phone = isIg ? "" : val;
+      const display = isIg ? `@${igHandle}` : val;
+      const normalized = isIg ? (igHandle ?? "") : val;
+
+      const contact = isIg
+        ? (igHandle ? getContactByInstagram(igHandle) : null)
+        : (phone ? getContactByPhone(phone) : null);
+
+      const requiresValidation = entry.channel === "whatsapp";
+
+      insert.run(
+        randomUUID(),
+        campaignId,
+        contact?.id ?? null,
+        entry.channel,
+        phone,
+        igHandle ? `@${igHandle}` : null,
+        display,
+        normalized,
+        entry.name?.trim() ?? "",
+        "[]",
+        "{}",
+        "pending",
+        requiresValidation ? -1 : 0,
+        timestamp,
+        requiresValidation ? "awaiting_validation" : null,
+        timestamp,
+        timestamp
+      );
+      added++;
+    }
+
+    // Update total count
+    const countRow = db.prepare("SELECT COUNT(*) as cnt FROM campaign_recipients WHERE campaign_id = ?").get(campaignId) as { cnt: number };
+    db.prepare("UPDATE campaigns SET total_recipients = ?, updated_at = ? WHERE id = ?").run(countRow.cnt, timestamp, campaignId);
+
+    return added;
+  });
+
+  const count = transaction();
+  return { added: count, campaign: getCampaign(campaignId) };
+}
+
 export function getCampaignRecipient(recipientId: string) {
   const db = getDb();
   return db.prepare("SELECT * FROM campaign_recipients WHERE id = ?").get(recipientId) as Record<string, unknown> | undefined;
@@ -341,6 +433,32 @@ export function listCampaignRecipients(campaignId: string) {
   return db
     .prepare("SELECT * FROM campaign_recipients WHERE campaign_id = ? ORDER BY created_at ASC")
     .all(campaignId) as Array<Record<string, unknown>>;
+}
+
+export function getCampaignStepStats(campaignId: string) {
+  const db = getDb();
+  const rows = db.prepare(
+    `SELECT step_index, status, COUNT(*) as count
+     FROM campaign_recipients
+     WHERE campaign_id = ?
+     GROUP BY step_index, status
+     ORDER BY step_index ASC, status ASC`
+  ).all(campaignId) as Array<{ step_index: number; status: string; count: number }>;
+
+  const stats: Record<number, { pending: number; processing: number; sent: number; failed: number; skipped: number; total: number }> = {};
+  for (const row of rows) {
+    if (!stats[row.step_index]) {
+      stats[row.step_index] = { pending: 0, processing: 0, sent: 0, failed: 0, skipped: 0, total: 0 };
+    }
+    const s = stats[row.step_index];
+    if (row.status === "pending") s.pending += row.count;
+    else if (row.status === "processing") s.processing += row.count;
+    else if (row.status === "sent") s.sent += row.count;
+    else if (row.status === "failed") s.failed += row.count;
+    else if (row.status === "skipped" || row.status === "blocked_by_rule") s.skipped += row.count;
+    s.total += row.count;
+  }
+  return stats;
 }
 
 export function getDueCampaignRecipients() {

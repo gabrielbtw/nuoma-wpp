@@ -1,6 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import {
+  addManualRecipients,
   buildCampaignImportPreview,
+  getCampaignStepStats,
   campaignInputSchema,
   createCampaign,
   deleteCampaign,
@@ -188,8 +190,51 @@ export async function registerCampaignRoutes(app: FastifyInstance) {
     return campaign;
   });
 
+  app.post("/campaigns/:id/add-recipients", async (request, reply) => {
+    const params = request.params as { id: string };
+    const body = request.body as {
+      entries: Array<{ value: string; channel: "whatsapp" | "instagram"; name?: string }>;
+    };
+    const campaign = getCampaign(params.id);
+    if (!campaign) {
+      reply.code(404);
+      return { message: "Campanha nao encontrada" };
+    }
+    if (!body?.entries?.length) {
+      reply.code(400);
+      return { message: "Nenhum destinatario informado" };
+    }
+
+    const result = addManualRecipients(params.id, body.entries);
+
+    syncCampaignRecipientContacts(params.id);
+    const recipients = listCampaignRecipients(params.id);
+    for (const recipient of recipients) {
+      const recChannel = String((recipient as Record<string, unknown>).channel ?? "whatsapp");
+      const recStatus = String((recipient as Record<string, unknown>).status ?? "");
+      if (recChannel !== "whatsapp" || recStatus !== "pending") continue;
+      enqueueJob({
+        type: "validate-recipient",
+        dedupeKey: `validate:${params.id}:${recipient.id}`,
+        payload: {
+          campaignId: params.id,
+          recipientId: String(recipient.id),
+          phone: String(recipient.phone ?? "")
+        },
+        maxAttempts: 1
+      });
+    }
+
+    return { added: result.added, campaign: result.campaign };
+  });
+
   app.get("/campaigns/:id/recipients", async (request) => {
     const params = request.params as { id: string };
     return listCampaignRecipients(params.id);
+  });
+
+  app.get("/campaigns/:id/step-stats", async (request) => {
+    const params = request.params as { id: string };
+    return getCampaignStepStats(params.id);
   });
 }

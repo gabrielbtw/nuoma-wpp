@@ -38,6 +38,20 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+/** Maps send job content types to message storage content types */
+function toMessageContentType(ct: string): "text" | "audio" | "image" | "video" | "file" | "summary" {
+  if (ct === "document") return "file";
+  if (ct === "link") return "text";
+  return ct as "text" | "audio" | "image" | "video";
+}
+
+/** Maps send job content types to Instagram send content types */
+function toInstagramContentType(ct: string): "text" | "audio" | "image" | "video" {
+  if (ct === "document") return "video"; // fallback, IG doesn't support doc
+  if (ct === "link") return "text";
+  return ct as "text" | "audio" | "image" | "video";
+}
+
 function rssMb() {
   return Math.round(process.memoryUsage().rss / 1024 / 1024);
 }
@@ -1033,7 +1047,7 @@ export class WhatsAppWorker {
           username: payload.recipientNormalizedValue ?? payload.recipientDisplayValue ?? null,
           text: payload.text,
           mediaPath: payload.mediaPath,
-          contentType: payload.contentType,
+          contentType: toInstagramContentType(payload.contentType),
           caption: payload.caption
         });
 
@@ -1056,7 +1070,7 @@ export class WhatsAppWorker {
             conversationId: conversation.id,
             contactId: conversation.contactId,
             direction: "outgoing",
-            contentType: payload.contentType,
+            contentType: toMessageContentType(payload.contentType),
             body: payload.text || payload.caption || "",
             sentAt: sent.sentAt,
             externalId: sent.externalId,
@@ -1134,7 +1148,7 @@ export class WhatsAppWorker {
           conversationId: conversation.id,
           contactId: conversation.contactId,
           direction: "outgoing",
-          contentType: payload.contentType,
+          contentType: toMessageContentType(payload.contentType),
           body: payload.text || payload.caption || "",
           sentAt: nowIso(),
           meta: {

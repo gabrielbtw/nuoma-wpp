@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { Activity, AlertCircle, Bot, CheckCircle2, Clock, MessageSquare, Send, Users } from "lucide-react";
+import { Activity, AlertCircle, Bot, CheckCircle2, Clock, MessageSquare, Send, Users, type LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { ErrorPanel } from "@/components/shared/error-panel";
 import { apiFetch } from "@/lib/api";
+import type { ChannelHealthRecord, DashboardCounts, DashboardSummaryResponse, HealthResponse } from "@/lib/system-types";
 import { cn } from "@/lib/utils";
 
-function MetricWidget({
+function DashboardMetricCard({
   title,
   value,
   detail,
@@ -15,7 +16,7 @@ function MetricWidget({
   title: string;
   value: string | number;
   detail: string;
-  icon: any;
+  icon: LucideIcon;
   colorClass: string;
 }) {
   return (
@@ -35,15 +36,15 @@ function MetricWidget({
   );
 }
 
-function normalizeStatus(input?: string | null) {
+function normalizeRuntimeStatus(input?: string | null) {
   return (input ?? "unknown").toLowerCase();
 }
 
-function isHealthyStatus(input?: string | null) {
-  return ["ok", "online", "authenticated", "connected", "active", "assisted"].includes(normalizeStatus(input));
+function isOperationalStatus(input?: string | null) {
+  return ["ok", "online", "authenticated", "connected", "active", "assisted"].includes(normalizeRuntimeStatus(input));
 }
 
-function dashboardHeadline(status: string) {
+function getDashboardHeadline(status: string) {
   if (status === "ok") {
     return "Operação estável";
   }
@@ -55,7 +56,7 @@ function dashboardHeadline(status: string) {
   return "Atenção operacional";
 }
 
-function dashboardDescription({
+function getDashboardDescription({
   overallStatus,
   workerStatus,
   schedulerStatus,
@@ -82,27 +83,24 @@ function dashboardDescription({
 export function DashboardPage() {
   const dashboardQuery = useQuery({
     queryKey: ["dashboard"],
-    queryFn: () => apiFetch<any>("/dashboard"),
+    queryFn: () => apiFetch<DashboardSummaryResponse>("/dashboard"),
     refetchInterval: 30_000
   });
 
   const healthQuery = useQuery({
     queryKey: ["health"],
-    queryFn: () => apiFetch<any>("/health"),
+    queryFn: () => apiFetch<HealthResponse>("/health"),
     refetchInterval: 15_000
   });
 
-  const counts = dashboardQuery.data?.counts ?? {};
-  const overallStatus = normalizeStatus(healthQuery.data?.overallStatus ?? null);
-  const workerStatus = normalizeStatus(healthQuery.data?.worker?.value?.status ?? null);
-  const schedulerStatus = normalizeStatus(healthQuery.data?.scheduler?.value?.status ?? null);
-  const channels = Object.values(healthQuery.data?.channels ?? {}) as Array<{
-    mode?: string;
-    worker?: { status?: string };
-    account?: { status?: string };
-  }>;
+  const counts: DashboardCounts = dashboardQuery.data?.counts ?? {};
+  const failures = dashboardQuery.data?.failures;
+  const overallStatus = normalizeRuntimeStatus(healthQuery.data?.overallStatus ?? null);
+  const workerStatus = normalizeRuntimeStatus(String(healthQuery.data?.worker?.value?.status ?? ""));
+  const schedulerStatus = normalizeRuntimeStatus(String(healthQuery.data?.scheduler?.value?.status ?? ""));
+  const channels: ChannelHealthRecord[] = Object.values(healthQuery.data?.channels ?? {});
   const activeChannelCount = channels.filter((channel) =>
-    isHealthyStatus(channel.account?.status) || isHealthyStatus(channel.worker?.status) || isHealthyStatus(channel.mode)
+    isOperationalStatus(channel.account?.status) || isOperationalStatus(channel.worker?.status) || isOperationalStatus(channel.mode)
   ).length;
   const unreadConversations = Number(counts.unreadConversations ?? 0);
   const pendingJobs = Number(counts.pendingJobs ?? 0);
@@ -154,9 +152,9 @@ export function DashboardPage() {
 
           <div className="flex-1 space-y-8 text-center lg:text-left">
             <div className="space-y-4">
-              <h2 className="font-display text-4xl font-bold leading-tight tracking-tight text-white lg:text-5xl">{dashboardHeadline(overallStatus)}</h2>
+              <h2 className="font-display text-4xl font-bold leading-tight tracking-tight text-white lg:text-5xl">{getDashboardHeadline(overallStatus)}</h2>
               <p className="max-w-2xl text-lg font-medium leading-relaxed text-slate-400">
-                {dashboardDescription({
+                {getDashboardDescription({
                   overallStatus,
                   workerStatus,
                   schedulerStatus,
@@ -186,28 +184,28 @@ export function DashboardPage() {
       </section>
 
       <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
-        <MetricWidget
+        <DashboardMetricCard
           title="Conversas"
           value={counts.conversations ?? 0}
           detail={`${unreadConversations} com pendência de leitura`}
           icon={MessageSquare}
           colorClass="text-cmm-blue"
         />
-        <MetricWidget
+        <DashboardMetricCard
           title="Automações ativas"
           value={counts.activeAutomations ?? 0}
           detail="Regras ligadas no ambiente local"
           icon={Bot}
           colorClass="text-cmm-orange"
         />
-        <MetricWidget
+        <DashboardMetricCard
           title="Campanhas em curso"
           value={counts.campaignsRunning ?? 0}
           detail={`${pendingJobs} job(s) aguardando processamento`}
           icon={Send}
           colorClass="text-pink-400"
         />
-        <MetricWidget
+        <DashboardMetricCard
           title="Contatos"
           value={counts.contacts ?? 0}
           detail="Cadastros ativos na base"
@@ -215,6 +213,41 @@ export function DashboardPage() {
           colorClass="text-cmm-emerald"
         />
       </div>
+
+      {/* Failure badge */}
+      {failures && (Number(failures.recentFailedJobs ?? 0) > 0 || Number(failures.totalFailedRecipients ?? 0) > 0) && (
+        <div className="rounded-[2rem] border border-red-500/20 bg-red-500/5 p-6 animate-in slide-in-from-top-2 duration-500">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-500/10">
+              <AlertCircle className="h-6 w-6 text-red-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-display text-lg font-bold text-red-300 tracking-tight">Falhas detectadas</h3>
+              <div className="flex gap-4 mt-1">
+                {Number(failures.recentFailedJobs ?? 0) > 0 && (
+                  <span className="text-xs font-bold text-red-400">{failures.recentFailedJobs} jobs falharam (24h)</span>
+                )}
+                {Number(failures.totalFailedRecipients ?? 0) > 0 && (
+                  <span className="text-xs font-bold text-red-400">{failures.totalFailedRecipients} destinatarios com falha</span>
+                )}
+              </div>
+            </div>
+          </div>
+          {failures.failedJobs && failures.failedJobs.length > 0 && (
+            <div className="mt-4 space-y-1.5 max-h-[160px] overflow-y-auto custom-scrollbar">
+              {failures.failedJobs.slice(0, 5).map((job) => (
+                <div key={job.id} className="flex items-center justify-between rounded-xl bg-black/20 px-4 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-red-500">{job.type}</span>
+                    <span className="text-xs text-slate-400 truncate max-w-[300px]">{job.error || "Sem detalhes"}</span>
+                  </div>
+                  <span className="text-[9px] text-slate-600 shrink-0">{new Date(job.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid gap-8 xl:grid-cols-2">
         <div className="group glass-card flex flex-col rounded-[2.5rem] border-white/5 bg-white/[0.01] transition-all duration-500 hover:bg-white/[0.03]">
@@ -234,23 +267,27 @@ export function DashboardPage() {
             </button>
           </div>
           <div className="max-h-[500px] space-y-4 overflow-auto p-8 custom-scrollbar">
-            {(dashboardQuery.data?.recentConversations ?? []).map((item: any) => (
-              <div key={item.id} className="flex items-center justify-between rounded-3xl p-5 transition-all hover:bg-black/30">
-                <div className="flex items-center gap-5">
-                  <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-gradient-to-br from-slate-800 to-slate-900 text-lg font-bold text-slate-300 shadow-xl">
-                    {(item.contact_name || item.title || "?").charAt(0)}
-                    {item.unread_count > 0 ? <span className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-cmm-blue border-2 border-slate-900" /> : null}
+            {(dashboardQuery.data?.recentConversations ?? []).map((conversation) => {
+              const conversationTitle = conversation.contact_name || conversation.title || "?";
+
+              return (
+                <div key={conversation.id} className="flex items-center justify-between rounded-3xl p-5 transition-all hover:bg-black/30">
+                  <div className="flex items-center gap-5">
+                    <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-gradient-to-br from-slate-800 to-slate-900 text-lg font-bold text-slate-300 shadow-xl">
+                      {conversationTitle.charAt(0)}
+                      {conversation.unread_count > 0 ? <span className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-cmm-blue border-2 border-slate-900" /> : null}
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-bold tracking-tight text-white">{conversationTitle}</div>
+                      <div className="line-clamp-1 text-xs font-medium text-slate-500">{conversation.last_message_preview || "Sem prévia recente"}</div>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <div className="font-bold tracking-tight text-white">{item.contact_name || item.title}</div>
-                    <div className="line-clamp-1 text-xs font-medium text-slate-500">{item.last_message_preview || "Sem prévia recente"}</div>
+                  <div className="text-right text-[9px] font-black uppercase tracking-widest text-slate-600">
+                    {conversation.unread_count > 0 ? `${conversation.unread_count} não lida(s)` : "Sem pendência"}
                   </div>
                 </div>
-                <div className="text-right text-[9px] font-black uppercase tracking-widest text-slate-600">
-                  {item.unread_count > 0 ? `${item.unread_count} não lida(s)` : "Sem pendência"}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -263,7 +300,7 @@ export function DashboardPage() {
             <Clock className="h-4 w-4 text-slate-700" />
           </div>
           <div className="max-h-[500px] space-y-6 overflow-auto p-10 custom-scrollbar">
-            {(dashboardQuery.data?.recentEvents ?? []).map((event: any) => (
+            {(dashboardQuery.data?.recentEvents ?? []).map((event) => (
               <div key={event.id} className="relative border-l border-white/5 py-1 pl-10">
                 <div className="absolute left-[-5px] top-3 h-2 w-2 rounded-full border border-white/10 bg-slate-800" />
                 <div className="mb-2 flex items-center justify-between gap-4">

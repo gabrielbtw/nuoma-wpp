@@ -1,0 +1,15 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "nuoma-web",
+      "runtimeExecutable": "/usr/local/bin/npx",
+      "runtimeArgs": ["tsx", "src/server/index.ts"],
+      "port": 3000,
+      "cwd": "/Users/gabrielbraga/Projetos/nuoma-wpp/apps/web-app",
+      "env": {
+        "PATH": "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+      }
+    }
+  ]
+}

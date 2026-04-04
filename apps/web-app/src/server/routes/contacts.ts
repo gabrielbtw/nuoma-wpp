@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { contactInputSchema, contactPatchSchema, createContact, deleteContact, getContactById, listContactHistory, listContactsPage, updateContact } from "@nuoma/core";
+import { contactInputSchema, contactPatchSchema, createContact, deleteContact, getContactById, listContactHistory, listContactsPage, queryContactsBySegment, updateContact } from "@nuoma/core";
+import type { SegmentQuery } from "@nuoma/core";
 
 export async function registerContactRoutes(app: FastifyInstance) {
   app.get("/contacts", async (request) => {
@@ -11,6 +12,11 @@ export async function registerContactRoutes(app: FastifyInstance) {
       page: Number(query.page ?? 1),
       pageSize: Number(query.pageSize ?? 20)
     });
+  });
+
+  app.post("/contacts/query", async (request) => {
+    const body = request.body as { segment: SegmentQuery; page?: number; pageSize?: number };
+    return queryContactsBySegment(body.segment, body.page ?? 1, body.pageSize ?? 60);
   });
 
   app.post("/contacts", async (request, reply) => {

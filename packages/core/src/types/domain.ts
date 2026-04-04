@@ -16,7 +16,7 @@ export const automationCategoryValues = [
   "instagram-incoming"
 ] as const;
 export const campaignStatusValues = ["draft", "ready", "active", "paused", "completed", "cancelled", "failed"] as const;
-export const campaignStepTypeValues = ["text", "audio", "image", "video", "wait", "ADD_TAG", "REMOVE_TAG"] as const;
+export const campaignStepTypeValues = ["text", "audio", "image", "video", "document", "link", "wait", "ADD_TAG", "REMOVE_TAG"] as const;
 export const recipientStatusValues = ["pending", "processing", "sent", "failed", "skipped", "blocked_by_rule"] as const;
 export const jobStatusValues = ["pending", "processing", "done", "failed"] as const;
 export const jobTypeValues = ["send-message", "send-assisted-message", "sync-inbox", "restart-worker", "validate-recipient"] as const;
@@ -55,6 +55,25 @@ export type ChannelAccountStatus = (typeof channelAccountStatusValues)[number];
 const hhmmPattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const hhmmSchema = z.string().trim().regex(hhmmPattern, "Horário inválido. Use HH:mm.");
 export const campaignChannelScopeValues = ["any", "whatsapp", "instagram"] as const;
+
+// -- Template & condition types (declared early for use in schemas below) --
+export const templateContentTypeValues = ["text", "audio", "image", "video", "document", "link"] as const;
+export type TemplateContentType = (typeof templateContentTypeValues)[number];
+
+export const conditionTypeValues = ["replied", "has_tag", "channel_is", "outside_window"] as const;
+export type ConditionType = (typeof conditionTypeValues)[number];
+
+export const conditionActionValues = ["skip", "exit", "jump_to_step", "wait"] as const;
+export type ConditionAction = (typeof conditionActionValues)[number];
+
+export const templateInputSchema = z.object({
+  name: z.string().trim().min(1),
+  contentType: z.enum(templateContentTypeValues).default("text"),
+  body: z.string().trim().default(""),
+  mediaPath: z.string().trim().optional().nullable().default(null),
+  category: z.string().trim().default("general")
+});
+export type TemplateInput = z.infer<typeof templateInputSchema>;
 
 const baseContactInputSchema = z.object({
   name: z.string().trim().default(""),
@@ -172,7 +191,12 @@ export const campaignStepInputSchema = z
     waitMinutes: z.coerce.number().int().min(1).max(24 * 60).optional().nullable().default(null),
     caption: z.string().trim().optional().default(""),
     tagName: z.string().trim().optional().nullable().default(null),
-    channelScope: z.enum(campaignChannelScopeValues).default("any")
+    channelScope: z.enum(campaignChannelScopeValues).default("any"),
+    templateId: z.string().trim().optional().nullable().default(null),
+    conditionType: z.enum(conditionTypeValues).optional().nullable().default(null),
+    conditionValue: z.string().trim().optional().nullable().default(null),
+    conditionAction: z.enum(conditionActionValues).optional().nullable().default(null),
+    conditionJumpTo: z.coerce.number().int().min(0).optional().nullable().default(null)
   })
   .superRefine((value, ctx) => {
     if (value.type === "wait" && value.waitMinutes == null) {
@@ -206,6 +230,8 @@ export const campaignInputSchema = z
     rateLimitWindowMinutes: z.coerce.number().int().min(1).max(24 * 60).default(60),
     randomDelayMinSeconds: z.coerce.number().int().min(0).max(3600).default(15),
     randomDelayMaxSeconds: z.coerce.number().int().min(0).max(3600).default(60),
+    isEvergreen: z.boolean().default(false),
+    evergreenCriteria: z.record(z.string(), z.unknown()).optional().default({}),
     steps: z.array(campaignStepInputSchema).min(1)
   })
   .superRefine((value, ctx) => {
@@ -253,7 +279,7 @@ export const sendJobPayloadSchema = z.object({
   automationId: z.string().optional().nullable().default(null),
   ruleId: z.string().optional().nullable().default(null),
   stepId: z.string().optional().nullable().default(null),
-  contentType: z.enum(["text", "audio", "image", "video"]),
+  contentType: z.enum(["text", "audio", "image", "video", "document", "link"]),
   text: z.string().default(""),
   mediaPath: z.string().optional().nullable().default(null),
   caption: z.string().default(""),
@@ -387,6 +413,10 @@ export interface ChannelAccountRecord {
 
 export interface AutomationRuleRecord extends AutomationRuleInput {
   id: string;
+  triggerType: AutomationTriggerType;
+  triggerEvent: AutomationEvent | null;
+  triggerConditions: Array<{ field: string; operator: string; value: string }>;
+  customCategory: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -404,6 +434,17 @@ export interface ReminderRecord {
   updatedAt: string;
 }
 
+export interface TemplateRecord {
+  id: string;
+  name: string;
+  contentType: TemplateContentType;
+  body: string;
+  mediaPath: string | null;
+  category: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CampaignStepRecord {
   id: string;
   campaignId: string;
@@ -415,6 +456,11 @@ export interface CampaignStepRecord {
   caption: string;
   tagName: string | null;
   channelScope: (typeof campaignChannelScopeValues)[number];
+  templateId: string | null;
+  conditionType: ConditionType | null;
+  conditionValue: string | null;
+  conditionAction: ConditionAction | null;
+  conditionJumpTo: number | null;
   createdAt: string;
 }
 
@@ -431,6 +477,9 @@ export interface CampaignRecord {
   rateLimitWindowMinutes: number;
   randomDelayMinSeconds: number;
   randomDelayMaxSeconds: number;
+  isEvergreen: boolean;
+  evergreenCriteria: Record<string, unknown>;
+  evergreenLastEvaluatedAt: string | null;
   totalRecipients: number;
   processedRecipients: number;
   startedAt: string | null;
@@ -479,6 +528,76 @@ export interface InstagramAssistedThreadSnapshot {
   lastMessageDirection: "incoming" | "outgoing" | null;
   messages: InstagramAssistedMessageSnapshot[];
 }
+
+// -- Event trigger types --
+export const automationTriggerTypeValues = ["tag", "event"] as const;
+export type AutomationTriggerType = (typeof automationTriggerTypeValues)[number];
+
+export const automationEventValues = [
+  "message_received", "campaign_completed", "tag_applied", "tag_removed",
+  "conversation_opened", "conversation_closed"
+] as const;
+export type AutomationEvent = (typeof automationEventValues)[number];
+
+// -- Chatbot types --
+export const chatbotMatchTypeValues = ["contains", "exact", "regex", "starts_with"] as const;
+export type ChatbotMatchType = (typeof chatbotMatchTypeValues)[number];
+
+export const chatbotFallbackActionValues = ["silence_and_flag", "default_message", "none"] as const;
+export type ChatbotFallbackAction = (typeof chatbotFallbackActionValues)[number];
+
+export interface ChatbotRecord {
+  id: string;
+  name: string;
+  enabled: boolean;
+  channelScope: "any" | "whatsapp" | "instagram";
+  description: string;
+  fallbackAction: ChatbotFallbackAction;
+  fallbackTag: string;
+  createdAt: string;
+  updatedAt: string;
+  rules: ChatbotRuleRecord[];
+}
+
+export interface ChatbotRuleRecord {
+  id: string;
+  chatbotId: string;
+  priority: number;
+  matchType: ChatbotMatchType;
+  keywordPattern: string;
+  responseType: "text" | "image" | "audio" | "video";
+  responseBody: string;
+  responseMediaPath: string | null;
+  applyTag: string | null;
+  changeStatus: string | null;
+  flagForHuman: boolean;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const chatbotInputSchema = z.object({
+  name: z.string().trim().min(1),
+  enabled: z.boolean().default(true),
+  channelScope: z.enum(["any", "whatsapp", "instagram"]).default("any"),
+  description: z.string().trim().default(""),
+  fallbackAction: z.enum(chatbotFallbackActionValues).default("silence_and_flag"),
+  fallbackTag: z.string().trim().default("chatbot_nao_entendeu"),
+  rules: z.array(z.object({
+    id: z.string().trim().optional(),
+    priority: z.coerce.number().int().min(0).default(0),
+    matchType: z.enum(chatbotMatchTypeValues).default("contains"),
+    keywordPattern: z.string().trim().min(1),
+    responseType: z.enum(["text", "image", "audio", "video"]).default("text"),
+    responseBody: z.string().trim().default(""),
+    responseMediaPath: z.string().trim().optional().nullable().default(null),
+    applyTag: z.string().trim().optional().nullable().default(null),
+    changeStatus: z.string().trim().optional().nullable().default(null),
+    flagForHuman: z.boolean().default(false),
+    enabled: z.boolean().default(true)
+  })).default([])
+});
+export type ChatbotInput = z.infer<typeof chatbotInputSchema>;
 
 export interface InstagramAssistedSessionState {
   mode: "fixture" | "browser";

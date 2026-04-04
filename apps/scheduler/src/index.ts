@@ -9,6 +9,7 @@ import {
   processAutomationTick,
   processCampaignTick,
   recordSystemEvent,
+  releaseStaleJobLocks,
   setWorkerState
 } from "@nuoma/core";
 
@@ -106,6 +107,13 @@ async function runCycle() {
   cycleInFlight = true;
   const correlationId = randomUUID();
   try {
+    // Release stale job locks before processing
+    const releasedLocks = releaseStaleJobLocks(5);
+    if (releasedLocks > 0) {
+      logger.warn({ releasedLocks }, "Released stale job locks");
+      recordSystemEvent("scheduler", "warn", `Released ${releasedLocks} stale job lock(s)`, { releasedLocks });
+    }
+
     const automations = processAutomationTick();
     const campaigns = processCampaignTick();
     await cleanupTempFiles();

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivitySquare, Bot, BriefcaseBusiness, ContactRound, FileArchive, LayoutDashboard, LineChart, Logs, Menu, MessageSquareMore, Settings, X, Zap } from "lucide-react";
+import { ActivitySquare, Bot, BriefcaseBusiness, ContactRound, FileArchive, LayoutDashboard, LineChart, Logs, Menu, MessageCircle, MessageSquareMore, Settings, X, Zap } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { ChannelSessionStrip } from "@/components/shared/channel-session-strip";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,7 @@ const navItems = [
   { to: "/contacts", label: "Contatos", icon: ContactRound, color: "text-cmm-purple" },
   { to: "/automations", label: "Automações", icon: Bot, color: "text-cmm-orange" },
   { to: "/campaigns", label: "Campanhas", icon: BriefcaseBusiness, color: "text-pink-400" },
+  { to: "/chatbot", label: "Chatbot", icon: MessageCircle, color: "text-violet-400" },
   { to: "/trends", label: "Tendências", icon: LineChart, color: "text-yellow-400" },
   { to: "/imports", label: "Importações", icon: FileArchive, color: "text-slate-400" },
   { to: "/health", label: "Saúde do Sistema", icon: ActivitySquare, color: "text-red-400" },

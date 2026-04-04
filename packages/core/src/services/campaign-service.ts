@@ -88,15 +88,27 @@ function countRecentCampaignMessages(windowMinutes: number, channel: ChannelType
   return Number(row.count ?? 0);
 }
 
+const STATE_FRESHNESS_SECONDS = 120; // Consider state stale after 2 minutes
+
+function isStateFresh(state: Record<string, unknown> | null): boolean {
+  if (!state) return false;
+  const updatedAt = String((state as Record<string, unknown>).updated_at ?? "");
+  if (!updatedAt) return false;
+  const ageMs = Date.now() - new Date(updatedAt).getTime();
+  return ageMs < STATE_FRESHNESS_SECONDS * 1000;
+}
+
 function getChannelAvailability(channel: ChannelType) {
   if (channel === "whatsapp") {
     const state = getWorkerState("wa-worker");
+    if (!isStateFresh(state as Record<string, unknown> | null)) return false; // Stale state = unavailable
     const payload = state?.value && typeof state.value === "object" ? (state.value as Record<string, unknown>) : {};
     const status = String(payload.status ?? "");
     return status === "authenticated" || status === "degraded";
   }
 
   const state = getWorkerState("instagram-assisted");
+  if (!isStateFresh(state as Record<string, unknown> | null)) return false;
   const payload = state?.value && typeof state.value === "object" ? (state.value as Record<string, unknown>) : {};
   return payload.authenticated === true || payload.status === "connected";
 }
@@ -290,8 +302,15 @@ export function processCampaignTick() {
   let queued = 0;
   const dueRecipients = getDueCampaignRecipients().map(parseRecipient);
 
+  // Pre-fetch campaigns to avoid N+1 queries (Fix: architecture risk #4)
+  const campaignCache = new Map<string, ReturnType<typeof getCampaign>>();
+  const uniqueCampaignIds = [...new Set(dueRecipients.map((r) => r.campaign_id))];
+  for (const cid of uniqueCampaignIds) {
+    campaignCache.set(cid, getCampaign(cid));
+  }
+
   for (const recipient of dueRecipients) {
-    const campaign = getCampaign(recipient.campaign_id);
+    const campaign = campaignCache.get(recipient.campaign_id) ?? null;
     if (!campaign) {
       continue;
     }

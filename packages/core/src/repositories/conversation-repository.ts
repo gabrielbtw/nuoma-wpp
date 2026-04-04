@@ -162,6 +162,94 @@ export function listConversations(filters?: { channel?: string; status?: string;
   return rows.map(mapConversation);
 }
 
+/**
+ * Lists conversations grouped by contact for the unified inbox.
+ * Returns one entry per contact with their latest message across all channels.
+ */
+export function listUnifiedInbox(filters?: { channel?: string; status?: string; query?: string }) {
+  const db = getDb();
+  const where: string[] = ["conv.contact_id IS NOT NULL"];
+  const params: unknown[] = [];
+
+  if (filters?.channel && filters.channel !== "all") {
+    where.push("conv.channel = ?");
+    params.push(filters.channel);
+  }
+
+  if (filters?.status && filters.status !== "all") {
+    where.push("conv.internal_status = ?");
+    params.push(filters.status);
+  }
+
+  if (filters?.query) {
+    const like = `%${filters.query.trim()}%`;
+    where.push(
+      "(IFNULL(c.name, '') LIKE ? OR IFNULL(c.phone, '') LIKE ? OR IFNULL(c.instagram, '') LIKE ? OR IFNULL(conv.last_message_preview, '') LIKE ?)"
+    );
+    params.push(like, like, like, like);
+  }
+
+  const whereClause = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
+  // Single query with subquery to avoid N+1 (architecture fix)
+  const rows = db.prepare(
+    `SELECT
+      c.id AS contact_id,
+      c.name AS contact_name,
+      c.phone AS contact_phone,
+      c.instagram AS contact_instagram,
+      c.status AS contact_status,
+      GROUP_CONCAT(DISTINCT conv.channel) AS channels,
+      MAX(conv.last_message_at) AS last_message_at,
+      SUM(conv.unread_count) AS total_unread,
+      COUNT(DISTINCT conv.id) AS conversation_count,
+      (SELECT lc.last_message_preview FROM conversations lc
+       WHERE lc.contact_id = c.id
+       ORDER BY datetime(COALESCE(lc.last_message_at, lc.updated_at)) DESC LIMIT 1) AS latest_preview,
+      (SELECT lc2.channel FROM conversations lc2
+       WHERE lc2.contact_id = c.id
+       ORDER BY datetime(COALESCE(lc2.last_message_at, lc2.updated_at)) DESC LIMIT 1) AS latest_channel
+    FROM conversations conv
+    INNER JOIN contacts c ON c.id = conv.contact_id
+    ${whereClause}
+    GROUP BY c.id
+    ORDER BY MAX(datetime(COALESCE(conv.last_message_at, conv.updated_at))) DESC`
+  ).all(...params) as Array<Record<string, unknown>>;
+
+  return rows.map((row) => ({
+    contactId: String(row.contact_id),
+    contactName: String(row.contact_name ?? ""),
+    contactPhone: (row.contact_phone as string) ?? null,
+    contactInstagram: (row.contact_instagram as string) ?? null,
+    contactStatus: String(row.contact_status ?? "novo"),
+    channels: String(row.channels ?? "").split(",").filter(Boolean),
+    lastMessageAt: (row.last_message_at as string) ?? null,
+    lastMessagePreview: String(row.latest_preview ?? ""),
+    lastMessageChannel: (row.latest_channel as string) ?? null,
+    totalUnread: Number(row.total_unread ?? 0),
+    conversationCount: Number(row.conversation_count ?? 0)
+  }));
+}
+
+/**
+ * Lists messages across ALL conversations for a given contact, mixed chronologically.
+ */
+export function listMessagesForContact(contactId: string, limit = 200) {
+  const db = getDb();
+  const rows = db.prepare(
+    `SELECT m.*, conv.channel AS conv_channel
+     FROM messages m
+     INNER JOIN conversations conv ON conv.id = m.conversation_id
+     WHERE conv.contact_id = ?
+     ORDER BY datetime(m.created_at) ASC
+     LIMIT ?`
+  ).all(contactId, limit) as Array<Record<string, unknown>>;
+
+  return rows.map((row) => ({
+    ...mapMessage(row),
+    channel: String(row.conv_channel ?? row.channel ?? "whatsapp") as ChannelType
+  }));
+}
+
 export function getConversationById(conversationId: string) {
   const db = getDb();
   const row = db

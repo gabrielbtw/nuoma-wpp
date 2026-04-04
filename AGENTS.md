@@ -17,6 +17,17 @@ Organizar o desenvolvimento por camada, com ownership exclusivo por pasta, baixo
 - Processo local: `PM2`
 - Testes atuais: `node:test` + `tsx`
 
+## Diretrizes De Trabalho
+
+- Antes de alterar qualquer arquivo, revisar o codigo existente, o fluxo atual e o ownership da camada.
+- Priorizar legibilidade, simplicidade e manutencao acima de cleverness ou abstracoes prematuras.
+- Evitar imports, helpers e bibliotecas desnecessarias; se algo puder ser resolvido com a base atual, preferir a base atual.
+- Nao introduzir dependencias pesadas sem justificativa tecnica objetiva, impacto esperado e comparacao com a alternativa de nao adicionar dependencia.
+- Manter documentacao tecnica e executiva sincronizadas com o codigo sempre que a mudanca alterar arquitetura, fluxo operacional, setup ou backlog.
+- Trabalhar por etapas pequenas, reversiveis e validaveis; preferir sequencia de mudancas pequenas a refactors amplos de uma vez.
+- Antes de qualquer refactor grande, explicar o impacto esperado, o risco, as fronteiras afetadas e o plano de validacao.
+- Quando um diagrama ajudar a explicar arquitetura, fluxo ou ownership, preferir Mermaid.
+
 ## Agentes Ativos
 
 ### 1. `core-api`
@@ -202,3 +213,38 @@ Regra adicional:
 - `packages/core` tem dono unico: `core-api`.
 - Cada agente valida apenas o proprio escopo.
 - Mudanca cross-layer sem contrato aprovado por `core-api` deve ser evitada.
+
+## Decisoes Arquiteturais Confirmadas (Abril 2026)
+
+### Modelo de Convergencia de Fluxos
+- **3 tipos explicitos**: Campanha (push manual/CSV), Automacao (trigger continuo), Chatbot (reativo por mensagem)
+- **Builder unico**: componente compartilhado que adapta UI conforme o tipo de fluxo
+- **Chatbot como entidade separada**: tabela propria, nao e subtipo de automacao
+- Ownership do builder unificado: `frontend-web` (componente), `core-api` (contratos e tipos compartilhados)
+
+### Campanhas
+- Templates com variaveis (`{{nome}}`, `{{telefone}}`, etc.) e formatacao WhatsApp
+- Condicoes em steps: replied->exit, has_tag->branch, channel_is->skip, outside_window->wait
+- Campanhas evergreen: auto-avaliacao de novos contatos + adicao manual
+- Novos step types: document (PDF), link (com preview)
+
+### Inbox Unificada
+- Timeline unica por contato (WA + IG misturados cronologicamente)
+- Compositor com seletor manual de canal
+- Quick actions: tag, status, lembrete, inscrever campanha, notas
+
+### Segmentacao
+- Filtro builder AND/OR reutilizavel em contatos, campanhas e automacoes
+- Criterios: tag, status, canal, datas, procedimento, relationship Instagram
+
+### Automacoes
+- Triggers por eventos: message_received, campaign_completed, tag_applied/removed
+- Condicoes compostas (evento AND tag AND status)
+- Categorias customizaveis via UI (nao mais enum fixo)
+
+### Restricoes confirmadas
+- Single-user, desktop-only, Brasil timezone unico
+- Apenas WhatsApp + Instagram (sem novos canais)
+- Minimo de AI/LLM
+- SQLite com otimizacoes (5k-50k contatos)
+- Browser automation (sem API oficial Meta)

@@ -229,6 +229,102 @@ function buildContactFilters(filters?: { query?: string; tag?: string; status?: 
   };
 }
 
+export type SegmentFilter = {
+  field: "tag" | "status" | "channel" | "procedure" | "created_after" | "created_before" | "last_interaction_after" | "last_interaction_before" | "has_phone" | "has_instagram";
+  operator: "equals" | "not_equals" | "has" | "not_has";
+  value: string;
+};
+
+export type SegmentQuery = {
+  logic: "and" | "or";
+  filters: SegmentFilter[];
+};
+
+export function queryContactsBySegment(segment: SegmentQuery, page = 1, pageSize = 60) {
+  const db = getDb();
+  const clauses: string[] = ["c.deleted_at IS NULL"];
+  const params: unknown[] = [];
+
+  for (const f of segment.filters) {
+    const clause = buildSegmentClause(f, params);
+    if (clause) clauses.push(clause);
+  }
+
+  const joiner = segment.logic === "or" ? " OR " : " AND ";
+  const filterClauses = clauses.slice(1); // skip deleted_at
+  const whereStr = filterClauses.length > 0
+    ? `WHERE c.deleted_at IS NULL AND (${filterClauses.join(joiner)})`
+    : "WHERE c.deleted_at IS NULL";
+
+  const total = Number((db.prepare(`SELECT COUNT(*) AS count FROM contacts c ${whereStr}`).get(...params) as { count: number }).count ?? 0);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const offset = (safePage - 1) * pageSize;
+
+  const rows = db.prepare(
+    `${baseContactQuery(whereStr)} ORDER BY COALESCE(c.last_interaction_at, c.updated_at) DESC LIMIT ? OFFSET ?`
+  ).all(...params, pageSize, offset) as Array<Record<string, unknown>>;
+
+  return {
+    items: hydrateContactsWithChannels(rows.map(mapContact)),
+    total,
+    page: safePage,
+    pageSize,
+    totalPages
+  };
+}
+
+function buildSegmentClause(f: SegmentFilter, params: unknown[]): string | null {
+  switch (f.field) {
+    case "tag":
+      if (f.operator === "has" || f.operator === "equals") {
+        params.push(normalizeTagName(f.value));
+        return "EXISTS (SELECT 1 FROM contact_tags ctx INNER JOIN tags tx ON tx.id = ctx.tag_id WHERE ctx.contact_id = c.id AND tx.normalized_name = ?)";
+      }
+      if (f.operator === "not_has" || f.operator === "not_equals") {
+        params.push(normalizeTagName(f.value));
+        return "NOT EXISTS (SELECT 1 FROM contact_tags ctx INNER JOIN tags tx ON tx.id = ctx.tag_id WHERE ctx.contact_id = c.id AND tx.normalized_name = ?)";
+      }
+      return null;
+    case "status":
+      params.push(f.value);
+      return f.operator === "not_equals" ? "c.status <> ?" : "c.status = ?";
+    case "channel":
+      if (f.value === "whatsapp") {
+        return f.operator === "has" || f.operator === "equals"
+          ? "c.phone IS NOT NULL AND trim(c.phone) <> ''"
+          : "(c.phone IS NULL OR trim(c.phone) = '')";
+      }
+      if (f.value === "instagram") {
+        return f.operator === "has" || f.operator === "equals"
+          ? "c.instagram IS NOT NULL AND trim(c.instagram) <> ''"
+          : "(c.instagram IS NULL OR trim(c.instagram) = '')";
+      }
+      return null;
+    case "procedure":
+      params.push(f.value);
+      return f.operator === "not_equals" ? "c.procedure_status <> ?" : "c.procedure_status = ?";
+    case "created_after":
+      params.push(f.value);
+      return "datetime(c.created_at) >= datetime(?)";
+    case "created_before":
+      params.push(f.value);
+      return "datetime(c.created_at) <= datetime(?)";
+    case "last_interaction_after":
+      params.push(f.value);
+      return "datetime(c.last_interaction_at) >= datetime(?)";
+    case "last_interaction_before":
+      params.push(f.value);
+      return "datetime(c.last_interaction_at) <= datetime(?)";
+    case "has_phone":
+      return f.value === "true" ? "c.phone IS NOT NULL AND trim(c.phone) <> ''" : "(c.phone IS NULL OR trim(c.phone) = '')";
+    case "has_instagram":
+      return f.value === "true" ? "c.instagram IS NOT NULL AND trim(c.instagram) <> ''" : "(c.instagram IS NULL OR trim(c.instagram) = '')";
+    default:
+      return null;
+  }
+}
+
 function getTagNamesForContact(contactId: string) {
   const db = getDb();
   const rows = db

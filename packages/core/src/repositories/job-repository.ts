@@ -15,35 +15,30 @@ export function enqueueJob(input: {
 }) {
   const db = getDb();
   return withSqliteBusyRetry(() => {
-    if (input.dedupeKey) {
-      const existing = db
-        .prepare("SELECT id FROM jobs WHERE dedupe_key = ? AND status IN ('pending', 'processing')")
-        .get(input.dedupeKey) as { id: string } | undefined;
-      if (existing) {
-        return existing.id;
-      }
-    }
-
     const id = randomUUID();
     const timestamp = nowIso();
-    db.prepare(
-      `
-        INSERT INTO jobs (
-          id, type, status, dedupe_key, payload_json, scheduled_at, attempts, max_attempts, created_at, updated_at
-        ) VALUES (?, ?, 'pending', ?, ?, ?, 0, ?, ?, ?)
-      `
-    ).run(
-      id,
-      input.type,
-      input.dedupeKey ?? null,
-      JSON.stringify(input.payload),
-      input.scheduledAt ?? timestamp,
-      input.maxAttempts ?? 3,
-      timestamp,
-      timestamp
-    );
 
-    return id;
+    // Atomic deduplication: check + insert in single transaction
+    const transaction = db.transaction(() => {
+      if (input.dedupeKey) {
+        const existing = db
+          .prepare("SELECT id FROM jobs WHERE dedupe_key = ? AND status IN ('pending', 'processing')")
+          .get(input.dedupeKey) as { id: string } | undefined;
+        if (existing) return existing.id;
+      }
+
+      db.prepare(
+        `INSERT INTO jobs (
+          id, type, status, dedupe_key, payload_json, scheduled_at, attempts, max_attempts, created_at, updated_at
+        ) VALUES (?, ?, 'pending', ?, ?, ?, 0, ?, ?, ?)`
+      ).run(
+        id, input.type, input.dedupeKey ?? null, JSON.stringify(input.payload),
+        input.scheduledAt ?? timestamp, input.maxAttempts ?? 3, timestamp, timestamp
+      );
+      return id;
+    });
+
+    return transaction();
   });
 }
 
@@ -149,6 +144,24 @@ export function failJobPermanently(jobId: string, errorMessage: string) {
         WHERE id = ?
       `
     ).run(errorMessage, timestamp, timestamp, jobId);
+  });
+}
+
+/**
+ * Release stale job locks older than the given minutes threshold.
+ * Called by the scheduler watchdog to prevent jobs from being stuck forever.
+ */
+export function releaseStaleJobLocks(staleMinutes = 5) {
+  const db = getDb();
+  return withSqliteBusyRetry(() => {
+    const result = db.prepare(
+      `UPDATE jobs
+       SET status = 'pending', locked_at = NULL, locked_by = NULL, updated_at = ?
+       WHERE status = 'processing'
+         AND locked_at IS NOT NULL
+         AND datetime(locked_at) < datetime('now', '-' || ? || ' minutes')`
+    ).run(nowIso(), staleMinutes);
+    return result.changes;
   });
 }
 

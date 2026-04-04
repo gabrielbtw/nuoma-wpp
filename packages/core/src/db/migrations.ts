@@ -731,5 +731,79 @@ export const migrations = [
       CREATE INDEX IF NOT EXISTS idx_data_lake_assets_contact ON data_lake_assets(contact_id, captured_at DESC);
       CREATE INDEX IF NOT EXISTS idx_data_lake_reports_created_at ON data_lake_reports(created_at DESC);
     `
+  },
+  {
+    id: "0008_templates_conditions_evergreen",
+    sql: `
+      -- Message templates (reusable across campaigns, automations, chatbot)
+      CREATE TABLE IF NOT EXISTS message_templates (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        content_type TEXT NOT NULL DEFAULT 'text',
+        body TEXT NOT NULL DEFAULT '',
+        media_path TEXT,
+        category TEXT NOT NULL DEFAULT 'general',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_message_templates_category ON message_templates(category);
+
+      -- Campaign step conditions
+      ALTER TABLE campaign_steps ADD COLUMN template_id TEXT REFERENCES message_templates(id) ON DELETE SET NULL;
+      ALTER TABLE campaign_steps ADD COLUMN condition_type TEXT;
+      ALTER TABLE campaign_steps ADD COLUMN condition_value TEXT;
+      ALTER TABLE campaign_steps ADD COLUMN condition_action TEXT;
+      ALTER TABLE campaign_steps ADD COLUMN condition_jump_to INTEGER;
+
+      -- Evergreen campaign fields
+      ALTER TABLE campaigns ADD COLUMN is_evergreen INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE campaigns ADD COLUMN evergreen_criteria_json TEXT NOT NULL DEFAULT '{}';
+      ALTER TABLE campaigns ADD COLUMN evergreen_last_evaluated_at TEXT;
+    `
+  },
+  {
+    id: "0009_events_chatbot_dashboard",
+    sql: `
+      -- Event-based automation triggers
+      ALTER TABLE automations ADD COLUMN trigger_type TEXT NOT NULL DEFAULT 'tag';
+      ALTER TABLE automations ADD COLUMN trigger_event TEXT;
+      ALTER TABLE automations ADD COLUMN trigger_conditions_json TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE automations ADD COLUMN custom_category TEXT;
+
+      -- Chatbot entity
+      CREATE TABLE IF NOT EXISTS chatbots (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        channel_scope TEXT NOT NULL DEFAULT 'any',
+        description TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS chatbot_rules (
+        id TEXT PRIMARY KEY,
+        chatbot_id TEXT NOT NULL REFERENCES chatbots(id) ON DELETE CASCADE,
+        priority INTEGER NOT NULL DEFAULT 0,
+        match_type TEXT NOT NULL DEFAULT 'contains',
+        keyword_pattern TEXT NOT NULL DEFAULT '',
+        response_type TEXT NOT NULL DEFAULT 'text',
+        response_body TEXT NOT NULL DEFAULT '',
+        response_media_path TEXT,
+        apply_tag TEXT,
+        change_status TEXT,
+        flag_for_human INTEGER NOT NULL DEFAULT 0,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_chatbot_rules_chatbot ON chatbot_rules(chatbot_id, priority);
+
+      -- Chatbot fallback config
+      ALTER TABLE chatbots ADD COLUMN fallback_action TEXT NOT NULL DEFAULT 'silence_and_flag';
+      ALTER TABLE chatbots ADD COLUMN fallback_tag TEXT NOT NULL DEFAULT 'chatbot_nao_entendeu';
+    `
   }
 ] as const;

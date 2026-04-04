@@ -7,6 +7,8 @@ import { registerDataLakeRoutes } from "./data-lake.js";
 import { registerInstagramRoutes } from "./instagram.js";
 import { registerSystemRoutes } from "./system.js";
 import { registerTagRoutes } from "./tags.js";
+import { registerChatbotRoutes } from "./chatbots.js";
+import { registerTemplateRoutes } from "./templates.js";
 import { registerUploadRoutes } from "./uploads.js";
 
 export async function registerRoutes(app: FastifyInstance) {
@@ -18,5 +20,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await registerInstagramRoutes(app);
   await registerAutomationRoutes(app);
   await registerCampaignRoutes(app);
+  await registerChatbotRoutes(app);
+  await registerTemplateRoutes(app);
   await registerUploadRoutes(app);
 }

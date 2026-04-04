@@ -135,6 +135,8 @@ if (listCampaigns().length === 0) {
     rateLimitWindowMinutes: 60,
     randomDelayMinSeconds: 20,
     randomDelayMaxSeconds: 40,
+    isEvergreen: false,
+    evergreenCriteria: {},
     steps: [
       {
         type: "text",
@@ -143,7 +145,12 @@ if (listCampaigns().length === 0) {
         waitMinutes: null,
         caption: "",
         tagName: null,
-        channelScope: "any"
+        channelScope: "any",
+        templateId: null,
+        conditionType: null,
+        conditionValue: null,
+        conditionAction: null,
+        conditionJumpTo: null
       },
       {
         type: "wait",
@@ -152,7 +159,12 @@ if (listCampaigns().length === 0) {
         waitMinutes: 60,
         caption: "",
         tagName: null,
-        channelScope: "any"
+        channelScope: "any",
+        templateId: null,
+        conditionType: null,
+        conditionValue: null,
+        conditionAction: null,
+        conditionJumpTo: null
       },
       {
         type: "text",
@@ -161,7 +173,12 @@ if (listCampaigns().length === 0) {
         waitMinutes: null,
         caption: "",
         tagName: null,
-        channelScope: "any"
+        channelScope: "any",
+        templateId: null,
+        conditionType: null,
+        conditionValue: null,
+        conditionAction: null,
+        conditionJumpTo: null
       }
     ]
   });
