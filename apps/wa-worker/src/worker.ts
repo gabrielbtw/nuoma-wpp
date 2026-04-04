@@ -1320,20 +1320,26 @@ export class WhatsAppWorker {
       waitUntil: "domcontentloaded"
     });
 
-    const textSendButton = this.page.locator("footer button[aria-label='Enviar'], footer div[aria-label='Enviar']").last();
-    const mediaSendButton = this.page.locator("div[role='button'][aria-label='Enviar'], div[aria-label='Enviar']").first();
+    const textSendButton = this.page.locator("footer button[aria-label='Enviar'], footer div[aria-label='Enviar'], footer span[data-icon='send'], footer button span[data-icon='send']").last();
+    const mediaSendButton = this.page.locator("div[role='button'][aria-label='Enviar'], div[aria-label='Enviar'], span[data-icon='send'], button[aria-label='Enviar']").first();
     const composer = this.page.locator("footer [contenteditable='true']").first();
 
     let uploadedMediaPath = payload.mediaPath;
     if (payload.mediaPath) {
       uploadedMediaPath = await this.prepareMediaForUpload(payload.mediaPath, payload.contentType, correlationId);
       const attachmentButton = this.page
-        .locator("button[title='Anexar'], div[title='Anexar'], span[data-icon='plus-rounded']")
+        .locator("button[title='Anexar'], div[title='Anexar'], span[data-icon='plus-rounded'], span[data-icon='attach-menu-plus']")
         .first();
       await attachmentButton.waitFor({ timeout: 15_000 });
       const fileChooserPromise = this.page.waitForEvent("filechooser", { timeout: 15_000 });
       await attachmentButton.click();
-      const pickerLabel = this.page.getByText(/fotos e vídeos|fotos e videos/i).first();
+
+      // For document types use "Documento", for image/video use "Fotos e videos"
+      const ct = payload.contentType as string;
+      const isDocType = ct === "audio" || ct === "document" || ct === "file";
+      const pickerLabel = isDocType
+        ? this.page.getByText(/documento/i).first()
+        : this.page.getByText(/fotos e vídeos|fotos e videos/i).first();
       await pickerLabel.waitFor({ timeout: 10_000 });
       await pickerLabel.click();
       const fileChooser = await fileChooserPromise;
@@ -1351,6 +1357,12 @@ export class WhatsAppWorker {
       await this.page.waitForTimeout(1500);
     } else if (payload.text) {
       await composer.waitFor({ timeout: 15_000 }).catch(() => null);
+      // Type the text into composer
+      await composer.fill(payload.text).catch(async () => {
+        await composer.click();
+        await composer.type(payload.text);
+      });
+      await this.page.waitForTimeout(500);
     }
 
     await this.triggerSendAction(payload.mediaPath ? mediaSendButton : textSendButton, Boolean(payload.mediaPath));
@@ -1363,6 +1375,17 @@ export class WhatsAppWorker {
   }
 
   private async sendVoiceRecording(phone: string, audioPath: string, correlationId: string) {
+    // Get audio duration to know how long to record
+    let durationMs = 5_000; // default 5s
+    try {
+      const stat = await fs.stat(audioPath);
+      // Rough estimate: OGG ~12KB/s, WAV ~176KB/s, MP3 ~16KB/s
+      const sizeKB = stat.size / 1024;
+      const ext = audioPath.split(".").pop()?.toLowerCase() ?? "ogg";
+      const bytesPerSec = ext === "wav" ? 176 : ext === "mp3" ? 16 : 12;
+      durationMs = Math.max(3_000, Math.min(120_000, Math.round((sizeKB / bytesPerSec) * 1000) + 2_000));
+    } catch { /* use default */ }
+
     await this.relaunchBrowser(audioPath);
 
     if (!this.page) {
@@ -1377,19 +1400,24 @@ export class WhatsAppWorker {
     const micButton = this.page.getByRole("button", { name: /mensagem de voz/i }).last();
     await micButton.waitFor({ timeout: 20_000 });
     await micButton.click({ force: true });
-    await this.page.waitForTimeout(1_500);
+
+    // Wait for the actual audio duration (file plays through fake mic capture)
+    await this.page.waitForTimeout(durationMs);
 
     const sendButton = this.page
-      .locator("button[aria-label='Enviar'], div[aria-label='Enviar'], div[role='button'][aria-label='Enviar']")
+      .locator("button[aria-label='Enviar'], div[aria-label='Enviar'], div[role='button'][aria-label='Enviar'], span[data-icon='send']")
       .last();
     await sendButton.waitFor({ timeout: 20_000 });
     await sendButton.click({ force: true });
-    await micButton.waitFor({ timeout: 20_000 });
+
+    // Wait for send to complete
+    await this.page.waitForTimeout(3_000);
 
     recordSystemEvent("wa-worker", "info", "Voice recording sent through WhatsApp recorder", {
       correlationId,
       phone,
-      audioPath
+      audioPath,
+      durationMs
     });
   }
 
@@ -1398,7 +1426,21 @@ export class WhatsAppWorker {
       throw new Error("browser_failure: page not initialized");
     }
 
-    await sendButton.waitFor({ timeout: 30_000 });
+    // Try to find send button, fallback to Enter key if not found
+    try {
+      await sendButton.waitFor({ timeout: 10_000 });
+    } catch {
+      // Button not found - try pressing Enter as fallback
+      if (!isMedia) {
+        await this.page.keyboard.press("Enter");
+        return;
+      }
+      // For media, try broader selectors
+      const fallbackBtn = this.page.locator("span[data-icon='send'], [aria-label='Enviar'], [data-testid='send']").first();
+      await fallbackBtn.waitFor({ timeout: 10_000 });
+      await fallbackBtn.click({ force: true });
+      return;
+    }
 
     const attempts: Array<() => Promise<void>> = [
       async () => {
