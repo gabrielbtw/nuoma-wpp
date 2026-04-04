@@ -1074,9 +1074,11 @@ export class WhatsAppWorker {
             body: payload.text || payload.caption || "",
             sentAt: sent.sentAt,
             externalId: sent.externalId,
+            mediaPath: payload.mediaPath ?? null,
             meta: {
               source: payload.source,
-              correlationId
+              correlationId,
+              mediaPath: payload.mediaPath ?? null
             }
           });
         }
@@ -1151,9 +1153,11 @@ export class WhatsAppWorker {
           contentType: toMessageContentType(payload.contentType),
           body: payload.text || payload.caption || "",
           sentAt: nowIso(),
+          mediaPath: payload.mediaPath ?? null,
           meta: {
             source: payload.source,
-            correlationId
+            correlationId,
+            mediaPath: payload.mediaPath ?? null
           }
         });
       }

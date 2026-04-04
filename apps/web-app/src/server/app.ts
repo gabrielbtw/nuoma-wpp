@@ -72,5 +72,12 @@ export async function createApp() {
     });
   }
 
+  // Serve media files statically
+  await app.register(fastifyStatic, {
+    root: env.MEDIA_DIR,
+    prefix: "/uploads/media/",
+    decorateReply: false
+  });
+
   return app;
 }

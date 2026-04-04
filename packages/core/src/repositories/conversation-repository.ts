@@ -55,6 +55,7 @@ function mapConversation(row: Record<string, unknown>): ConversationRecord {
 }
 
 function mapMessage(row: Record<string, unknown>): MessageRecord {
+  const meta = parseMeta(row.meta_json as string | null);
   return {
     id: String(row.id),
     conversationId: String(row.conversation_id),
@@ -64,12 +65,12 @@ function mapMessage(row: Record<string, unknown>): MessageRecord {
     direction: String(row.direction) as MessageDirection,
     contentType: String(row.content_type) as MessageContentType,
     body: String(row.body ?? ""),
-    mediaPath: (row.storage_path as string | null) ?? null,
+    mediaPath: (row.storage_path as string | null) ?? (row.media_storage_path as string | null) ?? (meta.mediaPath as string | null) ?? null,
     externalId: (row.external_id as string | null) ?? null,
     status: String(row.status ?? "sent"),
     sentAt: (row.sent_at as string | null) ?? null,
     createdAt: String(row.created_at),
-    meta: parseMeta(row.meta_json as string | null)
+    meta
   };
 }
 
@@ -236,18 +237,23 @@ export function listUnifiedInbox(filters?: { channel?: string; status?: string; 
 export function listMessagesForContact(contactId: string, limit = 200) {
   const db = getDb();
   const rows = db.prepare(
-    `SELECT m.*, conv.channel AS conv_channel
+    `SELECT m.*, conv.channel AS conv_channel, ma.storage_path AS media_storage_path
      FROM messages m
      INNER JOIN conversations conv ON conv.id = m.conversation_id
+     LEFT JOIN media_assets ma ON ma.id = m.media_asset_id
      WHERE conv.contact_id = ?
      ORDER BY datetime(m.created_at) ASC
      LIMIT ?`
   ).all(contactId, limit) as Array<Record<string, unknown>>;
 
-  return rows.map((row) => ({
-    ...mapMessage(row),
-    channel: String(row.conv_channel ?? row.channel ?? "whatsapp") as ChannelType
-  }));
+  return rows.map((row) => {
+    const msg = mapMessage(row);
+    return {
+      ...msg,
+      channel: String(row.conv_channel ?? row.channel ?? "whatsapp") as ChannelType,
+      mediaPath: (row.media_storage_path as string) ?? msg.mediaPath ?? null
+    };
+  });
 }
 
 export function getConversationById(conversationId: string) {
@@ -536,6 +542,7 @@ export function addMessage(input: {
   contentType: MessageContentType;
   body?: string;
   mediaAssetId?: string | null;
+  mediaPath?: string | null;
   externalId?: string | null;
   status?: string;
   sentAt?: string | null;
