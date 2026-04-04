@@ -1,107 +1,76 @@
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Clock3, Database, Globe, Instagram, MessageCircleMore, RefreshCw, ShieldAlert, ShieldCheck, Terminal as TerminalIcon, type LucideIcon } from "lucide-react";
+import {
+  Activity, AlertTriangle, Clock3, Database, Globe, Instagram,
+  MessageCircleMore, RefreshCw, ShieldAlert, ShieldCheck,
+  Terminal as TerminalIcon, Wifi, WifiOff, type LucideIcon
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/shared/page-header";
 import { ErrorPanel } from "@/components/shared/error-panel";
 import { apiFetch } from "@/lib/api";
 import { formatChannelDisplayValue } from "@/lib/contact-utils";
 import type { ChannelHealthRecord, HealthResponse, LogsResponse } from "@/lib/system-types";
 import { cn } from "@/lib/utils";
 
-type BadgeTone = "success" | "warning" | "danger" | "info" | "default";
+type StatusLevel = "ok" | "warn" | "error" | "unknown";
 
-function statusTone(status?: string): BadgeTone {
-  if (!status) return "default";
-  const normalized = status.toLowerCase();
-  if (["authenticated", "online", "ok", "active", "connected", "assisted"].includes(normalized)) return "success";
-  if (["degraded", "disconnected", "paused", "warning", "starting"].includes(normalized)) return "warning";
-  if (["error", "failed", "offline"].includes(normalized)) return "danger";
-  return "info";
+function resolveStatus(status?: string): StatusLevel {
+  if (!status) return "unknown";
+  const s = status.toLowerCase();
+  if (["authenticated", "online", "ok", "active", "connected", "assisted"].includes(s)) return "ok";
+  if (["degraded", "disconnected", "paused", "warning", "starting"].includes(s)) return "warn";
+  if (["error", "failed", "offline"].includes(s)) return "error";
+  return "unknown";
 }
 
-function HealthStatusCard({
-  label,
-  value,
-  status,
-  icon: Icon,
-  subvalue
-}: {
-  label: string;
-  value: string;
-  status: string;
-  icon: LucideIcon;
-  subvalue?: string;
-}) {
-  const tone = statusTone(status);
-  const colors = {
-    success: "text-cmm-emerald shadow-emerald-500/20",
-    warning: "text-cmm-orange shadow-cmm-orange-500/20",
-    danger: "text-red-400 shadow-red-500/20",
-    info: "text-cmm-blue shadow-cmm-blue-500/20",
-    default: "text-slate-400 shadow-none"
-  };
+const statusConfig: Record<StatusLevel, { dot: string; text: string; bg: string; border: string }> = {
+  ok: { dot: "active", text: "text-n-wa", bg: "bg-n-wa/5", border: "border-n-wa/20" },
+  warn: { dot: "warning", text: "text-n-amber", bg: "bg-n-amber/5", border: "border-n-amber/20" },
+  error: { dot: "error", text: "text-n-red", bg: "bg-n-red/5", border: "border-n-red/20" },
+  unknown: { dot: "idle", text: "text-n-text-dim", bg: "bg-n-surface-2", border: "border-n-border" }
+};
 
+function StatusRow({ label, value, status, detail, icon: Icon }: {
+  label: string; value: string; status: StatusLevel; detail?: string; icon: LucideIcon;
+}) {
+  const cfg = statusConfig[status];
   return (
-    <div className="glass-card group relative overflow-hidden rounded-[2rem] border-white/5 bg-white/[0.01] p-6 transition-all hover:bg-white/[0.03]">
-      <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{label}</p>
-          <h4 className={cn("text-2xl font-black tracking-tighter text-white", tone !== "default" && colors[tone])}>{value}</h4>
-          {subvalue ? <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{subvalue}</p> : null}
+    <div className={cn("flex items-center gap-3 rounded-lg border p-3 transition-fast", cfg.border, cfg.bg)}>
+      <Icon className={cn("h-4 w-4 shrink-0", cfg.text)} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="text-label text-n-text-muted">{label}</span>
+          <span className={cn("signal-dot", cfg.dot)} />
         </div>
-        <div className={cn("flex h-12 w-12 items-center justify-center rounded-2xl border border-white/5 bg-white/5 shadow-inner transition-transform group-hover:scale-110", tone !== "default" && colors[tone])}>
-          <Icon className="h-6 w-6" />
+        <div className="flex items-baseline gap-2">
+          <span className={cn("font-mono text-h4", cfg.text)}>{value}</span>
+          {detail && <span className="text-micro text-n-text-dim truncate">{detail}</span>}
         </div>
       </div>
-      <div
-        className={cn(
-          "absolute -bottom-8 -right-8 h-16 w-16 rounded-full opacity-20 blur-2xl transition-opacity group-hover:opacity-40",
-          tone === "success" ? "bg-cmm-emerald" : tone === "warning" ? "bg-cmm-orange" : tone === "danger" ? "bg-red-500" : "bg-cmm-blue"
-        )}
-      />
     </div>
   );
 }
 
-function fileNameFromPath(value?: string) {
-  if (!value) {
-    return "não configurado";
-  }
-
-  const parts = value.split("/");
-  return parts[parts.length - 1] || value;
+function MetricBox({ label, value, status }: { label: string; value: string | number; status?: StatusLevel }) {
+  const cfg = statusConfig[status ?? "unknown"];
+  return (
+    <div className="rounded-lg border border-n-border bg-n-surface p-3">
+      <p className="text-micro uppercase text-n-text-dim">{label}</p>
+      <p className={cn("mt-1 font-mono text-h3", status && status !== "unknown" ? cfg.text : "text-n-text")}>{value}</p>
+    </div>
+  );
 }
 
-function formatChannelIdentity(channel: ChannelHealthRecord) {
+function formatIdentity(channel: ChannelHealthRecord) {
   const type = String(channel?.account?.type ?? channel?.label ?? "").toLowerCase();
-  const identifier = typeof channel?.sessionIdentifier === "string" ? channel.sessionIdentifier.trim() : "";
-
-  if (!identifier) {
-    return "Sessão não confirmada";
-  }
-
-  return type.includes("instagram") ? (identifier.startsWith("@") ? identifier : `@${identifier}`) : formatChannelDisplayValue("whatsapp", identifier);
+  const id = typeof channel?.sessionIdentifier === "string" ? channel.sessionIdentifier.trim() : "";
+  if (!id) return "Nao confirmado";
+  return type.includes("instagram") ? (id.startsWith("@") ? id : `@${id}`) : formatChannelDisplayValue("whatsapp", id);
 }
 
-function getChannelVisual(channel: ChannelHealthRecord) {
-  const identity = String(channel?.label ?? channel?.mode ?? "").toLowerCase();
-
-  if (identity.includes("instagram")) {
-    return {
-      icon: Instagram,
-      accent: "text-pink-300",
-      glow: "from-pink-500/18 via-transparent to-cmm-blue/10",
-      metricTone: "text-pink-200"
-    };
-  }
-
-  return {
-    icon: MessageCircleMore,
-    accent: "text-cmm-emerald",
-    glow: "from-cmm-emerald/18 via-transparent to-cmm-blue/10",
-    metricTone: "text-cmm-emerald"
-  };
+function dbName(path?: string) {
+  if (!path) return "N/A";
+  const parts = path.split("/");
+  return parts[parts.length - 1] || path;
 }
 
 export function SystemHealthPage() {
@@ -113,7 +82,7 @@ export function SystemHealthPage() {
 
   const logsQuery = useQuery({
     queryKey: ["logs", "recent"],
-    queryFn: () => apiFetch<LogsResponse>("/logs?limit=20"),
+    queryFn: () => apiFetch<LogsResponse>("/logs?limit=30"),
     refetchInterval: 10_000
   });
 
@@ -122,244 +91,143 @@ export function SystemHealthPage() {
   const scheduler = data.scheduler?.value ?? {};
   const channels = data.channels ?? {};
   const channelList: ChannelHealthRecord[] = Object.values(channels);
-  const instagramWorkerStatus = channels.instagram?.worker?.status ?? channels.instagram?.mode ?? "unknown";
-  const databasePath = typeof data.databasePath === "string" ? data.databasePath : "";
-  const hasCriticalFailure = Boolean(worker.lastFailureSummary || worker.lastErrorType || worker.lastFailureAt);
+  const igStatus = channels.instagram?.worker?.status ?? channels.instagram?.mode ?? "unknown";
+  const dbPath = typeof data.databasePath === "string" ? data.databasePath : "";
+  const hasCritical = Boolean(worker.lastFailureSummary || worker.lastErrorType);
+
+  const overallLevel = resolveStatus(String(data.overallStatus ?? ""));
+  const workerLevel = resolveStatus(String(worker.status ?? ""));
+  const schedulerLevel = resolveStatus(String(scheduler.status ?? ""));
+  const igLevel = resolveStatus(String(igStatus));
 
   return (
-    <div className="space-y-10 pb-20 animate-in fade-in duration-700">
-      <PageHeader
-        eyebrow="Operacional"
-        title="Saúde do Sistema"
-        description="Leitura factual do runtime local: workers, scheduler, banco, filas e eventos recentes."
-        actions={
-          <div className="flex items-center gap-3 rounded-2xl border border-white/5 bg-white/5 p-1.5 backdrop-blur-md">
-            <Button variant="ghost" size="sm" className="h-10 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-white" onClick={() => healthQuery.refetch()}>
-              <RefreshCw className={cn("mr-2 h-3.5 w-3.5", healthQuery.isFetching && "animate-spin")} />
-              Atualizar
-            </Button>
-            <div className="h-4 w-px bg-white/10" />
-            <Button
-              variant="secondary"
-              size="sm"
-              className="h-10 rounded-xl px-5 text-[10px] font-black uppercase tracking-widest bg-cmm-blue text-white shadow-lg shadow-blue-500/20"
-              onClick={() => {
-                window.location.hash = "#/logs";
-              }}
-            >
-              Abrir logs
-            </Button>
-          </div>
-        }
-      />
-
-      {healthQuery.error ? <ErrorPanel message={(healthQuery.error as Error).message} /> : null}
-      {logsQuery.error ? <ErrorPanel message={(logsQuery.error as Error).message} /> : null}
-
-      <div className="space-y-6">
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          <HealthStatusCard label="Saúde do sistema" value={String(data.overallStatus ?? "unknown").toUpperCase()} status={String(data.overallStatus ?? "unknown")} icon={ShieldCheck} subvalue="Leitura consolidada" />
-          <HealthStatusCard label="Scheduler" value={String(scheduler.status ?? "offline").toUpperCase()} status={String(scheduler.status ?? "offline")} icon={Clock3} subvalue="Execução da fila" />
-          <HealthStatusCard label="Banco local" value="SQLITE" status="online" icon={Database} subvalue={fileNameFromPath(databasePath)} />
+    <div className="space-y-5 animate-fade-in">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-h1 text-n-text">Saude do Sistema</h1>
+          <p className="text-caption text-n-text-muted mt-0.5">Runtime, workers, banco, canais e eventos</p>
         </div>
-        <div className="grid gap-6 md:grid-cols-2">
-          <HealthStatusCard label="Worker WhatsApp" value={String(worker.status ?? "offline").toUpperCase()} status={String(worker.status ?? "offline")} icon={MessageCircleMore} subvalue={channels.whatsapp ? formatChannelIdentity(channels.whatsapp) : `${worker.memoryMb ?? 0} MB em memória`} />
-          <HealthStatusCard label="Instagram assistido" value={String(instagramWorkerStatus).toUpperCase()} status={String(instagramWorkerStatus)} icon={Instagram} subvalue={channels.instagram ? formatChannelIdentity(channels.instagram) : "Sessão não confirmada"} />
-        </div>
+        <button
+          onClick={() => { healthQuery.refetch(); logsQuery.refetch(); }}
+          className="flex items-center gap-2 rounded-lg border border-n-border bg-n-surface px-3 py-1.5 text-label text-n-text-muted transition-fast hover:bg-n-surface-2 hover:text-n-text"
+        >
+          <RefreshCw className={cn("h-3.5 w-3.5", healthQuery.isFetching && "animate-spin")} />
+          Atualizar
+        </button>
       </div>
 
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.95fr)]">
-        <div className="space-y-8">
-          <div className="glass-card overflow-hidden rounded-[2.5rem] border-white/5 bg-black/40 backdrop-blur-3xl">
-            <div className="flex items-center justify-between border-b border-white/5 bg-white/[0.02] px-8 py-5">
-              <div className="flex items-center gap-3">
-                <TerminalIcon className="h-5 w-5 text-cmm-blue" />
-                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-300">Eventos recentes</h3>
-              </div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{(logsQuery.data?.events ?? []).length} em tela</span>
-            </div>
-            <div className="h-[500px] overflow-auto p-8 font-mono text-[13px] leading-relaxed custom-scrollbar selection:bg-cmm-blue selection:text-white">
-              <div className="space-y-2">
-                {(logsQuery.data?.events ?? []).map((event, index) => (
-                  <div key={event.id || index} className="group flex gap-4 animate-in fade-in slide-in-from-left-2 duration-300">
-                    <span className="shrink-0 text-slate-600">[{new Date(event.created_at).toLocaleTimeString()}]</span>
-                    <span
-                      className={cn(
-                        "mt-1 shrink-0 text-[10px] font-black uppercase tracking-widest",
-                        event.level === "error" ? "text-red-400" : event.level === "warn" ? "text-cmm-orange" : "text-cmm-blue"
-                      )}
-                    >
-                      {event.level}
-                    </span>
-                    <span className="text-slate-300 transition-colors group-hover:text-white">{event.message}</span>
-                  </div>
-                ))}
-                {logsQuery.isLoading ? (
-                  <div className="flex items-center gap-2 py-4 italic text-slate-500">
-                    <RefreshCw className="h-3 w-3 animate-spin" />
-                    Carregando eventos...
-                  </div>
-                ) : null}
-              </div>
-            </div>
+      {healthQuery.error && <ErrorPanel message={(healthQuery.error as Error).message} />}
+
+      <div className="grid gap-4 xl:grid-cols-[1fr_380px]">
+        {/* Left column */}
+        <div className="space-y-4">
+          {/* Status grid */}
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            <StatusRow icon={ShieldCheck} label="Sistema" value={String(data.overallStatus ?? "unknown").toUpperCase()} status={overallLevel} />
+            <StatusRow icon={Clock3} label="Scheduler" value={String(scheduler.status ?? "offline").toUpperCase()} status={schedulerLevel} />
+            <StatusRow icon={Database} label="SQLite" value="ONLINE" status="ok" detail={dbName(dbPath)} />
+            <StatusRow icon={MessageCircleMore} label="WhatsApp" value={String(worker.status ?? "offline").toUpperCase()} status={workerLevel}
+              detail={channels.whatsapp ? formatIdentity(channels.whatsapp) : undefined} />
+            <StatusRow icon={Instagram} label="Instagram" value={String(igStatus).toUpperCase()} status={igLevel}
+              detail={channels.instagram ? formatIdentity(channels.instagram) : undefined} />
+            <StatusRow icon={Activity} label="Memoria" value={`${worker.memoryMb ?? 0} MB`} status={Number(worker.memoryMb ?? 0) > 600 ? "warn" : "ok"} />
           </div>
 
-          <div className="glass-card rounded-[2.5rem] border-white/5 bg-white/[0.01] p-10">
-            <div className="mb-8 flex items-center gap-4">
-              <Globe className="h-6 w-6 text-cmm-emerald" />
-              <h3 className="text-sm font-black uppercase tracking-[0.2em] text-slate-300">Indicadores operacionais</h3>
-            </div>
-            <div className="grid gap-6 md:grid-cols-2">
-              {[
-                { label: "Autenticação WhatsApp", value: worker.authStatus || "N/A", status: worker.authStatus === "authenticated" ? "online" : "warning" },
-                { label: "Falhas consecutivas", value: worker.consecutiveFailures ?? 0, status: (worker.consecutiveFailures || 0) > 0 ? "warning" : "ok" },
-                { label: "Campanhas em execução", value: data.metrics?.activeCampaigns ?? 0, status: "info" },
-                { label: "Conversas aguardando", value: data.metrics?.waitingConversations ?? 0, status: (data.metrics?.waitingConversations || 0) > 10 ? "warning" : "ok" }
-              ].map((metric) => (
-                <div key={metric.label} className="flex h-32 flex-col justify-between rounded-3xl border border-white/5 bg-white/[0.02] p-6">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{metric.label}</span>
-                  <div className="flex items-end justify-between">
-                    <span className="text-2xl font-black tracking-tighter text-white">{metric.value}</span>
-                    <Badge tone={statusTone(metric.status)} className="rounded-full px-3 py-0.5 text-[9px] font-black uppercase tracking-widest">
-                      {metric.status.toUpperCase()}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
+          {/* Metrics */}
+          <div className="grid gap-2 md:grid-cols-4">
+            <MetricBox label="Auth WA" value={String(worker.authStatus ?? "N/A")} status={worker.authStatus === "authenticated" ? "ok" : "warn"} />
+            <MetricBox label="Falhas consecutivas" value={String(worker.consecutiveFailures ?? 0)} status={Number(worker.consecutiveFailures ?? 0) > 0 ? "warn" : "ok"} />
+            <MetricBox label="Campanhas ativas" value={String(data.metrics?.activeCampaigns ?? 0)} />
+            <MetricBox label="Conversas esperando" value={String(data.metrics?.waitingConversations ?? 0)} status={Number(data.metrics?.waitingConversations ?? 0) > 10 ? "warn" : undefined} />
           </div>
-        </div>
 
-        <div className="space-y-8">
-          <div className="glass-card rounded-[2.5rem] border-white/5 bg-white/[0.01] p-8">
-            <div className="mb-8 flex items-start justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/5 bg-cmm-blue/10 text-cmm-blue shadow-[0_12px_40px_rgba(0,122,255,0.18)]">
-                  <Globe className="h-6 w-6" />
+          {/* Channels detail */}
+          {channelList.length > 0 && (
+            <div className="rounded-xl border border-n-border bg-n-surface">
+              <div className="flex items-center justify-between border-b border-n-border px-4 py-2.5">
+                <div className="flex items-center gap-2">
+                  <Globe className="h-3.5 w-3.5 text-n-blue" />
+                  <span className="text-label text-n-text">Canais</span>
                 </div>
-                <div className="space-y-1">
-                  <h3 className="text-sm font-black uppercase tracking-[0.2em] text-slate-300">Canais disponíveis</h3>
-                  <p className="text-sm text-slate-400">Conectividade, conta ativa e volume mapeado por canal.</p>
-                </div>
+                <span className="text-micro text-n-text-dim">{channelList.length} configurados</span>
               </div>
-              <Badge tone="info" className="rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-widest">
-                {channelList.length} canais
-              </Badge>
-            </div>
-            <div className="space-y-5">
-              {channelList.map((channel) => {
-                const visual = getChannelVisual(channel);
-                const ChannelIcon = visual.icon;
-
-                return (
-                  <div
-                    key={channel.label}
-                    className={cn(
-                      "group relative overflow-hidden rounded-[2rem] border border-white/5 bg-white/[0.02] p-6 transition-all hover:bg-white/[0.04]",
-                      "before:absolute before:inset-0 before:bg-gradient-to-br before:opacity-100 before:content-['']",
-                      visual.glow
-                    )}
-                  >
-                    <div className="relative space-y-5">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex items-center gap-4">
-                          <div className={cn("flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-black/20", visual.accent)}>
-                            <ChannelIcon className="h-5 w-5" />
-                          </div>
-                          <div className="space-y-1">
-                            <h4 className="font-display text-lg font-bold tracking-tight text-white">{channel.label}</h4>
-                            <p className="text-sm text-slate-400">{formatChannelIdentity(channel)}</p>
-                          </div>
+              <div className="divide-y divide-n-border-subtle">
+                {channelList.map((ch) => {
+                  const isIg = String(ch.label ?? "").toLowerCase().includes("instagram");
+                  const ChIcon = isIg ? Instagram : MessageCircleMore;
+                  const chStatus = resolveStatus(ch.account?.status || ch.worker?.status || ch.mode);
+                  const cfg = statusConfig[chStatus];
+                  return (
+                    <div key={ch.label} className="flex items-center gap-3 px-4 py-3">
+                      <ChIcon className={cn("h-4 w-4", isIg ? "text-n-ig" : "text-n-wa")} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-body font-semibold text-n-text">{ch.label}</span>
+                          <span className={cn("signal-dot", cfg.dot)} />
+                          <span className={cn("text-micro", cfg.text)}>{ch.account?.status || ch.mode || "—"}</span>
                         </div>
-                        <Badge tone={statusTone(channel.account?.status || channel.worker?.status || channel.mode)} className="rounded-full px-3 py-0.5 text-[9px] font-black uppercase tracking-widest">
-                          {channel.account?.status || channel.worker?.status || channel.mode}
-                        </Badge>
+                        <span className="text-caption text-n-text-muted">{formatIdentity(ch)}</span>
                       </div>
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Modo</p>
-                          <p className="mt-2 text-sm font-semibold uppercase tracking-wide text-slate-100">{channel.mode || "—"}</p>
+                      <div className="flex gap-4 text-right">
+                        <div>
+                          <p className="text-micro text-n-text-dim">Conversas</p>
+                          <p className="font-mono text-body font-semibold text-n-text">{ch.mappedConversations ?? 0}</p>
                         </div>
-                        <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Conversas</p>
-                          <p className={cn("mt-2 text-2xl font-black tracking-tighter", visual.metricTone)}>{channel.mappedConversations ?? 0}</p>
-                        </div>
-                        <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Canais mapeados</p>
-                          <p className="mt-2 text-2xl font-black tracking-tighter text-white">{channel.mappedContactChannels ?? 0}</p>
+                        <div>
+                          <p className="text-micro text-n-text-dim">Canais</p>
+                          <p className="font-mono text-body font-semibold text-n-text">{ch.mappedContactChannels ?? 0}</p>
                         </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
-          <div className={cn("glass-card rounded-[2.5rem] border-white/5 p-8", hasCriticalFailure ? "bg-red-500/[0.03]" : "bg-emerald-500/[0.03]")}>
-            <div className="mb-8 flex items-start justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div
-                  className={cn(
-                    "flex h-12 w-12 items-center justify-center rounded-2xl border border-white/5 shadow-[0_12px_40px_rgba(15,23,42,0.25)]",
-                    hasCriticalFailure ? "bg-red-500/12 text-red-300" : "bg-cmm-emerald/10 text-cmm-emerald"
-                  )}
-                >
-                  {hasCriticalFailure ? <ShieldAlert className="h-6 w-6" /> : <ShieldCheck className="h-6 w-6" />}
-                </div>
-                <div className="space-y-1">
-                  <h3 className={cn("text-sm font-black uppercase tracking-[0.2em]", hasCriticalFailure ? "text-red-300" : "text-emerald-300")}>Última falha crítica</h3>
-                  <p className="text-sm text-slate-400">Resumo do incidente mais recente e sinais de recuperação do worker.</p>
+          {/* Critical failure */}
+          {hasCritical && (
+            <div className="rounded-xl border border-n-red/20 bg-n-red/5 p-4">
+              <div className="flex items-start gap-3">
+                <ShieldAlert className="h-4 w-4 text-n-red shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-label text-n-red">Ultima falha critica</p>
+                  <p className="mt-1 text-body text-n-text">{worker.lastFailureSummary || "Sem detalhes"}</p>
+                  <div className="mt-2 flex gap-4 text-caption text-n-text-muted">
+                    <span>Tipo: {worker.lastErrorType || "N/A"}</span>
+                    <span>Em: {worker.lastFailureAt ? new Date(String(worker.lastFailureAt)).toLocaleString() : "—"}</span>
+                    <span>Consecutivas: {worker.consecutiveFailures ?? 0}</span>
+                  </div>
                 </div>
               </div>
-              <Badge tone={hasCriticalFailure ? "danger" : "success"} className="rounded-full px-3 py-1 text-[9px] font-black uppercase tracking-widest">
-                {hasCriticalFailure ? "Atenção necessária" : "Sem incidentes ativos"}
-              </Badge>
             </div>
-            <div className="space-y-5">
-              <div
-                className={cn(
-                  "rounded-[2rem] border p-6",
-                  hasCriticalFailure ? "border-red-500/20 bg-red-500/10" : "border-emerald-500/20 bg-emerald-500/10"
-                )}
-              >
-                <div className="flex items-start gap-4">
-                  <div
-                    className={cn(
-                      "mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10",
-                      hasCriticalFailure ? "bg-red-500/15 text-red-300" : "bg-cmm-emerald/15 text-cmm-emerald"
-                    )}
-                  >
-                    <AlertTriangle className="h-4.5 w-4.5" />
-                  </div>
-                  <div className="space-y-2">
-                    <p className={cn("text-base font-bold leading-relaxed", hasCriticalFailure ? "text-red-100" : "text-emerald-100")}>
-                      {worker.lastFailureSummary || "Nenhuma falha crítica registrada no momento."}
-                    </p>
-                    <p className="text-sm leading-relaxed text-slate-400">
-                      {hasCriticalFailure
-                        ? "Use os eventos recentes para rastrear a sequência completa do erro antes de reenfileirar novas ações."
-                        : "O worker está operacional e não há registro recente de falha crítica pendente de ação."}
-                    </p>
-                  </div>
+          )}
+        </div>
+
+        {/* Right column: Event log */}
+        <div className="rounded-xl border border-n-border bg-n-surface overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between border-b border-n-border px-4 py-2.5">
+            <div className="flex items-center gap-2">
+              <TerminalIcon className="h-3.5 w-3.5 text-n-blue" />
+              <span className="text-label text-n-text">Eventos recentes</span>
+            </div>
+            <span className="text-micro text-n-text-dim">{(logsQuery.data?.events ?? []).length}</span>
+          </div>
+          <div className="flex-1 overflow-y-auto custom-scrollbar max-h-[calc(100vh-16rem)]">
+            <div className="p-3 space-y-0.5 font-mono text-caption">
+              {(logsQuery.data?.events ?? []).map((event, i) => (
+                <div key={event.id || i} className="flex gap-2 rounded px-2 py-1 hover:bg-n-surface-2 transition-fast">
+                  <span className="shrink-0 text-n-text-dim">{new Date(event.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+                  <span className={cn("shrink-0 text-micro uppercase w-10",
+                    event.level === "error" ? "text-n-red" : event.level === "warn" ? "text-n-amber" : "text-n-blue"
+                  )}>{event.level}</span>
+                  <span className="text-n-text-muted truncate">{event.message}</span>
                 </div>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tipo</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-100">{worker.lastErrorType || "N/A"}</p>
-                </div>
-                <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Registro</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-100">{worker.lastFailureAt ? new Date(worker.lastFailureAt).toLocaleString() : "Sem horário"}</p>
-                </div>
-                <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Falhas consecutivas</p>
-                  <p className={cn("mt-2 text-2xl font-black tracking-tighter", (worker.consecutiveFailures || 0) > 0 ? "text-cmm-orange" : "text-cmm-emerald")}>
-                    {worker.consecutiveFailures ?? 0}
-                  </p>
-                </div>
-              </div>
+              ))}
+              {(logsQuery.data?.events ?? []).length === 0 && (
+                <div className="py-8 text-center text-n-text-dim">Sem eventos recentes</div>
+              )}
             </div>
           </div>
         </div>
