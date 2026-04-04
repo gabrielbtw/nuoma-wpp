@@ -2,7 +2,9 @@ import type { FastifyInstance } from "fastify";
 import {
   addMessage,
   enqueueJob,
+  getContactById,
   getConversationById,
+  getLatestConversationForContactChannel,
   listConversations,
   listMessagesForContact,
   listMessagesForConversation,
@@ -77,6 +79,88 @@ export async function registerConversationRoutes(app: FastifyInstance) {
 
     const body = patchConversationSchema.parse(request.body);
     return updateConversationInternalStatus(params.id, body.internalStatus);
+  });
+
+  // Send message to a contact via unified inbox (picks the right conversation/channel)
+  app.post("/conversations/send-to-contact", async (request, reply) => {
+    const body = request.body as { contactId: string; text: string; channel: string; mediaPath?: string; contentType?: string };
+    if (!body?.contactId || !body?.text?.trim()) {
+      reply.code(400);
+      return { message: "contactId e text sao obrigatorios" };
+    }
+
+    const contact = getContactById(body.contactId);
+    if (!contact) {
+      reply.code(404);
+      return { message: "Contato nao encontrado" };
+    }
+
+    const channel = (body.channel === "instagram" ? "instagram" : "whatsapp") as "whatsapp" | "instagram";
+    const contentType = body.contentType || "text";
+
+    // Find existing conversation for this contact+channel
+    const conversation = getLatestConversationForContactChannel(body.contactId, channel);
+
+    if (channel === "whatsapp") {
+      if (!contact.phone) {
+        reply.code(400);
+        return { message: "Contato sem telefone para WhatsApp" };
+      }
+      enqueueJob({
+        type: "send-message",
+        dedupeKey: null,
+        payload: sendJobPayloadSchema.parse({
+          source: "manual",
+          channel: "whatsapp",
+          externalThreadId: conversation?.externalThreadId ?? null,
+          recipientDisplayValue: contact.name || contact.phone,
+          recipientNormalizedValue: contact.phone,
+          phone: contact.phone,
+          conversationId: conversation?.id ?? null,
+          contactId: contact.id,
+          contentType,
+          text: body.text,
+          mediaPath: body.mediaPath ?? null,
+          caption: body.text
+        })
+      });
+      reply.code(202);
+      return { queued: true, channel: "whatsapp" };
+    }
+
+    if (channel === "instagram") {
+      const instagramService = getInstagramAssistedService();
+      const threadId = conversation?.externalThreadId ?? null;
+      const username = contact.instagram?.replace(/^@/, "") ?? null;
+
+      const sent = await instagramService.sendMessage({
+        threadId,
+        username,
+        text: body.text,
+        mediaPath: body.mediaPath ?? null,
+        contentType: contentType as "text" | "audio" | "image" | "video",
+        caption: body.text
+      });
+
+      if (conversation) {
+        addMessage({
+          conversationId: conversation.id,
+          contactId: contact.id,
+          direction: "outgoing",
+          contentType: contentType as "text" | "audio" | "image" | "video" | "file" | "summary",
+          body: body.text,
+          externalId: sent.externalId,
+          sentAt: sent.sentAt,
+          meta: { source: "inbox-manual-send" }
+        });
+      }
+
+      reply.code(202);
+      return { queued: false, sent: true, channel: "instagram" };
+    }
+
+    reply.code(409);
+    return { message: "Canal nao suportado" };
   });
 
   app.post("/conversations/:id/messages", async (request, reply) => {

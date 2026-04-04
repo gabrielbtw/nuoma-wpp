@@ -2,8 +2,8 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
-  ArrowUpRight, BookOpen, CheckCheck, Globe2, Instagram, MessageCircleMore,
-  Phone, Search, SendHorizonal, Tag as TagIcon, User, Zap
+  ArrowUpRight, BookOpen, CheckCheck, FileText, Globe2, Instagram, MessageCircleMore,
+  Paperclip, Phone, Search, SendHorizonal, Tag as TagIcon, User, Zap
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +37,7 @@ type UnifiedMessage = {
   direction: "incoming" | "outgoing" | "system";
   contentType: string;
   body: string;
+  mediaPath: string | null;
   createdAt: string;
   sentAt: string | null;
 };
@@ -67,6 +68,8 @@ export function InboxPage() {
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [composer, setComposer] = useState("");
   const [sendChannel, setSendChannel] = useState<"whatsapp" | "instagram">("whatsapp");
+  const [attachment, setAttachment] = useState<{ file: File; path: string; type: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
   const deferredSearch = useDeferredValue(search);
 
   // Unified inbox query (grouped by contact)
@@ -109,17 +112,46 @@ export function InboxPage() {
   }, [selectedEntry?.contactId]);
 
   const sendMutation = useMutation({
-    mutationFn: ({ contactId, text, ch }: { contactId: string; text: string; ch: string }) =>
+    mutationFn: ({ contactId, text, ch, mediaPath, contentType }: { contactId: string; text: string; ch: string; mediaPath?: string; contentType?: string }) =>
       apiFetch(`/conversations/send-to-contact`, {
         method: "POST",
-        body: toJsonBody({ contactId, text, channel: ch })
+        body: toJsonBody({ contactId, text, channel: ch, mediaPath, contentType })
       }),
     onSuccess: async () => {
       setComposer("");
+      setAttachment(null);
       await queryClient.invalidateQueries({ queryKey: ["unified-inbox"] });
       await queryClient.invalidateQueries({ queryKey: ["contact-messages"] });
     }
   });
+
+  async function handleAttachment(file: File) {
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("scope", "temp");
+      const media = await apiFetch<Record<string, unknown>>("/uploads/media", { method: "POST", body: formData });
+      const path = String(media.storage_path ?? media.storagePath ?? "");
+      const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+      const type = ["jpg","jpeg","png","gif","webp"].includes(ext) ? "image"
+        : ["mp4","mov","avi","webm"].includes(ext) ? "video"
+        : ["mp3","ogg","wav","m4a"].includes(ext) ? "audio" : "file";
+      setAttachment({ file, path, type });
+    } catch { /* ignore */ }
+    setUploading(false);
+  }
+
+  function doSend() {
+    if (!selectedEntry || (!composer.trim() && !attachment)) return;
+    sendMutation.mutate({
+      contactId: selectedEntry.contactId,
+      text: composer.trim() || (attachment ? `[${attachment.type}]` : ""),
+      ch: sendChannel,
+      mediaPath: attachment?.path,
+      contentType: attachment?.type ?? "text"
+    });
+  }
 
   const messages = messagesQuery.data ?? [];
 
@@ -262,7 +294,29 @@ export function InboxPage() {
                       ? "bg-n-surface-2 text-n-text-muted rounded-lg text-center mx-auto italic text-caption"
                       : "bg-n-surface-2 text-n-text rounded-xl rounded-bl-sm border border-n-border"
                 )}>
-                  <p className="text-body leading-relaxed">{msg.body}</p>
+                  {/* Media rendering */}
+                  {msg.contentType === "image" && msg.mediaPath && (
+                    <img src={`/uploads/media/${msg.mediaPath.split("/").pop()}`} alt="imagem" className="rounded-lg max-w-full max-h-60 mb-1.5" loading="lazy" />
+                  )}
+                  {msg.contentType === "video" && msg.mediaPath && (
+                    <video controls className="rounded-lg max-w-full max-h-60 mb-1.5" preload="metadata">
+                      <source src={`/uploads/media/${msg.mediaPath.split("/").pop()}`} />
+                    </video>
+                  )}
+                  {msg.contentType === "audio" && msg.mediaPath && (
+                    <audio controls className="max-w-full mb-1.5" preload="metadata">
+                      <source src={`/uploads/media/${msg.mediaPath.split("/").pop()}`} />
+                    </audio>
+                  )}
+                  {msg.contentType === "file" && msg.mediaPath && (
+                    <a href={`/uploads/media/${msg.mediaPath.split("/").pop()}`} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-2 rounded-lg bg-black/20 px-3 py-2 mb-1.5 text-caption hover:bg-black/30 transition-fast">
+                      <FileText className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{msg.mediaPath.split("/").pop()}</span>
+                    </a>
+                  )}
+                  {/* Text content */}
+                  {msg.body && <p className="text-body leading-relaxed">{msg.body}</p>}
                   <div className={cn("mt-1 flex items-center gap-1.5 text-micro opacity-50",
                     msg.direction === "outgoing" ? "flex-row-reverse" : "")}>
                     <span>{formatTime(msg.sentAt || msg.createdAt)}</span>
@@ -299,25 +353,42 @@ export function InboxPage() {
                   </button>
                 )}
               </div>
+              {/* Attachment button */}
+              <div className="flex flex-col gap-1">
+                <label className={cn("h-8 w-8 rounded-lg flex items-center justify-center border cursor-pointer transition-fast",
+                  attachment ? "border-n-blue/40 bg-n-blue/10 text-n-blue" : "border-n-border bg-n-surface text-n-text-dim hover:bg-n-surface-2")}>
+                  <Paperclip className="h-3.5 w-3.5" />
+                  <input type="file" className="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleAttachment(f); e.target.value = ""; }} />
+                </label>
+              </div>
               {/* Input */}
               <div className="flex-1">
+                {attachment && (
+                  <div className="flex items-center gap-2 rounded-t-lg bg-n-surface-2 border border-b-0 border-n-border px-2 py-1.5">
+                    <span className="text-micro text-n-blue">{attachment.type.toUpperCase()}</span>
+                    <span className="text-caption text-n-text-muted truncate flex-1">{attachment.file.name}</span>
+                    <button onClick={() => setAttachment(null)} className="text-n-text-dim hover:text-n-red text-micro">X</button>
+                  </div>
+                )}
                 <Textarea
-                  placeholder={`Enviar via ${sendChannel === "whatsapp" ? "WhatsApp" : "Instagram"}...`}
-                  className="min-h-[48px] max-h-[100px] resize-none rounded-lg bg-n-surface border-n-border px-3 py-2 text-body text-n-text focus:border-n-blue/40 transition-fast"
+                  placeholder={uploading ? "Enviando arquivo..." : `Enviar via ${sendChannel === "whatsapp" ? "WhatsApp" : "Instagram"}...`}
+                  className={cn("min-h-[48px] max-h-[100px] resize-none bg-n-surface border-n-border px-3 py-2 text-body text-n-text focus:border-n-blue/40 transition-fast",
+                    attachment ? "rounded-b-lg rounded-t-none" : "rounded-lg")}
                   value={composer}
                   onChange={(e) => setComposer(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey && composer.trim() && selectedEntry) {
+                    if (e.key === "Enter" && !e.shiftKey && (composer.trim() || attachment) && selectedEntry) {
                       e.preventDefault();
-                      sendMutation.mutate({ contactId: selectedEntry.contactId, text: composer.trim(), ch: sendChannel });
+                      doSend();
                     }
                   }}
                 />
               </div>
               {/* Send */}
               <button
-                disabled={!composer.trim() || !selectedEntry || sendMutation.isPending}
-                onClick={() => selectedEntry && sendMutation.mutate({ contactId: selectedEntry.contactId, text: composer.trim(), ch: sendChannel })}
+                disabled={(!composer.trim() && !attachment) || !selectedEntry || sendMutation.isPending}
+                onClick={doSend}
                 className="h-10 w-10 rounded-lg bg-n-blue text-white flex items-center justify-center disabled:opacity-20 transition-fast active:scale-95">
                 <SendHorizonal className="h-4 w-4" />
               </button>

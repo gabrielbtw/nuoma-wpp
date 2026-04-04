@@ -55,6 +55,7 @@ type TimelineMessage = {
   direction: "incoming" | "outgoing" | "system";
   contentType: string;
   body: string;
+  mediaPath: string | null;
   createdAt: string;
   sentAt: string | null;
 };
@@ -271,6 +272,15 @@ export function ContactDetailPage() {
                               ? "bg-n-surface text-slate-500 rounded-xl text-center mx-auto italic text-xs"
                               : "bg-n-surface-2 text-slate-200 rounded-2xl rounded-bl-md border border-n-border"
                         )}>
+                          {msg.contentType === "image" && msg.mediaPath && (
+                            <img src={`/uploads/media/${msg.mediaPath.split("/").pop()}`} alt="" className="rounded-lg max-w-full max-h-48 mb-1" loading="lazy" />
+                          )}
+                          {msg.contentType === "video" && msg.mediaPath && (
+                            <video controls className="rounded-lg max-w-full max-h-48 mb-1" preload="metadata"><source src={`/uploads/media/${msg.mediaPath.split("/").pop()}`} /></video>
+                          )}
+                          {msg.contentType === "audio" && msg.mediaPath && (
+                            <audio controls className="max-w-full mb-1" preload="metadata"><source src={`/uploads/media/${msg.mediaPath.split("/").pop()}`} /></audio>
+                          )}
                           {msg.body}
                           {msg.direction === "outgoing" && (
                             <div className="mt-1 flex justify-end opacity-40">
