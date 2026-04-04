@@ -196,7 +196,8 @@ export const campaignStepInputSchema = z
     conditionType: z.enum(conditionTypeValues).optional().nullable().default(null),
     conditionValue: z.string().trim().optional().nullable().default(null),
     conditionAction: z.enum(conditionActionValues).optional().nullable().default(null),
-    conditionJumpTo: z.coerce.number().int().min(0).optional().nullable().default(null)
+    conditionJumpTo: z.coerce.number().int().min(0).optional().nullable().default(null),
+    attendantId: z.string().trim().optional().nullable().default(null)
   })
   .superRefine((value, ctx) => {
     if (value.type === "wait" && value.waitMinutes == null) {
@@ -254,6 +255,28 @@ export const campaignInputSchema = z
 
 export type CampaignInput = z.infer<typeof campaignInputSchema>;
 
+// -- Attendant types --
+export const attendantStatusValues = ["active", "error"] as const;
+export type AttendantStatus = (typeof attendantStatusValues)[number];
+
+export const attendantInputSchema = z.object({
+  name: z.string().trim().min(1, "Informe um nome para o atendente."),
+  voiceSamples: z.array(z.string().trim().min(1)).default([]),
+  xttsModelPath: z.string().trim().optional().nullable().default(null),
+  status: z.enum(attendantStatusValues).default("active")
+});
+export type AttendantInput = z.infer<typeof attendantInputSchema>;
+
+export interface AttendantRecord {
+  id: string;
+  name: string;
+  voiceSamples: string[];
+  xttsModelPath: string | null;
+  status: AttendantStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export const sendJobPayloadSchema = z.object({
   source: z.enum(["rule", "automation", "campaign", "manual"]),
   channel: z.enum(channelTypeValues).default("whatsapp"),
@@ -283,7 +306,8 @@ export const sendJobPayloadSchema = z.object({
   text: z.string().default(""),
   mediaPath: z.string().optional().nullable().default(null),
   caption: z.string().default(""),
-  sendFileFirst: z.boolean().default(false)
+  sendFileFirst: z.boolean().default(false),
+  attendantId: z.string().optional().nullable().default(null)
 }).superRefine((value, ctx) => {
   if (value.channel === "whatsapp" && (!value.phone?.trim() || value.phone.trim().length < 6)) {
     ctx.addIssue({
@@ -461,6 +485,7 @@ export interface CampaignStepRecord {
   conditionValue: string | null;
   conditionAction: ConditionAction | null;
   conditionJumpTo: number | null;
+  attendantId: string | null;
   createdAt: string;
 }
 

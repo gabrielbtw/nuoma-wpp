@@ -21,7 +21,8 @@ export function ensureRuntimeDirectories() {
     path.join(env.DATA_LAKE_DIR, "raw"),
     path.dirname(env.WHISPER_MODEL_PATH),
     env.CHROMIUM_PROFILE_DIR,
-    env.IG_CHROMIUM_PROFILE_DIR
+    env.IG_CHROMIUM_PROFILE_DIR,
+    path.join(env.UPLOADS_DIR, "media", "attendant", "samples")
   ].forEach(ensureDir);
 }
 

@@ -68,7 +68,9 @@ const envSchema = z.object({
   WORKER_FAILURE_THRESHOLD: z.coerce.number().int().min(1).max(20).default(3),
   OPENAI_API_KEY: z.string().default(""),
   OPENAI_TRANSCRIPTION_MODEL: z.string().default("gpt-4o-mini-transcribe"),
-  OPENAI_VISION_MODEL: z.string().default("gpt-4.1-mini")
+  OPENAI_VISION_MODEL: z.string().default("gpt-4.1-mini"),
+  PYTHON_BIN: z.string().default("python3"),
+  XTTS_TIMEOUT_SECONDS: z.coerce.number().int().min(30).max(600).default(120)
 });
 
 export type AppEnv = z.infer<typeof envSchema> & {

@@ -816,5 +816,23 @@ export const migrations = [
       CREATE INDEX IF NOT EXISTS idx_contacts_status_last_interaction
         ON contacts(status, last_interaction_at);
     `
+  },
+  {
+    id: "0011_attendants",
+    sql: `
+      CREATE TABLE IF NOT EXISTS attendants (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        voice_samples_json TEXT NOT NULL DEFAULT '[]',
+        xtts_model_path TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      ALTER TABLE campaign_steps ADD COLUMN attendant_id TEXT REFERENCES attendants(id) ON DELETE SET NULL;
+
+      CREATE INDEX IF NOT EXISTS idx_attendants_status ON attendants(status);
+    `
   }
 ] as const;

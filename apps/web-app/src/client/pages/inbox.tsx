@@ -434,22 +434,17 @@ export function InboxPage() {
   const messages = messagesQuery.data ?? [];
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-hidden animate-in fade-in duration-500">
-      <PageHeader
-        eyebrow="Atendimento Omnichannel"
-        title="Inbox Unificada"
-        description="Todas as conversas de WhatsApp e Instagram em uma timeline unica por contato."
-      />
-
-      <div className="grid flex-1 gap-2 overflow-hidden xl:grid-cols-[300px_1fr_260px]" style={{ height: "calc(100vh - 7rem)" }}>
+    <div className="flex h-full flex-col overflow-hidden animate-fade-in" style={{ height: "calc(100vh - 3.5rem)" }}>
+      <div className="grid flex-1 gap-0 overflow-hidden xl:grid-cols-[280px_1fr_240px]">
         {/* Contact list (left panel) */}
-        <div className="flex flex-col gap-3 overflow-hidden">
-          <div className="flex flex-col gap-2">
-            <div className="relative group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-n-text-dim group-focus-within:text-n-blue transition-fast" />
+        <div className="flex flex-col overflow-hidden border-r border-n-border">
+          {/* Search + filter row - single line */}
+          <div className="flex items-center gap-1.5 border-b border-n-border px-2 py-1.5">
+            <div className="relative flex-1 group">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-n-text-dim group-focus-within:text-n-blue transition-fast" />
               <Input
-                className="h-9 rounded-lg border-n-border bg-n-surface pl-9 pr-3 text-body text-n-text focus:border-n-blue/40 transition-fast"
-                placeholder="Buscar contato..."
+                className="h-7 rounded-md border-n-border bg-n-surface pl-7 pr-2 text-caption text-n-text focus:border-n-blue/40 transition-fast"
+                placeholder="Buscar..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -461,29 +456,25 @@ export function InboxPage() {
                 { value: "instagram", label: "IG", icon: Instagram }
               ].map((opt) => (
                 <button key={opt.value} onClick={() => setChannel(opt.value)}
-                  className={cn("flex-1 flex items-center justify-center gap-1.5 h-8 rounded-lg border text-micro uppercase transition-fast",
-                    channel === opt.value ? "border-n-blue/30 bg-n-blue/10 text-n-blue" : "border-n-border bg-n-surface text-n-text-dim hover:bg-n-surface-2")}>
+                  className={cn("h-7 w-7 rounded-md flex items-center justify-center transition-fast",
+                    channel === opt.value ? "bg-n-blue/10 text-n-blue" : "text-n-text-dim hover:bg-n-surface-2")}>
                   <opt.icon className="h-3.5 w-3.5" />
-                  {opt.label}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="flex-1 rounded-xl border border-n-border bg-n-surface overflow-hidden flex flex-col">
-            <div className="px-3 py-2.5 border-b border-n-border flex items-center justify-between">
-              <h3 className="text-micro uppercase text-n-text-dim">Contatos</h3>
-              <span className="text-micro text-n-text-dim">{inboxTotal}</span>
-            </div>
-            <div className="flex-1 overflow-y-auto space-y-0.5 p-1.5 custom-scrollbar">
+          {/* Contact list */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+            <div className="px-1 py-0.5">
               {entries.map((entry) => {
                 const isSelected = selectedEntry?.contactId === entry.contactId;
                 return (
                   <button key={entry.contactId} onClick={() => setSelectedContactId(entry.contactId)}
-                    className={cn("group relative flex w-full items-center gap-3 rounded-lg p-2.5 text-left transition-fast",
-                      isSelected ? "bg-n-blue text-white" : "hover:bg-n-surface-2 opacity-70 hover:opacity-100")}>
-                    <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-body font-semibold border transition-fast",
-                      isSelected ? "bg-white/20 border-white/10" : "bg-n-bg border-n-border text-n-text-dim")}>
+                    className={cn("group relative flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-fast",
+                      isSelected ? "bg-n-blue/10 text-n-text" : "hover:bg-n-surface-2")}>
+                    <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-caption font-semibold transition-fast",
+                      isSelected ? "bg-n-blue text-white" : "bg-n-surface-2 text-n-text-dim")}>
                       {(entry.contactName || "?").charAt(0)}
                     </div>
                     <div className="min-w-0 flex-1">

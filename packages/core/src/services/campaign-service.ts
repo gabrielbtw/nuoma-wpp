@@ -27,6 +27,7 @@ import { getLatestConversationForContactChannel } from "../repositories/conversa
 import { enqueueJob } from "../repositories/job-repository.js";
 import { getWorkerState, recordSystemEvent } from "../repositories/system-repository.js";
 import { normalizeTagName } from "../repositories/tag-repository.js";
+import { getAttendantById } from "../repositories/attendant-repository.js";
 import { loadEnv } from "../config/env.js";
 import type { ChannelType, ContactInput, ContactRecord } from "../types/domain.js";
 import { looksLikeValidWhatsAppCandidate, normalizeInstagramHandle } from "../utils/phone.js";
@@ -276,6 +277,15 @@ export function getCampaignActivationIssues(campaignId: string) {
     if (!hasText && !hasCaption && !hasMedia) {
       issues.push(`${label}: preencha conteudo, legenda ou midia antes de ativar.`);
     }
+
+    if (step.type === "audio" && step.attendantId) {
+      const attendant = getAttendantById(step.attendantId);
+      if (!attendant) {
+        issues.push(`${label}: atendente selecionado nao encontrado. Reconfigure a voz.`);
+      } else if (attendant.voiceSamples.length === 0) {
+        issues.push(`${label}: o atendente "${attendant.name}" nao possui amostras de voz. Envie ao menos uma amostra.`);
+      }
+    }
   });
 
   return [...new Set(issues)];
@@ -406,7 +416,8 @@ export function processCampaignTick() {
         contentType: step.type,
         text: contact ? resolveTemplateVars(step.content, contact) : step.content,
         mediaPath: step.mediaPath,
-        caption: contact ? resolveTemplateVars(step.caption || step.content, contact) : (step.caption || step.content)
+        caption: contact ? resolveTemplateVars(step.caption || step.content, contact) : (step.caption || step.content),
+        attendantId: step.attendantId ?? null
       }
     });
 

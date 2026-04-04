@@ -61,6 +61,7 @@ function mapStep(row: Record<string, unknown>): CampaignStepRecord {
     conditionValue: (row.condition_value as string | null) ?? null,
     conditionAction: (row.condition_action as CampaignStepRecord["conditionAction"]) ?? null,
     conditionJumpTo: row.condition_jump_to == null ? null : Number(row.condition_jump_to),
+    attendantId: (row.attendant_id as string | null) ?? null,
     createdAt: String(row.created_at)
   };
 }
@@ -110,8 +111,8 @@ function replaceSteps(campaignId: string, steps: CampaignStepInput[]) {
       `
         INSERT INTO campaign_steps (
           id, campaign_id, sort_order, type, content, media_asset_id, wait_minutes, caption, metadata_json, channel_scope,
-          template_id, condition_type, condition_value, condition_action, condition_jump_to, created_at
-        ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          template_id, condition_type, condition_value, condition_action, condition_jump_to, attendant_id, created_at
+        ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
     );
 
@@ -134,6 +135,7 @@ function replaceSteps(campaignId: string, steps: CampaignStepInput[]) {
         step.conditionValue ?? null,
         step.conditionAction ?? null,
         step.conditionJumpTo ?? null,
+        step.attendantId ?? null,
         timestamp
       );
     });
@@ -293,7 +295,8 @@ export function duplicateCampaign(campaignId: string) {
       conditionType: step.conditionType ?? null,
       conditionValue: step.conditionValue ?? null,
       conditionAction: step.conditionAction ?? null,
-      conditionJumpTo: step.conditionJumpTo ?? null
+      conditionJumpTo: step.conditionJumpTo ?? null,
+      attendantId: step.attendantId ?? null
     }))
   });
 }

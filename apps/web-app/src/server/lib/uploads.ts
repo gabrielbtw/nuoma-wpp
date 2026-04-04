@@ -106,6 +106,33 @@ export async function saveMediaUpload(
   });
 }
 
+export async function saveAttendantSampleUpload(file: MultipartFile, attendantId: string) {
+  const env = loadEnv();
+
+  if (!file.mimetype.startsWith("audio/")) {
+    throw new Error("Tipo de arquivo inválido. Envie somente áudios para amostras de voz.");
+  }
+
+  const samplesDir = path.join(env.UPLOADS_DIR, "media", "attendant", "samples", attendantId);
+  await fs.mkdir(samplesDir, { recursive: true });
+
+  const tempPath = path.join(env.TEMP_DIR, `${Date.now()}-${safeFileName(file.filename)}`);
+  await fs.mkdir(path.dirname(tempPath), { recursive: true });
+  await pipeline(file.file, createWriteStream(tempPath));
+
+  const sha256 = await hashFile(tempPath);
+  const finalName = `${sha256.slice(0, 12)}-${safeFileName(file.filename)}`;
+  const finalPath = path.join(samplesDir, finalName);
+
+  if (existsSync(finalPath)) {
+    await fs.rm(tempPath, { force: true });
+    return finalPath;
+  }
+
+  await fs.rename(tempPath, finalPath);
+  return finalPath;
+}
+
 export async function saveCsvUpload(file: MultipartFile) {
   ensureRuntimeDirectories();
 

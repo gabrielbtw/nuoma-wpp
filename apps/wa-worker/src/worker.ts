@@ -945,7 +945,7 @@ export class WhatsAppWorker {
       if (this.state.status === "degraded" || this.state.status === "error") {
         return;
       }
-      if (this.browserTask === "sync" && this.browserTaskStartedAt > 0 && Date.now() - this.browserTaskStartedAt > 30_000) {
+      if (this.browserTask === "sync" && this.browserTaskStartedAt > 0 && Date.now() - this.browserTaskStartedAt > 120_000) {
         recordSystemEvent("wa-worker", "warn", "Stuck inbox sync released for pending job", {
           browserTask: this.browserTask,
           runningForMs: Date.now() - this.browserTaskStartedAt
