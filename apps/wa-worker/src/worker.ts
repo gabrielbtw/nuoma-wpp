@@ -1373,8 +1373,21 @@ export class WhatsAppWorker {
     }
     const phone = payload.phone;
 
-    // Audio: send as document attachment (no browser relaunch needed)
-    // This avoids closing/reopening Chrome which steals window focus from the user
+    if (payload.contentType === "audio") {
+      if (!payload.mediaPath) {
+        throw new Error("upload_failure: audio step requires mediaPath");
+      }
+
+      let resolvedAudioPath = payload.mediaPath;
+      if (payload.attendantId) {
+        resolvedAudioPath = await this.convertVoiceWithAttendant(payload.mediaPath, payload.attendantId, correlationId);
+      }
+
+      const uploadedAudioPath = await this.prepareMediaForUpload(resolvedAudioPath, payload.contentType, correlationId);
+      this.lastOpenPhone = null;
+      await this.sendVoiceRecording(phone, uploadedAudioPath, correlationId);
+      return;
+    }
 
     const targetUrl = `${this.env.WA_URL}/send?phone=${encodeURIComponent(phone)}`;
 
