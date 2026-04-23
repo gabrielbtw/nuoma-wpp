@@ -17,6 +17,7 @@ const SystemHealthPage = lazy(() => import("./pages/system-health").then((module
 const LogsPage = lazy(() => import("./pages/logs").then((module) => ({ default: module.LogsPage })));
 const SettingsPage = lazy(() => import("./pages/settings").then((module) => ({ default: module.SettingsPage })));
 const ChatbotPage = lazy(() => import("./pages/chatbot").then((module) => ({ default: module.ChatbotPage })));
+const AttendantsPage = lazy(() => import("./pages/attendants").then((module) => ({ default: module.AttendantsPage })));
 
 function RouteFallback() {
   return (
@@ -50,6 +51,7 @@ export function App() {
         <Route path="/automations" element={suspensePage(<AutomationsPage />)} />
         <Route path="/campaigns" element={suspensePage(<CampaignsPage />)} />
         <Route path="/chatbot" element={suspensePage(<ChatbotPage />)} />
+        <Route path="/attendants" element={suspensePage(<AttendantsPage />)} />
         <Route path="/trends" element={suspensePage(<TrendsPage />)} />
         <Route path="/imports" element={suspensePage(<ImportsPage />)} />
         <Route path="/health" element={suspensePage(<SystemHealthPage />)} />

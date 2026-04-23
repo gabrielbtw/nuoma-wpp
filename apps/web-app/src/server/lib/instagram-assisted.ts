@@ -1279,7 +1279,7 @@ class InstagramAssistedService {
             title: string;
             profileLinks: Array<{ href: string; text: string }>;
             messages: Array<{
-              externalId: string;
+              externalId: string | null;
               direction: "incoming" | "outgoing";
               body: string;
               contentType: "text";
@@ -1307,10 +1307,18 @@ class InstagramAssistedService {
             }))
             .filter((entry) => Boolean(entry.href));
 
-          const textNodes = (Array.from(document.querySelectorAll("main div[dir='auto'], main span")) as Array<{
+          // Relative-time labels shown as date dividers between messages — not real content
+          const relativeTimePattern = /^(\d+\s*(s|min|h|d|sem|sem\.|w|hr|hrs|days?|weeks?|months?|meses?|hora|horas|dia|dias|semana|semanas|minuto|minutos|segundo|segundos)|hoje|ontem|yesterday|today|just now|agora)$/i;
+
+          const rawNodes = (Array.from(document.querySelectorAll("main div[dir='auto'], main span")) as Array<{
             textContent?: string | null;
+            contains(other: unknown): boolean;
             getBoundingClientRect(): { width: number; height: number; left: number; top: number };
-          }>)
+          }>);
+
+          // Only keep nodes whose text is not contained in a sibling/ancestor also matched
+          // Strategy: collect all texts with their rects, then deduplicate by proximity (same text within 2px vertically)
+          const textNodes = rawNodes
             .map((node) => {
               const text = (node.textContent ?? "").replace(/\s+/g, " ").trim();
               if (!text) {
@@ -1322,6 +1330,11 @@ class InstagramAssistedService {
                 return null;
               }
 
+              // Skip UI date-divider labels
+              if (relativeTimePattern.test(text)) {
+                return null;
+              }
+
               return {
                 text,
                 left: rect.left,
@@ -1330,11 +1343,23 @@ class InstagramAssistedService {
             })
             .filter(Boolean) as Array<{ text: string; left: number; top: number }>;
 
-          const ordered = textNodes
+          // Deduplicate: if two nodes have the same text and are within 2px vertically, keep only the first
+          const deduped: Array<{ text: string; left: number; top: number }> = [];
+          for (const node of textNodes) {
+            const isDuplicate = deduped.some(
+              (seen) => seen.text === node.text && Math.abs(seen.top - node.top) <= 2
+            );
+            if (!isDuplicate) {
+              deduped.push(node);
+            }
+          }
+
+          const ordered = deduped
             .sort((left, right) => left.top - right.top)
             .slice(-limit)
             .map((item, index) => ({
-              externalId: `ig-browser-${index}-${item.top}`,
+              // Null externalId: instagram-sync will build a stable content-based ID
+              externalId: null as string | null,
               direction: (item.left > window.innerWidth * 0.5 ? "outgoing" : "incoming") as "incoming" | "outgoing",
               body: item.text,
               contentType: "text" as const,

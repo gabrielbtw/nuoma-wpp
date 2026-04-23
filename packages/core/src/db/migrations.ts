@@ -834,5 +834,28 @@ export const migrations = [
 
       CREATE INDEX IF NOT EXISTS idx_attendants_status ON attendants(status);
     `
+  },
+  {
+    id: "0012_message_dedup_index",
+    sql: `
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_conv_external_id
+        ON messages(conversation_id, external_id)
+        WHERE external_id IS NOT NULL;
+    `
+  },
+  {
+    id: "0013_chatbot_rule_automation_trigger",
+    sql: `
+      ALTER TABLE chatbot_rules ADD COLUMN trigger_automation_id TEXT;
+      ALTER TABLE chatbot_rules ADD COLUMN phone_ddd_filter TEXT;
+    `
+  },
+  {
+    id: "0014_automation_runs_batch",
+    sql: `
+      ALTER TABLE automation_runs ADD COLUMN batch_id TEXT;
+      ALTER TABLE automation_runs ADD COLUMN batch_position INTEGER;
+      CREATE INDEX IF NOT EXISTS idx_automation_runs_batch ON automation_runs(batch_id, batch_position);
+    `
   }
 ] as const;

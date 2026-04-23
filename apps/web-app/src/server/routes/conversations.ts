@@ -108,6 +108,20 @@ export async function registerConversationRoutes(app: FastifyInstance) {
         reply.code(400);
         return { message: "Contato sem telefone para WhatsApp" };
       }
+
+      // Store message immediately with 'pending' status so it shows in UI
+      const pendingMessageId = conversation ? addMessage({
+        conversationId: conversation.id,
+        contactId: contact.id,
+        direction: "outgoing",
+        contentType: (contentType === "document" ? "file" : contentType === "link" ? "text" : contentType) as "text" | "audio" | "image" | "video" | "file" | "summary",
+        body: body.text ?? "",
+        status: "pending",
+        sentAt: null,
+        mediaPath: body.mediaPath ?? null,
+        meta: { source: "inbox-manual-send" }
+      }) : null;
+
       enqueueJob({
         type: "send-message",
         dedupeKey: null,
@@ -123,7 +137,8 @@ export async function registerConversationRoutes(app: FastifyInstance) {
           contentType,
           text: body.text,
           mediaPath: body.mediaPath ?? null,
-          caption: body.text
+          caption: body.text,
+          pendingMessageId
         })
       });
       reply.code(202);
@@ -175,6 +190,18 @@ export async function registerConversationRoutes(app: FastifyInstance) {
 
     const body = manualMessageSchema.parse(request.body);
     if (conversation.channel === "whatsapp") {
+      // Store message immediately with 'pending' status so it shows in UI
+      const pendingMessageId = addMessage({
+        conversationId: conversation.id,
+        contactId: conversation.contactId,
+        direction: "outgoing",
+        contentType: "text",
+        body: body.text,
+        status: "pending",
+        sentAt: null,
+        meta: { source: "inbox-manual-send" }
+      });
+
       enqueueJob({
         type: "send-message",
         dedupeKey: null,
@@ -189,7 +216,8 @@ export async function registerConversationRoutes(app: FastifyInstance) {
           conversationId: conversation.id,
           contactId: conversation.contactId,
           contentType: "text",
-          text: body.text
+          text: body.text,
+          pendingMessageId
         })
       });
 

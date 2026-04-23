@@ -4,11 +4,11 @@ export function PageHeader({ eyebrow, title, description, actions }: { eyebrow?:
   return (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div>
-        {eyebrow && <div className="text-micro uppercase text-n-text-dim">{eyebrow}</div>}
+        {eyebrow && <div className="mb-1 text-micro uppercase tracking-wider text-n-text-dim">{eyebrow}</div>}
         <h1 className="text-h1 text-n-text">{title}</h1>
-        {description && <p className="mt-0.5 max-w-2xl text-caption text-n-text-muted">{description}</p>}
+        {description && <p className="mt-1 max-w-2xl text-caption text-n-text-dim">{description}</p>}
       </div>
-      {actions}
+      {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>
   );
 }

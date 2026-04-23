@@ -8,6 +8,7 @@ import { registerInstagramRoutes } from "./instagram.js";
 import { registerSystemRoutes } from "./system.js";
 import { registerTagRoutes } from "./tags.js";
 import { registerChatbotRoutes } from "./chatbots.js";
+import { registerAttendantRoutes } from "./attendants.js";
 import { registerTemplateRoutes } from "./templates.js";
 import { registerUploadRoutes } from "./uploads.js";
 
@@ -21,6 +22,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await registerAutomationRoutes(app);
   await registerCampaignRoutes(app);
   await registerChatbotRoutes(app);
+  await registerAttendantRoutes(app);
   await registerTemplateRoutes(app);
   await registerUploadRoutes(app);
 }

@@ -2,6 +2,15 @@ import type { ContactRecord } from "../types/domain.js";
 
 const VAR_PATTERN = /\{\{(\w+)\}\}/g;
 
+const GLOBAL_VAR_MAP: Record<string, () => string> = {
+  saudacao: () => {
+    const h = Number(new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "numeric", hour12: false }));
+    if (h < 12) return "Bom dia";
+    if (h < 18) return "Boa tarde";
+    return "Boa noite";
+  }
+};
+
 const CONTACT_VAR_MAP: Record<string, (contact: ContactRecord) => string> = {
   nome: (c) => c.name || "",
   telefone: (c) => (c.phone ?? "").trim(),
@@ -21,9 +30,18 @@ const CONTACT_VAR_MAP: Record<string, (contact: ContactRecord) => string> = {
  */
 export function resolveTemplateVars(text: string, contact: ContactRecord): string {
   return text.replace(VAR_PATTERN, (match, varName: string) => {
-    const resolver = CONTACT_VAR_MAP[varName.toLowerCase()];
-    if (resolver) {
-      const value = resolver(contact);
+    const key = varName.toLowerCase();
+
+    // Check global vars first (time-based, etc.)
+    const globalResolver = GLOBAL_VAR_MAP[key];
+    if (globalResolver) {
+      return globalResolver();
+    }
+
+    // Then check contact-specific vars
+    const contactResolver = CONTACT_VAR_MAP[key];
+    if (contactResolver) {
+      const value = contactResolver(contact);
       return value || match; // se vazio, mantem a variavel
     }
     return match;
@@ -49,6 +67,7 @@ export function extractTemplateVars(text: string): string[] {
  */
 export function listAvailableVars(): Array<{ name: string; description: string }> {
   return [
+    { name: "saudacao", description: "Saudação por horário (Bom dia/Boa tarde/Boa noite)" },
     { name: "nome", description: "Nome completo do contato" },
     { name: "primeiro_nome", description: "Primeiro nome do contato" },
     { name: "telefone", description: "Telefone do contato" },

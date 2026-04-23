@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { getDb } from "../db/connection.js";
+import { getDb, withSqliteBusyRetry } from "../db/connection.js";
+import { getActiveChatbotsForChannel, matchChatbotRule } from "./chatbot-repository.js";
+import { createAutomationRun, getOpenAutomationRunForContact } from "./automation-repository.js";
+import { enqueueJob } from "./job-repository.js";
 import { ensureDefaultChannelAccounts } from "./channel-account-repository.js";
 import { createAutoContact, getContactById, getContactByPhone, hydrateAutoContact, recordContactHistory, touchContactTimestamps } from "./contact-repository.js";
 import { recordAuditLog } from "./audit-log-repository.js";
@@ -225,15 +228,15 @@ export function listUnifiedInbox(filters?: { channel?: string; status?: string; 
       COUNT(DISTINCT conv.id) AS conversation_count,
       (SELECT lc.last_message_preview FROM conversations lc
        WHERE lc.contact_id = c.id
-       ORDER BY datetime(COALESCE(lc.last_message_at, lc.updated_at)) DESC LIMIT 1) AS latest_preview,
+       ORDER BY (lc.last_message_at IS NULL), datetime(COALESCE(lc.last_message_at, lc.updated_at)) DESC LIMIT 1) AS latest_preview,
       (SELECT lc2.channel FROM conversations lc2
        WHERE lc2.contact_id = c.id
-       ORDER BY datetime(COALESCE(lc2.last_message_at, lc2.updated_at)) DESC LIMIT 1) AS latest_channel
+       ORDER BY (lc2.last_message_at IS NULL), datetime(COALESCE(lc2.last_message_at, lc2.updated_at)) DESC LIMIT 1) AS latest_channel
     FROM conversations conv
     INNER JOIN contacts c ON c.id = conv.contact_id
     ${whereClause}
     GROUP BY c.id
-    ORDER BY MAX(datetime(COALESCE(conv.last_message_at, conv.updated_at))) DESC
+    ORDER BY (MAX(conv.last_message_at) IS NULL), MAX(datetime(COALESCE(conv.last_message_at, '1970-01-01'))) DESC
     LIMIT ? OFFSET ?`
   ).all(...params, pageSize, offset) as Array<Record<string, unknown>>;
 
@@ -333,6 +336,73 @@ export function getConversationByChatId(waChatId: string) {
   return row ? mapConversation(row) : null;
 }
 
+/**
+ * Returns the number of messages stored for a conversation identified by waChatId.
+ * Used to decide whether a deep-read sync is needed (0 messages = needs full read).
+ */
+export function getConversationCountByChannel(channel: string): number {
+  const db = getDb();
+  const row = db
+    .prepare("SELECT COUNT(*) as cnt FROM conversations WHERE channel = ?")
+    .get(channel) as { cnt: number } | undefined;
+  return row?.cnt ?? 0;
+}
+
+export function getConversationMessageCount(waChatId: string): number {
+  const db = getDb();
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) as cnt FROM messages m
+       JOIN conversations c ON c.id = m.conversation_id
+       WHERE c.channel = 'whatsapp' AND (c.external_thread_id = ? OR c.wa_chat_id = ?)`
+    )
+    .get(waChatId, waChatId) as { cnt: number } | undefined;
+  return row?.cnt ?? 0;
+}
+
+/**
+ * Returns true if the last message in the conversation is outgoing and was sent
+ * within the given number of hours. Used to skip re-syncing chats that were
+ * recently written to by the operator/system.
+ */
+export function isLastMessageOutgoingWithin(waChatId: string, hours: number): boolean {
+  const db = getDb();
+  const row = db
+    .prepare(
+      `SELECT direction, sent_at FROM messages m
+       JOIN conversations c ON c.id = m.conversation_id
+       WHERE c.channel = 'whatsapp' AND (c.external_thread_id = ? OR c.wa_chat_id = ?)
+       ORDER BY m.sent_at DESC, m.created_at DESC LIMIT 1`
+    )
+    .get(waChatId, waChatId) as { direction: string; sent_at: string } | undefined;
+
+  if (!row || row.direction !== "outgoing") {
+    return false;
+  }
+
+  const sentAt = new Date(row.sent_at).getTime();
+  return sentAt > Date.now() - hours * 3600 * 1000;
+}
+
+/**
+ * Returns true if there is at least one placeholder message in the conversation.
+ * Placeholder messages are synthetic entries created during sync to reserve a slot
+ * before the real content arrives.
+ */
+export function hasPlaceholderMessage(waChatId: string): boolean {
+  const db = getDb();
+  const row = db
+    .prepare(
+      `SELECT 1 FROM messages m
+       JOIN conversations c ON c.id = m.conversation_id
+       WHERE c.channel = 'whatsapp' AND (c.external_thread_id = ? OR c.wa_chat_id = ?)
+       AND json_extract(m.meta_json, '$.placeholder') = 1 LIMIT 1`
+    )
+    .get(waChatId, waChatId) as Record<string, unknown> | undefined;
+
+  return row !== undefined;
+}
+
 export function getMessageByExternalId(externalId: string) {
   const db = getDb();
   const row = db
@@ -350,6 +420,64 @@ export function getMessageByExternalId(externalId: string) {
   return row ? mapMessage(row) : null;
 }
 
+/**
+ * Find a message in a conversation that matches a WhatsApp bubble by (minute, direction, content).
+ *
+ * Used by the sync walk to detect whether a WA bubble is already persisted. WhatsApp Web only
+ * exposes minute-level precision in `[data-pre-plain-text]`, so the DB `sent_at` is truncated
+ * to `YYYY-MM-DDTHH:MM` before comparison.
+ *
+ * Match rules:
+ *   - If `mediaType` provided → compare `content_type = mediaType` (audio/image/video/file).
+ *   - Else (text) → compare body equality OR prefix match (first ~40 chars) to tolerate preview
+ *     truncation and whitespace differences.
+ */
+export function findMessageByMinute(
+  conversationId: string,
+  criteria: {
+    minuteKey: string; // 'YYYY-MM-DDTHH:MM'
+    direction: MessageDirection;
+    body: string;
+    mediaType: MessageContentType | null;
+  }
+) {
+  const db = getDb();
+  const isMedia = criteria.mediaType !== null;
+  const bodyPrefix = criteria.body.slice(0, 40);
+
+  const row = db
+    .prepare(
+      `
+        SELECT id, body, content_type, sent_at, direction
+        FROM messages
+        WHERE conversation_id = ?
+          AND substr(sent_at, 1, 16) = ?
+          AND direction = ?
+          AND (
+            (? = 1 AND content_type = ?)
+            OR (? = 0 AND (body = ? OR (length(?) > 0 AND body LIKE ? || '%')))
+          )
+        LIMIT 1
+      `
+    )
+    .get(
+      conversationId,
+      criteria.minuteKey,
+      criteria.direction,
+      isMedia ? 1 : 0,
+      criteria.mediaType ?? "",
+      // Same flag as above — SQL compares against 1 and 0 respectively to
+      // route media vs text matching. Both positions must use the same
+      // boolean direction (isMedia=1 = media, isMedia=0 = text).
+      isMedia ? 1 : 0,
+      criteria.body,
+      bodyPrefix,
+      bodyPrefix
+    ) as Record<string, unknown> | undefined;
+
+  return row ? { id: String(row.id), body: String(row.body ?? ""), contentType: String(row.content_type) } : null;
+}
+
 export function listMessagesForConversation(conversationId: string, limit = 120) {
   const db = getDb();
   const rows = db
@@ -359,7 +487,7 @@ export function listMessagesForConversation(conversationId: string, limit = 120)
         FROM messages m
         LEFT JOIN media_assets ma ON ma.id = m.media_asset_id
         WHERE m.conversation_id = ?
-        ORDER BY datetime(m.created_at) DESC
+        ORDER BY datetime(COALESCE(m.sent_at, m.created_at)) DESC, datetime(m.created_at) DESC
         LIMIT ?
       `
     )
@@ -386,68 +514,127 @@ export function upsertConversation(input: {
   internalStatus?: string | null;
   metadata?: Record<string, unknown>;
 }) {
-  const db = getDb();
-  const accounts = ensureDefaultChannelAccounts();
   const channel = input.channel ?? "whatsapp";
   const externalThreadId = String(input.externalThreadId ?? input.waChatId ?? "").trim();
   if (!externalThreadId) {
     throw new Error("external_thread_required");
   }
 
-  const channelAccountId =
-    input.channelAccountId ?? (channel === "instagram" ? accounts.instagram?.id : accounts.whatsapp?.id) ?? null;
-  const existing = getConversationByExternalThread(channel, externalThreadId);
-  const timestamp = nowIso();
-  const ensuredContact = ensureContact({
-    channel,
-    contactPhone: input.contactPhone ?? null,
-    contactName: input.title
-  });
-  const contactId = input.contactId ?? ensuredContact?.id ?? existing?.contactId ?? null;
-  const instagramHandle = input.contactInstagram ?? (typeof input.metadata?.username === "string" ? input.metadata.username : null);
+  // Use IMMEDIATE transaction to prevent race conditions (two concurrent syncs
+  // could both see "no existing conversation" and both INSERT, creating duplicates).
+  return withSqliteBusyRetry(() => {
+    const db = getDb();
+    const accounts = ensureDefaultChannelAccounts();
+    const channelAccountId =
+      input.channelAccountId ?? (channel === "instagram" ? accounts.instagram?.id : accounts.whatsapp?.id) ?? null;
+    const existing = getConversationByExternalThread(channel, externalThreadId);
+    const timestamp = nowIso();
+    const ensuredContact = ensureContact({
+      channel,
+      contactPhone: input.contactPhone ?? null,
+      contactName: input.title
+    });
+    const contactId = input.contactId ?? ensuredContact?.id ?? existing?.contactId ?? null;
+    const instagramHandle = input.contactInstagram ?? (typeof input.metadata?.username === "string" ? input.metadata.username : null);
 
-  if (existing) {
+    if (existing) {
+      db.prepare(
+        `
+          UPDATE conversations
+          SET
+            title = ?,
+            unread_count = ?,
+            last_message_preview = ?,
+            last_message_at = ?,
+            last_message_direction = ?,
+            assigned_to = ?,
+            contact_id = COALESCE(?, contact_id),
+            channel_account_id = COALESCE(?, channel_account_id),
+            inbox_category = ?,
+            internal_status = ?,
+            metadata_json = ?,
+            updated_at = ?
+          WHERE id = ?
+        `
+      ).run(
+        input.title,
+        input.unreadCount ?? existing.unreadCount,
+        input.lastMessagePreview ?? existing.lastMessagePreview,
+        input.lastMessageAt ?? existing.lastMessageAt,
+        input.lastMessageDirection ?? null,
+        input.assignedTo ?? existing.assignedTo,
+        contactId,
+        channelAccountId,
+        input.inboxCategory ?? existing.inboxCategory ?? "primary",
+        input.internalStatus ?? existing.internalStatus ?? "open",
+        JSON.stringify(input.metadata ?? existing.metadata ?? {}),
+        timestamp,
+        existing.id
+      );
+
+      recordAuditLog({
+        entityType: "conversation",
+        entityId: existing.id,
+        action: "conversation.upserted",
+        channel,
+        contactId,
+        conversationId: existing.id,
+        metadata: {
+          externalThreadId,
+          title: input.title
+        },
+        createdAt: timestamp
+      });
+
+      if (channel === "instagram") {
+        rememberInstagramThreadForConversation({
+          contactId,
+          externalThreadId,
+          instagramHandle,
+          title: input.title,
+          observedAt: input.lastMessageAt ?? existing.lastMessageAt ?? timestamp,
+          source: "conversation-upsert"
+        });
+      }
+
+      return getConversationById(existing.id);
+    }
+
+    const id = randomUUID();
     db.prepare(
       `
-        UPDATE conversations
-        SET
-          title = ?,
-          unread_count = ?,
-          last_message_preview = ?,
-          last_message_at = ?,
-          last_message_direction = ?,
-          assigned_to = ?,
-          contact_id = COALESCE(?, contact_id),
-          channel_account_id = COALESCE(?, channel_account_id),
-          inbox_category = ?,
-          internal_status = ?,
-          metadata_json = ?,
-          updated_at = ?
-        WHERE id = ?
+        INSERT INTO conversations (
+          id, contact_id, wa_chat_id, title, unread_count, last_message_preview, last_message_at, last_message_direction,
+          status, assigned_to, created_at, updated_at, channel, channel_account_id, external_thread_id, inbox_category, internal_status, metadata_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `
     ).run(
-      input.title,
-      input.unreadCount ?? existing.unreadCount,
-      input.lastMessagePreview ?? existing.lastMessagePreview,
-      input.lastMessageAt ?? existing.lastMessageAt,
-      input.lastMessageDirection ?? null,
-      input.assignedTo ?? existing.assignedTo,
+      id,
       contactId,
-      channelAccountId,
-      input.inboxCategory ?? existing.inboxCategory ?? "primary",
-      input.internalStatus ?? existing.internalStatus ?? "open",
-      JSON.stringify(input.metadata ?? existing.metadata ?? {}),
+      conversationLegacyThreadId(channel, externalThreadId),
+      input.title,
+      input.unreadCount ?? 0,
+      input.lastMessagePreview ?? "",
+      input.lastMessageAt ?? null,
+      input.lastMessageDirection ?? null,
+      input.assignedTo ?? null,
       timestamp,
-      existing.id
+      timestamp,
+      channel,
+      channelAccountId,
+      externalThreadId,
+      input.inboxCategory ?? "primary",
+      input.internalStatus ?? "open",
+      JSON.stringify(input.metadata ?? {})
     );
 
     recordAuditLog({
       entityType: "conversation",
-      entityId: existing.id,
-      action: "conversation.upserted",
+      entityId: id,
+      action: "conversation.created",
       channel,
       contactId,
-      conversationId: existing.id,
+      conversationId: id,
       metadata: {
         externalThreadId,
         title: input.title
@@ -461,68 +648,13 @@ export function upsertConversation(input: {
         externalThreadId,
         instagramHandle,
         title: input.title,
-        observedAt: input.lastMessageAt ?? existing.lastMessageAt ?? timestamp,
+        observedAt: input.lastMessageAt ?? timestamp,
         source: "conversation-upsert"
       });
     }
 
-    return getConversationById(existing.id);
-  }
-
-  const id = randomUUID();
-  db.prepare(
-    `
-      INSERT INTO conversations (
-        id, contact_id, wa_chat_id, title, unread_count, last_message_preview, last_message_at, last_message_direction,
-        status, assigned_to, created_at, updated_at, channel, channel_account_id, external_thread_id, inbox_category, internal_status, metadata_json
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `
-  ).run(
-    id,
-    contactId,
-    conversationLegacyThreadId(channel, externalThreadId),
-    input.title,
-    input.unreadCount ?? 0,
-    input.lastMessagePreview ?? "",
-    input.lastMessageAt ?? null,
-    input.lastMessageDirection ?? null,
-    input.assignedTo ?? null,
-    timestamp,
-    timestamp,
-    channel,
-    channelAccountId,
-    externalThreadId,
-    input.inboxCategory ?? "primary",
-    input.internalStatus ?? "open",
-    JSON.stringify(input.metadata ?? {})
-  );
-
-  recordAuditLog({
-    entityType: "conversation",
-    entityId: id,
-    action: "conversation.created",
-    channel,
-    contactId,
-    conversationId: id,
-    metadata: {
-      externalThreadId,
-      title: input.title
-    },
-    createdAt: timestamp
+    return getConversationById(id);
   });
-
-  if (channel === "instagram") {
-    rememberInstagramThreadForConversation({
-      contactId,
-      externalThreadId,
-      instagramHandle,
-      title: input.title,
-      observedAt: input.lastMessageAt ?? timestamp,
-      source: "conversation-upsert"
-    });
-  }
-
-  return getConversationById(id);
 }
 
 export function updateConversationInternalStatus(conversationId: string, internalStatus: string) {
@@ -571,6 +703,7 @@ export function addMessage(input: {
   sentAt?: string | null;
   meta?: Record<string, unknown>;
 }) {
+  return withSqliteBusyRetry(() => {
   const db = getDb();
   const conversation = getConversationById(input.conversationId);
   if (input.externalId) {
@@ -582,28 +715,40 @@ export function addMessage(input: {
 
   const timestamp = nowIso();
   const id = randomUUID();
-  db.prepare(
-    `
-      INSERT INTO messages (
-        id, conversation_id, contact_id, direction, content_type, body, media_asset_id, external_id, status, sent_at, meta_json, created_at, channel, channel_account_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `
-  ).run(
-    id,
-    input.conversationId,
-    input.contactId ?? null,
-    input.direction,
-    input.contentType,
-    input.body ?? "",
-    input.mediaAssetId ?? null,
-    input.externalId ?? null,
-    input.status ?? "sent",
-    input.sentAt ?? timestamp,
-    JSON.stringify(input.meta ?? {}),
-    timestamp,
-    conversation?.channel ?? "whatsapp",
-    conversation?.channelAccountId ?? null
-  );
+  try {
+    db.prepare(
+      `
+        INSERT INTO messages (
+          id, conversation_id, contact_id, direction, content_type, body, media_asset_id, external_id, status, sent_at, meta_json, created_at, channel, channel_account_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `
+    ).run(
+      id,
+      input.conversationId,
+      input.contactId ?? null,
+      input.direction,
+      input.contentType,
+      input.body ?? "",
+      input.mediaAssetId ?? null,
+      input.externalId ?? null,
+      input.status ?? "sent",
+      input.sentAt ?? timestamp,
+      JSON.stringify(input.meta ?? {}),
+      timestamp,
+      conversation?.channel ?? "whatsapp",
+      conversation?.channelAccountId ?? null
+    );
+  } catch (err: unknown) {
+    // UNIQUE constraint violation — message already exists (race condition resolved)
+    if (err instanceof Error && err.message.includes("UNIQUE constraint failed")) {
+      if (input.externalId) {
+        const existing = db.prepare("SELECT id FROM messages WHERE external_id = ?").get(input.externalId) as { id: string } | undefined;
+        if (existing) return existing.id;
+      }
+      return id; // fallback
+    }
+    throw err;
+  }
 
   const preview = input.body?.trim() || (input.contentType === "text" ? "Mensagem" : `Arquivo: ${input.contentType}`);
   db.prepare(
@@ -671,6 +816,26 @@ export function addMessage(input: {
   });
 
   return id;
+  }); // withSqliteBusyRetry
+}
+
+export function updateMessageStatus(messageId: string, updates: {
+  status?: string;
+  sentAt?: string | null;
+  externalId?: string | null;
+}) {
+  const db = getDb();
+  const sets: string[] = [];
+  const values: unknown[] = [];
+
+  if (updates.status !== undefined) { sets.push("status = ?"); values.push(updates.status); }
+  if (updates.sentAt !== undefined) { sets.push("sent_at = ?"); values.push(updates.sentAt); }
+  if (updates.externalId !== undefined) { sets.push("external_id = ?"); values.push(updates.externalId); }
+
+  if (sets.length === 0) return;
+
+  values.push(messageId);
+  db.prepare(`UPDATE messages SET ${sets.join(", ")} WHERE id = ?`).run(...values);
 }
 
 export function saveConversationSnapshot(input: {
@@ -691,6 +856,7 @@ export function saveConversationSnapshot(input: {
     body: string;
     contentType: MessageContentType;
     sentAt?: string | null;
+    meta?: Record<string, unknown>;
   }>;
 }) {
   const conversation = upsertConversation({
@@ -711,19 +877,83 @@ export function saveConversationSnapshot(input: {
     return null;
   }
 
-  for (const message of input.messages) {
-    addMessage({
-      conversationId: conversation.id,
-      contactId: conversation.contactId,
-      direction: message.direction,
-      body: message.body,
-      contentType: message.contentType,
-      sentAt: message.sentAt,
-      externalId: message.externalId ?? null,
-      meta: {
-        source: "snapshot"
+  const db = getDb();
+
+  // Replace snapshot messages atomically — DELETE old + INSERT new in one transaction
+  // to prevent race conditions from concurrent syncs creating duplicates.
+  if (input.messages.length > 0) {
+    db.transaction(() => {
+      db.prepare(
+        `DELETE FROM messages
+         WHERE conversation_id = ?
+           AND external_id IS NULL
+           AND json_extract(meta_json, '$.source') = 'snapshot'`
+      ).run(conversation.id);
+
+      for (const message of input.messages) {
+        addMessage({
+          conversationId: conversation.id,
+          contactId: conversation.contactId,
+          direction: message.direction,
+          body: message.body,
+          contentType: message.contentType,
+          sentAt: message.sentAt,
+          externalId: message.externalId ?? null,
+          meta: {
+            source: "snapshot",
+            ...message.meta
+          }
+        });
       }
-    });
+    })();
+  }
+
+  // Evaluate chatbot rules against the latest incoming message
+  const channel = input.channel ?? "whatsapp";
+  const latestIncoming = [...input.messages].reverse().find((m) => m.direction === "incoming");
+  if (latestIncoming && latestIncoming.body.trim()) {
+    const contactPhone = input.contactPhone ?? conversation.waChatId ?? null;
+    const activeChatbots = getActiveChatbotsForChannel(channel);
+    for (const chatbot of activeChatbots) {
+      const rule = matchChatbotRule(chatbot.id, latestIncoming.body, contactPhone);
+      if (rule) {
+        // Enqueue chatbot response if rule has response content
+        if (rule.responseBody) {
+          const jobType = channel === "instagram" ? "send-assisted-message" : "send-message";
+          enqueueJob({
+            type: jobType,
+            dedupeKey: `chatbot:${conversation.id}:${rule.id}:${latestIncoming.sentAt ?? Date.now()}`,
+            payload: {
+              source: "rule",
+              channel,
+              conversationId: conversation.id,
+              contactId: conversation.contactId,
+              externalThreadId: conversation.externalThreadId ?? null,
+              phone: channel === "whatsapp" ? contactPhone : null,
+              text: rule.responseBody,
+              contentType: rule.responseType !== "text" ? rule.responseType : "text",
+              mediaPath: rule.responseMediaPath ?? null,
+              ruleId: rule.id
+            }
+          });
+        }
+
+        // Trigger automation if rule has trigger_automation_id
+        if (rule.triggerAutomationId && conversation.contactId) {
+          const openRun = getOpenAutomationRunForContact(rule.triggerAutomationId, conversation.contactId);
+          if (!openRun) {
+            createAutomationRun({
+              automationId: rule.triggerAutomationId,
+              contactId: conversation.contactId,
+              conversationId: conversation.id,
+              nextRunAt: new Date().toISOString()
+            });
+          }
+        }
+
+        break;
+      }
+    }
   }
 
   return getConversationById(conversation.id);

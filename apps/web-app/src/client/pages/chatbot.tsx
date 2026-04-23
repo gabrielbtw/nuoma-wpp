@@ -27,6 +27,8 @@ type ChatbotRule = {
   changeStatus: string | null;
   flagForHuman: boolean;
   enabled: boolean;
+  triggerAutomationId: string | null;
+  phoneDddFilter: string | null;
 };
 
 type ChatbotRecord = {
@@ -53,7 +55,7 @@ function emptyRule(): ChatbotRule {
   return {
     priority: 0, matchType: "contains", keywordPattern: "", responseType: "text",
     responseBody: "", responseMediaPath: null, applyTag: null, changeStatus: null,
-    flagForHuman: false, enabled: true
+    flagForHuman: false, enabled: true, triggerAutomationId: null, phoneDddFilter: null
   };
 }
 
@@ -76,6 +78,12 @@ export function ChatbotPage() {
     queryKey: ["chatbots"],
     queryFn: () => apiFetch<ChatbotRecord[]>("/chatbots")
   });
+
+  const automationsQuery = useQuery({
+    queryKey: ["automations"],
+    queryFn: () => apiFetch<Array<{ id: string; name: string; enabled: boolean }>>("/automations")
+  });
+  const automations = automationsQuery.data ?? [];
 
   const chatbots = chatbotsQuery.data ?? [];
   const selected = chatbots.find((c) => c.id === selectedId) ?? null;
@@ -132,13 +140,13 @@ export function ChatbotPage() {
   const isEditing = creating || selectedId;
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-hidden animate-in fade-in duration-700">
+    <div className="flex h-full flex-col gap-4 overflow-hidden animate-fade-in">
       <PageHeader
         eyebrow="Automacao"
         title="Chatbot"
         description="Regras de resposta automatica por keyword para WhatsApp e Instagram."
         actions={
-          <Button onClick={startCreate} className="bg-gradient-to-r from-cmm-purple to-indigo-600 text-white">
+          <Button onClick={startCreate} className="bg-cmm-purple text-white transition-all duration-200 hover:brightness-110">
             <Plus className="h-4 w-4 mr-2" /> Novo chatbot
           </Button>
         }
@@ -150,14 +158,14 @@ export function ChatbotPage() {
           <div className="flex-1 overflow-y-auto space-y-1.5 custom-scrollbar">
             {chatbots.map((bot) => (
               <button key={bot.id} onClick={() => selectChatbot(bot)}
-                className={cn("w-full flex items-center gap-3 rounded-xl p-3 text-left transition-all",
-                  selectedId === bot.id ? "bg-cmm-purple/10 border border-cmm-purple/30" : "hover:bg-white/[0.03] border border-transparent")}>
-                <Bot className={cn("h-5 w-5 shrink-0", bot.enabled ? "text-cmm-purple" : "text-slate-600")} />
+                className={cn("w-full flex items-center gap-3 rounded-xl p-3 text-left transition-all duration-200",
+                  selectedId === bot.id ? "bg-cmm-purple/10 border border-cmm-purple/30" : "hover:bg-n-surface-2 border border-transparent")}>
+                <Bot className={cn("h-5 w-5 shrink-0", bot.enabled ? "text-cmm-purple" : "text-n-text-dim")} />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-white truncate">{bot.name}</p>
-                  <p className="text-[10px] text-slate-500">{bot.rules.length} regras | {bot.channelScope}</p>
+                  <p className="text-body font-semibold text-n-text truncate">{bot.name}</p>
+                  <p className="text-micro text-n-text-dim">{bot.rules.length} regras | {bot.channelScope}</p>
                 </div>
-                {bot.enabled ? <Power className="h-3.5 w-3.5 text-cmm-emerald" /> : <PowerOff className="h-3.5 w-3.5 text-slate-600" />}
+                {bot.enabled ? <Power className="h-3.5 w-3.5 text-n-wa" /> : <PowerOff className="h-3.5 w-3.5 text-n-text-dim" />}
               </button>
             ))}
             {chatbots.length === 0 && (
@@ -171,14 +179,14 @@ export function ChatbotPage() {
           {isEditing ? (
             <div className="space-y-4">
               {/* Config */}
-              <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-4 space-y-3">
+              <div className="rounded-2xl border border-n-border/40 bg-n-surface p-4 space-y-3">
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-1.5">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Nome</p>
+                    <p className="text-micro font-semibold uppercase tracking-wider text-n-text-dim">Nome</p>
                     <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Meu Chatbot" />
                   </div>
                   <div className="space-y-1.5">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Canal</p>
+                    <p className="text-micro font-semibold uppercase tracking-wider text-n-text-dim">Canal</p>
                     <div className="flex gap-2">
                       {[
                         { value: "any", label: "Todos", icon: Globe2 },
@@ -187,15 +195,15 @@ export function ChatbotPage() {
                       ].map((opt) => (
                         <button key={opt.value} onClick={() => setDraft({ ...draft, channelScope: opt.value })}
                           className={cn("flex-1 flex items-center justify-center gap-1.5 h-9 rounded-lg border text-xs font-bold transition-all",
-                            draft.channelScope === opt.value ? "border-cmm-purple/30 bg-cmm-purple/10 text-cmm-purple" : "border-white/5 bg-white/[0.02] text-slate-500")}>
+                            draft.channelScope === opt.value ? "border-cmm-purple/30 bg-cmm-purple/10 text-cmm-purple" : "border-n-border/40 bg-n-surface text-n-text-dim")}>
                           <opt.icon className="h-3.5 w-3.5" /> {opt.label}
                         </button>
                       ))}
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center justify-between rounded-xl bg-black/20 px-3 py-2.5">
-                  <span className="text-xs text-slate-400">Ativo</span>
+                <div className="flex items-center justify-between rounded-xl bg-n-surface-2 px-3 py-2.5">
+                  <span className="text-caption text-n-text-muted">Ativo</span>
                   <Switch checked={draft.enabled} onCheckedChange={(v) => setDraft({ ...draft, enabled: v })} />
                 </div>
               </div>
@@ -203,30 +211,30 @@ export function ChatbotPage() {
               {/* Rules */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-white">Regras ({draft.rules.length})</h3>
+                  <h3 className="text-body font-semibold text-n-text">Regras ({draft.rules.length})</h3>
                   <Button variant="ghost" size="sm" onClick={() => setDraft({ ...draft, rules: [...draft.rules, emptyRule()] })} className="text-cmm-purple">
                     <Plus className="h-3.5 w-3.5 mr-1" /> Regra
                   </Button>
                 </div>
 
                 {draft.rules.map((rule, idx) => (
-                  <div key={idx} className="rounded-xl border border-white/5 bg-white/[0.02] p-3 space-y-2.5">
+                  <div key={idx} className="rounded-xl border border-n-border/40 bg-n-surface p-3 space-y-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-slate-500">Regra {idx + 1}</span>
+                      <span className="text-micro text-n-text-dim">Regra {idx + 1}</span>
                       <div className="flex items-center gap-2">
                         <Switch checked={rule.enabled} onCheckedChange={(v) => {
                           const rules = [...draft.rules]; rules[idx] = { ...rule, enabled: v }; setDraft({ ...draft, rules });
                         }} />
                         <button onClick={() => setDraft({ ...draft, rules: draft.rules.filter((_, i) => i !== idx) })}
-                          className="text-slate-500 hover:text-red-400"><Trash2 className="h-3.5 w-3.5" /></button>
+                          className="text-n-text-dim hover:text-n-red"><Trash2 className="h-3.5 w-3.5" /></button>
                       </div>
                     </div>
                     <div className="grid gap-2 md:grid-cols-[120px_1fr]">
-                      <select className="h-9 rounded-lg border border-white/10 bg-black/30 px-2 text-xs font-semibold text-white"
+                      <select className="h-9 rounded-lg border border-n-border/40 bg-n-surface-2 px-2 text-xs font-semibold text-n-text"
                         value={rule.matchType} onChange={(e) => {
                           const rules = [...draft.rules]; rules[idx] = { ...rule, matchType: e.target.value }; setDraft({ ...draft, rules });
                         }}>
-                        {matchTypeOptions.map((o) => <option key={o.value} value={o.value} className="bg-slate-900">{o.label}</option>)}
+                        {matchTypeOptions.map((o) => <option key={o.value} value={o.value} className="bg-n-bg">{o.label}</option>)}
                       </select>
                       <Input className="h-9" placeholder="Palavra-chave..." value={rule.keywordPattern} onChange={(e) => {
                         const rules = [...draft.rules]; rules[idx] = { ...rule, keywordPattern: e.target.value }; setDraft({ ...draft, rules });
@@ -236,7 +244,7 @@ export function ChatbotPage() {
                       const rules = [...draft.rules]; rules[idx] = { ...rule, responseBody: e.target.value }; setDraft({ ...draft, rules });
                     }} />
                     <div className="flex items-center gap-3">
-                      <label className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                      <label className="flex items-center gap-1.5 text-micro text-n-text-dim">
                         <input type="checkbox" checked={rule.flagForHuman} onChange={(e) => {
                           const rules = [...draft.rules]; rules[idx] = { ...rule, flagForHuman: e.target.checked }; setDraft({ ...draft, rules });
                         }} className="rounded" />
@@ -246,22 +254,35 @@ export function ChatbotPage() {
                         const rules = [...draft.rules]; rules[idx] = { ...rule, applyTag: e.target.value || null }; setDraft({ ...draft, rules });
                       }} />
                     </div>
+                    <div className="flex items-center gap-3">
+                      <Input className="h-7 w-24 text-xs" placeholder="Filtro DDD" value={rule.phoneDddFilter ?? ""} onChange={(e) => {
+                        const rules = [...draft.rules]; rules[idx] = { ...rule, phoneDddFilter: e.target.value || null }; setDraft({ ...draft, rules });
+                      }} />
+                      <select className="h-7 rounded-lg border border-n-border/40 bg-n-surface-2 px-2 text-xs text-n-text" value={rule.triggerAutomationId ?? ""} onChange={(e) => {
+                        const rules = [...draft.rules]; rules[idx] = { ...rule, triggerAutomationId: e.target.value || null }; setDraft({ ...draft, rules });
+                      }}>
+                        <option value="">Sem automação</option>
+                        {automations.filter((a) => a.enabled).map((a) => (
+                          <option key={a.id} value={a.id}>{a.name}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 ))}
               </div>
 
               {/* Fallback */}
-              <div className="rounded-xl border border-cmm-orange/20 bg-cmm-orange/5 p-3 space-y-2">
+              <div className="rounded-xl border border-n-amber/20 bg-n-amber/5 p-3 space-y-2">
                 <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-cmm-orange" />
-                  <p className="text-xs font-bold text-cmm-orange">Fallback (sem match)</p>
+                  <AlertTriangle className="h-4 w-4 text-n-amber" />
+                  <p className="text-xs font-semibold text-n-amber">Fallback (sem match)</p>
                 </div>
-                <p className="text-[10px] text-slate-400">Quando nenhuma regra faz match: silencio + flag com tag "{draft.fallbackTag}"</p>
+                <p className="text-micro text-n-text-muted">Quando nenhuma regra faz match: silencio + flag com tag "{draft.fallbackTag}"</p>
               </div>
 
               {/* Save */}
               <div className="flex gap-3">
-                <Button className="flex-1 bg-cmm-purple text-white" disabled={!draft.name.trim() || saveMutation.isPending}
+                <Button className="flex-1 bg-cmm-purple text-white transition-all duration-200 hover:brightness-110" disabled={!draft.name.trim() || saveMutation.isPending}
                   onClick={() => saveMutation.mutate({ id: selectedId ?? undefined, payload: draft })}>
                   {saveMutation.isPending ? "Salvando..." : creating ? "Criar chatbot" : "Salvar alteracoes"}
                 </Button>
@@ -279,23 +300,23 @@ export function ChatbotPage() {
 
         {/* Right: Preview / Test */}
         <div className="hidden xl:flex flex-col gap-4">
-          <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-4 space-y-3">
-            <h4 className="text-xs font-bold text-white">Testar resposta</h4>
+          <div className="rounded-2xl border border-n-border/40 bg-n-surface p-4 space-y-3">
+            <h4 className="text-label font-semibold text-n-text">Testar resposta</h4>
             <Input placeholder="Digite uma mensagem de teste..." value={testInput} onChange={(e) => setTestInput(e.target.value)} />
             {testInput.trim() && (
               <div className="space-y-2">
                 {testResult ? (
-                  <div className="rounded-lg bg-cmm-emerald/10 border border-cmm-emerald/20 p-3">
-                    <p className="text-[10px] font-bold text-cmm-emerald uppercase tracking-widest">Match encontrado</p>
-                    <p className="mt-1 text-xs text-slate-300">Keyword: {testResult.keywordPattern}</p>
-                    <div className="mt-2 rounded-lg bg-black/20 p-2">
-                      <p className="text-sm text-white">{testResult.responseBody || "(sem resposta configurada)"}</p>
+                  <div className="rounded-lg bg-n-wa/10 border border-n-wa/20 p-3">
+                    <p className="text-micro font-semibold text-n-wa uppercase tracking-wider">Match encontrado</p>
+                    <p className="mt-1 text-caption text-n-text-muted">Keyword: {testResult.keywordPattern}</p>
+                    <div className="mt-2 rounded-lg bg-n-surface-2 p-2">
+                      <p className="text-body text-n-text">{testResult.responseBody || "(sem resposta configurada)"}</p>
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-lg bg-cmm-orange/10 border border-cmm-orange/20 p-3">
-                    <p className="text-[10px] font-bold text-cmm-orange uppercase tracking-widest">Sem match</p>
-                    <p className="mt-1 text-xs text-slate-400">Fallback: silencio + flag "{draft.fallbackTag}"</p>
+                  <div className="rounded-lg bg-n-amber/10 border border-n-amber/20 p-3">
+                    <p className="text-micro font-semibold text-n-amber uppercase tracking-wider">Sem match</p>
+                    <p className="mt-1 text-caption text-n-text-muted">Fallback: silencio + flag "{draft.fallbackTag}"</p>
                   </div>
                 )}
               </div>
@@ -303,31 +324,31 @@ export function ChatbotPage() {
           </div>
 
           {/* Chat preview mockup */}
-          <div className="flex-1 rounded-2xl border border-white/5 bg-white/[0.02] p-4 space-y-3 overflow-y-auto">
-            <h4 className="text-xs font-bold text-white">Preview da conversa</h4>
+          <div className="flex-1 rounded-2xl border border-n-border/40 bg-n-surface p-4 space-y-3 overflow-y-auto">
+            <h4 className="text-label font-semibold text-n-text">Preview da conversa</h4>
             <div className="space-y-2">
               {testInput.trim() && (
                 <>
                   <div className="flex justify-end">
-                    <div className="rounded-2xl rounded-br-md bg-white/[0.06] px-3 py-2 max-w-[80%]">
-                      <p className="text-xs text-slate-300">{testInput}</p>
+                    <div className="rounded-2xl rounded-br-md bg-n-surface-2 px-3 py-2 max-w-[80%]">
+                      <p className="text-caption text-n-text-muted">{testInput}</p>
                     </div>
                   </div>
                   {testResult ? (
                     <div className="flex justify-start">
                       <div className="rounded-2xl rounded-bl-md bg-cmm-purple/20 px-3 py-2 max-w-[80%]">
-                        <p className="text-xs text-white">{testResult.responseBody || "..."}</p>
+                        <p className="text-caption text-n-text">{testResult.responseBody || "..."}</p>
                       </div>
                     </div>
                   ) : (
                     <div className="flex justify-center">
-                      <p className="text-[10px] text-slate-600 italic">Sem resposta (fallback)</p>
+                      <p className="text-micro text-n-text-dim italic">Sem resposta (fallback)</p>
                     </div>
                   )}
                 </>
               )}
               {!testInput.trim() && (
-                <p className="text-[10px] text-slate-600 text-center py-8">Digite uma mensagem acima para testar</p>
+                <p className="text-micro text-n-text-dim text-center py-8">Digite uma mensagem acima para testar</p>
               )}
             </div>
           </div>

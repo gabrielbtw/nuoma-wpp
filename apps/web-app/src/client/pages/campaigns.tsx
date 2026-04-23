@@ -556,7 +556,7 @@ export function CampaignsPage() {
     : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 animate-fade-in">
       <PageHeader
         eyebrow="Campanhas omnichannel"
         title="Campanhas"
@@ -571,9 +571,9 @@ export function CampaignsPage() {
             </DialogTrigger>
             <DialogContent className="h-[min(94dvh,980px)] w-[min(1280px,96vw)] overflow-hidden p-0">
               <div className="flex h-full flex-col">
-                <div className="border-b border-n-border px-6 py-5">
-                  <DialogTitle className="font-display text-2xl text-white">Nova campanha omnichannel</DialogTitle>
-                  <DialogDescription className="mt-1 text-sm text-slate-400">
+                <div className="border-b border-n-border/40 px-6 py-5">
+                  <DialogTitle className="text-h2 text-n-text">Nova campanha omnichannel</DialogTitle>
+                  <DialogDescription className="mt-1 text-caption text-n-text-muted">
                     Monte o fluxo, salve o rascunho e depois importe ou vincule os destinatários no painel principal.
                   </DialogDescription>
                 </div>
@@ -581,8 +581,8 @@ export function CampaignsPage() {
                   {createMutation.error ? <ErrorPanel message={(createMutation.error as Error).message} /> : null}
                   <CampaignBuilder value={draft} onChange={(next) => setDraft(normalizeCampaignDraft(next))} />
                 </div>
-                <div className="flex items-center justify-between border-t border-n-border px-6 py-4">
-                  <div className="text-sm text-slate-400">Ao salvar, o rascunho entra na lista principal e fica pronto para importação.</div>
+                <div className="flex items-center justify-between border-t border-n-border/40 px-6 py-4">
+                  <div className="text-caption text-n-text-muted">Ao salvar, o rascunho entra na lista principal.</div>
                   <Button disabled={createMutation.isPending} onClick={() => createMutation.mutate(draft)}>
                     {createMutation.isPending ? "Salvando..." : "Salvar rascunho"}
                   </Button>
@@ -594,58 +594,54 @@ export function CampaignsPage() {
       />
 
       {flashMessage ? (
-        <div className="rounded-[1.25rem] border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">{flashMessage}</div>
+        <div className="rounded-xl border border-n-wa/20 bg-n-wa/[0.06] px-4 py-3 text-caption text-n-wa">{flashMessage}</div>
       ) : null}
       {campaignsQuery.error ? <ErrorPanel message={(campaignsQuery.error as Error).message} /> : null}
 
       <ChannelSessionStrip compact />
 
-      <div className="grid gap-8 xl:grid-cols-[380px_1fr]">
-        <div className="space-y-6">
-          <div className="glass-card rounded-[2.5rem] border-n-border bg-n-surface p-8">
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-sm font-bold uppercase tracking-[0.2em] text-slate-500">Catálogo</h3>
-                <p className="mt-1 text-[11px] font-medium text-slate-400">Total de {filteredCampaigns.length} campanhas exibidas com busca e status aplicados.</p>
+      <div className="grid gap-4 xl:grid-cols-[340px_1fr]">
+        <div className="space-y-3">
+          <div className="rounded-2xl border border-n-border/60 bg-n-surface p-5 space-y-4">
+            <div>
+              <h3 className="text-h4 text-n-text">Catalogo</h3>
+              <p className="mt-0.5 text-caption text-n-text-dim">{filteredCampaigns.length} campanhas</p>
+            </div>
+
+            <div className="space-y-2.5">
+              <div className="relative group">
+                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-n-text-dim transition-colors group-focus-within:text-n-blue" />
+                <Input
+                  className="h-9 pl-9 pr-3"
+                  placeholder="Buscar por nome..."
+                  value={filters.query}
+                  onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))}
+                />
               </div>
 
-              <div className="space-y-4">
-                <div className="relative group">
-                  <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 transition-colors group-focus-within:text-cmm-blue" />
-                  <Input
-                    className="h-12 border-n-border bg-n-surface pl-11 rounded-2xl focus:border-cmm-blue/30 focus:ring-cmm-blue/10"
-                    placeholder="Buscar por nome..."
-                    value={filters.query}
-                    onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))}
-                  />
-                </div>
+              <select
+                className="h-9 w-full rounded-xl border border-n-border bg-n-bg px-3 text-body text-n-text-muted outline-none transition-all duration-200 hover:bg-n-surface-2 focus:border-n-blue/40"
+                value={filters.status}
+                onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}
+              >
+                <option value="all" className="bg-n-bg">Todos os status</option>
+                {campaignStatusOptions.map((option) => (
+                  <option key={option.value} value={option.value} className="bg-n-bg">
+                    {option.label}
+                  </option>
+                ))}
+              </select>
 
-                <div className="grid grid-cols-1 gap-3">
-                  <select
-                    className="h-12 rounded-2xl border border-n-border bg-n-surface px-4 text-sm font-bold text-slate-300 outline-none transition hover:bg-n-surface-2 focus:border-cmm-blue/30"
-                    value={filters.status}
-                    onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}
-                  >
-                    <option value="all" className="bg-slate-900">Todos os status</option>
-                    {campaignStatusOptions.map((option) => (
-                      <option key={option.value} value={option.value} className="bg-slate-900">
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex justify-end">
-                  <Button variant="ghost" size="sm" className="text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-white" onClick={() => setFilters({ query: "", status: "all" })}>
-                    Limpar Filtros
-                  </Button>
-                </div>
-              </div>
+              {(filters.query || filters.status !== "all") && (
+                <button className="text-caption text-n-text-dim hover:text-n-text transition-fast" onClick={() => setFilters({ query: "", status: "all" })}>
+                  Limpar filtros
+                </button>
+              )}
             </div>
           </div>
 
-          <div className="glass-card overflow-hidden rounded-[2.5rem] border-n-border bg-n-surface">
-            <div className="max-h-[calc(100dvh-24rem)] divide-y divide-white/5 overflow-y-auto custom-scrollbar">
+          <div className="overflow-hidden rounded-2xl border border-n-border/60 bg-n-surface">
+            <div className="max-h-[calc(100dvh-22rem)] divide-y divide-n-border/30 overflow-y-auto custom-scrollbar">
               {filteredCampaigns.map((campaign) => {
                 const isSelected = selectedCampaign?.id === campaign.id;
                 const completion = campaignCompletion(campaign);
@@ -653,26 +649,27 @@ export function CampaignsPage() {
                   <div
                     key={campaign.id}
                     className={cn(
-                      "group relative flex flex-col p-6 text-left transition-all duration-300",
-                      isSelected ? "bg-cmm-blue/5" : "hover:bg-n-surface-2"
+                      "group relative flex flex-col px-4 py-3.5 text-left transition-all duration-200",
+                      isSelected ? "bg-n-blue/[0.06] border-l-2 border-l-n-blue" : "hover:bg-n-surface-2/50 border-l-2 border-l-transparent"
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <button type="button" onClick={() => setSelectedCampaignId(campaign.id)} className="min-w-0 flex-1 text-left">
-                        <div className="flex items-center gap-3">
-                          <div className={cn("h-2 w-2 rounded-full",
-                            campaign.status === 'active' ? 'bg-cmm-emerald animate-pulse' :
-                              campaign.status === 'completed' ? 'bg-cmm-blue' : 'bg-slate-500'
+                        <div className="flex items-center gap-2.5">
+                          <div className={cn("h-2 w-2 shrink-0 rounded-full",
+                            campaign.status === 'active' ? 'bg-n-wa animate-pulse' :
+                              campaign.status === 'completed' ? 'bg-n-blue' :
+                              campaign.status === 'paused' ? 'bg-n-amber' : 'bg-n-text-dim'
                           )} />
-                          <h4 className="truncate font-display text-lg font-bold text-white tracking-tight">{campaign.name}</h4>
+                          <h4 className="truncate text-h4 text-n-text">{campaign.name}</h4>
                         </div>
-                        <p className="mt-2 line-clamp-1 text-xs font-medium text-slate-400 group-hover:text-slate-300">{campaign.description || "Sem resumo informado."}</p>
+                        <p className="mt-1 line-clamp-1 text-caption text-n-text-dim">{campaign.description || "Sem resumo informado."}</p>
                       </button>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           aria-label={`Ver fluxo ${campaign.name}`}
-                          className="flex h-9 w-9 items-center justify-center rounded-full border border-n-border bg-n-surface-2 text-slate-400 transition hover:border-cmm-purple/30 hover:bg-cmm-purple/10 hover:text-cmm-purple"
+                          className="flex h-9 w-9 items-center justify-center rounded-full border border-n-border bg-n-surface-2 text-n-text-muted transition hover:border-cmm-purple/30 hover:bg-cmm-purple/10 hover:text-cmm-purple"
                           onClick={(event) => {
                             event.stopPropagation();
                             setViewerCampaignId(campaign.id);
@@ -683,52 +680,51 @@ export function CampaignsPage() {
                         <button
                           type="button"
                           aria-label={`Duplicar ${campaign.name}`}
-                          className="flex h-9 w-9 items-center justify-center rounded-full border border-n-border bg-n-surface-2 text-slate-400 transition hover:border-cmm-blue/30 hover:bg-cmm-blue/10 hover:text-cmm-blue"
+                          className="flex h-7 w-7 items-center justify-center rounded-lg bg-n-surface-2 text-n-text-dim transition-all duration-200 hover:bg-n-blue/10 hover:text-n-blue ring-1 ring-white/[0.04]"
                           onClick={(event) => {
                             event.stopPropagation();
                             duplicateMutation.mutate(campaign.id);
                           }}
                         >
-                          <Copy className="h-4 w-4" />
+                          <Copy className="h-3.5 w-3.5" />
                         </button>
                         <button
                           type="button"
                           aria-label={`Excluir ${campaign.name}`}
-                          className="flex h-9 w-9 items-center justify-center rounded-full border border-n-border bg-n-surface-2 text-slate-400 transition hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-300"
+                          className="flex h-7 w-7 items-center justify-center rounded-lg bg-n-surface-2 text-n-text-dim transition-all duration-200 hover:bg-n-red/10 hover:text-n-red ring-1 ring-white/[0.04]"
                           onClick={(event) => {
                             event.stopPropagation();
                             setPendingCommand({ action: "delete", campaignId: campaign.id, campaignName: campaign.name });
                           }}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </button>
-                        {isSelected && <div className="h-2 w-2 rounded-full bg-cmm-blue" />}
                       </div>
                     </div>
 
-                    <button type="button" onClick={() => setSelectedCampaignId(campaign.id)} className="mt-4 text-left">
+                    <button type="button" onClick={() => setSelectedCampaignId(campaign.id)} className="mt-3 w-full text-left">
                       <div className="flex items-center justify-between">
-                        <div className="flex gap-3 text-[9px] font-bold uppercase tracking-widest text-slate-500">
-                          <span>{campaign.steps.length} Steps</span>
-                          <span className="opacity-30">•</span>
-                          <span>{campaign.totalRecipients} Contatos</span>
+                        <div className="flex gap-2 text-micro uppercase text-n-text-dim">
+                          <span>{campaign.steps.length} steps</span>
+                          <span className="opacity-30">·</span>
+                          <span>{campaign.totalRecipients} contatos</span>
                         </div>
-                        <Badge tone={statusTone(campaign.status)} className="rounded-full px-3 py-0.5 text-[9px] font-black uppercase tracking-widest">
+                        <Badge tone={statusTone(campaign.status)} className="text-micro">
                           {statusLabel(campaign.status)}
                         </Badge>
                       </div>
 
-                      <div className="mt-4 space-y-2">
-                        <div className="h-1.5 overflow-hidden rounded-full bg-white/5">
+                      <div className="mt-2.5 space-y-1.5">
+                        <div className="h-1 overflow-hidden rounded-full bg-n-surface-2">
                           <div
                             className={cn(
-                              "h-full rounded-full transition-all",
-                              campaign.status === "completed" ? "bg-cmm-emerald" : campaign.status === "active" ? "bg-cmm-blue" : "bg-slate-600"
+                              "h-full rounded-full transition-all duration-500",
+                              campaign.status === "completed" ? "bg-n-wa" : campaign.status === "active" ? "bg-n-blue" : "bg-n-text-dim"
                             )}
                             style={{ width: `${completion}%` }}
                           />
                         </div>
-                        <div className="flex items-center justify-between text-[9px] font-bold uppercase tracking-widest text-slate-500">
+                        <div className="flex items-center justify-between text-micro text-n-text-dim">
                           <span>{campaign.processedRecipients} processados</span>
                           <span>{completion}%</span>
                         </div>
@@ -739,34 +735,34 @@ export function CampaignsPage() {
               })}
 
               {!campaignsQuery.isLoading && filteredCampaigns.length === 0 ? (
-                <div className="px-8 py-12 text-center">
-                  <p className="text-sm font-medium text-slate-500 italic">Nenhuma campanha encontrada.</p>
+                <div className="px-5 py-12 text-center">
+                  <p className="text-caption text-n-text-dim">Nenhuma campanha encontrada.</p>
                 </div>
               ) : null}
             </div>
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-4">
           {selectedCampaign ? (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="glass-card rounded-[2rem] border-n-border bg-n-surface p-7">
+            <div className="space-y-4 animate-fade-in">
+              <div className="rounded-2xl border border-n-border/60 bg-n-surface p-5">
                 <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.9fr)_270px]">
                   <div className="min-w-0">
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       <div className="flex items-start gap-3">
-                        <h2 className="min-w-0 flex-1 font-display text-[2.15rem] font-bold leading-[0.95] text-white tracking-tight">{selectedCampaign.name}</h2>
-                        <Badge tone={statusTone(selectedCampaign.status)} className="mt-1 shrink-0 rounded-full px-2.5 py-0.5 text-[8px] font-black uppercase tracking-[0.18em]">
+                        <h2 className="min-w-0 flex-1 text-h1 text-n-text">{selectedCampaign.name}</h2>
+                        <Badge tone={statusTone(selectedCampaign.status)} className="mt-1 shrink-0">
                           {statusLabel(selectedCampaign.status)}
                         </Badge>
                       </div>
-                      <p className="text-[13px] font-medium leading-6 text-slate-400">
+                      <p className="text-[13px] font-medium leading-6 text-n-text-muted">
                         {selectedCampaign.description || "Sem resumo operacional informado."}
                       </p>
                       <div className="flex flex-wrap items-center gap-3">
                         <div className="flex items-center gap-2">
                           {[
-                            { key: "whatsapp", icon: MessageCircleMore, active: selectedCampaign.eligibleChannels.includes("whatsapp"), tone: "text-cmm-emerald border-cmm-emerald/25 bg-cmm-emerald/10" },
+                            { key: "whatsapp", icon: MessageCircleMore, active: selectedCampaign.eligibleChannels.includes("whatsapp"), tone: "text-n-wa border-n-wa/25 bg-n-wa/10" },
                             { key: "instagram", icon: Instagram, active: selectedCampaign.eligibleChannels.includes("instagram"), tone: "text-cmm-orange border-cmm-orange/25 bg-cmm-orange/10" }
                           ].map((channel) => {
                             const Icon = channel.icon;
@@ -792,8 +788,8 @@ export function CampaignsPage() {
                             { label: "Processados", value: selectedCampaign.processedRecipients }
                           ].map((item) => (
                             <div key={item.label} className="rounded-full border border-n-border bg-n-surface px-3 py-1.5">
-                              <span className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">{item.label}</span>
-                              <span className="ml-2 text-sm font-bold tracking-tight text-white">{item.value}</span>
+                              <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-n-text-dim">{item.label}</span>
+                              <span className="ml-2 text-sm font-bold tracking-tight text-n-text">{item.value}</span>
                             </div>
                           ))}
                         </div>
@@ -803,15 +799,15 @@ export function CampaignsPage() {
 
                   <div className="rounded-[1.4rem] border border-n-border bg-black/20 p-3.5">
                     <div className="space-y-1.5">
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Janela operacional</p>
-                      <p className="text-[15px] font-bold tracking-tight text-white">{selectedCampaign.sendWindowStart}h - {selectedCampaign.sendWindowEnd}h</p>
-                      <p className="text-xs text-slate-500">{selectedCampaign.rateLimitCount} envios a cada {selectedCampaign.rateLimitWindowMinutes} minutos</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-n-text-dim">Janela operacional</p>
+                      <p className="text-[15px] font-bold tracking-tight text-n-text">{selectedCampaign.sendWindowStart}h - {selectedCampaign.sendWindowEnd}h</p>
+                      <p className="text-xs text-n-text-dim">{selectedCampaign.rateLimitCount} envios a cada {selectedCampaign.rateLimitWindowMinutes} minutos</p>
                     </div>
                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
                       <Button
                         variant="secondary"
                         size="sm"
-                        className={cn("h-10 rounded-[1.15rem] px-3.5 text-[13px] font-bold shadow-lg", canActivateCampaign ? "bg-cmm-blue text-white hover:bg-cmm-blue/90" : "bg-white/5 text-slate-500")}
+                        className={cn("h-10 rounded-[1.15rem] px-3.5 text-[13px] font-bold shadow-lg", canActivateCampaign ? "bg-n-blue text-n-text hover:bg-n-blue/90" : "bg-white/5 text-n-text-dim")}
                         disabled={!canActivateCampaign}
                         onClick={() => setPendingCommand({ action: "activate", campaignId: selectedCampaign.id, campaignName: selectedCampaign.name })}
                       >
@@ -821,7 +817,7 @@ export function CampaignsPage() {
                       <Button
                         variant="secondary"
                         size="sm"
-                        className={cn("h-10 rounded-[1.15rem] px-3.5 text-[13px] font-bold", canPauseCampaign ? "bg-white/10 text-white hover:bg-white/20" : "bg-white/5 text-slate-500")}
+                        className={cn("h-10 rounded-[1.15rem] px-3.5 text-[13px] font-bold", canPauseCampaign ? "bg-white/10 text-n-text hover:bg-white/20" : "bg-white/5 text-n-text-dim")}
                         disabled={!canPauseCampaign}
                         onClick={() => setPendingCommand({ action: "pause", campaignId: selectedCampaign.id, campaignName: selectedCampaign.name })}
                       >
@@ -831,7 +827,7 @@ export function CampaignsPage() {
                       <Button
                         variant="secondary"
                         size="sm"
-                        className={cn("h-10 rounded-[1.15rem] px-3.5 text-[13px] font-bold", canCancelCampaign ? "bg-cmm-orange/12 text-cmm-orange hover:bg-cmm-orange/20" : "bg-white/5 text-slate-500")}
+                        className={cn("h-10 rounded-[1.15rem] px-3.5 text-[13px] font-bold", canCancelCampaign ? "bg-cmm-orange/12 text-cmm-orange hover:bg-cmm-orange/20" : "bg-white/5 text-n-text-dim")}
                         disabled={!canCancelCampaign}
                         onClick={() => setPendingCommand({ action: "cancel", campaignId: selectedCampaign.id, campaignName: selectedCampaign.name })}
                       >
@@ -853,7 +849,7 @@ export function CampaignsPage() {
 
               </div>
 
-              <div className="glass-card overflow-hidden rounded-[2.5rem] border-n-border bg-n-surface">
+              <div className="overflow-hidden rounded-2xl border-n-border bg-n-surface">
                 <div className="border-b border-n-border px-4 bg-n-surface">
                   <ChromeTabs
                     value={activeTab}
@@ -871,7 +867,7 @@ export function CampaignsPage() {
                       {editorCampaign ? <CampaignBuilder value={editorCampaign} onChange={(next) => setEditorCampaign(normalizeCampaignDraft(next))} /> : null}
                       <div className="flex justify-end border-t border-n-border pt-5">
                         <Button
-                          className="h-12 rounded-2xl bg-cmm-blue px-8 text-sm font-bold shadow-xl shadow-blue-500/20 transition-transform hover:scale-[1.02]"
+                          className="h-12 rounded-2xl bg-n-blue px-8 text-sm font-bold shadow-xl shadow-blue-500/20 transition-transform hover:scale-[1.02]"
                           disabled={!editorCampaign?.id || saveExistingMutation.isPending}
                           onClick={() => editorCampaign && saveExistingMutation.mutate(editorCampaign)}
                         >
@@ -883,12 +879,12 @@ export function CampaignsPage() {
                     <div className="border-t border-n-border pt-12">
                       <div className="flex flex-wrap items-center justify-between gap-6">
                         <div className="space-y-1">
-                          <h3 className="font-display text-2xl font-bold text-white tracking-tight">Importação de Base</h3>
-                          <p className="text-sm font-medium text-slate-400">Arraste seu arquivo CSV para processar e vincular contatos automaticamente.</p>
+                          <h3 className="text-2xl font-bold text-n-text tracking-tight">Importação de Base</h3>
+                          <p className="text-sm font-medium text-n-text-muted">Arraste seu arquivo CSV para processar e vincular contatos automaticamente.</p>
                         </div>
-                        <label className="group flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-n-border bg-n-surface px-8 py-4 transition-all hover:bg-n-surface-2 hover:border-cmm-blue/50">
-                          <Upload className="h-5 w-5 text-slate-500 group-hover:text-cmm-blue transition-colors" />
-                          <span className="text-sm font-bold text-slate-300">CARREGAR CSV</span>
+                        <label className="group flex cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-n-border bg-n-surface px-8 py-4 transition-all hover:bg-n-surface-2 hover:border-n-blue/50">
+                          <Upload className="h-5 w-5 text-n-text-dim group-hover:text-n-blue transition-colors" />
+                          <span className="text-sm font-bold text-n-text">CARREGAR CSV</span>
                           <input className="hidden" type="file" accept=".csv,text/csv" onChange={handleCsvUpload} />
                         </label>
                       </div>
@@ -903,15 +899,15 @@ export function CampaignsPage() {
                               { label: "Tags", value: mapping.tags, key: 'tags' }
                             ].map((field) => (
                               <div key={field.key} className="space-y-1.5">
-                                <label className="ml-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">{field.label}</label>
+                                <label className="ml-1 text-[10px] font-bold uppercase tracking-wider text-n-text-dim">{field.label}</label>
                                 <select
-                                  className="w-full h-12 rounded-2xl border border-n-border bg-n-surface px-4 text-sm font-bold text-slate-300 outline-none transition hover:bg-n-surface-2 focus:border-cmm-blue/30"
+                                  className="w-full h-12 rounded-2xl border border-n-border bg-n-surface px-4 text-sm font-bold text-n-text outline-none transition hover:bg-n-surface-2 focus:border-n-blue/30"
                                   value={field.value}
                                   onChange={(event) => setMapping((current) => ({ ...current, [field.key]: event.target.value }))}
                                 >
-                                  <option value="" className="bg-slate-900">{field.label} (opcional)</option>
+                                  <option value="" className="bg-n-bg">{field.label} (opcional)</option>
                                   {csvUpload.headers.map((header) => (
-                                    <option key={header} value={header} className="bg-slate-900">{header}</option>
+                                    <option key={header} value={header} className="bg-n-bg">{header}</option>
                                   ))}
                                 </select>
                               </div>
@@ -919,8 +915,8 @@ export function CampaignsPage() {
                           </div>
 
                           <div className="flex flex-wrap gap-3">
-                            <Badge tone="default" className="bg-white/5 border-n-border text-[10px] uppercase font-bold tracking-widest px-3 py-1">{csvUpload.totalRows} linhas no arquivo</Badge>
-                            <Badge tone="default" className="bg-cmm-blue/10 border-cmm-blue/20 text-cmm-blue text-[10px] uppercase font-bold tracking-widest px-3 py-1">{selectedCampaign.eligibleChannels.join(" + ")}</Badge>
+                            <Badge tone="default" className="bg-white/5 border-n-border text-[10px] uppercase font-bold tracking-wider px-3 py-1">{csvUpload.totalRows} linhas no arquivo</Badge>
+                            <Badge tone="default" className="bg-n-blue/10 border-n-blue/20 text-n-blue text-[10px] uppercase font-bold tracking-wider px-3 py-1">{selectedCampaign.eligibleChannels.join(" + ")}</Badge>
                             {csvValidating ? <Badge tone="info" className="animate-pulse">Validando…</Badge> : null}
                           </div>
 
@@ -936,8 +932,8 @@ export function CampaignsPage() {
                                   { label: "Inválidos", value: csvValidation.summary.invalid, tone: "danger" as const }
                                 ].map((item) => (
                                   <div key={item.label} className="rounded-3xl border border-n-border bg-n-surface p-5">
-                                    <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">{item.label}</div>
-                                    <div className="mt-2 text-2xl font-bold text-white tracking-tighter">{item.value}</div>
+                                    <div className="text-[9px] font-semibold uppercase tracking-[0.2em] text-n-text-dim">{item.label}</div>
+                                    <div className="mt-2 text-2xl font-bold text-n-text tracking-tighter">{item.value}</div>
                                   </div>
                                 ))}
                               </div>
@@ -945,7 +941,7 @@ export function CampaignsPage() {
                               <div className="overflow-hidden rounded-3xl border border-n-border bg-n-surface">
                                 <div className="max-h-[30rem] overflow-auto">
                                   <table className="w-full text-left text-sm">
-                                    <thead className="sticky top-0 bg-slate-950 border-b border-n-border text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                    <thead className="sticky top-0 bg-slate-950 border-b border-n-border text-[10px] font-semibold uppercase tracking-wider text-n-text-dim">
                                       <tr>
                                         {csvValidation.headers.map((header) => <th key={header} className="px-6 py-4">{header}</th>)}
                                         <th className="px-6 py-4">Canal</th>
@@ -956,11 +952,11 @@ export function CampaignsPage() {
                                       {csvValidation.preview.map((row, index) => (
                                         <tr key={index} className="group hover:bg-n-surface transition-colors">
                                           {csvValidation.headers.map((header) => (
-                                            <td key={header} className="px-6 py-4 text-xs font-medium text-slate-300">{previewCellValue(row[header]) || "-"}</td>
+                                            <td key={header} className="px-6 py-4 text-xs font-medium text-n-text">{previewCellValue(row[header]) || "-"}</td>
                                           ))}
-                                          <td className="px-6 py-4 text-xs font-bold text-cmm-blue">{row._resolvedChannel ? formatChannelDisplayValue(row._resolvedChannel, row._resolvedTargetDisplay) : "-"}</td>
+                                          <td className="px-6 py-4 text-xs font-bold text-n-blue">{row._resolvedChannel ? formatChannelDisplayValue(row._resolvedChannel, row._resolvedTargetDisplay) : "-"}</td>
                                           <td className="px-6 py-4 text-right">
-                                            <Badge tone={previewTone(row._exists)} className="text-[9px] uppercase font-black tracking-widest">{previewLabel(row._exists)}</Badge>
+                                            <Badge tone={previewTone(row._exists)} className="text-[9px] uppercase font-semibold tracking-wider">{previewLabel(row._exists)}</Badge>
                                           </td>
                                         </tr>
                                       ))}
@@ -970,10 +966,10 @@ export function CampaignsPage() {
                               </div>
 
                               <div className="flex items-center justify-between gap-6 pt-4">
-                                <p className="text-xs font-medium text-slate-500 italic">{importableRecipients} destinatários prontos para importação automática.</p>
+                                <p className="text-xs font-medium text-n-text-dim italic">{importableRecipients} destinatários prontos para importação automática.</p>
                                 <Button
                                   variant="secondary"
-                                  className="h-12 rounded-2xl bg-white/10 px-8 text-xs font-bold uppercase tracking-widest text-white hover:bg-white/20"
+                                  className="h-12 rounded-2xl bg-white/10 px-8 text-xs font-bold uppercase tracking-wider text-n-text hover:bg-white/20"
                                   disabled={!canImportRecipients || importRecipientsMutation.isPending}
                                   onClick={() => importRecipientsMutation.mutate({ campaignId: selectedCampaign.id, payload: { uploadId: csvUpload.uploadId, mapping } })}
                                 >
@@ -982,17 +978,17 @@ export function CampaignsPage() {
                               </div>
                             </div>
                           ) : (
-                            <div className="rounded-3xl border border-dashed border-n-border bg-n-surface px-6 py-10 text-center text-xs font-medium text-slate-500 uppercase tracking-widest">
+                            <div className="rounded-3xl border border-dashed border-n-border bg-n-surface px-6 py-10 text-center text-xs font-medium text-n-text-dim uppercase tracking-wider">
                               Defina o mapeamento acima para ver o preview omnichannel.
                             </div>
                           )}
                         </div>
                       ) : (
                         <div className="mt-8 rounded-3xl border border-dashed border-n-border bg-n-surface px-6 py-12 text-center">
-                          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white/5 text-slate-500">
+                          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-white/5 text-n-text-dim">
                             <Upload className="h-8 w-8" />
                           </div>
-                          <p className="mt-4 text-xs font-bold text-slate-500 uppercase tracking-widest italic">Nenhum CSV carregado. Arraste ou selecione um arquivo para começar.</p>
+                          <p className="mt-4 text-xs font-bold text-n-text-dim uppercase tracking-wider italic">Nenhum CSV carregado. Arraste ou selecione um arquivo para começar.</p>
                         </div>
                       )}
                     </div>
@@ -1000,8 +996,8 @@ export function CampaignsPage() {
                     {/* Manual recipient input */}
                     <div className="border-t border-n-border pt-12">
                       <div className="space-y-1 mb-6">
-                        <h3 className="font-display text-2xl font-bold text-white tracking-tight">Adicionar manualmente</h3>
-                        <p className="text-sm font-medium text-slate-400">Digite numeros de WhatsApp ou usernames do Instagram, um por linha.</p>
+                        <h3 className="text-2xl font-bold text-n-text tracking-tight">Adicionar manualmente</h3>
+                        <p className="text-sm font-medium text-n-text-muted">Digite numeros de WhatsApp ou usernames do Instagram, um por linha.</p>
                       </div>
                       <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
                         <div className="space-y-3">
@@ -1012,8 +1008,8 @@ export function CampaignsPage() {
                               className={cn(
                                 "flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold transition-all",
                                 manualChannel === "whatsapp"
-                                  ? "border-cmm-emerald/40 bg-cmm-emerald/10 text-cmm-emerald"
-                                  : "border-n-border bg-n-surface text-slate-400 hover:bg-n-surface-2"
+                                  ? "border-n-wa/40 bg-n-wa/10 text-n-wa"
+                                  : "border-n-border bg-n-surface text-n-text-muted hover:bg-n-surface-2"
                               )}
                             >
                               <MessageCircleMore className="h-4 w-4" />
@@ -1026,7 +1022,7 @@ export function CampaignsPage() {
                                 "flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold transition-all",
                                 manualChannel === "instagram"
                                   ? "border-cmm-orange/40 bg-cmm-orange/10 text-cmm-orange"
-                                  : "border-n-border bg-n-surface text-slate-400 hover:bg-n-surface-2"
+                                  : "border-n-border bg-n-surface text-n-text-muted hover:bg-n-surface-2"
                               )}
                             >
                               <Instagram className="h-4 w-4" />
@@ -1039,14 +1035,14 @@ export function CampaignsPage() {
                             value={manualInput}
                             onChange={(e) => setManualInput(e.target.value)}
                           />
-                          <p className="text-[10px] text-slate-500">
+                          <p className="text-[10px] text-n-text-dim">
                             {manualInput.split("\n").filter((l) => l.trim()).length} {manualChannel === "whatsapp" ? "numeros" : "usernames"} digitados
                           </p>
                         </div>
                         <div className="flex items-end">
                           <Button
                             variant="secondary"
-                            className="h-12 rounded-2xl bg-white/10 px-6 text-xs font-bold uppercase tracking-widest text-white hover:bg-white/20"
+                            className="h-12 rounded-2xl bg-white/10 px-6 text-xs font-bold uppercase tracking-wider text-n-text hover:bg-white/20"
                             disabled={!manualInput.trim() || !selectedCampaign?.id || addManualMutation.isPending}
                             onClick={() => {
                               if (!selectedCampaign?.id) return;
@@ -1075,11 +1071,11 @@ export function CampaignsPage() {
                           onClick={() => setRecipientFilter(item.key)}
                           className={cn(
                             "group flex items-center gap-2 rounded-2xl border px-3 py-1.5 transition-all duration-300",
-                            recipientFilter === item.key ? "border-cmm-blue/30 bg-cmm-blue/10 text-white" : "border-n-border bg-n-surface text-slate-400 hover:bg-n-surface-2"
+                            recipientFilter === item.key ? "border-n-blue/30 bg-n-blue/10 text-n-text" : "border-n-border bg-n-surface text-n-text-muted hover:bg-n-surface-2"
                           )}
                         >
-                          <span className="text-[10px] font-black uppercase tracking-widest">{item.label}</span>
-                          <span className={cn("text-[10px] font-black opacity-40 px-2 py-0.5 rounded-full bg-white/10", recipientFilter === item.key && "bg-cmm-blue text-white opacity-100")}>{item.count}</span>
+                          <span className="text-[10px] font-semibold uppercase tracking-wider">{item.label}</span>
+                          <span className={cn("text-[10px] font-semibold opacity-40 px-2 py-0.5 rounded-full bg-white/10", recipientFilter === item.key && "bg-n-blue text-n-text opacity-100")}>{item.count}</span>
                         </button>
                       ))}
                     </div>
@@ -1095,39 +1091,39 @@ export function CampaignsPage() {
                                 onClick={() => setSelectedRecipientId(recipient.id)}
                                 className={cn(
                                   "group relative flex w-full items-center justify-between px-4 py-3.5 text-left transition-all duration-300",
-                                  isSelected ? "bg-cmm-blue/5" : "hover:bg-n-surface"
+                                  isSelected ? "bg-n-blue/5" : "hover:bg-n-surface"
                                 )}
                               >
                                 <div className="flex min-w-0 items-center gap-3">
-                                  <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl text-sm font-black",
-                                    recipient.channel === "instagram" ? "bg-cmm-orange/10 text-cmm-orange" : "bg-cmm-emerald/10 text-cmm-emerald"
+                                  <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold",
+                                    recipient.channel === "instagram" ? "bg-cmm-orange/10 text-cmm-orange" : "bg-n-wa/10 text-n-wa"
                                   )}>
                                     {recipient.name?.charAt(0) || recipient.target_display_value?.charAt(0) || "?"}
                                   </div>
                                   <div className="min-w-0">
-                                    <h4 className="truncate font-display text-[15px] font-bold text-white tracking-tight">{recipient.name || "Sem identificação"}</h4>
-                                    <p className="mt-0.5 truncate text-[11px] font-bold text-slate-500 uppercase tracking-widest">{formatRecipientTarget(recipient) || "Alvo não determinado"}</p>
+                                    <h4 className="truncate text-[15px] font-bold text-n-text tracking-tight">{recipient.name || "Sem identificação"}</h4>
+                                    <p className="mt-0.5 truncate text-[11px] font-bold text-n-text-dim uppercase tracking-wider">{formatRecipientTarget(recipient) || "Alvo não determinado"}</p>
                                   </div>
                                 </div>
                                 <div className="flex shrink-0 flex-col items-end gap-2">
-                                  <Badge tone={recipientTone(recipient.status)} className="rounded-full px-2.5 py-0.5 text-[8px] font-black uppercase tracking-widest">
+                                  <Badge tone={recipientTone(recipient.status)} className="rounded-full px-2.5 py-0.5 text-[8px] font-semibold uppercase tracking-wider">
                                     {recipientStatusLabels[recipient.status] ?? recipient.status}
                                   </Badge>
-                                  <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">STEP {Math.max(Number(recipient.step_index), 0) + 1}</span>
+                                  <span className="text-[9px] font-semibold text-slate-600 uppercase tracking-wider">STEP {Math.max(Number(recipient.step_index), 0) + 1}</span>
                                 </div>
-                                {isSelected && <div className="absolute left-0 top-1/2 -translate-y-1/2 h-10 w-1 bg-cmm-blue rounded-r-full shadow-[0_0_20px_rgba(59,130,246,0.5)]" />}
+                                {isSelected && <div className="absolute left-0 top-1/2 -translate-y-1/2 h-10 w-1 bg-n-blue rounded-r-full shadow-[0_0_20px_rgba(59,130,246,0.5)]" />}
                               </button>
                             );
                           })}
 
                           {filteredRecipients.length === 0 && (
                             <div className="p-20 text-center">
-                              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest italic opacity-40">Nenhum contato encontrado no filtro.</p>
+                              <p className="text-xs font-bold text-n-text-dim uppercase tracking-wider italic opacity-40">Nenhum contato encontrado no filtro.</p>
                             </div>
                           )}
                         </div>
                         {filteredRecipients.length > 0 ? (
-                          <div className="flex items-center justify-between border-t border-n-border px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                          <div className="flex items-center justify-between border-t border-n-border px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-n-text-dim">
                             <span>
                               Mostrando {(recipientPage - 1) * RECIPIENTS_PER_PAGE + 1}
                               {" - "}
@@ -1140,7 +1136,7 @@ export function CampaignsPage() {
                                 type="button"
                                 onClick={() => setRecipientPage((current) => Math.max(1, current - 1))}
                                 disabled={recipientPage === 1}
-                                className="rounded-xl border border-n-border px-3 py-1.5 text-slate-300 transition hover:bg-n-surface-2 disabled:cursor-not-allowed disabled:opacity-40"
+                                className="rounded-xl border border-n-border px-3 py-1.5 text-n-text transition hover:bg-n-surface-2 disabled:cursor-not-allowed disabled:opacity-40"
                               >
                                 Anterior
                               </button>
@@ -1149,7 +1145,7 @@ export function CampaignsPage() {
                                 type="button"
                                 onClick={() => setRecipientPage((current) => Math.min(recipientTotalPages, current + 1))}
                                 disabled={recipientPage === recipientTotalPages}
-                                className="rounded-xl border border-n-border px-3 py-1.5 text-slate-300 transition hover:bg-n-surface-2 disabled:cursor-not-allowed disabled:opacity-40"
+                                className="rounded-xl border border-n-border px-3 py-1.5 text-n-text transition hover:bg-n-surface-2 disabled:cursor-not-allowed disabled:opacity-40"
                               >
                                 Próxima
                               </button>
@@ -1159,22 +1155,22 @@ export function CampaignsPage() {
                       </div>
 
                       <div className="border-l border-n-border bg-slate-950/60 p-5">
-                        <h5 className="mb-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Detalhes do contato</h5>
+                        <h5 className="mb-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-n-text-dim">Detalhes do contato</h5>
                         {selectedRecipient ? (
                           <div className="animate-in space-y-6 fade-in slide-in-from-right-4 duration-500">
                             <div>
-                              <h3 className="font-display text-lg font-bold text-white tracking-tight">{selectedRecipient.name || "Sem Nome"}</h3>
-                              <p className="mt-1 text-sm font-medium text-slate-400">{formatRecipientTarget(selectedRecipient)}</p>
+                              <h3 className="text-lg font-bold text-n-text tracking-tight">{selectedRecipient.name || "Sem Nome"}</h3>
+                              <p className="mt-1 text-sm font-medium text-n-text-muted">{formatRecipientTarget(selectedRecipient)}</p>
                             </div>
 
                             <div className="grid grid-cols-2 gap-2.5">
                               <div className="rounded-2xl border border-n-border bg-white/5 p-3.5">
-                                <div className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Status</div>
-                                <Badge tone={recipientTone(selectedRecipient.status)} className="mt-2 text-[9px] uppercase font-black">{recipientStatusLabels[selectedRecipient.status]}</Badge>
+                                <div className="text-[9px] font-semibold text-slate-600 uppercase tracking-wider">Status</div>
+                                <Badge tone={recipientTone(selectedRecipient.status)} className="mt-2 text-[9px] uppercase font-semibold">{recipientStatusLabels[selectedRecipient.status]}</Badge>
                               </div>
                               <div className="rounded-2xl border border-n-border bg-white/5 p-3.5">
-                                <div className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Step Atual</div>
-                                <div className="mt-2 text-lg font-bold text-white tracking-tighter">#{Math.max(Number(selectedRecipient.step_index), 0) + 1}</div>
+                                <div className="text-[9px] font-semibold text-slate-600 uppercase tracking-wider">Step Atual</div>
+                                <div className="mt-2 text-lg font-bold text-n-text tracking-tighter">#{Math.max(Number(selectedRecipient.step_index), 0) + 1}</div>
                               </div>
                             </div>
 
@@ -1185,15 +1181,15 @@ export function CampaignsPage() {
                                 { label: "Canal Ativo", value: selectedRecipient.channel === 'instagram' ? 'Instagram' : 'WhatsApp' }
                               ].map(item => (
                                 <div key={item.label} className="flex items-center justify-between border-b border-n-border py-2">
-                                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{item.label}</span>
-                                  <span className="text-xs font-bold text-slate-300">{item.value}</span>
+                                  <span className="text-[10px] font-bold text-n-text-dim uppercase tracking-wider">{item.label}</span>
+                                  <span className="text-xs font-bold text-n-text">{item.value}</span>
                                 </div>
                               ))}
                             </div>
 
                             {selectedRecipient.last_error && (
                               <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-3.5">
-                                <div className="text-[9px] font-black text-red-400 uppercase tracking-widest">Último Log de Erro</div>
+                                <div className="text-[9px] font-semibold text-red-400 uppercase tracking-wider">Último Log de Erro</div>
                                 <p className="mt-2 text-[11px] font-medium text-red-200 leading-relaxed">{selectedRecipient.last_error}</p>
                               </div>
                             )}
@@ -1203,7 +1199,7 @@ export function CampaignsPage() {
                             <div className="h-20 w-20 rounded-full border-2 border-dashed border-white/20 flex items-center justify-center">
                               <Search className="h-8 w-8" />
                             </div>
-                            <p className="mt-6 text-[10px] font-bold uppercase tracking-widest">Selecione um contato para ver detalhes</p>
+                            <p className="mt-6 text-[10px] font-bold uppercase tracking-wider">Selecione um contato para ver detalhes</p>
                           </div>
                         )}
                       </div>
@@ -1213,12 +1209,12 @@ export function CampaignsPage() {
               </div>
             </div>
           ) : (
-            <div className="glass-card flex flex-col items-center justify-center p-20 text-center rounded-[2.5rem] border-n-border bg-n-surface">
+            <div className="flex flex-col items-center justify-center p-20 text-center rounded-2xl border-n-border bg-n-surface">
               <div className="h-24 w-24 rounded-3xl bg-white/5 flex items-center justify-center mb-8">
                 <Plus className="h-10 w-10 text-slate-600" />
               </div>
-              <h3 className="font-display text-2xl font-bold text-white tracking-tight">Comece sua Campanha</h3>
-              <p className="mt-2 text-sm font-medium text-slate-400 max-w-sm">Crie uma nova ou selecione ao lado para gerenciar fluxos e destinatários.</p>
+              <h3 className="text-2xl font-bold text-n-text tracking-tight">Comece sua Campanha</h3>
+              <p className="mt-2 text-sm font-medium text-n-text-muted max-w-sm">Crie uma nova ou selecione ao lado para gerenciar fluxos e destinatários.</p>
             </div>
           )}
         </div>

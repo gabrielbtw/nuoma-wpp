@@ -46,6 +46,30 @@ export function claimDueJob(workerId: string) {
   return claimDueJobForTypes(workerId, null);
 }
 
+/**
+ * Peek (no claim) for pending jobs of given types that are due.
+ *
+ * Used by the WA worker to detect jobs arriving mid-sync so it can abort the
+ * long-running `syncInbox` and let the new job run promptly.
+ */
+export function hasPendingJobsForTypes(allowedTypes: JobType[]): boolean {
+  if (allowedTypes.length === 0) return false;
+  const db = getDb();
+  const placeholders = allowedTypes.map(() => "?").join(", ");
+  const row = db
+    .prepare(
+      `
+        SELECT 1 AS hit FROM jobs
+        WHERE status = 'pending'
+          AND datetime(scheduled_at) <= datetime('now')
+          AND type IN (${placeholders})
+        LIMIT 1
+      `
+    )
+    .get(...allowedTypes) as { hit: number } | undefined;
+  return Boolean(row);
+}
+
 export function claimDueJobForTypes(workerId: string, allowedTypes: JobType[] | null) {
   const db = getDb();
   const timestamp = nowIso();

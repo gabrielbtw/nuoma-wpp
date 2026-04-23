@@ -241,6 +241,16 @@ export function listDueAutomationRuns() {
         FROM automation_runs
         WHERE status IN ('pending', 'active')
           AND datetime(next_run_at) <= datetime('now')
+          AND (
+            batch_id IS NULL
+            OR batch_position = 0
+            OR NOT EXISTS (
+              SELECT 1 FROM automation_runs prev
+              WHERE prev.batch_id = automation_runs.batch_id
+                AND prev.batch_position = automation_runs.batch_position - 1
+                AND prev.status != 'completed'
+            )
+          )
         ORDER BY datetime(next_run_at) ASC
         LIMIT 100
       `
@@ -268,11 +278,20 @@ export function getOpenAutomationRunForContact(automationId: string, contactId: 
     .get(automationId, contactId) as Record<string, unknown> | undefined;
 }
 
+export function cancelAutomationRun(runId: string) {
+  const db = getDb();
+  db.prepare(
+    `UPDATE automation_runs SET status = 'cancelled', updated_at = ? WHERE id = ? AND status IN ('pending', 'active')`
+  ).run(new Date().toISOString(), runId);
+}
+
 export function createAutomationRun(input: {
   automationId: string;
   contactId: string;
   conversationId?: string | null;
   nextRunAt?: string;
+  batchId?: string;
+  batchPosition?: number;
 }) {
   const db = getDb();
   const timestamp = nowIso();
@@ -280,10 +299,21 @@ export function createAutomationRun(input: {
   db.prepare(
     `
       INSERT INTO automation_runs (
-        id, automation_id, contact_id, conversation_id, status, action_index, next_run_at, triggered_at, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, 'pending', 0, ?, ?, ?, ?)
+        id, automation_id, contact_id, conversation_id, status, action_index, next_run_at, triggered_at, created_at, updated_at, batch_id, batch_position
+      ) VALUES (?, ?, ?, ?, 'pending', 0, ?, ?, ?, ?, ?, ?)
     `
-  ).run(id, input.automationId, input.contactId, input.conversationId ?? null, input.nextRunAt ?? timestamp, timestamp, timestamp, timestamp);
+  ).run(
+    id,
+    input.automationId,
+    input.contactId,
+    input.conversationId ?? null,
+    input.nextRunAt ?? timestamp,
+    timestamp,
+    timestamp,
+    timestamp,
+    input.batchId ?? null,
+    input.batchPosition ?? null
+  );
 
   return getAutomationRun(id);
 }

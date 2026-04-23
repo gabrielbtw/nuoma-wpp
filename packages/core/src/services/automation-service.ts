@@ -11,6 +11,7 @@ import {
   listDueAutomationRuns,
   recordAutomationContactState
 } from "../repositories/automation-repository.js";
+import { getDb } from "../db/connection.js";
 import { getContactById, listContactsForAutomationEvaluation, applyTagToContact, removeTagFromContact } from "../repositories/contact-repository.js";
 import { getInstagramThreadIdForContact } from "../repositories/contact-channel-repository.js";
 import { getConversationById, getLatestConversationForContactChannel } from "../repositories/conversation-repository.js";
@@ -354,6 +355,30 @@ export function processAutomationTick() {
           break;
         }
 
+        // Group consecutive send-image actions into a single multi-file job
+        let nextActionIndex = Number(run.action_index);
+        let jobContentType: string = action.type.replace("send-", "");
+        let jobMediaPath: string | null = action.mediaPath ?? null;
+        let jobMediaPaths: string[] | null = null;
+
+        if (action.type === "send-image") {
+          const imagePaths: string[] = [];
+          let i = Number(run.action_index);
+          while (i < automation.actions.length && automation.actions[i].type === "send-image") {
+            const imgPath = automation.actions[i].mediaPath;
+            if (imgPath) imagePaths.push(imgPath);
+            i++;
+          }
+          if (imagePaths.length > 1) {
+            jobContentType = "images";
+            jobMediaPath = null;
+            jobMediaPaths = imagePaths;
+            nextActionIndex = i;
+          } else {
+            nextActionIndex = Number(run.action_index) + 1;
+          }
+        }
+
         const jobId = enqueueJob({
           type: channel === "instagram" ? "send-assisted-message" : "send-message",
           dedupeKey: `automation:${run.id}:${action.id ?? Number(run.action_index)}`,
@@ -368,14 +393,15 @@ export function processAutomationTick() {
             externalThreadId,
             recipientDisplayValue: String(contact.name ?? contact.instagram ?? contact.phone ?? ""),
             recipientNormalizedValue,
-            contentType: action.type.replace("send-", ""),
+            contentType: jobContentType,
             text: resolveTemplateVars(action.content, contact),
-            mediaPath: action.mediaPath,
+            mediaPath: jobMediaPath,
+            mediaPaths: jobMediaPaths,
             caption: resolveTemplateVars(action.content, contact)
           }
         });
 
-        advanceAutomationRun(String(run.id), Number(run.action_index), addSeconds(300), "active");
+        advanceAutomationRun(String(run.id), nextActionIndex, addSeconds(20), "active");
         recordSystemEvent("scheduler", "info", "Automation send queued", {
           automationId: automation.id,
           runId: String(run.id),
@@ -412,4 +438,86 @@ export function handleAutomationJobSuccess(input: { runId: string; automationId:
 
 export function handleAutomationJobFailure(runId: string, error: string) {
   failAutomationRun(runId, error);
+}
+
+/**
+ * Scans recent incoming messages and creates automation runs for automations
+ * configured with trigger_type = "event" and trigger_event = "message_received".
+ *
+ * Conditions in trigger_conditions_json are evaluated as AND:
+ *   { field: "body", operator: "contains", value: "..." }
+ *
+ * Called on every scheduler tick. Window of 2x scheduler interval avoids missing messages.
+ */
+export function processMessageReceivedTriggers() {
+  const env = loadEnv();
+  if (!env.ENABLE_AUTOMATIONS) return { queued: 0 };
+
+  const db = getDb();
+
+  // Automations configured for message_received event trigger
+  const eventAutomations = listActiveAutomations().filter(
+    (a) => a.triggerType === "event" && a.triggerEvent === "message_received"
+  );
+  if (eventAutomations.length === 0) return { queued: 0 };
+
+  // Recent incoming messages (last 2 minutes — comfortably covers any scheduler interval)
+  const recentMessages = db
+    .prepare(
+      `SELECT m.id, m.body, m.sent_at, m.conversation_id, cv.contact_id, cv.channel
+       FROM messages m
+       JOIN conversations cv ON m.conversation_id = cv.id
+       WHERE m.direction = 'incoming'
+         AND m.created_at >= datetime('now', '-2 minutes')
+       ORDER BY m.created_at ASC`
+    )
+    .all() as Array<{ id: string; body: string; sent_at: string; conversation_id: string; contact_id: string; channel: string }>;
+
+  if (recentMessages.length === 0) return { queued: 0 };
+
+  let queued = 0;
+
+  for (const msg of recentMessages) {
+    const contact = getContactById(msg.contact_id);
+    if (!contact) continue;
+
+    for (const automation of eventAutomations) {
+      // Check keyword conditions (all must match — AND logic)
+      const conditions = automation.triggerConditions ?? [];
+      const matches = conditions.length === 0 || conditions.every((cond) => {
+        if (cond.field === "body" && cond.operator === "contains") {
+          return msg.body.toLowerCase().includes(cond.value.toLowerCase());
+        }
+        return false;
+      });
+      if (!matches) continue;
+
+      // Skip if contact already has an open run for this automation
+      const openRun = getOpenAutomationRunForContact(automation.id, msg.contact_id);
+      if (openRun) continue;
+
+      // Respect send window
+      const nextRunAt = isWithinTimeWindow(automation.sendWindowStart, automation.sendWindowEnd, env.DEFAULT_TIMEZONE)
+        ? new Date().toISOString()
+        : nextWindowStartIso(automation.sendWindowStart, automation.sendWindowEnd, env.DEFAULT_TIMEZONE);
+
+      createAutomationRun({
+        automationId: automation.id,
+        contactId: msg.contact_id,
+        conversationId: msg.conversation_id,
+        nextRunAt
+      });
+      queued += 1;
+
+      recordSystemEvent("scheduler", "info", "Message-received automation triggered", {
+        automationId: automation.id,
+        contactId: msg.contact_id,
+        conversationId: msg.conversation_id,
+        messageId: msg.id,
+        keyword: conditions.map((c) => c.value).join(", ")
+      });
+    }
+  }
+
+  return { queued };
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ActivitySquare, Bot, BriefcaseBusiness, ContactRound, FileArchive,
   LayoutDashboard, LineChart, Logs, Menu, MessageCircle, MessageSquareMore,
-  Settings, X, Zap
+  Mic, Settings, X, Zap
 } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { ChannelSessionStrip } from "@/components/shared/channel-session-strip";
@@ -15,6 +15,7 @@ const navItems = [
   { to: "/automations", label: "Automacoes", icon: Bot, color: "text-n-amber" },
   { to: "/campaigns", label: "Campanhas", icon: BriefcaseBusiness, color: "text-pink-400" },
   { to: "/chatbot", label: "Chatbot", icon: MessageCircle, color: "text-n-ig" },
+  { to: "/attendants", label: "Atendentes", icon: Mic, color: "text-cmm-purple" },
   { to: "/trends", label: "Tendencias", icon: LineChart, color: "text-yellow-400" },
   { to: "/imports", label: "Importacoes", icon: FileArchive, color: "text-n-text-dim" },
   { to: "/health", label: "Saude", icon: ActivitySquare, color: "text-n-red" },
@@ -24,7 +25,7 @@ const navItems = [
 
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {
   return (
-    <nav className="space-y-0.5">
+    <nav className="space-y-0.5 px-1">
       {navItems.map((item) => {
         const Icon = item.icon;
         return (
@@ -35,18 +36,20 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
             onClick={onNavigate}
             className={({ isActive }) =>
               cn(
-                "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-body font-medium transition-fast",
+                "group relative flex items-center gap-2.5 rounded-xl px-3 py-[7px] text-body font-medium transition-all duration-200",
                 isActive
-                  ? "bg-n-surface-2 text-n-text"
-                  : "text-n-text-muted hover:bg-n-surface-2/50 hover:text-n-text"
+                  ? "bg-n-surface-2 text-n-text shadow-sm ring-1 ring-white/[0.04]"
+                  : "text-n-text-muted hover:bg-n-surface-2/40 hover:text-n-text"
               )
             }
           >
             {({ isActive }) => (
               <>
-                <Icon className={cn("h-4 w-4 shrink-0 transition-colors", isActive ? item.color : "text-n-text-dim")} />
+                {isActive && (
+                  <div className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-n-blue" />
+                )}
+                <Icon className={cn("h-[15px] w-[15px] shrink-0 transition-colors duration-200", isActive ? item.color : "text-n-text-dim group-hover:text-n-text-muted")} />
                 <span className="truncate">{item.label}</span>
-                {isActive && <div className="ml-auto h-1.5 w-1.5 rounded-full bg-n-blue" />}
               </>
             )}
           </NavLink>
@@ -75,27 +78,25 @@ export function AppShell() {
   return (
     <div className="relative flex h-dvh w-full overflow-hidden bg-n-bg font-body text-n-text">
       {/* Sidebar - Desktop */}
-      <aside className="hidden w-[220px] shrink-0 flex-col border-r border-n-border bg-n-bg lg:flex">
+      <aside className="hidden w-[220px] shrink-0 flex-col border-r border-n-border/50 bg-n-bg lg:flex">
         {/* Brand */}
-        <div className="flex items-center gap-2.5 border-b border-n-border px-4 py-3">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-n-blue">
-            <Zap className="h-3.5 w-3.5 text-white" fill="currentColor" />
+        <div className="flex items-center gap-2.5 px-5 py-4">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-n-blue to-blue-600 shadow-md shadow-n-blue/20">
+            <Zap className="h-4 w-4 text-white" fill="currentColor" />
           </div>
-          <div>
-            <div className="text-h4 text-n-text">Nuoma</div>
-          </div>
+          <span className="text-h3 tracking-tight text-n-text">Nuoma</span>
         </div>
 
         {/* Nav */}
-        <div className="flex-1 overflow-y-auto p-2">
+        <div className="flex-1 overflow-y-auto px-2 py-1">
           <NavItems />
         </div>
 
         {/* Footer */}
-        <div className="border-t border-n-border px-3 py-2.5">
+        <div className="border-t border-n-border/40 px-4 py-3">
           <div className="flex items-center gap-2">
             <span className="signal-dot active" />
-            <span className="text-micro uppercase text-n-text-dim">Local</span>
+            <span className="text-micro uppercase tracking-wider text-n-text-dim">Ambiente local</span>
           </div>
         </div>
       </aside>
@@ -111,9 +112,9 @@ export function AppShell() {
           <div className="h-6 w-6 rounded-md bg-n-surface-2" />
         </div>
 
-        {/* Desktop Header - minimal */}
-        <header className="hidden items-center justify-between border-b border-n-border bg-n-surface px-4 py-1 lg:flex">
-          <span className="text-caption text-n-text-muted">{currentSection.label}</span>
+        {/* Desktop Header */}
+        <header className="hidden items-center justify-between border-b border-n-border/40 bg-n-bg px-6 py-2 lg:flex">
+          <span className="text-caption text-n-text-dim">{currentSection.label}</span>
           <div className={cn("hidden xl:flex items-center gap-2", !showHeaderSessionStrip && "xl:hidden")}>
             <ChannelSessionStrip compact />
           </div>
@@ -121,7 +122,7 @@ export function AppShell() {
 
         {/* Page Content */}
         <div className="flex-1 overflow-y-auto custom-scrollbar">
-          <div className="px-3 py-3 lg:px-4 lg:py-3">
+          <div className="px-4 py-4 lg:px-6 lg:py-5">
             <Outlet />
           </div>
         </div>

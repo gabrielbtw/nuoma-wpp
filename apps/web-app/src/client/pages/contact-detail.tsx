@@ -140,19 +140,17 @@ export function ContactDetailPage() {
       {query.error && <ErrorPanel message={(query.error as Error).message} />}
 
       {contact && (
-        <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
+        <div className="grid gap-4 xl:grid-cols-[320px_1fr]">
           {/* Left: Contact card */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             {/* Profile card */}
-            <div className="glass-card rounded-[2rem] border-n-border bg-n-surface p-6 space-y-5">
+            <div className="rounded-2xl border border-n-border/60 bg-n-surface p-5 space-y-4">
               <div className="flex flex-col items-center text-center gap-3">
-                <div className="h-20 w-20 rounded-2xl bg-gradient-to-br from-cmm-blue to-cmm-purple p-0.5">
-                  <div className="h-full w-full rounded-[0.9rem] bg-slate-950 flex items-center justify-center text-2xl font-black text-white">
-                    {(contact.name || "?").charAt(0)}
-                  </div>
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-n-blue to-cmm-purple text-xl font-bold text-white shadow-lg shadow-n-blue/15">
+                  {(contact.name || "?").charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <h3 className="font-display text-xl font-bold text-white tracking-tight">{contact.name || "Sem nome"}</h3>
+                  <h3 className="text-h2 text-n-text">{contact.name || "Sem nome"}</h3>
                   <Badge tone={contactStatusTone(contact.status)} className="mt-1">
                     {contactStatusLabelMap[contact.status] ?? contact.status}
                   </Badge>
@@ -161,31 +159,31 @@ export function ContactDetailPage() {
               </div>
 
               {/* Quick info */}
-              <div className="space-y-2 pt-3 border-t border-n-border">
+              <div className="space-y-1.5 pt-3 border-t border-n-border/40">
                 {contact.phone && (
-                  <div className="flex items-center gap-3 rounded-xl bg-black/20 px-3 py-2.5">
-                    <Phone className="h-3.5 w-3.5 text-cmm-emerald" />
-                    <span className="text-sm font-bold text-white">{formatPhoneForDisplay(contact.phone)}</span>
+                  <div className="flex items-center gap-2.5 rounded-xl bg-n-bg px-3 py-2 ring-1 ring-white/[0.04]">
+                    <Phone className="h-3.5 w-3.5 text-n-wa" />
+                    <span className="text-body font-medium text-n-text font-mono">{formatPhoneForDisplay(contact.phone)}</span>
                   </div>
                 )}
                 {contact.instagram && (
-                  <div className="flex items-center gap-3 rounded-xl bg-black/20 px-3 py-2.5">
-                    <Instagram className="h-3.5 w-3.5 text-cmm-orange" />
-                    <span className="text-sm font-bold text-white">{contact.instagram}</span>
+                  <div className="flex items-center gap-2.5 rounded-xl bg-n-bg px-3 py-2 ring-1 ring-white/[0.04]">
+                    <Instagram className="h-3.5 w-3.5 text-n-ig" />
+                    <span className="text-body font-medium text-n-text">{contact.instagram}</span>
                   </div>
                 )}
                 {contact.email && (
-                  <div className="flex items-center gap-3 rounded-xl bg-black/20 px-3 py-2.5">
-                    <Mail className="h-3.5 w-3.5 text-slate-400" />
-                    <span className="text-sm font-bold text-white">{contact.email}</span>
+                  <div className="flex items-center gap-2.5 rounded-xl bg-n-bg px-3 py-2 ring-1 ring-white/[0.04]">
+                    <Mail className="h-3.5 w-3.5 text-n-text-dim" />
+                    <span className="text-body font-medium text-n-text">{contact.email}</span>
                   </div>
                 )}
               </div>
 
               {/* Tags */}
               {contact.tags.length > 0 && (
-                <div className="pt-3 border-t border-n-border">
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600 mb-2">Tags</p>
+                <div className="pt-3 border-t border-n-border/40">
+                  <p className="text-micro uppercase tracking-wider text-n-text-dim mb-2">Tags</p>
                   <div className="flex flex-wrap gap-1.5">
                     {contact.tags.map((tag) => (
                       <TagPill key={tag} name={tag} color={colorMap.get(tag.trim().toLowerCase())} />
@@ -195,59 +193,59 @@ export function ContactDetailPage() {
               )}
 
               {/* Meta */}
-              <div className="pt-3 border-t border-n-border space-y-2">
-                <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest text-slate-600">
+              <div className="pt-3 border-t border-n-border/40 space-y-1.5">
+                <div className="flex items-center gap-2 text-micro text-n-text-dim">
                   <Calendar className="h-3 w-3" /> Criado {formatDateTime(contact.createdAt)}
                 </div>
-                <div className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest text-slate-600">
+                <div className="flex items-center gap-2 text-micro text-n-text-dim">
                   <FileText className="h-3 w-3" /> Procedimento: {contactProcedureLabelMap[contact.procedureStatus]}
                 </div>
               </div>
 
               {/* Notes */}
               {contact.notes && (
-                <div className="pt-3 border-t border-n-border">
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600 mb-1.5">Observacoes</p>
-                  <p className="text-xs text-slate-400 leading-relaxed">{contact.notes}</p>
+                <div className="pt-3 border-t border-n-border/40">
+                  <p className="text-micro uppercase tracking-wider text-n-text-dim mb-1.5">Observacoes</p>
+                  <p className="text-caption text-n-text-muted leading-relaxed">{contact.notes}</p>
                 </div>
               )}
             </div>
 
             {/* Stats */}
-            <div className="glass-card rounded-2xl border-n-border bg-n-surface p-4 space-y-2">
+            <div className="rounded-2xl border border-n-border/60 bg-n-surface p-4 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-slate-600">Total mensagens</span>
-                <span className="text-sm font-bold text-white">{messages.length}</span>
+                <span className="text-micro uppercase tracking-wider text-n-text-dim">Total mensagens</span>
+                <span className="text-h4 text-n-text">{messages.length}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-slate-600">Incoming</span>
-                <span className="text-sm font-bold text-slate-300">{messages.filter((m) => m.direction === "incoming").length}</span>
+                <span className="text-micro uppercase tracking-wider text-n-text-dim">Incoming</span>
+                <span className="text-h4 text-n-text-muted">{messages.filter((m) => m.direction === "incoming").length}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-[9px] font-bold uppercase tracking-widest text-slate-600">Outgoing</span>
-                <span className="text-sm font-bold text-slate-300">{messages.filter((m) => m.direction === "outgoing").length}</span>
+                <span className="text-micro uppercase tracking-wider text-n-text-dim">Outgoing</span>
+                <span className="text-h4 text-n-text-muted">{messages.filter((m) => m.direction === "outgoing").length}</span>
               </div>
             </div>
           </div>
 
           {/* Right: Narrative Ledger (message timeline) */}
-          <div className="glass-card rounded-[2rem] border-n-border bg-n-surface overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-n-border flex items-center gap-3">
-              <MessageSquareText className="h-4 w-4 text-cmm-blue" />
-              <h3 className="text-sm font-bold text-white tracking-tight">Narrative Ledger</h3>
-              <Badge tone="default" className="text-[8px] ml-auto">{messages.length} mensagens</Badge>
+          <div className="rounded-2xl border border-n-border/60 bg-n-surface overflow-hidden flex flex-col">
+            <div className="px-5 py-3.5 border-b border-n-border/40 flex items-center gap-3">
+              <MessageSquareText className="h-4 w-4 text-n-blue" />
+              <h3 className="text-h4 text-n-text">Narrative Ledger</h3>
+              <Badge tone="default" className="ml-auto">{messages.length} mensagens</Badge>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-6 custom-scrollbar space-y-6 max-h-[calc(100vh-20rem)]">
+            <div className="flex-1 overflow-y-auto px-5 py-5 custom-scrollbar space-y-5 max-h-[calc(100vh-20rem)]">
               {dateGroups.map((group) => (
                 <div key={group.date}>
                   {/* Date separator */}
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="h-px flex-1 bg-white/5" />
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-slate-600 shrink-0">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="h-px flex-1 bg-n-border/30" />
+                    <span className="text-micro uppercase tracking-wider text-n-text-dim shrink-0">
                       {formatDateOnly(group.date)}
                     </span>
-                    <div className="h-px flex-1 bg-white/5" />
+                    <div className="h-px flex-1 bg-n-border/30" />
                   </div>
 
                   {/* Messages for this date */}
@@ -257,20 +255,20 @@ export function ContactDetailPage() {
                         {/* Channel + time indicator */}
                         <div className="flex items-center gap-1.5 px-1">
                           <ChannelIcon channel={msg.channel} />
-                          <span className="text-[8px] font-bold uppercase tracking-widest text-slate-600">
-                            {msg.channel === "instagram" ? "Instagram" : "WhatsApp"}
+                          <span className="text-micro uppercase text-n-text-dim">
+                            {msg.channel === "instagram" ? "IG" : "WA"}
                           </span>
-                          <span className="text-[8px] text-slate-700">{formatTime(msg.sentAt || msg.createdAt)}</span>
+                          <span className="text-micro text-n-text-dim">{formatTime(msg.sentAt || msg.createdAt)}</span>
                         </div>
 
                         {/* Bubble */}
                         <div className={cn(
-                          "max-w-[80%] px-4 py-3 text-sm leading-relaxed",
+                          "max-w-[75%] px-3.5 py-2.5 text-body leading-relaxed shadow-sm",
                           msg.direction === "outgoing"
-                            ? "bg-gradient-to-br from-cmm-blue to-cmm-blue/80 text-white rounded-2xl rounded-br-md shadow-lg shadow-blue-500/10"
+                            ? "bg-n-blue text-white rounded-2xl rounded-br-md shadow-n-blue/10"
                             : msg.direction === "system"
-                              ? "bg-n-surface text-slate-500 rounded-xl text-center mx-auto italic text-xs"
-                              : "bg-n-surface-2 text-slate-200 rounded-2xl rounded-bl-md border border-n-border"
+                              ? "bg-n-surface-2/60 text-n-text-dim rounded-lg text-center mx-auto italic text-caption shadow-none"
+                              : "bg-n-surface-2 text-n-text rounded-2xl rounded-bl-md ring-1 ring-n-border/40"
                         )}>
                           {msg.contentType === "image" && msg.mediaPath && (
                             <img src={`/uploads/media/${msg.mediaPath.split("/").pop()}`} alt="" className="rounded-lg max-w-full max-h-48 mb-1" loading="lazy" />
@@ -295,10 +293,10 @@ export function ContactDetailPage() {
               ))}
 
               {messages.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-20 text-slate-600">
-                  <MessageSquareText className="h-10 w-10 mb-3 opacity-20" />
-                  <p className="text-xs font-bold">Nenhuma mensagem encontrada para este contato.</p>
-                  <p className="text-[10px] text-slate-700 mt-1">As mensagens aparecem apos o sync do worker.</p>
+                <div className="flex flex-col items-center justify-center py-16 text-n-text-dim">
+                  <MessageSquareText className="h-8 w-8 mb-3 opacity-20" />
+                  <p className="text-caption font-medium">Nenhuma mensagem encontrada para este contato.</p>
+                  <p className="text-micro text-n-text-dim mt-1">As mensagens aparecem apos o sync do worker.</p>
                 </div>
               )}
             </div>

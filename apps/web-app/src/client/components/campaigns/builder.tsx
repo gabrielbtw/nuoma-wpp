@@ -57,6 +57,13 @@ type TagRecord = {
   color: string;
 };
 
+type AttendantRecord = {
+  id: string;
+  name: string;
+  status: string;
+  voiceSamples: string[];
+};
+
 const channelOptions = [
   {
     value: "whatsapp" as const,
@@ -395,6 +402,7 @@ function SortableStep({
   isLast,
   stepCount,
   tagOptions,
+  attendants,
   onChange,
   onDuplicate,
   onRemove
@@ -405,6 +413,7 @@ function SortableStep({
   isLast: boolean;
   stepCount: number;
   tagOptions: TagRecord[];
+  attendants: AttendantRecord[];
   onChange: (next: CampaignStepDraft) => void;
   onDuplicate: () => void;
   onRemove: () => void;
@@ -603,6 +612,28 @@ function SortableStep({
                     )}
                   </div>
                 )}
+                {step.type === "audio" && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Voz</p>
+                    <select
+                      className="h-10 w-full rounded-xl border border-n-border bg-black/20 px-3 text-sm text-white outline-none focus:border-cmm-purple/40"
+                      value={step.attendantId ?? ""}
+                      onChange={(e) => onChange({ ...step, attendantId: e.target.value || null })}
+                    >
+                      <option value="">Usar voz original</option>
+                      {attendants
+                        .filter((a) => a.status === "active")
+                        .map((a) => (
+                          <option key={a.id} value={a.id}>
+                            Atendente: {a.name}
+                          </option>
+                        ))}
+                    </select>
+                    {step.attendantId && (
+                      <p className="text-[9px] text-cmm-purple">Audio sera convertido para a voz do atendente.</p>
+                    )}
+                  </div>
+                )}
                 {step.type === "wait" && (
                   <div className="flex h-full min-h-[96px] flex-col items-center justify-center rounded-[1.25rem] border border-n-border bg-n-surface-2 p-3 text-center">
                     <Clock3 className="mb-2 h-6 w-6 text-cmm-orange opacity-70" />
@@ -624,6 +655,11 @@ export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onC
   const tagsQuery = useQuery({
     queryKey: ["tags"],
     queryFn: () => apiFetch<TagRecord[]>("/tags")
+  });
+
+  const attendantsQuery = useQuery({
+    queryKey: ["attendants"],
+    queryFn: () => apiFetch<AttendantRecord[]>("/attendants")
   });
 
   const duration = estimateCampaignDuration(value.steps);
@@ -833,6 +869,7 @@ export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onC
                   isLast={index === value.steps.length - 1}
                   stepCount={stepCount}
                   tagOptions={tagsQuery.data ?? []}
+                  attendants={attendantsQuery.data ?? []}
                   onChange={(next) => onChange({ ...value, steps: value.steps.map((c, i) => i === index ? next : c) })}
                   onDuplicate={() => onChange({ ...value, steps: [...value.steps.slice(0, index + 1), { ...step, id: undefined }, ...value.steps.slice(index + 1)] })}
                   onRemove={() => onChange({ ...value, steps: value.steps.length === 1 ? [emptyCampaignStep()] : value.steps.filter((_, i) => i !== index) })}

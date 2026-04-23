@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/shared/page-header";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -58,6 +60,9 @@ function jobStatusDot(status: string) {
 export function LogsPage() {
   const [eventsPage, setEventsPage] = useState(0);
   const [jobsPage, setJobsPage] = useState(0);
+  const [levelFilter, setLevelFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [autoRefresh, setAutoRefresh] = useState(true);
 
   const logsQuery = useQuery({
     queryKey: ["logs", eventsPage, jobsPage],
@@ -65,7 +70,7 @@ export function LogsPage() {
       apiFetch<LogsResponse>(
         `/logs?limit=${LOGS_PAGE_SIZE}&eventsOffset=${eventsPage * LOGS_PAGE_SIZE}&jobsOffset=${jobsPage * LOGS_PAGE_SIZE}`
       ),
-    refetchInterval: 20_000
+    refetchInterval: autoRefresh ? 20_000 : false
   });
 
   const events = logsQuery.data?.events ?? [];
@@ -73,8 +78,15 @@ export function LogsPage() {
   const hasNextEvents = events.length === LOGS_PAGE_SIZE;
   const hasNextJobs = jobs.length === LOGS_PAGE_SIZE;
 
+  const filteredEvents = useMemo(() => {
+    let filtered = events;
+    if (levelFilter !== "all") filtered = filtered.filter(e => e.level === levelFilter);
+    if (searchTerm.trim()) filtered = filtered.filter(e => e.message.toLowerCase().includes(searchTerm.toLowerCase()));
+    return filtered;
+  }, [events, levelFilter, searchTerm]);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         eyebrow="Observabilidade"
         title="Logs"
@@ -86,11 +98,31 @@ export function LogsPage() {
         <div className="rounded-xl border border-n-border bg-n-surface overflow-hidden">
           <div className="flex items-center justify-between border-b border-n-border px-3 py-2">
             <h3 className="text-label text-n-text">Eventos recentes</h3>
-            <span className="text-micro text-n-text-dim">Max 20/pag</span>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1.5 text-micro text-n-text-dim cursor-pointer">
+                <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} className="rounded" />
+                Auto-refresh
+              </label>
+              <span className="text-micro text-n-text-dim">Max 20/pag</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-n-border-subtle">
+            <div className="relative flex-1 group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-n-text-dim" />
+              <Input className="h-8 pl-9 pr-3 text-caption" placeholder="Buscar nos logs..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            </div>
+            <select className="h-8 rounded-xl border border-n-border bg-n-bg px-3 text-caption text-n-text-muted" value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)}>
+              <option value="all">Todos</option>
+              <option value="error">Errors</option>
+              <option value="warn">Warnings</option>
+              <option value="info">Info</option>
+              <option value="debug">Debug</option>
+            </select>
           </div>
 
           <div className="max-h-[560px] overflow-y-auto custom-scrollbar divide-y divide-n-border-subtle">
-            {events.map((event) => (
+            {filteredEvents.map((event) => (
               <div key={event.id} className="px-3 py-2 flex items-start gap-3">
                 <span className="text-caption font-mono text-n-text-dim shrink-0 pt-0.5">
                   {new Date(event.created_at).toLocaleTimeString()}
@@ -103,9 +135,9 @@ export function LogsPage() {
                 </span>
               </div>
             ))}
-            {!logsQuery.isLoading && events.length === 0 ? (
+            {!logsQuery.isLoading && filteredEvents.length === 0 ? (
               <div className="px-3 py-10 text-caption text-n-text-muted text-center">
-                Nenhum evento encontrado.
+                {events.length === 0 ? "Nenhum evento encontrado." : "Nenhum evento corresponde aos filtros."}
               </div>
             ) : null}
           </div>

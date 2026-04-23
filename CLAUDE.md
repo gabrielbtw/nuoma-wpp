@@ -108,3 +108,28 @@ Data lake (tables `data_lake_*`) and AI integrations (OpenAI, Ollama, Whisper) e
 8. **Dashboard errors** - failure badge with details
 
 See `PLANS.md` for the hygiene/refactoring backlog.
+
+## Active remarketing campaigns
+
+### rmkt-manchas (ativa desde 2026-04-17)
+
+- **Objetivo**: remarketing pra leads pré-CSV com oferta de 30% off + foto antes/depois.
+- **Foto**: `storage/uploads/media/campaign/image/teste-manchas/antes-depois.jpg`
+- **Caption**: começa com `🚨 *MANCHAS NO ROSTO?*`, termina com `👇🏼👇🏼 Me mande: *EU QUERO*` (fonte canônica: prompt da scheduled task `rmkt-manchas-refill`).
+- **Pool targeting**: `phone LIKE '5531%'` ou `phone LIKE '5511%'`, `length(phone) >= 12`, sem tags `nao_insistir`/`neferpeel-lead-bh`, sem jobs prévios com mesmo `mediaPath`. Ordem: pré-CSV (`created_at < '2026-04-16'`) → CSV.
+- **Split por bloco**: 180 DDD 31 + 20 DDD 11 (fallback 200 × 31).
+- **Delay intra-bloco**: 8s.
+- **Frequência**: scheduled task `rmkt-manchas-refill` roda a cada 30min, enfileira bloco quando `pending < 10` e hora BRT em 8-22.
+- **Identificação canônica**: `json_extract(payload_json,'$.mediaPath') = 'campaign/image/teste-manchas/antes-depois.jpg'`.
+- **Como pausar**: `mcp__scheduled-tasks__update_scheduled_task` com status=paused, ou delete.
+- **Como monitorar**:
+  ```sh
+  sqlite3 storage/database/nuoma.db "SELECT status, COUNT(*) FROM jobs \
+    WHERE type='send-message' \
+    AND json_extract(payload_json,'\$.mediaPath')='campaign/image/teste-manchas/antes-depois.jpg' \
+    GROUP BY status;"
+  ```
+
+### Histórico de disparos manuais anteriores à cron
+
+- 2026-04-17 13:25-18:00 BRT — 624 envios manuais em 6 lotes (DDD 31 pré-CSV). Status no momento da ativação da cron: 485 done, 137 pending, 1 fail (timeout Anexar).

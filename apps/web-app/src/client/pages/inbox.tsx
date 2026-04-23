@@ -1,15 +1,16 @@
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
-  ArrowUpRight, BookOpen, CheckCheck, ChevronLeft, ChevronRight, FileText, Globe2, Instagram,
+  ArrowUpRight, BookOpen, CheckCheck, ChevronLeft, ChevronRight, Clock, FileText, Globe2, Instagram,
   Mail, MessageCircleMore, Paperclip, Pencil, Phone, Save, Search, SendHorizonal,
-  Tag as TagIcon, Trash2, User, X, Zap
+  Tag as TagIcon, Trash2, User, UserCircle, X, Zap
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch, toJsonBody } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -51,6 +52,7 @@ type UnifiedMessage = {
   mediaPath: string | null;
   createdAt: string;
   sentAt: string | null;
+  status?: string;
 };
 
 // ----- Helpers -----
@@ -87,11 +89,12 @@ type ContactDetail = {
 
 type TagRecord = { id: string; name: string; color: string };
 
-function ContactSidebar({ contactId, channels, lastMessageAt, messageCount }: {
+function ContactSidebar({ contactId, channels, lastMessageAt, messageCount, inSheet = false }: {
   contactId: string | null;
   channels: string[];
   lastMessageAt: string | null;
   messageCount: number;
+  inSheet?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
@@ -153,9 +156,22 @@ function ContactSidebar({ contactId, channels, lastMessageAt, messageCount }: {
     setDraft({ ...draft, tags: (draft.tags ?? contact?.tags ?? []).filter((t) => t !== tag) });
   }
 
+  // Reset editing state when contact changes, then populate draft with new contact data
+  useEffect(() => {
+    setTagInput("");
+    if (contact) {
+      setDraft({ name: contact.name, phone: contact.phone, email: contact.email, instagram: contact.instagram, cpf: contact.cpf, notes: contact.notes, tags: contact.tags });
+      setEditing(true);
+    } else {
+      setEditing(false);
+      setDraft({});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contact?.id]);
+
   if (!contactId) {
     return (
-      <div className="hidden xl:flex flex-col items-center justify-center rounded-xl border border-n-border bg-n-surface p-6 text-n-text-dim">
+      <div className={cn(inSheet ? "flex" : "hidden xl:flex", "flex-col items-center justify-center rounded-2xl border border-n-border/60 bg-n-surface p-6 text-n-text-dim")}>
         <User className="h-8 w-8 mb-2 opacity-30" />
         <p className="text-caption">Selecione um contato</p>
       </div>
@@ -163,112 +179,113 @@ function ContactSidebar({ contactId, channels, lastMessageAt, messageCount }: {
   }
 
   return (
-    <div className="hidden xl:flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-1">
-      <div className="rounded-xl border border-n-border bg-n-surface p-3 space-y-3">
-        {/* Header with edit/save */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-lg bg-n-surface-2 border border-n-border flex items-center justify-center text-body font-semibold text-n-text">
-              {(contact?.name || "?").charAt(0)}
-            </div>
-            {!editing ? (
-              <div>
-                <p className="text-h4 text-n-text">{contact?.name || "..."}</p>
-                <div className="flex gap-1 mt-0.5">
-                  {channels.map((ch) => (
-                    <Badge key={ch} tone={ch === "whatsapp" ? "success" : "warning"} className="text-micro px-1 py-0">{ch === "whatsapp" ? "WA" : "IG"}</Badge>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <Input className="h-8 text-body bg-n-bg border-n-border" value={draft.name ?? ""} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
-            )}
+    <div className={cn(inSheet ? "flex" : "hidden xl:flex", "flex-col gap-3 overflow-y-auto custom-scrollbar pr-1")}>
+      {/* Profile card — Contact Detail style */}
+      <div className="rounded-2xl border border-n-border/60 bg-n-surface p-4 space-y-4">
+        {/* Avatar + Name (centered, like Contact Detail) */}
+        <div className="flex flex-col items-center text-center gap-2">
+          <div className={cn(
+            "flex h-14 w-14 items-center justify-center rounded-2xl text-lg font-bold text-white shadow-lg",
+            contact?.instagram ? "bg-gradient-to-br from-n-blue to-cmm-purple shadow-cmm-purple/15" : "bg-gradient-to-br from-n-blue to-blue-600 shadow-n-blue/15"
+          )}>
+            {(editing ? draft.name : contact?.name || "?")?.charAt(0).toUpperCase() || "?"}
           </div>
-          <div className="flex gap-1">
-            {editing ? (
-              <>
-                <button onClick={saveEdit} disabled={updateMutation.isPending} className="h-7 w-7 rounded-lg bg-n-wa/10 text-n-wa flex items-center justify-center hover:bg-n-wa/20 transition-fast">
-                  <Save className="h-3.5 w-3.5" />
-                </button>
-                <button onClick={() => { setEditing(false); setDraft({}); }} className="h-7 w-7 rounded-lg bg-n-surface-2 text-n-text-dim flex items-center justify-center hover:bg-n-surface-2 transition-fast">
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </>
-            ) : (
-              <button onClick={startEdit} className="h-7 w-7 rounded-lg bg-n-surface-2 text-n-text-dim flex items-center justify-center hover:text-n-blue hover:bg-n-blue/10 transition-fast">
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
-            )}
+
+          {editing ? (
+            <Input className="h-8 text-center text-h4 bg-n-bg border-n-border rounded-lg" value={draft.name ?? ""} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Nome do contato" />
+          ) : (
+            <h3 className="text-h4 text-n-text">{contact?.name || "..."}</h3>
+          )}
+
+          <Badge tone={contact?.status === "novo" ? "info" : contact?.status === "ativo" ? "success" : "default"} className="text-micro capitalize">
+            {contact?.status ?? "novo"}
+          </Badge>
+
+          {/* Channel icons */}
+          <div className="flex items-center gap-2">
+            {channels.map((ch) => (
+              <div key={ch} className={cn(
+                "flex h-8 w-8 items-center justify-center rounded-full ring-1",
+                ch === "whatsapp" ? "bg-n-wa/8 text-n-wa ring-n-wa/20" : "bg-n-ig/8 text-n-ig ring-n-ig/20"
+              )}>
+                {ch === "whatsapp"
+                  ? <MessageCircleMore className="h-3.5 w-3.5" />
+                  : <Instagram className="h-3.5 w-3.5" />
+                }
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Fields */}
-        <div className="space-y-1.5">
-          {editing ? (
-            <>
-              <div className="space-y-1">
-                <p className="text-micro text-n-text-dim">Telefone</p>
-                <Input className="h-8 text-caption bg-n-bg border-n-border font-mono" value={draft.phone ?? ""} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} placeholder="5511999998888" />
+        {/* Editable fields — always visible */}
+        <div className="space-y-2 pt-3 border-t border-n-border/40">
+          <div className="space-y-1">
+            <p className="text-micro uppercase tracking-wider text-n-text-dim">Telefone</p>
+            {editing ? (
+              <Input className="h-8 text-caption bg-n-bg border-n-border font-mono" value={draft.phone ?? ""} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} placeholder="5511999998888" />
+            ) : (
+              <div className="flex items-center gap-2 rounded-lg bg-n-bg px-2.5 py-1.5 ring-1 ring-white/[0.04]">
+                <Phone className="h-3 w-3 text-n-wa shrink-0" />
+                <span className="text-caption text-n-text font-mono">{contact?.phone || "—"}</span>
               </div>
-              <div className="space-y-1">
-                <p className="text-micro text-n-text-dim">Email</p>
-                <Input className="h-8 text-caption bg-n-bg border-n-border" value={draft.email ?? ""} onChange={(e) => setDraft({ ...draft, email: e.target.value })} placeholder="email@exemplo.com" />
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-micro uppercase tracking-wider text-n-text-dim">Email</p>
+            {editing ? (
+              <Input className="h-8 text-caption bg-n-bg border-n-border" value={draft.email ?? ""} onChange={(e) => setDraft({ ...draft, email: e.target.value })} placeholder="email@exemplo.com" />
+            ) : (
+              <div className="flex items-center gap-2 rounded-lg bg-n-bg px-2.5 py-1.5 ring-1 ring-white/[0.04]">
+                <Mail className="h-3 w-3 text-n-text-dim shrink-0" />
+                <span className="text-caption text-n-text">{contact?.email || "—"}</span>
               </div>
-              <div className="space-y-1">
-                <p className="text-micro text-n-text-dim">Instagram</p>
-                <Input className="h-8 text-caption bg-n-bg border-n-border" value={draft.instagram ?? ""} onChange={(e) => setDraft({ ...draft, instagram: e.target.value })} placeholder="@usuario" />
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-micro uppercase tracking-wider text-n-text-dim">Instagram</p>
+            {editing ? (
+              <Input className="h-8 text-caption bg-n-bg border-n-border" value={draft.instagram ?? ""} onChange={(e) => setDraft({ ...draft, instagram: e.target.value })} placeholder="@usuario" />
+            ) : (
+              <div className="flex items-center gap-2 rounded-lg bg-n-bg px-2.5 py-1.5 ring-1 ring-white/[0.04]">
+                <Instagram className="h-3 w-3 text-n-ig shrink-0" />
+                <span className="text-caption text-n-text">{contact?.instagram || "—"}</span>
               </div>
-              <div className="space-y-1">
-                <p className="text-micro text-n-text-dim">CPF</p>
-                <Input className="h-8 text-caption bg-n-bg border-n-border font-mono" value={draft.cpf ?? ""} onChange={(e) => setDraft({ ...draft, cpf: e.target.value })} placeholder="000.000.000-00" />
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-micro uppercase tracking-wider text-n-text-dim">CPF</p>
+            {editing ? (
+              <Input className="h-8 text-caption bg-n-bg border-n-border font-mono" value={draft.cpf ?? ""} onChange={(e) => setDraft({ ...draft, cpf: e.target.value })} placeholder="000.000.000-00" />
+            ) : (
+              <div className="flex items-center gap-2 rounded-lg bg-n-bg px-2.5 py-1.5 ring-1 ring-white/[0.04]">
+                <span className="text-micro text-n-text-dim shrink-0">CPF</span>
+                <span className="text-caption text-n-text font-mono">{contact?.cpf || "—"}</span>
               </div>
-              <div className="space-y-1">
-                <p className="text-micro text-n-text-dim">Observacoes</p>
-                <Textarea className="min-h-[48px] text-caption bg-n-bg border-n-border" value={draft.notes ?? ""} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} placeholder="Notas internas..." />
-              </div>
-            </>
-          ) : (
-            <>
-              {contact?.phone && (
-                <div className="flex items-center gap-2 rounded-lg bg-n-bg border border-n-border-subtle px-2.5 py-1.5">
-                  <Phone className="h-3 w-3 text-n-wa shrink-0" />
-                  <span className="text-caption text-n-text font-mono">{contact.phone}</span>
-                </div>
-              )}
-              {contact?.instagram && (
-                <div className="flex items-center gap-2 rounded-lg bg-n-bg border border-n-border-subtle px-2.5 py-1.5">
-                  <Instagram className="h-3 w-3 text-n-ig shrink-0" />
-                  <span className="text-caption text-n-text">{contact.instagram}</span>
-                </div>
-              )}
-              {contact?.email && (
-                <div className="flex items-center gap-2 rounded-lg bg-n-bg border border-n-border-subtle px-2.5 py-1.5">
-                  <Mail className="h-3 w-3 text-n-text-dim shrink-0" />
-                  <span className="text-caption text-n-text">{contact.email}</span>
-                </div>
-              )}
-              {contact?.cpf && (
-                <div className="flex items-center gap-2 rounded-lg bg-n-bg border border-n-border-subtle px-2.5 py-1.5">
-                  <span className="text-micro text-n-text-dim shrink-0">CPF</span>
-                  <span className="text-caption text-n-text font-mono">{contact.cpf}</span>
-                </div>
-              )}
-              {!contact?.phone && !contact?.email && !contact?.cpf && (
-                <p className="text-caption text-n-text-dim italic py-1">Sem dados adicionais. Clique no lapis para editar.</p>
-              )}
-            </>
-          )}
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-micro uppercase tracking-wider text-n-text-dim">Observacoes</p>
+            {editing ? (
+              <Textarea className="min-h-[48px] text-caption bg-n-bg border-n-border" value={draft.notes ?? ""} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} placeholder="Notas internas..." />
+            ) : (
+              <p className="text-caption text-n-text-muted px-1">{contact?.notes || "—"}</p>
+            )}
+          </div>
         </div>
 
         {/* Tags */}
-        <div className="pt-2 border-t border-n-border space-y-1.5">
-          <p className="text-micro text-n-text-dim uppercase">Tags</p>
+        <div className="pt-2 border-t border-n-border/40 space-y-1.5">
+          <p className="text-micro uppercase tracking-wider text-n-text-dim">Tags</p>
           <div className="flex flex-wrap gap-1">
             {(editing ? draft.tags : contact?.tags)?.map((tag) => (
-              <span key={tag} className="flex items-center gap-1 rounded-md bg-n-surface-2 border border-n-border-subtle px-1.5 py-0.5 text-micro text-n-text-muted">
+              <span key={tag} className="flex items-center gap-1 rounded-full bg-n-surface-2 px-2 py-0.5 text-micro text-n-text-muted ring-1 ring-white/[0.04]">
                 {tag}
                 {editing && (
-                  <button onClick={() => removeTag(tag)} className="text-n-red hover:text-red-300">
+                  <button onClick={() => removeTag(tag)} className="text-n-red hover:text-red-300 ml-0.5">
                     <X className="h-2.5 w-2.5" />
                   </button>
                 )}
@@ -278,19 +295,19 @@ function ContactSidebar({ contactId, channels, lastMessageAt, messageCount }: {
           </div>
           {editing && (
             <div className="flex gap-1">
-              <Input className="h-7 flex-1 text-micro bg-n-bg border-n-border" value={tagInput} onChange={(e) => setTagInput(e.target.value)} placeholder="Nova tag..."
+              <Input className="h-7 flex-1 text-micro bg-n-bg border-n-border rounded-lg" value={tagInput} onChange={(e) => setTagInput(e.target.value)} placeholder="Nova tag..."
                 list="tag-suggestions"
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(tagInput); } }} />
               <datalist id="tag-suggestions">
                 {(tagsQuery.data ?? []).map((t) => <option key={t.id} value={t.name} />)}
               </datalist>
-              <button onClick={() => addTag(tagInput)} className="h-7 px-2 rounded-md bg-n-surface-2 text-micro text-n-text-dim hover:text-n-text transition-fast">+</button>
+              <button onClick={() => addTag(tagInput)} className="h-7 px-2 rounded-lg bg-n-surface-2 text-micro text-n-text-dim hover:text-n-text transition-fast ring-1 ring-white/[0.04]">+</button>
             </div>
           )}
         </div>
 
-        {/* Meta */}
-        <div className="pt-2 border-t border-n-border space-y-1">
+        {/* Meta info */}
+        <div className="pt-2 border-t border-n-border/40 space-y-1">
           <div className="flex items-center justify-between text-micro text-n-text-dim">
             <span>Atividade</span>
             <span>{formatDate(lastMessageAt)}</span>
@@ -305,26 +322,36 @@ function ContactSidebar({ contactId, channels, lastMessageAt, messageCount }: {
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="pt-2 border-t border-n-border flex gap-1.5">
-          <Link to={`/contacts/${contactId}`} className="flex-1">
-            <Button className="w-full h-8 rounded-lg bg-n-surface-2 border border-n-border text-micro text-n-text-muted hover:bg-n-blue hover:text-white hover:border-n-blue transition-fast">
-              Perfil completo
-            </Button>
-          </Link>
-          <button
-            onClick={() => { if (confirm("Excluir este contato?")) deleteMutation.mutate(); }}
-            className="h-8 w-8 rounded-lg border border-n-border bg-n-surface-2 text-n-text-dim flex items-center justify-center hover:bg-n-red/10 hover:text-n-red hover:border-n-red/30 transition-fast">
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
-
-        {contact?.notes && !editing && (
-          <div className="pt-2 border-t border-n-border">
-            <p className="text-micro text-n-text-dim mb-1">Notas</p>
-            <p className="text-caption text-n-text-muted">{contact.notes}</p>
+        {/* Save / Cancel / Actions */}
+        <div className="pt-2 border-t border-n-border/40 space-y-2">
+          {editing && (
+            <div className="flex gap-1.5">
+              <Button
+                onClick={saveEdit}
+                disabled={updateMutation.isPending}
+                className="flex-1 h-8 rounded-lg bg-n-blue text-white text-micro hover:bg-n-blue/90 transition-fast"
+              >
+                <Save className="mr-1.5 h-3.5 w-3.5" />
+                {updateMutation.isPending ? "Salvando..." : "Salvar"}
+              </Button>
+              <button onClick={() => { setEditing(false); setDraft({}); }} className="h-8 w-8 rounded-lg bg-n-surface-2 text-n-text-dim flex items-center justify-center hover:bg-n-surface-2 ring-1 ring-white/[0.04] transition-fast">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+          <div className="flex gap-1.5">
+            <Link to={`/contacts/${contactId}`} className="flex-1">
+              <Button variant="outline" className="w-full h-8 rounded-lg text-micro">
+                Perfil completo
+              </Button>
+            </Link>
+            <button
+              onClick={() => { if (confirm("Excluir este contato?")) deleteMutation.mutate(); }}
+              className="h-8 w-8 rounded-lg bg-n-surface-2 text-n-text-dim flex items-center justify-center ring-1 ring-white/[0.04] hover:bg-n-red/10 hover:text-n-red transition-fast">
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
@@ -334,6 +361,7 @@ function ContactSidebar({ contactId, channels, lastMessageAt, messageCount }: {
 
 export function InboxPage() {
   const queryClient = useQueryClient();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState("");
   const [channel, setChannel] = useState("all");
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
@@ -341,6 +369,8 @@ export function InboxPage() {
   const [sendChannel, setSendChannel] = useState<"whatsapp" | "instagram">("whatsapp");
   const [attachment, setAttachment] = useState<{ file: File; path: string; type: string } | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [zapOpen, setZapOpen] = useState(false);
+  const [contactSheetOpen, setContactSheetOpen] = useState(false);
   const [page, setPage] = useState(1);
   const deferredSearch = useDeferredValue(search);
 
@@ -395,11 +425,56 @@ export function InboxPage() {
         method: "POST",
         body: toJsonBody({ contactId, text, channel: ch, mediaPath, contentType })
       }),
+    onMutate: async ({ contactId, text, ch, mediaPath, contentType }) => {
+      await queryClient.cancelQueries({ queryKey: ["contact-messages", selectedEntry?.contactId] });
+      const previousMessages = queryClient.getQueryData(["contact-messages", selectedEntry?.contactId]);
+      queryClient.setQueryData(["contact-messages", selectedEntry?.contactId], (old: UnifiedMessage[] | undefined) => [
+        ...(old ?? []),
+        {
+          id: `optimistic-${Date.now()}`,
+          conversationId: "",
+          contactId: contactId ?? null,
+          channel: ch as "whatsapp" | "instagram",
+          direction: "outgoing" as const,
+          contentType: contentType ?? "text",
+          body: text,
+          mediaPath: mediaPath ?? null,
+          createdAt: new Date().toISOString(),
+          sentAt: null,
+          status: "pending"
+        }
+      ]);
+      return { previousMessages };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousMessages) {
+        queryClient.setQueryData(["contact-messages", selectedEntry?.contactId], context.previousMessages);
+      }
+    },
     onSuccess: async () => {
       setComposer("");
       setAttachment(null);
       await queryClient.invalidateQueries({ queryKey: ["unified-inbox"] });
       await queryClient.invalidateQueries({ queryKey: ["contact-messages"] });
+    }
+  });
+
+  // Automations quick-reply
+  const automationsQuery = useQuery({
+    queryKey: ["automations-quick"],
+    queryFn: () => apiFetch<Array<{ id: string; name: string; enabled: boolean; category: string }>>("/automations"),
+    staleTime: 30_000
+  });
+  const enabledAutomations = useMemo(() => (automationsQuery.data ?? []).filter(a => a.enabled), [automationsQuery.data]);
+
+  const triggerAutomationMutation = useMutation({
+    mutationFn: (automationId: string) =>
+      apiFetch(`/automations/${automationId}/trigger`, {
+        method: "POST",
+        body: toJsonBody({ contactId: selectedEntry?.contactId, conversationId: null })
+      }),
+    onSuccess: () => {
+      setZapOpen(false);
     }
   });
 
@@ -433,13 +508,17 @@ export function InboxPage() {
 
   const messages = messagesQuery.data ?? [];
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length]);
+
   return (
     <div className="flex h-full flex-col overflow-hidden animate-fade-in" style={{ height: "calc(100vh - 3.5rem)" }}>
-      <div className="grid flex-1 gap-0 overflow-hidden xl:grid-cols-[280px_1fr_240px]">
+      <div className="grid flex-1 gap-0 overflow-hidden xl:grid-cols-[280px_1fr_260px]">
         {/* Contact list (left panel) */}
-        <div className="flex flex-col overflow-hidden border-r border-n-border">
+        <div className="flex flex-col overflow-hidden border-r border-n-border/40">
           {/* Search + filter row - single line */}
-          <div className="flex items-center gap-1.5 border-b border-n-border px-2 py-1.5">
+          <div className="flex items-center gap-1.5 border-b border-n-border/40 px-2.5 py-2">
             <div className="relative flex-1 group">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-n-text-dim group-focus-within:text-n-blue transition-fast" />
               <Input
@@ -471,11 +550,11 @@ export function InboxPage() {
                 const isSelected = selectedEntry?.contactId === entry.contactId;
                 return (
                   <button key={entry.contactId} onClick={() => setSelectedContactId(entry.contactId)}
-                    className={cn("group relative flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-fast",
-                      isSelected ? "bg-n-blue/10 text-n-text" : "hover:bg-n-surface-2")}>
-                    <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-caption font-semibold transition-fast",
-                      isSelected ? "bg-n-blue text-white" : "bg-n-surface-2 text-n-text-dim")}>
-                      {(entry.contactName || "?").charAt(0)}
+                    className={cn("group relative flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-all duration-200",
+                      isSelected ? "bg-n-blue/10 text-n-text ring-1 ring-n-blue/15" : "hover:bg-n-surface-2/60")}>
+                    <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-caption font-semibold transition-all duration-200",
+                      isSelected ? "bg-n-blue text-white shadow-sm shadow-n-blue/20" : "bg-n-surface-2 text-n-text-dim ring-1 ring-white/[0.04]")}>
+                      {(entry.contactName || "?").charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
@@ -540,12 +619,12 @@ export function InboxPage() {
         </div>
 
         {/* Chat area (center) - Mixed timeline */}
-        <div className="flex flex-col rounded-xl border border-n-border bg-n-surface overflow-hidden relative">
+        <div className="flex flex-col bg-n-bg overflow-hidden relative">
           {/* Header */}
-          <header className="px-4 py-3 border-b border-n-border flex items-center justify-between bg-n-surface">
+          <header className="px-5 py-3 border-b border-n-border/40 flex items-center justify-between bg-n-surface">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-n-surface-2 border border-n-border text-h4 text-n-text">
-                {(selectedEntry?.contactName || "?").charAt(0)}
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-n-surface-2 text-h4 text-n-text ring-1 ring-white/[0.04]">
+                {(selectedEntry?.contactName || "?").charAt(0).toUpperCase()}
               </div>
               <div>
                 <h3 className="text-h4 text-n-text">
@@ -564,6 +643,15 @@ export function InboxPage() {
                 </div>
               </div>
             </div>
+            {/* Contact panel button — only visible below xl where sidebar is hidden */}
+            {selectedEntry && (
+              <button
+                onClick={() => setContactSheetOpen(true)}
+                className="xl:hidden flex h-8 w-8 items-center justify-center rounded-lg border border-n-border bg-n-surface-2 text-n-text-dim hover:text-n-text hover:bg-n-surface transition-fast"
+              >
+                <UserCircle className="h-4 w-4" />
+              </button>
+            )}
           </header>
 
           {/* Messages timeline */}
@@ -579,12 +667,12 @@ export function InboxPage() {
                 </div>
                 {/* Message bubble */}
                 <div className={cn(
-                  "max-w-[75%] px-3 py-2 transition-fast",
+                  "max-w-[70%] px-3.5 py-2.5 transition-fast shadow-sm",
                   msg.direction === "outgoing"
-                    ? "bg-n-blue text-white rounded-xl rounded-br-sm"
+                    ? "bg-n-blue text-white rounded-2xl rounded-br-md shadow-n-blue/10"
                     : msg.direction === "system"
-                      ? "bg-n-surface-2 text-n-text-muted rounded-lg text-center mx-auto italic text-caption"
-                      : "bg-n-surface-2 text-n-text rounded-xl rounded-bl-sm border border-n-border"
+                      ? "bg-n-surface-2/60 text-n-text-dim rounded-lg text-center mx-auto italic text-caption shadow-none"
+                      : "bg-n-surface text-n-text rounded-2xl rounded-bl-md ring-1 ring-n-border/40"
                 )}>
                   {/* Media rendering */}
                   {msg.contentType === "image" && msg.mediaPath && (
@@ -612,7 +700,13 @@ export function InboxPage() {
                   <div className={cn("mt-1 flex items-center gap-1.5 text-micro opacity-50",
                     msg.direction === "outgoing" ? "flex-row-reverse" : "")}>
                     <span>{formatTime(msg.sentAt || msg.createdAt)}</span>
-                    {msg.direction === "outgoing" && <CheckCheck className="h-3 w-3" />}
+                    {msg.direction === "outgoing" && (
+                      msg.status === "pending" ? (
+                        <Clock className="h-3 w-3 animate-pulse" />
+                      ) : (
+                        <CheckCheck className="h-3 w-3" />
+                      )
+                    )}
                   </div>
                 </div>
               </div>
@@ -623,10 +717,11 @@ export function InboxPage() {
                 <p className="text-caption">Nenhuma mensagem encontrada</p>
               </div>
             )}
+            <div ref={messagesEndRef} />
           </div>
 
           {/* Composer with channel selector */}
-          <footer className="p-3 border-t border-n-border bg-n-bg">
+          <footer className="p-3 border-t border-n-border/40 bg-n-surface">
             <div className="flex items-end gap-2">
               {/* Channel toggle */}
               <div className="flex flex-col gap-1">
@@ -654,6 +749,39 @@ export function InboxPage() {
                     onChange={(e) => { const f = e.target.files?.[0]; if (f) handleAttachment(f); e.target.value = ""; }} />
                 </label>
               </div>
+              {/* Automation quick-reply */}
+              {enabledAutomations.length > 0 && (
+                <div className="relative flex flex-col gap-1">
+                  <button
+                    onClick={() => setZapOpen(!zapOpen)}
+                    className={cn("h-8 w-8 rounded-lg flex items-center justify-center border cursor-pointer transition-fast",
+                      zapOpen ? "border-n-blue/40 bg-n-blue/10 text-n-blue" : "border-n-border bg-n-surface text-n-text-dim hover:bg-n-surface-2")}
+                  >
+                    <Zap className="h-3.5 w-3.5" />
+                  </button>
+                  {zapOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setZapOpen(false)} />
+                      <div className="absolute bottom-full left-0 mb-1 w-56 rounded-lg border border-n-border bg-n-surface shadow-panel z-50 max-h-48 overflow-y-auto custom-scrollbar">
+                        <div className="px-3 py-1.5 border-b border-n-border">
+                          <span className="text-micro text-n-text-dim font-medium">Disparar automacao</span>
+                        </div>
+                        {enabledAutomations.map(a => (
+                          <button
+                            key={a.id}
+                            onClick={() => triggerAutomationMutation.mutate(a.id)}
+                            disabled={triggerAutomationMutation.isPending}
+                            className="w-full text-left px-3 py-2 text-caption text-n-text hover:bg-n-surface-2 transition-fast flex items-center gap-2"
+                          >
+                            <Zap className="h-3 w-3 text-n-blue shrink-0" />
+                            <span className="truncate">{a.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
               {/* Input */}
               <div className="flex-1">
                 {attachment && (
@@ -681,14 +809,14 @@ export function InboxPage() {
               <button
                 disabled={(!composer.trim() && !attachment) || !selectedEntry || sendMutation.isPending}
                 onClick={doSend}
-                className="h-10 w-10 rounded-lg bg-n-blue text-white flex items-center justify-center disabled:opacity-20 transition-fast active:scale-95">
+                className="h-10 w-10 shrink-0 rounded-xl bg-n-blue text-white flex items-center justify-center shadow-sm shadow-n-blue/25 disabled:opacity-20 disabled:shadow-none transition-all duration-200 hover:bg-n-blue/90 hover:shadow-md hover:shadow-n-blue/30 active:scale-95">
                 <SendHorizonal className="h-4 w-4" />
               </button>
             </div>
           </footer>
         </div>
 
-        {/* Context sidebar (right) - Editable contact panel */}
+        {/* Context sidebar (right) - Editable contact panel — hidden below xl */}
         <ContactSidebar
           contactId={selectedEntry?.contactId ?? null}
           channels={selectedEntry?.channels ?? []}
@@ -696,6 +824,22 @@ export function InboxPage() {
           messageCount={messages.length}
         />
       </div>
+
+      {/* Sheet drawer for contact panel on smaller screens (below xl) */}
+      <Sheet open={contactSheetOpen} onOpenChange={setContactSheetOpen}>
+        <SheetContent>
+          <SheetTitle className="sr-only">Detalhes do contato</SheetTitle>
+          <div className="p-4 overflow-y-auto h-full">
+            <ContactSidebar
+              contactId={selectedEntry?.contactId ?? null}
+              channels={selectedEntry?.channels ?? []}
+              lastMessageAt={selectedEntry?.lastMessageAt ?? null}
+              messageCount={messages.length}
+              inSheet
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

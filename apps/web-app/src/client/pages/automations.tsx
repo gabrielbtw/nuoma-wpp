@@ -116,7 +116,7 @@ export function AutomationsPage() {
   const automations = automationsQuery.data ?? [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         eyebrow="Regras Operacionais"
         title="Automacoes"
@@ -146,40 +146,40 @@ export function AutomationsPage() {
                 </Button>
               </DialogTrigger>
 
-              <DialogContent className="max-w-4xl rounded-xl border border-n-border bg-n-surface p-0 overflow-hidden">
-                <div className="p-4 space-y-4">
-                  <div className="space-y-1">
-                    <DialogTitle className="text-h3 text-n-text">
-                      {draft.id ? "Editar automacao" : "Nova automacao"}
-                    </DialogTitle>
-                    <DialogDescription className="text-caption text-n-text-muted">
-                      Defina quando a regra dispara, quais bloqueios se aplicam e o que deve acontecer em seguida.
-                    </DialogDescription>
-                  </div>
+              <DialogContent className="max-w-4xl max-h-[90vh] rounded-xl border border-n-border bg-n-surface p-0 flex flex-col overflow-hidden">
+                <div className="p-4 pb-2 space-y-1 shrink-0">
+                  <DialogTitle className="text-h3 text-n-text">
+                    {draft.id ? "Editar automacao" : "Nova automacao"}
+                  </DialogTitle>
+                  <DialogDescription className="text-caption text-n-text-muted">
+                    Defina quando a regra dispara, quais bloqueios se aplicam e o que deve acontecer em seguida.
+                  </DialogDescription>
+                </div>
 
+                <div className="flex-1 overflow-y-auto px-4 pb-4 custom-scrollbar">
                   <AutomationEditor value={draft} onChange={setDraft} />
+                </div>
 
-                  <div className="flex items-center justify-between border-t border-n-border pt-4">
-                    <div className="flex items-center gap-2">
-                      <span className="signal-dot active" />
-                      <span className="text-micro text-n-text-dim">Persistencia local imediata</span>
-                    </div>
-                    <div className="flex gap-3">
-                      <Button
-                        variant="ghost"
-                        className="h-9 rounded-lg px-4 text-label text-n-text-muted hover:bg-n-surface-2 transition-fast"
-                        onClick={() => setDialogOpen(false)}
-                      >
-                        Cancelar
-                      </Button>
-                      <Button
-                        className="h-9 rounded-lg bg-n-blue px-6 text-label text-white transition-fast hover:brightness-110"
-                        onClick={() => saveMutation.mutate(draft)}
-                        disabled={saveMutation.isPending}
-                      >
-                        {saveMutation.isPending ? "Processando..." : draft.id ? "Salvar" : "Ativar Regra"}
-                      </Button>
-                    </div>
+                <div className="flex items-center justify-between border-t border-n-border p-4 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className="signal-dot active" />
+                    <span className="text-micro text-n-text-dim">Persistencia local imediata</span>
+                  </div>
+                  <div className="flex gap-3">
+                    <Button
+                      variant="ghost"
+                      className="h-9 rounded-lg px-4 text-label text-n-text-muted hover:bg-n-surface-2 transition-fast"
+                      onClick={() => setDialogOpen(false)}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      className="h-9 rounded-lg bg-n-blue px-6 text-label text-white transition-fast hover:brightness-110"
+                      onClick={() => saveMutation.mutate(draft)}
+                      disabled={saveMutation.isPending}
+                    >
+                      {saveMutation.isPending ? "Processando..." : draft.id ? "Salvar" : "Ativar Regra"}
+                    </Button>
                   </div>
                 </div>
               </DialogContent>

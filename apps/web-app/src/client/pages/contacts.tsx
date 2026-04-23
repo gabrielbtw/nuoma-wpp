@@ -1,7 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, ChevronLeft, ChevronRight, Pencil, Plus, Search, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Download, Pencil, Plus, Search, SlidersHorizontal } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -235,6 +235,31 @@ export function ContactsPage() {
     setDialogOpen(true);
   }
 
+  function exportContactsCsv() {
+    const items = contactsQuery.data?.items ?? [];
+    if (items.length === 0) return;
+
+    const headers = ["Nome", "Telefone", "Email", "Instagram", "CPF", "Status", "Tags"];
+    const rows = items.map(c => [
+      c.name || "",
+      c.phone || "",
+      c.email || "",
+      c.instagram || "",
+      c.cpf || "",
+      c.status || "",
+      (c.tags || []).join("; ")
+    ]);
+
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `contatos-nuoma-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   const total = contactsQuery.data?.total ?? 0;
   const totalPages = contactsQuery.data?.totalPages ?? 1;
   const currentPage = contactsQuery.data?.page ?? page;
@@ -242,7 +267,7 @@ export function ContactsPage() {
   const pageEnd = total === 0 ? 0 : Math.min(total, pageStart + CONTACTS_PER_PAGE - 1);
 
   return (
-    <div className="space-y-6 pb-16 animate-in fade-in duration-500">
+    <div className="space-y-5 pb-16 animate-fade-in">
       <PageHeader
         eyebrow="CRM Operacional"
         title="Gestao de Contatos"
@@ -258,6 +283,10 @@ export function ContactsPage() {
                 Ver 4 versoes
               </Button>
             </Link>
+            <Button variant="outline" size="sm" onClick={exportContactsCsv} className="h-8 rounded-lg">
+              <Download className="mr-1.5 h-3.5 w-3.5" />
+              Exportar
+            </Button>
             <div className="h-4 w-px bg-n-border" />
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
@@ -352,7 +381,7 @@ export function ContactsPage() {
         }
       />
 
-      <div className="rounded-xl border border-n-border bg-n-surface p-4 space-y-4">
+      <div className="rounded-2xl border border-n-border/60 bg-n-surface p-4 space-y-4">
         <div className="grid gap-3 items-center lg:grid-cols-[1fr_auto]">
           <div className="grid gap-3 md:grid-cols-3">
             <div className="relative group">
@@ -385,10 +414,10 @@ export function ContactsPage() {
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-n-border bg-n-bg">
+        <div className="overflow-hidden rounded-xl border border-n-border/40 bg-n-bg">
           <div className="max-h-[700px] overflow-auto custom-scrollbar">
             <table className="w-full text-left">
-              <thead className="sticky top-0 z-10 bg-n-surface border-b border-n-border text-micro uppercase text-n-text-dim">
+              <thead className="sticky top-0 z-10 bg-n-surface border-b border-n-border/40 text-micro uppercase tracking-wider text-n-text-dim">
                 <tr>
                   <th className="px-4 py-3">Perfil e Identificacao</th>
                   <th className="px-4 py-3">Status e Ciclos</th>
@@ -396,17 +425,17 @@ export function ContactsPage() {
                   <th className="px-4 py-3 text-right">Controles</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-n-border-subtle">
+              <tbody className="divide-y divide-n-border/30">
                 {contactsQuery.isLoading ? (
                   <tr><td colSpan={4}><LoadingRows /></td></tr>
                 ) : (contactsQuery.data?.items ?? []).map((contact) => (
-                  <tr key={contact.id} className="group transition-fast hover:bg-n-surface-2">
+                  <tr key={contact.id} className="group transition-all duration-200 hover:bg-n-surface-2/50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-body font-semibold transition-fast",
-                          contact.instagram ? "bg-n-ig/10 text-n-ig" : "bg-n-wa/10 text-n-wa"
+                        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-body font-semibold transition-all duration-200 ring-1",
+                          contact.instagram ? "bg-n-ig/8 text-n-ig ring-n-ig/15" : "bg-n-wa/8 text-n-wa ring-n-wa/15"
                         )}>
-                          {contact.name?.charAt(0) || contact.phone?.charAt(0) || "?"}
+                          {(contact.name?.charAt(0) || contact.phone?.charAt(0) || "?").toUpperCase()}
                         </div>
                         <div className="min-w-0 space-y-0.5">
                           <h4 className="truncate text-h4 text-n-text leading-tight">{contact.name || "Sem Nome"}</h4>
@@ -468,7 +497,7 @@ export function ContactsPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-n-border">
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-n-border/40">
           <div className="space-y-0.5">
             <p className="text-micro uppercase text-n-text-dim">Navegacao da Base</p>
             <div className="flex items-center gap-2">

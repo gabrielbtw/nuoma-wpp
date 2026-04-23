@@ -1,7 +1,10 @@
 import {
   addMessage,
+  enqueueJob,
   ensureDefaultChannelAccounts,
+  getActiveChatbotsForChannel,
   getMessageByExternalId,
+  matchChatbotRule,
   normalizeInstagramHandle,
   rememberInstagramThreadForContact,
   resolveInstagramContactFromLastMessage,
@@ -12,11 +15,16 @@ import {
 import { getInstagramAssistedService } from "./instagram-assisted.js";
 
 function stableMessageExternalId(thread: InstagramAssistedThreadSnapshot, messageIndex: number, message: InstagramAssistedThreadSnapshot["messages"][number]) {
-  if (message.externalId) {
+  // Only trust externalIds that are NOT positional ig-browser-* IDs (those are unstable across syncs)
+  if (message.externalId && !message.externalId.startsWith("ig-browser-") && !message.externalId.startsWith("ig-fixture-")) {
     return message.externalId;
   }
 
-  return `ig:${thread.threadId}:${messageIndex}:${message.direction}:${message.sentAt ?? "na"}:${Buffer.from(message.body).toString("base64url").slice(0, 32)}`;
+  // Stable content-based ID: threadId + position-from-end + direction + body hash
+  // Using position-from-end (not from start) so existing messages keep their IDs when new ones arrive
+  const posFromEnd = thread.messages.length - 1 - messageIndex;
+  const bodyHash = Buffer.from(message.body).toString("base64url").slice(0, 40);
+  return `ig:${thread.threadId}:e${posFromEnd}:${message.direction}:${bodyHash}`;
 }
 
 export async function syncInstagramInboxToDatabase(options?: {
@@ -136,6 +144,35 @@ export async function syncInstagramInboxToDatabase(options?: {
         receivedAt: latestIncomingAt
       });
       automationsQueued += automationResult.queued;
+
+      // Evaluate chatbot rules against the latest incoming message
+      const latestIncoming = [...thread.messages].reverse().find((m) => m.direction === "incoming");
+      if (latestIncoming) {
+        const activeChatbots = getActiveChatbotsForChannel("instagram");
+        for (const chatbot of activeChatbots) {
+          const rule = matchChatbotRule(chatbot.id, latestIncoming.body);
+          if (rule && rule.responseBody) {
+            enqueueJob({
+              type: "send-assisted-message",
+              dedupeKey: `chatbot:${conversation.id}:${rule.id}:${latestIncoming.sentAt ?? Date.now()}`,
+              payload: {
+                source: "rule" as const,
+                channel: "instagram" as const,
+                conversationId: conversation.id,
+                contactId: matched.contact.id,
+                externalThreadId: thread.threadId,
+                recipientDisplayValue: normalizedUsername,
+                recipientNormalizedValue: normalizedUsername,
+                text: rule.responseBody,
+                contentType: rule.responseType !== "text" ? rule.responseType : "text" as const,
+                mediaPath: rule.responseMediaPath ?? null,
+                ruleId: rule.id
+              }
+            });
+            break; // First matching chatbot wins
+          }
+        }
+      }
     }
   }
 

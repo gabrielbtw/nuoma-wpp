@@ -197,7 +197,7 @@ export const campaignStepInputSchema = z
     conditionValue: z.string().trim().optional().nullable().default(null),
     conditionAction: z.enum(conditionActionValues).optional().nullable().default(null),
     conditionJumpTo: z.coerce.number().int().min(0).optional().nullable().default(null),
-    attendantId: z.string().trim().optional().nullable().default(null)
+    attendantId: z.string().trim().optional().nullable()
   })
   .superRefine((value, ctx) => {
     if (value.type === "wait" && value.waitMinutes == null) {
@@ -302,12 +302,14 @@ export const sendJobPayloadSchema = z.object({
   automationId: z.string().optional().nullable().default(null),
   ruleId: z.string().optional().nullable().default(null),
   stepId: z.string().optional().nullable().default(null),
-  contentType: z.enum(["text", "audio", "image", "video", "document", "link"]),
+  contentType: z.enum(["text", "audio", "image", "images", "video", "document", "link"]),
   text: z.string().default(""),
   mediaPath: z.string().optional().nullable().default(null),
+  mediaPaths: z.array(z.string()).optional().nullable().default(null),
   caption: z.string().default(""),
   sendFileFirst: z.boolean().default(false),
-  attendantId: z.string().optional().nullable().default(null)
+  attendantId: z.string().optional().nullable().default(null),
+  pendingMessageId: z.string().optional().nullable().default(null)
 }).superRefine((value, ctx) => {
   if (value.channel === "whatsapp" && (!value.phone?.trim() || value.phone.trim().length < 6)) {
     ctx.addIssue({
@@ -597,6 +599,8 @@ export interface ChatbotRuleRecord {
   changeStatus: string | null;
   flagForHuman: boolean;
   enabled: boolean;
+  triggerAutomationId: string | null;
+  phoneDddFilter: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -619,7 +623,9 @@ export const chatbotInputSchema = z.object({
     applyTag: z.string().trim().optional().nullable().default(null),
     changeStatus: z.string().trim().optional().nullable().default(null),
     flagForHuman: z.boolean().default(false),
-    enabled: z.boolean().default(true)
+    enabled: z.boolean().default(true),
+    triggerAutomationId: z.string().trim().optional().nullable().default(null),
+    phoneDddFilter: z.string().trim().optional().nullable().default(null)
   })).default([])
 });
 export type ChatbotInput = z.infer<typeof chatbotInputSchema>;

@@ -7,6 +7,7 @@ import {
   getWorkerState,
   loadEnv,
   processAutomationTick,
+  processMessageReceivedTriggers,
   processCampaignTick,
   recordSystemEvent,
   releaseStaleJobLocks,
@@ -18,20 +19,23 @@ const logger = createLogger("scheduler");
 let cycleInFlight = false;
 
 async function cleanupTempFiles() {
-  const entries = await fs.readdir(env.TEMP_DIR, { withFileTypes: true }).catch(() => []);
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
 
-  for (const entry of entries) {
-    if (!entry.isFile()) {
-      continue;
-    }
+  for (const dir of [env.TEMP_DIR, env.SCREENSHOTS_DIR]) {
+    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
 
-    const target = path.join(env.TEMP_DIR, entry.name);
-    const stat = await fs.stat(target).catch(() => null);
-    if (!stat || stat.mtimeMs > cutoff) {
-      continue;
+    for (const entry of entries) {
+      if (!entry.isFile()) {
+        continue;
+      }
+
+      const target = path.join(dir, entry.name);
+      const stat = await fs.stat(target).catch(() => null);
+      if (!stat || stat.mtimeMs > cutoff) {
+        continue;
+      }
+      await fs.rm(target, { force: true }).catch(() => null);
     }
-    await fs.rm(target, { force: true }).catch(() => null);
   }
 }
 
@@ -114,6 +118,7 @@ async function runCycle() {
       recordSystemEvent("scheduler", "warn", `Released ${releasedLocks} stale job lock(s)`, { releasedLocks });
     }
 
+    const msgTriggers = processMessageReceivedTriggers();
     const automations = processAutomationTick();
     const campaigns = processCampaignTick();
     await cleanupTempFiles();
@@ -124,11 +129,18 @@ async function runCycle() {
       campaignQueued: campaigns.queued,
       correlationId
     });
-    recordSystemEvent("scheduler", "info", "Scheduler cycle completed", {
-      correlationId,
-      automations,
-      campaigns
-    });
+
+    // Only record visible event when actual work was done to avoid log noise
+    const hadWork = automations.queued > 0 || campaigns.queued > 0 || msgTriggers.queued > 0 || releasedLocks > 0;
+    if (hadWork) {
+      recordSystemEvent("scheduler", "info", "Scheduler cycle completed", {
+        correlationId,
+        automations,
+        campaigns
+      });
+    } else {
+      logger.debug({ correlationId }, "Scheduler cycle completed (no-op)");
+    }
   } catch (error) {
     logger.error({ err: error, correlationId }, "Scheduler cycle failed");
     recordSystemEvent("scheduler", "error", "Scheduler cycle failed", {

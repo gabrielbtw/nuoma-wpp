@@ -18,6 +18,8 @@ function mapRule(row: Record<string, unknown>): ChatbotRuleRecord {
     changeStatus: (row.change_status as string) ?? null,
     flagForHuman: Boolean(row.flag_for_human),
     enabled: Boolean(row.enabled),
+    triggerAutomationId: (row.trigger_automation_id as string) ?? null,
+    phoneDddFilter: (row.phone_ddd_filter as string) ?? null,
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at)
   };
@@ -117,8 +119,8 @@ function replaceRules(chatbotId: string, rules: ChatbotInput["rules"]) {
   db.prepare("DELETE FROM chatbot_rules WHERE chatbot_id = ?").run(chatbotId);
 
   const insert = db.prepare(
-    `INSERT INTO chatbot_rules (id, chatbot_id, priority, match_type, keyword_pattern, response_type, response_body, response_media_path, apply_tag, change_status, flag_for_human, enabled, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO chatbot_rules (id, chatbot_id, priority, match_type, keyword_pattern, response_type, response_body, response_media_path, apply_tag, change_status, flag_for_human, enabled, trigger_automation_id, phone_ddd_filter, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
 
   for (let i = 0; i < rules.length; i++) {
@@ -126,7 +128,8 @@ function replaceRules(chatbotId: string, rules: ChatbotInput["rules"]) {
     insert.run(
       r.id?.trim() || randomUUID(), chatbotId, r.priority ?? i, r.matchType, r.keywordPattern,
       r.responseType, r.responseBody, r.responseMediaPath ?? null,
-      r.applyTag ?? null, r.changeStatus ?? null, r.flagForHuman ? 1 : 0, r.enabled ? 1 : 0, now, now
+      r.applyTag ?? null, r.changeStatus ?? null, r.flagForHuman ? 1 : 0, r.enabled ? 1 : 0,
+      r.triggerAutomationId ?? null, r.phoneDddFilter ?? null, now, now
     );
   }
 }
@@ -134,13 +137,33 @@ function replaceRules(chatbotId: string, rules: ChatbotInput["rules"]) {
 /**
  * Match an incoming message against chatbot rules. Returns first matching rule or null.
  */
-export function matchChatbotRule(chatbotId: string, messageText: string): ChatbotRuleRecord | null {
+/**
+ * Extract the DDD (area code) from a Brazilian phone number.
+ * Handles formats like "5531...", "+5531...", "31..." etc.
+ */
+function extractDdd(phone: string): string | null {
+  const digits = phone.replace(/\D/g, "");
+  const withoutCountry = digits.startsWith("55") && digits.length >= 12 ? digits.slice(2) : digits;
+  return withoutCountry.length >= 2 ? withoutCountry.slice(0, 2) : null;
+}
+
+export function matchChatbotRule(chatbotId: string, messageText: string, phone?: string | null): ChatbotRuleRecord | null {
   const chatbot = getChatbot(chatbotId);
   if (!chatbot || !chatbot.enabled) return null;
 
   const text = messageText.toLowerCase().trim();
   for (const rule of chatbot.rules) {
     if (!rule.enabled) continue;
+
+    // DDD filter: skip rule if phone doesn't match required DDDs
+    if (rule.phoneDddFilter) {
+      if (!phone) continue;
+      const ddd = extractDdd(phone);
+      if (!ddd) continue;
+      const allowedDdds = rule.phoneDddFilter.split(",").map((d) => d.trim());
+      if (!allowedDdds.includes(ddd)) continue;
+    }
+
     const pattern = rule.keywordPattern.toLowerCase().trim();
     let matched = false;
 

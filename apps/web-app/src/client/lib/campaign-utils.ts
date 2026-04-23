@@ -15,6 +15,7 @@ export type CampaignStepDraft = {
   conditionValue?: string | null;
   conditionAction?: ConditionAction;
   conditionJumpTo?: number | null;
+  attendantId?: string | null;
 };
 
 export type CampaignDraft = {
@@ -184,7 +185,8 @@ export function normalizeCampaignStepForType(step: CampaignStepDraft, type: Camp
     ...step,
     type,
     waitMinutes: null,
-    tagName: null
+    tagName: null,
+    attendantId: type === "audio" ? (step.attendantId ?? null) : null
   };
 }
 

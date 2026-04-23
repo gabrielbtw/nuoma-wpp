@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { automationRuleInputSchema, createAutomation, getAutomation, listAutomations, setAutomationEnabled, updateAutomation } from "@nuoma/core";
+import { automationRuleInputSchema, cancelAutomationRun, createAutomation, createAutomationRun, getAutomation, getOpenAutomationRunForContact, listAutomations, setAutomationEnabled, updateAutomation } from "@nuoma/core";
 
 export async function registerAutomationRoutes(app: FastifyInstance) {
   app.get("/automations", async () => listAutomations());
@@ -38,5 +38,38 @@ export async function registerAutomationRoutes(app: FastifyInstance) {
     }
 
     return setAutomationEnabled(params.id, !existing.enabled);
+  });
+
+  app.post("/automations/:id/trigger", async (request, reply) => {
+    const params = request.params as { id: string };
+    const body = request.body as { contactId: string; conversationId?: string };
+
+    const automation = getAutomation(params.id);
+    if (!automation) {
+      reply.code(404);
+      return { error: "Automacao nao encontrada" };
+    }
+
+    if (!body.contactId) {
+      reply.code(400);
+      return { error: "contactId obrigatorio" };
+    }
+
+    // If there's an open run, cancel it before creating a new one.
+    // Manual trigger from inbox should always restart the sequence from the beginning.
+    const openRun = getOpenAutomationRunForContact(automation.id, body.contactId);
+    if (openRun) {
+      cancelAutomationRun(openRun.id as string);
+    }
+
+    const run = createAutomationRun({
+      automationId: automation.id,
+      contactId: body.contactId,
+      conversationId: body.conversationId ?? null,
+      nextRunAt: new Date().toISOString()
+    });
+
+    reply.code(201);
+    return { runId: run?.id ?? null, message: "Automacao disparada" };
   });
 }
