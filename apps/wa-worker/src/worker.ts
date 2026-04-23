@@ -1384,8 +1384,8 @@ export class WhatsAppWorker {
       }
 
       const uploadedAudioPath = await this.prepareMediaForUpload(resolvedAudioPath, payload.contentType, correlationId);
-      this.lastOpenPhone = null;
       await this.sendVoiceRecording(phone, uploadedAudioPath, correlationId);
+      this.lastOpenPhone = phone; // browser is already on this chat after voice recording
       return;
     }
 
@@ -1450,7 +1450,7 @@ export class WhatsAppWorker {
         });
       }
 
-      await this.page.waitForTimeout(1500);
+      await this.page.waitForTimeout(800);
     } else if (payload.text) {
       await composer.waitFor({ timeout: 15_000 }).catch(() => null);
       // Type the text into composer
