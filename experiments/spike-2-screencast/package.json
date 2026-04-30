@@ -1,0 +1,24 @@
+{
+  "name": "spike-2-screencast",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Spike 2 — CDP Page.startScreencast relay with canvas and input forwarding.",
+  "scripts": {
+    "start": "tsx server.ts",
+    "start:launch": "tsx server.ts --launch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "chrome-remote-interface": "^0.33.3",
+    "playwright": "^1.55.0",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/chrome-remote-interface": "^0.31.14",
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
