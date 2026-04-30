@@ -1,0 +1,6 @@
+node_modules/
+spike.db
+spike.db-shm
+spike.db-wal
+metrics.jsonl
+*.log
