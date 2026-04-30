@@ -1,5 +1,38 @@
 # Nuoma WPP - Claude Code Context
 
+> **Status (Abril 2026)**: V1 em modo **manutenção** (só patches críticos). V2 em **Fase 0 de Prova** (4 spikes técnicos antes de criar `nuoma-wpp-v2/`). Documentação completa: [`docs/architecture/V2_DECISION.md`](docs/architecture/V2_DECISION.md), [`docs/architecture/V2_SPIKES.md`](docs/architecture/V2_SPIKES.md), [`docs/IMPROVEMENTS_ROADMAP.md`](docs/IMPROVEMENTS_ROADMAP.md).
+
+## ⚠️ Invariantes não-negociáveis (NÃO REGREDIR EM V1 NEM V2)
+
+<critical>
+
+### IC-1 — Áudio (voice recording)
+
+A implementação atual em [`apps/wa-worker/src/worker.ts:1474+`](apps/wa-worker/src/worker.ts) está **PERFEITA** (palavra do owner). Resolvida nos commits `25c075c` (voice recording), `73d4322` (ffprobe + WAV 48kHz), `910615f` (perf), `f344094` (focus).
+
+**NÃO TOCAR**:
+- Web Audio API injection via `addInitScript`
+- Encoding WAV 48kHz mono 16-bit
+- ffprobe pra duração exata
+- MediaSource feed pro WhatsApp aceitar como voice **nativa** (não anexo)
+- Sem `bringToFront()` durante gravação
+- Sem relaunch de browser pra mandar voice
+
+Detalhe completo: [`docs/adr/0010-preserve-v1-audio-and-multistep-sender.md`](docs/adr/0010-preserve-v1-audio-and-multistep-sender.md).
+
+### IC-2 — Multi-step sender sem reload entre steps
+
+Otimização introduzida no commit `910615f` ("speed up photo send after audio - skip re-navigation"). Quando uma campanha tem múltiplos steps pro mesmo destinatário (foto → áudio → texto), o worker mantém a conversa aberta entre steps, sem re-navegar.
+
+**NÃO TOCAR**:
+- Lógica de reaproveitamento de conversa em `processJob`
+- Estado em memória `currentConversationId + lastInteractionAt` (se já existir; senão IC-2 está implícito na sequência)
+- Não voltar pra home do WhatsApp entre destinatários
+
+Smoke test mensal manual (item V1.17): enviar áudio + foto + texto pra contato de teste; cronometrar tempo total; revert se regredir vs baseline.
+
+</critical>
+
 ## What is this project
 
 Local-first operational CRM with omnichannel automation for WhatsApp and Instagram.
@@ -98,16 +131,45 @@ Data lake (tables `data_lake_*`) and AI integrations (OpenAI, Ollama, Whisper) e
 
 ## Current roadmap priorities
 
-1. **Campaign builder** - templates, conditions, preview, evergreen campaigns
-2. **Builder unificado** - shared component for campaigns, automations, chatbot
-3. **Inbox unificada** - single timeline per contact (WA+IG mixed)
-4. **Contact narrative ledger** - timeline view of contact journey
-5. **Segmentacao avancada** - reusable AND/OR filter builder
-6. **Automacoes com eventos** - event-based triggers + compound conditions
-7. **Chatbot** - keyword rules first, visual builder later
-8. **Dashboard errors** - failure badge with details
+**Fonte canônica do roadmap**: [`docs/IMPROVEMENTS_ROADMAP.md`](docs/IMPROVEMENTS_ROADMAP.md) (402 itens em V1 patches + V2 fases + R3F + 4 spikes gate).
 
-See `PLANS.md` for the hygiene/refactoring backlog.
+### V1 (modo manutenção, ~17 patches críticos)
+
+1. Dedup key com expiração (V1.1)
+2. Watchdog backoff exponencial (V1.2)
+3. Paginação cursor em `listConversations` e `listMessagesForConversation` (V1.3, V1.4)
+4. Quarantine após 5 falhas (V1.5)
+5. Backup S3 diário em `s3://nuoma-files/nuoma-wpp/` (V1.10)
+6. Memory pressure monitor + Web Push (V1.11)
+7. **Anti-regressão IC-1, IC-2** (V1.16, V1.17)
+
+Todos detalhados em `docs/IMPROVEMENTS_ROADMAP.md` seção V1.
+
+### V2 (Fase 0 de Prova ativa antes de qualquer outra coisa)
+
+Antes de criar `nuoma-wpp-v2/`, executar 4 spikes técnicos:
+
+1. **Spike 1** — CDP observer captura msg real <3s (skill `/wa-cdp-sync-spike`)
+2. **Spike 2** — Page.startScreencast latência <300ms
+3. **Spike 3** — Áudio do V1 portado literal funciona em container [IC-1] (skill `/wa-voice-regression`)
+4. **Spike 4** — Migration dryrun lê SQLite V1 + schema Drizzle válido (skill `/v1-to-v2-migration-dryrun`)
+
+Sem 4 verdes, **NÃO** criar V2. Spec completa em [`docs/architecture/V2_SPIKES.md`](docs/architecture/V2_SPIKES.md).
+
+See `PLANS.md` for the hygiene/refactoring backlog (legacy).
+
+## Skills customizadas pro projeto
+
+Em `.claude/skills/`. Invocação via `/<skill-name>`:
+
+- `/nuoma-debug`, `/nuoma-review`, `/nuoma-api`, `/nuoma-migration` — operacionais V1 (existentes).
+- `/nuoma-builder`, `/nuoma-inbox`, `/nuoma-segment`, `/nuoma-component`, `/nuoma-feature`, `/nuoma-page`, `/nuoma-refactor` — features (existentes).
+- `/wa-cdp-sync-spike` — Spike 1: CDP observer + latency measurement.
+- `/wa-voice-regression` — Spike 3: validar áudio (IC-1) em container.
+- `/wa-session-runbook` — operações de sessão WhatsApp (QR, profile, OOM, cutover).
+- `/v1-to-v2-migration-dryrun` — Spike 4: ler V1 SQLite + schema Drizzle candidato.
+- `/nuoma-worker-observability` — diagnóstico de jobs travados, dedupe, DLQ, scheduler heartbeat.
+- `/nuoma-cutover-checklist` — protocolo V1→V2 cutover (gate 1-5 + execução em 7 phases + rollback).
 
 ## Active remarketing campaigns
 
