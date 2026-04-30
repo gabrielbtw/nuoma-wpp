@@ -2,7 +2,7 @@
 
 Documento de referência para Spike 4 + ferramenta de migração futura. Lista cada tabela operacional do V1 e como deve ser mapeada para o schema V2.
 
-**Status**: rascunho de Spike 4. Será preenchido com contagens reais e decisões pendentes durante o spike.
+**Status**: Spike 4a executado em 2026-04-30. Resultado VERDE com política aceita: dry-run leu 488.511 linhas em 2.257ms, schema Drizzle candidato compilou e não houve JSON inválido nem tabela obrigatória ausente. Orphans ligados a contatos apagados serão pulados no import operacional; depois a estabilização V2 roda resync geral. Ver `experiments/spike-4-migration/REPORT.md`.
 
 ## Princípios
 
@@ -34,7 +34,7 @@ V1 → V2: 1:1, com adição de `user_id=1`.
 |---|---|---|
 | `id` | `id` | preserva |
 | — | `user_id` | injeta `1` |
-| `phone` | `phone` | mantém UNIQUE constraint condicional |
+| `phone` | `phone` | nullable; contato pode existir só por Instagram. UNIQUE deve ignorar NULL por `user_id`. |
 | `name` | `name` | |
 | `email` | `email` | |
 | `cpf` | `cpf` | |
@@ -60,7 +60,7 @@ Orphans esperados: nenhum (contacts é raiz).
 | `last_message_at` | `last_message_at` | |
 | `unread_count` | `unread_count` | reset > 100 (já tratado no commit 6a090d8) |
 
-Orphans possíveis: conversations com `contact_id` apontando pra contact que não existe → reporta + opção de criar contato fantasma.
+Orphans possíveis: conversations com `contact_id` apontando pra contact que não existe → importar conversa com `contact_id=NULL` quando houver identificador externo; não criar contato fantasma.
 
 ### `messages`
 
@@ -160,11 +160,14 @@ NÃO migra. V2 começa com worker_state limpo.
 
 ## Decisões pendentes (esperando Spike 4)
 
-- [ ] Como tratar campaign_executions legacy com IDs que conflitam com campaign_recipients novos.
-- [ ] Como tratar messages sem `external_id` que serão re-detectadas pelo sync V2 (insert OR ignore deve handle, mas validar).
-- [ ] Estratégia de import: incremental (uma tabela por vez, com FK constraints diferidas) ou bulk (transação única)?
-- [ ] Orphans: criar contacts fantasma com `name='Migration orphan'` ou pular?
-- [ ] Limite de tamanho do DB final pós-import (estimar volume).
+- [x] `campaign_executions` legacy: tabela existe, mas está vazia no snapshot de 2026-04-30.
+- [x] 3.687 `messages` sem `external_id`: manter `external_id` nullable e confiar no reconcile V2 para dedupe futuro.
+- [x] 63 `contacts` sem `phone`: aceito. V2 permite `phone=NULL` porque contato pode existir só por Instagram.
+- [x] Orphans: pular dependentes operacionais de contatos apagados (`contact_tags`, `contact_channels`, `contact_history`, `automation_*`) em vez de criar contatos fantasma.
+- [x] `campaign_recipients` com `contact_id` órfão: preservar por telefone e importar com `contact_id=NULL`.
+- [x] `audit_logs` com referências órfãs: preservar histórico sem FK forte ou zerar FK, porque são 272.408 referências órfãs históricas.
+- [x] Estabilização: rodar resync geral após import para reconstruir estado operacional recente.
+- [x] Performance: dry-run completo em 2.257ms contra DB de 203.534.336 bytes, abaixo do limite de 60s.
 
 ## Pós-cutover
 

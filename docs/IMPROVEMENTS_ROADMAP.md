@@ -1,9 +1,9 @@
 # Nuoma WPP — Roadmap de Melhorias (V1 + V2)
 
-Documento canônico das **387 melhorias** identificadas no scan de Abril 2026, divididas em:
+Documento canônico das **402 melhorias** identificadas no scan de Abril 2026, divididas em:
 
-- **V1** (`/Users/gabrielbraga/Projetos/nuoma-wpp`) — patches mínimos pra manter vivo (17 itens)
-- **V2** (`/Users/gabrielbraga/Projetos/nuoma-wpp-v2`) — greenfield, 16 fases, 370 itens
+- **V1** (`/Users/gabrielbraga/Projetos/nuoma-wpp`) — referência de patches mínimos (17 itens), **não executar agora por decisão do owner**
+- **V2** (`/Users/gabrielbraga/Projetos/nuoma-wpp-v2`) — greenfield, 16 fases, 370 itens + R3F opcional
 
 Convenções:
 
@@ -17,9 +17,11 @@ Plano fonte: [`/Users/gabrielbraga/.claude/plans/eu-quero-que-voc-cryptic-lobste
 
 ---
 
-## V1 — Patches mínimos (17 itens)
+## V1 — Patches mínimos (17 itens) — não executar agora
 
-V1 entra em modo manutenção. Recebe **só o que dói operacionalmente**. Estimativa: 1-2 sprints.
+**Status em 2026-04-30**: cancelado/adiado por decisão do owner. V1 fica congelado em manutenção mínima: não aplicar V1.1-V1.17 antes das provas do V2. Estes itens ficam preservados apenas como referência técnica caso algum incidente obrigue hotfix no V1.
+
+Continuam invioláveis mesmo sem os patches: **IC-1 áudio** e **IC-2 multi-step sender**.
 
 | id | título | dep | cat | escopo |
 |---|---|---|---|---|
@@ -53,6 +55,34 @@ V1 entra em modo manutenção. Recebe **só o que dói operacionalmente**. Estim
 | **G.2** | Spike 2 — `Page.startScreencast` latência <300ms, bandwidth <3 Mbps, estável 10min | 3 dias | toda Fase V2.12, parte ADR 0007 |
 | **G.3** | Spike 3 — Áudio do V1 portado literal em container Docker funciona [IC-1] | 2 dias | V2.5.21, ADR 0010 |
 | **G.4** | Spike 4 — Migration dryrun lê SQLite V1 + schema Drizzle válido + contagens batem | 2 dias | toda Fase V2.3, ADR 0005 |
+
+### Ajuste G.1 — 2026-04-30
+
+Rodada parcial do Spike 1 ficou **AMARELA**: CDP + binding + SQLite funcionaram com p95 de 2 ms, mas a cobertura foi só 4 `message-added` de 50 esperadas. Antes de aprovar G.1, executar uma subfase obrigatória:
+
+Regra crítica adicionada após análise do owner: **`unread`/badge nunca é fonte de verdade**, só sinal de prioridade. Uma conversa pode ser marcada como lida por outro aparelho antes do worker ver as mensagens; portanto o sync correto precisa reconciliar **DOM observado + ledger persistido**, independentemente de unread.
+
+| id | título | critério |
+|---|---|---|
+| **G.1a** | Endurecer harness CDP observer | Capturar snapshot inicial dos bubbles visíveis, reanexar observer quando `#main` trocar, manter captura passiva global, abrir `5531982066263` apenas como alvo de envio controlado, melhorar extração de `body`, `direction`, chat id e timestamp completo (`data`, `hora`, `minuto`, `segundo`). Também provar reconcile sem depender de unread: fingerprint da sidebar, snapshot do chat aberto vs DB e tentativa de backfill anterior quando os bubbles visíveis já estiverem sincronizados. |
+| **G.1b** | Repetir rodada de 50 mensagens | Executado em 2026-04-30: 54/50 mensagens, p50 3ms, p95 17ms, max 26ms, 0 duplicatas e 0 erros de observer. Motor de evento aprovado; extração ainda amarela (`direction` desconhecido em 52/54, data/hora ausentes em 15/54), exigindo hardening antes de liberar sync V2 completo. |
+| **G.1c** | Provar fallback de detalhes da mensagem para timestamp com segundo | Concluído em 2026-04-30: `Dados da mensagem` real no WhatsApp Web Business expôs `Hoje às 11:21` e `data-pre-plain-text` expôs `[11:21, 30/04/2026]`, sem segundos. Decisão ADR 0012: persistir horário exibido pelo WPP com `timestamp_precision='minute'`, manter `messageSecond=NULL`, gravar `observed_at_utc` com segundo/milissegundo real de captura e criar `wa_inferred_second` para timeline dentro do mesmo minuto. |
+| **G.1d** | Hardening de extração de metadados | Concluído em 2026-04-30: rodada curta com mensagens novas em `5531982066263` capturou 31/30 `message-added`, p50 178ms, p95 201ms, 0 duplicatas, 0 erros, `unknown direction 0/31`, `missing date 0/31`, `missing time 0/31`. Snapshots também ficaram com `unknown direction 0/32`, `missing date 0/32`, `missing time 0/32`. |
+| **G.1e** | Rodada canônica final com observer corrigido | Concluído em 2026-04-30: 62/50 `message-added`, p50 1ms, p95 4ms, max 15ms, 0 duplicatas, 0 erros, `unknown direction 0/62`, `missing date 0/62`, `missing time 0/62`, snapshots `unknown direction 0/55`, `missing date 0/55`, `missing time 0/55`. Probe de detalhes no mesmo DB confirmou 0 segundos expostos e ativou ADR 0012. G.1 aprovado para ADR 0007/V2.6. |
+| **G.2a** | Screencast CDP local + input back | Concluído em 2026-04-30: criado `experiments/spike-2-screencast/`; frame bruto WhatsApp 1470x707 capturado via WebSocket; input back abriu conversa clicada sem enviar mensagens; latência click→frame 183ms/137ms; bandwidth passiva 10s 1,88 Mbps; estabilidade 600,02s com 1.601 frames, média 2,30 Mbps, 0 closes e 0 errors. G.2 aprovado localmente para ADR 0007/V2.12; repetir em host remoto real antes de UX hosted final. |
+| **G.3a** | Harness e payload dry-run de áudio | Concluído em 2026-04-30: criado `experiments/spike-3-voice/` com geração de WAVs 3s/30s/120s, snapshots `.bin`, metadados `.json`, Dockerfile e modo `send` bloqueado para qualquer alvo diferente de `5531982066263`. Dry-run local validou WAV PCM 48kHz mono 16-bit e `ffprobe` retornou erro 0.000ms nas 3 durações. Spike 3 segue AMARELO até E2E real no WhatsApp + Docker/Xvfb. |
+| **G.3b** | E2E real de voice nativo local | Concluído em 2026-04-30: `TARGET_PHONE=5531982066263 npm run send` enviou 3s/30s/120s, todos `delivered=true`, com evidência de voice nativo e duração exibida 3s/30s/120s (`displayErrorMs=0`). Harness calibrado para não inflar duração com wait fixo `duração + 2s`. |
+| **G.3c** | Docker/Xvfb dry-run | Concluído em 2026-04-30: `docker build -t nuoma-spike-3-voice .` e `docker run --rm nuoma-spike-3-voice` passaram com Node 22, Playwright image, Chromium, Xvfb e `ffprobe`. Pendência para verde hosted absoluto: rodar `--send` dentro de container com perfil WhatsApp autenticado. |
+| **G.4a** | Migration dry-run SQLite V1 | Concluído em 2026-04-30: criado `experiments/spike-4-migration/`; snapshot via `sqlite-backup`; 488.511 linhas escaneadas em 2.257ms; 422.963 importáveis; 65.548 puladas por regra; 0 JSON inválidos; nenhuma tabela obrigatória ausente; schema Drizzle candidato compila. Status VERDE com política aceita: `contacts.phone` nullable para contatos só Instagram; pular dependentes órfãos de contatos apagados; preservar recipients por telefone com `contact_id=NULL`; manter `messages.external_id` nullable; preservar audit logs sem FK forte; rodar resync geral na estabilização. |
+
+Desenho obrigatório para o sync V2:
+
+- DB é ledger/dedup (`external_id`, `newest_external_id`, `oldest_external_id`), não oráculo de completude.
+- DOM do WhatsApp é a verdade observada no momento; toda conversa aberta gera snapshot dos bubbles visíveis e `insertOrIgnore`.
+- `#pane-side` gera fingerprint por conversa (`title`, `lastPreview`, `sidebarTime`, `unreadCount`, `lastMessageAt` quando disponível). Mudança de fingerprint agenda probe mesmo com `unreadCount = 0`.
+- Ao abrir uma conversa, se todos os bubbles visíveis já existem no DB, o worker deve rolar uma janela para cima e tentar capturar mensagens anteriores até encontrar fronteira já conhecida ou bater orçamento.
+- Separar três loops: realtime observer, reconcile/hot-window e historical backfill. Unread só aumenta prioridade dentro do hot-window.
+- Timestamp de mensagem é requisito de produto: persistir data + hora exibida pelo WhatsApp e precisão declarada. Primeiro tentar `data-pre-plain-text`; o probe G.1c confirmou que o WhatsApp Web Business atual só expõe precisão de minuto também em `Dados da mensagem`. Portanto, V2 deve salvar `timestamp_precision='minute'`, deixar `messageSecond` nulo quando o WhatsApp não expuser segundo, gravar `observed_at_utc` com segundo/milissegundo real da captura e derivar `wa_inferred_second` pela ordem DOM para ordenar mensagens dentro do mesmo minuto. Regra: no grupo conversa+data+hora:minuto, a mensagem mais recente recebe segundo sintético `59`, a anterior `58`, a anterior `57`, etc.; se houver mais de 60 mensagens no mesmo minuto, usar também sequência intra-minuto para desempate.
 
 **Decisão pós-4-spikes:**
 
@@ -224,6 +254,7 @@ Drizzle + migrations + repos.
 | | → Web Audio API injection via `addScriptToEvaluateOnNewDocument`, captura PCM, encode WAV 48kHz mono 16-bit, ffprobe duração exata, MediaSource feed pra WhatsApp aceitar como voice nativo. Tests E2E + snapshot do payload obrigatórios. Sem regressão vs V1. | | |
 | **V2.5.22 [IC-2]** | Sender multi-step sem reload entre steps | V2.5.5 | perf |
 | | → Quando próximo job é mesmo conversationId e scheduled <30s, pula re-navigation; quando muda destinatário, vai direto pra próxima conversa sem voltar pra home; estado em memória `currentConversationId + lastInteractionAt`; métrica `sender_navigation_skipped_count`. | | |
+| | → Futuro: suportar pre/post actions parametrizadas por conversa, incluindo ajuste de mensagens temporárias no WhatsApp antes/depois de steps de campanha/automação. Escopo obrigatório é por chat/conversa individual; nunca alterar o padrão global do WhatsApp. Essa navegação não pode quebrar o reaproveitamento de conversa do IC-2. | | |
 | V2.5.23 | Sender pipeline mídia com biblioteca pré-cached → fileChooser.setFiles direto | V2.5.5 | perf |
 | V2.5.24 | Sender retorna `external_id` do bubble enviado via observer | V2.6.4 | feature |
 | V2.5.25 | ADR-009 documenta IC-1 e IC-2 como contratos não-negociáveis | — | doc |
@@ -232,19 +263,24 @@ Drizzle + migrations + repos.
 
 Coração do V2. Resolve sync trust desde dia 1.
 
+Invariante de arquitetura: `unread`/badge é apenas heurística de prioridade. O sync V2 não pode depender de unread para decidir se uma conversa está completa, porque leitura em outro aparelho pode zerar o badge antes da sincronização local.
+
 | id | título | dep | cat |
 |---|---|---|---|
 | V2.6.1 | Connect CDP via `chrome-remote-interface` em `127.0.0.1:9223` | V2.5.1 | feature |
 | V2.6.2 | `Page.addScriptToEvaluateOnNewDocument` injeta observer | V2.6.1 | feature |
 | V2.6.3 | Observer captura `data-id` de cada bubble | V2.6.2 | feature |
+| | → Também captura timestamp da mensagem (`data`, `hora`, `minuto`, `timestamp_precision`) e `observed_at_utc` com segundo/milissegundo. `messageSecond` só é preenchido quando o WhatsApp expõe segundo real; G.1c confirmou que o fallback de detalhes não expõe segundo no WhatsApp Web Business atual. Para timeline, derivar `wa_inferred_second` por ordem DOM dentro do mesmo minuto: mais recente `59`, anterior `58`, anterior `57`, etc. | | |
 | V2.6.4 | `Runtime.addBinding` cria `window.__nuomaSync` | V2.6.2 | feature |
 | V2.6.5 | Eventos: message-added/updated/removed, conv-unread, chat-opened, delivery-status | V2.6.4 | feature |
 | V2.6.6 | Handler `onMessageAdded` → messagesRepo.insertOrIgnore | V2.3.8 | feature |
 | V2.6.7 | Handler `onDeliveryStatusChanged` atualiza messages.status | V2.3.8 | feature |
-| V2.6.8 | Safety net forward walk a cada 60s só nos chats com unread > 0 | V2.6.6 | bug |
+| V2.6.8 | Reconcile hot-window a cada 60s sem depender de unread | V2.6.6 | bug |
+| | → Revisita conversas recentes/ativas, conversas com fingerprint de sidebar alterado, campanhas ativas e chats com unread > 0. Unread só prioriza a fila; não é condição de elegibilidade. Ao abrir chat, compara snapshot visível vs DB e, se tudo já existir, faz uma janela curta de backfill anterior. | | |
 | V2.6.9 | Métrica `sync_event_latency_ms` exposed | V2.6.6 | infra |
 | V2.6.10 | Métrica `sync_safety_net_picked_up_count` (alerta se >0) | V2.6.8 | infra |
-| V2.6.11 | Smart trigger: badge mudou no #pane-side → re-extrai aquele chat | V2.6.4 | feature |
+| V2.6.11 | Smart trigger: fingerprint mudou no #pane-side → re-extrai aquele chat | V2.6.4 | feature |
+| | → Fingerprint mínimo: título/phone, preview, horário da sidebar, unreadCount e marcador de canal. Qualquer mudança agenda reconcile mesmo quando unread continua zero. | | |
 | V2.6.12 | Procedure `sync.forceConversation(convId)` | V2.6.6 | feature |
 | V2.6.13 | Detector DOM-WA-changed → push notification admin | V2.6.4 | infra |
 | V2.6.14 | Edge case msgs encaminhadas (prefixo) | V2.6.6 | bug |
@@ -438,6 +474,7 @@ Coração do V2. Resolve sync trust desde dia 1.
 | V2.10.8 | Evergreen mode auto-avaliação | V2.7.5 | feature |
 | V2.10.9 | Pause/resume campanha | V2.7.5 | feature |
 | V2.10.10 | Audit per recipient | V2.3.15 | feature |
+| | → Futuro: opção parametrizada por campanha/automação para executar em janela de mensagens temporárias. Parâmetros mínimos: `temporaryMessages.enabled`, `temporaryMessages.beforeSendDuration` (default `24h`), `temporaryMessages.afterCompletionDuration` (default `90d`), `temporaryMessages.restoreOnFailure` (default `true`). Fluxo esperado por chat/conversa: abrir chat, ajustar mensagens temporárias daquele chat para `beforeSendDuration`, voltar, enviar todos os steps previstos para aquela conversa, abrir detalhes/contato novamente e restaurar aquele chat para `afterCompletionDuration`. Em falha no meio, se `restoreOnFailure=true`, restaurar para `afterCompletionDuration` imediatamente antes de marcar retry/falha. Nunca alterar o padrão global do WhatsApp nem tentar restaurar "valor anterior"; a regra padrão confirmada é restaurar para `90d`. Precisa de auditoria por chat registrando parâmetros usados. | | |
 | **V2.10.11 [IC-2]** | Campaign scheduler agrupa steps mesmo phone | V2.5.22 | perf |
 | | → enfileira jobs com `scheduled_at` próximos (intra-batch ≤8s) pra que sender V2.5.22 reaproveite conversa aberta. Sem isso IC-2 não vale nada. | | |
 | V2.10.12 | Per-recipient timeline com indicador "navegação reaproveitada" | V2.10.11 | feature |
@@ -686,10 +723,10 @@ Otimização introduzida no commit `910615f` do V1. No V2:
 
 ## Ordem de execução recomendada
 
-Confirmada pelo user: **Fase 0 (V1 patches críticos) primeiro**.
+Atualizada em 2026-04-30 por decisão do owner: **não executar patches V1 agora**. A Fase 0 ativa passa a ser a **Fase 0 de Prova do V2**.
 
 ```
-1. V1.1-V1.17                   (1-2 sprints)  ← Fase 0 confirmada
+1. G.1-G.4                      (até 10 dias)  ← Fase 0 de Prova V2 ativa
 2. V2.1                         (1 sprint)
 3. V2.2 + V2.3 + V2.4           (2 sprints)    ← Backend usável
 4. V2.5 + V2.6                  (2 sprints)    ← Worker + sync real-time
@@ -708,7 +745,7 @@ Confirmada pelo user: **Fase 0 (V1 patches críticos) primeiro**.
 ## Próximos passos
 
 1. **Aprovação implícita**: este documento substitui PLANS.md como fonte de verdade do roadmap.
-2. **Execução**: começar imediatamente com V1.1-V1.17.
+2. **Execução**: começar imediatamente pela Fase 0 de Prova do V2, iniciando pelo G.1 (CDP observer).
 3. **Tracking**: cada item recebe um issue (GitHub local ou Linear se houver). ID do issue casa com `id` aqui.
 4. **Métricas de progresso**: % completion por fase + burn-down semanal.
 5. **Revisão trimestral**: re-priorizar fases conforme aprendizado.

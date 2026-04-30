@@ -133,17 +133,14 @@ Data lake (tables `data_lake_*`) and AI integrations (OpenAI, Ollama, Whisper) e
 
 **Fonte canônica do roadmap**: [`docs/IMPROVEMENTS_ROADMAP.md`](docs/IMPROVEMENTS_ROADMAP.md) (402 itens em V1 patches + V2 fases + R3F + 4 spikes gate).
 
-### V1 (modo manutenção, ~17 patches críticos)
+### V1 (congelado, sem patches planejados agora)
 
-1. Dedup key com expiração (V1.1)
-2. Watchdog backoff exponencial (V1.2)
-3. Paginação cursor em `listConversations` e `listMessagesForConversation` (V1.3, V1.4)
-4. Quarantine após 5 falhas (V1.5)
-5. Backup S3 diário em `s3://nuoma-files/nuoma-wpp/` (V1.10)
-6. Memory pressure monitor + Web Push (V1.11)
-7. **Anti-regressão IC-1, IC-2** (V1.16, V1.17)
+Decisão do owner em 2026-04-30: **não executar V1.1-V1.17 agora**. Os patches V1 permanecem no roadmap apenas como referência técnica para incidentes/hotfixes inevitáveis.
 
-Todos detalhados em `docs/IMPROVEMENTS_ROADMAP.md` seção V1.
+Continuam obrigatórios:
+- Não tocar no áudio [IC-1].
+- Não regredir multi-step sender sem reload [IC-2].
+- Não criar refactor estrutural no V1 enquanto a prova do V2 estiver ativa.
 
 ### V2 (Fase 0 de Prova ativa antes de qualquer outra coisa)
 

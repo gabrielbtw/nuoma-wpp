@@ -14,6 +14,43 @@ Skills relacionadas (a criar): [`wa-cdp-sync-spike`](../../.claude/skills/wa-cdp
 
 Provar que dá pra detectar uma mensagem chegando no WhatsApp Web e gravá-la em DB em **<3 segundos**, usando MutationObserver injetado via CDP, com `data-id` do bubble como dedup canônico.
 
+### Ajuste após rodada parcial de 2026-04-30
+
+A primeira rodada capturou eventos reais com baixa latência, mas só 4 `message-added` de 50 esperadas. Antes de repetir a rodada completa, o harness deve:
+
+- capturar snapshot inicial dos bubbles visíveis após abrir a conversa;
+- reanexar observers quando o WhatsApp substituir `#main`;
+- manter captura passiva global;
+- usar `5531982066263` apenas como alvo permitido para envio ativo de teste;
+- melhorar extração de `body`, `direction`, chat id e timestamp completo (`data`, `hora`, `minuto`, `segundo`) a partir do DOM e `data-id`;
+- separar métricas de mensagens novas, snapshot inicial e eventos de sidebar.
+
+Correção arquitetural obrigatória: `unread`/badge é apenas sinal de prioridade, nunca sinal de completude. O WhatsApp pode marcar a conversa como lida em outro aparelho antes do worker sincronizar. O spike só pode ficar verde se o harness provar um reconcile independente de unread:
+
+- cada conversa aberta emite snapshot dos bubbles visíveis e compara com o SQLite temporário;
+- quando todos os bubbles visíveis já existem, o harness tenta uma janela de backfill anterior;
+- mudanças no `#pane-side` são tratadas por fingerprint (`title`, preview, horário, unreadCount), não apenas por badge;
+- o relatório separa perdas reais de mensagens ainda não visitadas por limite de orçamento.
+- timestamp completo é requisito: se `data-pre-plain-text` trouxer só precisão de minuto, o relatório deve ficar amarelo e apontar fallback por detalhes da mensagem para capturar segundo.
+
+### Resultado G.1b em 2026-04-30
+
+Rodada com `TARGET_PHONE=5531982066263` capturou 54 mensagens para 50 esperadas, com p50 3ms, p95 17ms, max 26ms, 0 duplicatas e 0 erros de observer. Isso aprova o motor de evento CDP para latência/cobertura.
+
+G.1d foi executado em seguida e corrigiu o bloqueio de metadados: rodada curta com mensagens novas em `5531982066263` capturou 31/30 `message-added`, p50 178ms, p95 201ms, 0 duplicatas, 0 erros, `unknown direction 0/31`, `missing date 0/31`, `missing time 0/31`. Snapshots visíveis também ficaram em `unknown direction 0/32`, `missing date 0/32`, `missing time 0/32`.
+
+Rodada canônica final G.1e em 2026-04-30, com observer corrigido: 62/50 `message-added`, p50 1ms, p95 4ms, max 15ms, 0 duplicatas, 0 erros, `unknown direction 0/62`, `missing date 0/62`, `missing time 0/62`, snapshots `unknown direction 0/55`, `missing date 0/55`, `missing time 0/55`. Probe de detalhes no mesmo DB confirmou 0 segundos expostos, então aplica ADR 0012. Decisão: Spike 1 aprovado para ADR 0007/V2.6.
+
+### G.1c — Probe de detalhes da mensagem
+
+Antes da rodada verde de 50 mensagens, executar um probe no WhatsApp real que abre dados/detalhes de uma mensagem visível e registra o texto exposto pelo menu/painel. Objetivo: confirmar se o WhatsApp Web expõe `hora:minuto:segundo`.
+
+- Se detalhes expuserem segundos: implementar fallback automático para mensagens sem `messageSecond`.
+- Se detalhes não expuserem segundos: registrar ADR com limite técnico e salvar `wa_display_time` com precisão de minuto + `observed_at_utc` com segundo real de captura.
+- O probe não deve enviar mensagens nem alterar configurações do chat.
+
+Resultado em 2026-04-30: detalhes reais da mensagem no WhatsApp Web Business (`Dados da mensagem`, `[data-testid="drawer-right"]`) não expuseram segundos. Ver ADR 0012. A rodada verde de G.1 deve exigir `data` + `hora:minuto` do WhatsApp com precisão declarada, `observed_at_utc` com segundos/milissegundos e segundo sintético de timeline (`wa_inferred_second`) quando houver múltiplas mensagens no mesmo minuto; `messageSecond` só é preenchido se o WhatsApp passar a expor esse dado.
+
 ### Critério de aceitação
 
 - 50 mensagens reais (5 lotes de 10, em 5 conversas diferentes, ao longo de 30 minutos) detectadas e gravadas.
@@ -21,6 +58,7 @@ Provar que dá pra detectar uma mensagem chegando no WhatsApp Web e gravá-la em
 - **Zero duplicatas** (cada `data-id` aparece 1× em `messages`).
 - **Zero perdas** confirmadas via comparação manual com a tela do WhatsApp.
 - Funciona com msgs de texto, imagem, áudio, encaminhada, editada.
+- Para cada mensagem capturada, registra `data`, `hora`, `minuto`, `timestamp_precision`, `observed_at_utc` com segundo/milissegundo e, quando a precisão do WhatsApp for minuto, `wa_inferred_second`/ordem intra-minuto para timeline. `messageSecond` é preenchido apenas quando o WhatsApp expõe segundo real; no WhatsApp Web Business testado em 2026-04-30, a precisão exibida foi de minuto.
 
 ### Escopo
 
@@ -28,7 +66,7 @@ Provar que dá pra detectar uma mensagem chegando no WhatsApp Web e gravá-la em
 - Conecta CDP ao `127.0.0.1:9222` (já exposto pelo Playwright do V1).
 - Injeta script via `Page.addScriptToEvaluateOnNewDocument` que:
   - Registra `MutationObserver` em `#main` e `#pane-side`.
-  - Para cada bubble novo, lê `data-id`, `data-pre-plain-text`, `direction`, body inner.
+  - Para cada bubble novo, lê `data-id`, `data-pre-plain-text`, timestamp completo, `direction`, body inner.
   - Pusha via `window.__nuomaSync(payload)` que vira `Runtime.bindingCalled`.
 - Node side recebe binding, chama um handler que:
   - Faz `INSERT OR IGNORE` num SQLite temporário (não toca DB do V1).
@@ -65,6 +103,24 @@ Provar que dá pra detectar uma mensagem chegando no WhatsApp Web e gravá-la em
 ### Objetivo
 
 Provar que dá pra streamar o Chromium do worker pra um navegador remoto via CDP `Page.startScreencast` + WebSocket relay + canvas, com latência **<300ms** em rede doméstica e bandwidth razoável (<3 Mbps média).
+
+### Resultado G.2a em 2026-04-30
+
+Harness criado em `experiments/spike-2-screencast/`:
+
+- `server.ts`: HTTP + WebSocket relay conectado ao CDP;
+- `client.html`: canvas render + mouse/wheel/keyboard forwarding;
+- modo `start:launch` sobe Chromium persistente com perfil WhatsApp e CDP `9234`.
+
+Validação local:
+
+- frame bruto do WhatsApp Business Web capturado via WebSocket: 1470x707, ~51KB;
+- input back funcionou via `Input.dispatchMouseEvent` e abriu conversa clicada no WhatsApp; nenhuma mensagem foi enviada;
+- latência click→frame após `Page.bringToFront` + ACK não-bloqueante: 183ms e 137ms;
+- bandwidth passiva 10s: 1,88 Mbps;
+- estabilidade 600,02s: 1.601 frames, 172.610.955 bytes, média 2,30 Mbps, 0 closes, 0 errors.
+
+Decisão: G.2 aprovado localmente para ADR 0007/V2.12. Antes de prometer UX hosted final, repetir entre Mac e host remoto real.
 
 ### Critério de aceitação
 
@@ -115,6 +171,18 @@ Provar que dá pra streamar o Chromium do worker pra um navegador remoto via CDP
 
 Garantir que a implementação de **voice recording** do V1 (Web Audio API injection + ffprobe + WAV 48kHz mono 16-bit) funciona em ambiente V2 (Node 22 + Playwright atualizado + Drizzle + ffprobe binário em container Docker), entregando voice nativa no WhatsApp.
 
+### Resultado G.3a em 2026-04-30
+
+Harness criado em `experiments/spike-3-voice/` com geração determinística de WAVs de 3s, 30s e 120s, snapshots `.bin`, metadados `.json`, `Dockerfile` e modo de envio real travado para o alvo permitido `5531982066263`.
+
+Dry-run local passou: os 3 payloads foram validados como WAV PCM 48kHz mono 16-bit, com `ffprobe` retornando erro de 0.000ms para 3s, 30s e 120s. `npm run typecheck` também passou. Status do Spike 3 permanece **AMARELO** até executar o E2E real no WhatsApp e validar Docker/Xvfb.
+
+### Resultado G.3b/G.3c em 2026-04-30
+
+E2E local real executado com `TARGET_PHONE=5531982066263 npm run send`: 3s, 30s e 120s entregues com `delivered=true`, evidência de voice nativo e duração exibida de 3s/30s/120s (`displayErrorMs=0`). A primeira tentativa havia provado voice nativo, mas inflou a duração por herdar o wait `duração + 2s`; o harness foi calibrado para parar perto da duração real.
+
+Docker validado para o pipeline seco: `docker build -t nuoma-spike-3-voice .` e `docker run --rm nuoma-spike-3-voice` passaram com Node 22, Playwright image, Chromium, Xvfb e `ffprobe`. Para marcar o Spike 3 como verde hosted absoluto, ainda falta executar o `--send` dentro de container com um perfil WhatsApp autenticado.
+
 ### Critério de aceitação
 
 - Áudio de 3s, 30s, 2min enviados via spike → todos chegam no WhatsApp como **voice message nativo** (não anexo de áudio com ícone de arquivo).
@@ -160,6 +228,19 @@ Garantir que a implementação de **voice recording** do V1 (Web Audio API injec
 ### Objetivo
 
 Provar que dá pra ler o SQLite atual do V1 e gerar um mapa válido das entidades pra um schema V2 candidato (Drizzle), com contagens batendo e sem perda de FK.
+
+### Resultado G.4a em 2026-04-30
+
+Harness criado em `experiments/spike-4-migration/` com:
+
+- snapshot SQLite via API de backup (`sqlite-backup`) sem tocar o DB V1;
+- inspeção de tabelas operacionais, samples redigidos, validação de tipos e JSON;
+- schema Drizzle candidato em `schema-v2-candidate.ts`;
+- dry-run que percorre todas as linhas e simula política de import sem gravar.
+
+Resultado contra `/Users/gabrielbraga/Projetos/nuoma-wpp/storage/database/nuoma.db`: 488.511 linhas escaneadas em 2.257ms, 422.963 importáveis, 65.548 puladas por regra, 0 JSON inválidos, nenhuma tabela obrigatória ausente, schema Drizzle compilando com `npm run typecheck`.
+
+Status atualizado após decisão do owner: **VERDE com política aceita**. Há 334.158 orphans brutos, incluindo 40.786 em tabelas operacionais dependentes de contatos apagados (`contact_tags`, `contact_channels`, `contact_history`, `automation_*`), mas a política final é pular dependentes órfãos no import operacional, preservar `campaign_recipients` por telefone com `contact_id=NULL`, manter `contacts.phone` nullable porque contatos futuros podem existir só por Instagram, manter `messages.external_id` nullable e preservar `audit_logs` sem FK forte ou com FK nula. A etapa de estabilização V2 deve rodar resync geral para reconstruir estado operacional recente após o import.
 
 ### Critério de aceitação
 
