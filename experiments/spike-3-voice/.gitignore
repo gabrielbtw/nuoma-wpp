@@ -1,0 +1,5 @@
+fixtures/*.wav
+payloads/*.bin
+payloads/*.json
+screenshots/*.png
+screenshots/*.html

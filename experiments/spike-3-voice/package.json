@@ -1,0 +1,21 @@
+{
+  "name": "spike-3-voice",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Spike 3 — Validate V1 WhatsApp voice recording pipeline under the V2 runtime assumptions.",
+  "scripts": {
+    "generate": "tsx run-voice-test.ts --generate-only",
+    "dry-run": "tsx run-voice-test.ts --dry-run",
+    "send": "tsx run-voice-test.ts --send",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "playwright": "^1.55.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
