@@ -77,6 +77,7 @@ Depois:
 NUOMA_ENV_FILE=.env.hosted.example docker compose config >/tmp/nuoma-compose.txt
 docker compose up -d --build
 docker compose ps
+docker compose ps --format 'table {{.Name}}\t{{.Status}}'
 curl -fsS http://127.0.0.1:8080/health
 ```
 
@@ -183,12 +184,25 @@ No servidor:
 
 ```bash
 cd /srv/nuoma-wpp-v2
-docker compose up -d --build
+docker compose ps --format 'table {{.Name}}\t{{.Status}}'
+curl -fsS http://127.0.0.1:8080/health
 docker compose logs --tail=100 api worker
 ```
 
 O deploy não apaga `data/`; a sessão do WhatsApp deve sobreviver porque o
 perfil fica em `/srv/nuoma-wpp-v2/data/chromium-profile/whatsapp`.
+
+`infra/scripts/deploy.sh` executa `npm ci`, `npm run typecheck`, `npm test`,
+`npm run build`, sincroniza o código, sobe `docker compose up -d --build` por
+padrão e valida `http://127.0.0.1:8080/health` por até 60 segundos. Para apenas
+sincronizar arquivos sem subir o Compose, use:
+
+```bash
+NUOMA_V2_REMOTE_COMPOSE_UP=false infra/scripts/deploy.sh
+```
+
+Se o health check pós-deploy falhar, o script imprime `docker compose ps` e os
+últimos logs de `api`, `web`, `worker` e `caddy`, sem apagar `data/`.
 
 ## Backup e restore
 

@@ -37,10 +37,9 @@ Escopo: este checkpoint considera somente o repo `nuoma-wpp-v2`.
    - estados reais de loading/erro/sem contato.
 
 3. Fechar infra mínima de `V2.14` antes de qualquer cutover:
-   - healthcheck docker-compose;
-   - resource limits;
-   - pre-deploy hook;
-   - post-deploy health check com rollback documentado.
+   - rollback automatizado ou procedimento de rollback com release anterior;
+   - backup automatizado validado;
+   - restore interativo.
 
 ## Deixar para depois
 
