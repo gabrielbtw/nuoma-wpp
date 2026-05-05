@@ -1041,6 +1041,10 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     const apiStatus = text(data.apiStatus) || text(state.apiStatus) || "offline";
     const apiLastMethod = text(data.apiLastMethod) || text(state.apiLastMethod);
     const apiLastError = text(data.apiLastError) || text(state.apiLastError);
+    const isApiLoading = state.apiInFlight || apiStatus === "loading";
+    const hasApiError = apiStatus === "error" || Boolean(apiLastError);
+    const hasNoContact =
+      Boolean(phone) && !isApiLoading && !hasApiError && data.source === "nuoma-api" && contact === null;
 
     const header = document.createElement("div");
     header.className = "nuoma-panel-header";
@@ -1067,6 +1071,44 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     const body = document.createElement("div");
     body.className = "nuoma-panel-body";
     body.tabIndex = 0;
+
+    if (isApiLoading) {
+      appendPanelState(
+        body,
+        "Carregando contato",
+        "Buscando resumo, automacoes elegiveis, mensagens recentes e notas pelo bridge seguro.",
+        "loading",
+      );
+    }
+
+    if (hasApiError) {
+      appendPanelState(
+        body,
+        "Erro na ponte API",
+        apiLastError || "Nao foi possivel hidratar este contato agora. O painel continua em modo leitura local.",
+        "error",
+      );
+    }
+
+    if (hasNoContact) {
+      const stateCard = appendPanelState(
+        body,
+        "Contato nao encontrado no CRM",
+        "O telefone foi detectado no WhatsApp, mas ainda nao existe contato vinculado no Nuoma.",
+        "empty-contact",
+      );
+      const actions = document.createElement("div");
+      actions.className = "nuoma-empty-actions";
+      for (const label of ["Criar contato", "Vincular contato"]) {
+        const action = document.createElement("button");
+        action.type = "button";
+        action.className = "nuoma-empty-action";
+        action.disabled = true;
+        action.textContent = label + " (em breve)";
+        actions.appendChild(action);
+      }
+      stateCard.appendChild(actions);
+    }
 
     const summary = section("Resumo", contact?.status || "sem contato");
     const grid = document.createElement("div");
@@ -1141,6 +1183,15 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     }
 
     panel.appendChild(body);
+  }
+
+  function appendPanelState(parent, title, description, variant) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "nuoma-empty nuoma-state-card nuoma-state-" + text(variant || "info");
+    appendText(wrapper, "strong", "", title);
+    appendText(wrapper, "span", "", description);
+    parent.appendChild(wrapper);
+    return wrapper;
   }
 
   function section(title, pill) {

@@ -32,10 +32,7 @@ Escopo: este checkpoint considera somente o repo `nuoma-wpp-v2`.
    - registrar histórico de execução de chatbot por mensagem;
    - persistir exposição/conversão de variante de chatbot.
 
-2. Fechar hardening curto de `V2.11` que transforma o overlay em ferramenta segura:
-   - estados reais de loading/erro/sem contato.
-
-3. Fechar infra mínima de `V2.14` antes de qualquer cutover:
+2. Fechar infra mínima de `V2.14` antes de qualquer cutover:
    - rollback automatizado ou procedimento de rollback com release anterior;
    - backup automatizado validado;
    - restore interativo.

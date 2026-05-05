@@ -229,6 +229,98 @@ describe("Nuoma WhatsApp overlay injection", () => {
     }
   }, 30_000);
 
+  it("renders real loading, error, and no-contact states in the panel", async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+
+    try {
+      const fixture = await readFile(
+        path.resolve(process.cwd(), "../../tests/fixtures/wa-web.html"),
+        "utf8",
+      );
+      await page.setContent(fixture);
+      await page.evaluate(createNuomaOverlayScript());
+
+      const state = await page.evaluate(
+        ({ rootId, panelTestId }) => {
+          const host = document.getElementById(rootId);
+          host?.shadowRoot?.querySelector<HTMLButtonElement>("[data-nuoma-fab]")?.click();
+          const setData = (
+            window as unknown as {
+              __nuomaOverlaySetData: (data: unknown) => unknown;
+            }
+          ).__nuomaOverlaySetData;
+          const readPanel = () =>
+            host?.shadowRoot?.querySelector(`[data-testid="${panelTestId}"]`)?.textContent ?? "";
+
+          setData({
+            phone: "5531982066263",
+            phoneSource: "header-title",
+            title: "5531982066263",
+            contact: null,
+            source: "nuoma-api",
+            apiStatus: "loading",
+            apiLastMethod: "contactSummary",
+          });
+          const loadingText = readPanel();
+
+          setData({
+            phone: "5531982066263",
+            phoneSource: "header-title",
+            title: "5531982066263",
+            contact: null,
+            source: "nuoma-api",
+            apiStatus: "error",
+            apiLastMethod: "contactSummary",
+            apiLastError: "bridge offline",
+          });
+          const errorText = readPanel();
+
+          setData({
+            phone: "5531982066263",
+            phoneSource: "header-title",
+            title: "5531982066263",
+            contact: null,
+            conversations: [],
+            latestMessages: [],
+            automations: [],
+            notes: null,
+            source: "nuoma-api",
+            apiStatus: "online",
+            apiLastMethod: "contactSummary",
+            apiLastError: "",
+          });
+          const emptyText = readPanel();
+          const disabledActions = Array.from(
+            host?.shadowRoot?.querySelectorAll<HTMLButtonElement>(".nuoma-empty-action") ?? [],
+          ).map((button) => ({ text: button.textContent, disabled: button.disabled }));
+
+          return {
+            loadingText,
+            errorText,
+            emptyText,
+            disabledActions,
+          };
+        },
+        { rootId: NUOMA_OVERLAY_ROOT_ID, panelTestId: NUOMA_OVERLAY_PANEL_TEST_ID },
+      );
+
+      expect(state.loadingText).toContain("Carregando contato");
+      expect(state.loadingText).toContain("Buscando resumo");
+      expect(state.errorText).toContain("Erro na ponte API");
+      expect(state.errorText).toContain("bridge offline");
+      expect(state.emptyText).toContain("Contato nao encontrado no CRM");
+      expect(state.emptyText).toContain("Criar contato (em breve)");
+      expect(state.emptyText).toContain("Vincular contato (em breve)");
+      expect(state.disabledActions).toEqual([
+        { text: "Criar contato (em breve)", disabled: true },
+        { text: "Vincular contato (em breve)", disabled: true },
+      ]);
+    } finally {
+      await browser.close();
+    }
+  }, 30_000);
+
   it("exposes window.__nuomaApi through a promise bridge and hydrates the panel", async () => {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
