@@ -132,9 +132,21 @@ interface OverlayApiRequest {
   id: string;
   method: string;
   params: Record<string, unknown>;
+  mutation: OverlayApiMutationGuard | null;
   version: string | null;
   requestedAt: string | null;
 }
+
+interface OverlayApiMutationGuard {
+  nonce: string;
+  idempotencyKey: string;
+  confirmed: boolean;
+  confirmationText: string | null;
+  preparedAt: string | null;
+  queuedAt: string | null;
+}
+
+const overlayApiReadOnlyMethods = new Set(["ping", "contactSummary"]);
 
 export interface SyncSendTextMessageInput {
   userId: number;
@@ -397,6 +409,28 @@ export async function startSyncEngine(input: {
         return;
       }
 
+      const securityCheck = validateOverlayApiSecurity(request);
+      if (!securityCheck.ok) {
+        metrics.overlayApiErrors += 1;
+        await resolveOverlayApiRequest(request.id, {
+          ok: false,
+          error: {
+            code: securityCheck.errorCode,
+            message: securityCheck.errorMessage,
+          },
+        });
+        await auditOverlayApiRequest({
+          request,
+          ok: false,
+          phone: auditPhone,
+          phoneSource: auditPhoneSource,
+          latencyMs: Date.now() - startedAt,
+          errorCode: securityCheck.errorCode,
+          errorMessage: securityCheck.errorMessage,
+        });
+        return;
+      }
+
       if (request.method === "ping") {
         await resolveOverlayApiRequest(request.id, {
           ok: true,
@@ -511,6 +545,10 @@ export async function startSyncEngine(input: {
           requestId: inputAudit.request?.id ?? null,
           method: inputAudit.request?.method ?? null,
           version: inputAudit.request?.version ?? null,
+          hasMutationGuard: Boolean(inputAudit.request?.mutation),
+          idempotencyKey: inputAudit.request?.mutation?.idempotencyKey ?? null,
+          mutationNonce: inputAudit.request?.mutation?.nonce ?? null,
+          mutationConfirmed: inputAudit.request?.mutation?.confirmed ?? null,
           phone: inputAudit.phone,
           phoneSource: inputAudit.phoneSource,
           ok: inputAudit.ok,
@@ -524,6 +562,38 @@ export async function startSyncEngine(input: {
     } catch (auditError) {
       input.logger.warn({ auditError }, "overlay api audit log failed");
     }
+  }
+
+  function validateOverlayApiSecurity(
+    request: OverlayApiRequest,
+  ):
+    | { ok: true }
+    | { ok: false; errorCode: string; errorMessage: string } {
+    if (overlayApiReadOnlyMethods.has(request.method)) {
+      return { ok: true };
+    }
+    if (!request.mutation) {
+      return {
+        ok: false,
+        errorCode: "mutation_guard_required",
+        errorMessage: "Sensitive overlay API methods require mutation guard metadata",
+      };
+    }
+    if (!request.mutation.confirmed) {
+      return {
+        ok: false,
+        errorCode: "mutation_confirmation_required",
+        errorMessage: "Sensitive overlay API methods require explicit confirmation",
+      };
+    }
+    if (!request.mutation.nonce || !request.mutation.idempotencyKey) {
+      return {
+        ok: false,
+        errorCode: "mutation_idempotency_required",
+        errorMessage: "Sensitive overlay API methods require nonce and idempotency key",
+      };
+    }
+    return { ok: true };
   }
 
   async function resolveOverlayApiRequest(
@@ -2953,8 +3023,28 @@ function parseOverlayApiRequest(payload: string): OverlayApiRequest | null {
     id,
     method,
     params: isRecord(parsed.params) ? parsed.params : {},
+    mutation: parseOverlayApiMutationGuard(parsed.mutation),
     version: stringValue(parsed.version),
     requestedAt: stringValue(parsed.requestedAt),
+  };
+}
+
+function parseOverlayApiMutationGuard(value: unknown): OverlayApiMutationGuard | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const nonce = stringValue(value.nonce);
+  const idempotencyKey = stringValue(value.idempotencyKey);
+  if (!nonce || !idempotencyKey) {
+    return null;
+  }
+  return {
+    nonce,
+    idempotencyKey,
+    confirmed: value.confirmed === true,
+    confirmationText: stringValue(value.confirmationText),
+    preparedAt: stringValue(value.preparedAt),
+    queuedAt: stringValue(value.queuedAt),
   };
 }
 

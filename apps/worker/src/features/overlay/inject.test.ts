@@ -244,6 +244,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
           window as unknown as {
             __nuomaApi: (payload: string) => void;
             __nuomaApiLastPayload?: unknown;
+            __nuomaApiPayloads?: unknown[];
             __nuomaApiResolve?: (id: string, response: unknown) => unknown;
           }
         ).__nuomaApi = (payload: string) => {
@@ -251,8 +252,12 @@ describe("Nuoma WhatsApp overlay injection", () => {
           (
             window as unknown as {
               __nuomaApiLastPayload?: unknown;
+              __nuomaApiPayloads?: unknown[];
             }
           ).__nuomaApiLastPayload = request;
+          const payloads =
+            ((window as unknown as { __nuomaApiPayloads?: unknown[] }).__nuomaApiPayloads ??= []);
+          payloads.push(request);
           setTimeout(() => {
             (
               window as unknown as {
@@ -291,8 +296,17 @@ describe("Nuoma WhatsApp overlay injection", () => {
               __nuomaApi: {
                 __nuomaManaged: boolean;
                 refreshContact: (input: unknown) => Promise<unknown>;
+                request: (method: string, input: unknown) => Promise<unknown>;
+                prepareMutation: (method: string, input: unknown) => {
+                  method: string;
+                  params: unknown;
+                  nonce: string;
+                  idempotencyKey: string;
+                };
+                confirmMutation: (intent: unknown, confirmationText: string) => Promise<unknown>;
               };
               __nuomaApiLastPayload?: unknown;
+              __nuomaApiPayloads?: unknown[];
             }
           ).__nuomaApi;
           const response = await api.refreshContact({
@@ -301,6 +315,9 @@ describe("Nuoma WhatsApp overlay injection", () => {
             title: "5531982066263",
             reason: "unit-test",
           });
+          const blockedMutation = await api.request("addNote", { body: "sem confirmacao" });
+          const mutationIntent = api.prepareMutation("addNote", { body: "nota segura" });
+          const mutationResponse = await api.confirmMutation(mutationIntent, "Adicionar nota ao contato");
           const host = document.getElementById(rootId);
           host?.shadowRoot?.querySelector<HTMLButtonElement>("[data-nuoma-fab]")?.click();
           await new Promise((resolve) => setTimeout(resolve, 50));
@@ -309,7 +326,10 @@ describe("Nuoma WhatsApp overlay injection", () => {
           return {
             managed: api.__nuomaManaged,
             response,
+            blockedMutation,
+            mutationResponse,
             lastPayload: (window as unknown as { __nuomaApiLastPayload?: unknown }).__nuomaApiLastPayload,
+            payloads: (window as unknown as { __nuomaApiPayloads?: unknown[] }).__nuomaApiPayloads,
             apiStatus: host?.getAttribute("data-nuoma-api-status"),
             panelText,
           };
@@ -319,7 +339,27 @@ describe("Nuoma WhatsApp overlay injection", () => {
 
       expect(state.managed).toBe(true);
       expect(state.response).toMatchObject({ ok: true });
-      expect(state.lastPayload).toMatchObject({ method: "contactSummary" });
+      expect(state.blockedMutation).toMatchObject({
+        ok: false,
+        error: { code: "mutation_guard_required" },
+      });
+      expect(state.mutationResponse).toMatchObject({ ok: true });
+      expect(state.payloads).toHaveLength(2);
+      expect(state.payloads).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ method: "contactSummary" }),
+          expect.objectContaining({
+            method: "addNote",
+            mutation: expect.objectContaining({
+              confirmed: true,
+              confirmationText: "Adicionar nota ao contato",
+              nonce: expect.any(String),
+              idempotencyKey: expect.any(String),
+            }),
+          }),
+        ]),
+      );
+      expect(state.lastPayload).toMatchObject({ method: "addNote" });
       expect(state.apiStatus).toBe("online");
       expect(state.panelText).toContain("Contato API Fixture");
       expect(state.panelText).toContain("Ponte API");

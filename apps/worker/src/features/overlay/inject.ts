@@ -424,12 +424,16 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     apiBridge: null,
     apiPending: {},
     apiRequestSeq: 0,
+    apiNonceSeq: 0,
+    apiMutationQueue: Promise.resolve(),
     apiInFlight: false,
     apiHydratedPhone: "",
     apiStatus: "offline",
     apiLastMethod: "",
     apiLastError: "",
   };
+
+  const readOnlyApiMethods = new Set(["ping", "contactSummary"]);
 
   function text(value) {
     return typeof value === "string" ? value.trim() : "";
@@ -482,7 +486,72 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     return true;
   }
 
+  function createApiNonce(method) {
+    return "m35-sec-" + Date.now() + "-" + (++state.apiNonceSeq) + "-" + text(method || "mutation");
+  }
+
+  function requiresMutationGuard(method) {
+    return !readOnlyApiMethods.has(text(method));
+  }
+
+  function prepareMutation(method, params) {
+    const apiMethod = text(method);
+    return {
+      method: apiMethod,
+      params: params || {},
+      nonce: createApiNonce(apiMethod),
+      idempotencyKey: createApiNonce(apiMethod + "-idem"),
+      confirmationRequired: true,
+      preparedAt: new Date().toISOString(),
+    };
+  }
+
+  function mutationGuardError(method) {
+    const apiMethod = text(method);
+    setApiStatus("error", apiMethod, "mutation_guard_required");
+    return Promise.resolve({
+      ok: false,
+      error: {
+        code: "mutation_guard_required",
+        message: "Metodo sensivel exige prepareMutation + confirmMutation.",
+      },
+    });
+  }
+
   function requestNuomaApi(method, params, options) {
+    const apiMethod = text(method);
+    if (requiresMutationGuard(apiMethod)) {
+      const mutationIntent = options && options.mutationIntent;
+      if (
+        !mutationIntent ||
+        mutationIntent.method !== apiMethod ||
+        !text(mutationIntent.nonce) ||
+        !text(mutationIntent.idempotencyKey) ||
+        options.confirm !== true
+      ) {
+        return mutationGuardError(apiMethod);
+      }
+      const mutation = {
+        nonce: text(mutationIntent.nonce),
+        idempotencyKey: text(mutationIntent.idempotencyKey),
+        confirmed: true,
+        confirmationText: text(options.confirmationText),
+        preparedAt: text(mutationIntent.preparedAt),
+        queuedAt: new Date().toISOString(),
+      };
+      const queued = state.apiMutationQueue.then(() =>
+        dispatchNuomaApiRequest(apiMethod, params || mutationIntent.params || {}, {
+          ...(options || {}),
+          mutation,
+        }),
+      );
+      state.apiMutationQueue = queued.catch(() => undefined);
+      return queued;
+    }
+    return dispatchNuomaApiRequest(apiMethod, params, options);
+  }
+
+  function dispatchNuomaApiRequest(method, params, options) {
     const bridge = captureApiBridge();
     const apiMethod = text(method);
     if (!bridge) {
@@ -500,6 +569,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       id: requestId,
       method: apiMethod,
       params: params || {},
+      mutation: options && options.mutation ? options.mutation : null,
       version: config.version,
       requestedAt: new Date().toISOString(),
     };
@@ -554,6 +624,13 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       request: requestNuomaApi,
       ping: () => requestNuomaApi("ping", {}),
       contactSummary: (input) => requestNuomaApi("contactSummary", input || {}),
+      prepareMutation,
+      confirmMutation: (intent, confirmationText) =>
+        requestNuomaApi(intent && intent.method, intent && intent.params, {
+          mutationIntent: intent,
+          confirmationText,
+          confirm: true,
+        }),
       refreshContact: (input) =>
         requestNuomaApi("contactSummary", input || {}).then((response) => {
           if (response && response.ok && response.data && typeof window.__nuomaOverlaySetData === "function") {
