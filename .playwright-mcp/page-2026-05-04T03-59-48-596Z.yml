@@ -1,0 +1,5 @@
+- generic [ref=e2]:
+  - generic [ref=e4]:
+    - img [ref=e6]
+    - generic [ref=e8]: Carregando sessão
+  - region "Notificações"

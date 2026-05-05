@@ -1,0 +1,351 @@
+- generic [ref=e2]:
+  - generic [ref=e10]:
+    - complementary [ref=e11]:
+      - generic [ref=e12]:
+        - link "Nuoma" [ref=e13] [cursor=pointer]:
+          - /url: /
+        - navigation [ref=e17]:
+          - link "Dashboard" [ref=e18] [cursor=pointer]:
+            - /url: /
+            - img [ref=e20]
+          - link "Inbox" [ref=e25] [cursor=pointer]:
+            - /url: /inbox
+            - img [ref=e27]
+          - link "Contatos" [ref=e31] [cursor=pointer]:
+            - /url: /contacts
+            - img [ref=e33]
+          - link "Campanhas" [ref=e38] [cursor=pointer]:
+            - /url: /campaigns
+            - img [ref=e40]
+          - link "Automações" [ref=e43] [cursor=pointer]:
+            - /url: /automations
+            - img [ref=e45]
+          - link "Chatbots" [ref=e47] [cursor=pointer]:
+            - /url: /chatbots
+            - img [ref=e49]
+          - link "Jobs" [ref=e52] [cursor=pointer]:
+            - /url: /jobs
+            - img [ref=e54]
+        - generic [ref=e57]:
+          - link "Configurações" [ref=e58] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e60]
+          - link "Dev / DS" [ref=e63] [cursor=pointer]:
+            - /url: /dev/components
+            - img [ref=e65]
+    - generic [ref=e67]:
+      - banner [ref=e68]:
+        - button "Buscar ou navegar ⌘ K" [ref=e69] [cursor=pointer]:
+          - img [ref=e70]
+          - generic [ref=e73]:
+            - text: Buscar ou navegar
+            - generic [ref=e74]:
+              - generic [ref=e75]: ⌘
+              - generic [ref=e76]: K
+        - generic [ref=e77]:
+          - generic [ref=e78]: /inbox
+          - button "Conta" [ref=e79] [cursor=pointer]:
+            - generic [ref=e81]: AD
+      - main [ref=e82]:
+        - generic [ref=e84]:
+          - complementary [ref=e85]:
+            - generic [ref=e86]:
+              - generic [ref=e87]:
+                - img [ref=e88]
+                - searchbox "Buscar conversa…" [ref=e91]
+              - generic [ref=e92]:
+                - button "Todas" [ref=e93] [cursor=pointer]
+                - button "WA" [ref=e94] [cursor=pointer]
+                - button "IG" [ref=e95] [cursor=pointer]
+                - button "Sys" [ref=e96] [cursor=pointer]
+            - button "Gabriel Braga Nuoma 13h 5531982066263" [ref=e99] [cursor=pointer]:
+              - img [ref=e101]
+              - generic [ref=e103]:
+                - generic [ref=e104]:
+                  - generic [ref=e105]: Gabriel Braga Nuoma
+                  - time [ref=e106]: 13h
+                - generic [ref=e108]: "5531982066263"
+            - generic [ref=e109]:
+              - generic [ref=e110]: 1 conversas
+              - generic [ref=e111]: ↑↓ navegar · enter abrir
+          - generic [ref=e112]:
+            - generic [ref=e114]:
+              - generic [ref=e115]:
+                - generic [ref=e116]:
+                  - generic [ref=e117]: Gabriel Braga Nuoma
+                  - generic [ref=e118]: "#28654 · 26 mensagens"
+                - generic [ref=e119]:
+                  - button "Buscar" [ref=e120] [cursor=pointer]:
+                    - img [ref=e121]
+                  - button "Ressincronizar" [ref=e124] [cursor=pointer]:
+                    - img [ref=e125]
+                    - generic [ref=e130]: Ressincronizar
+                  - generic "Profundidade do histórico" [ref=e131]:
+                    - img [ref=e132]
+                    - combobox "Profundidade do histórico" [ref=e136]:
+                      - option "3 janelas" [selected]
+                      - option "10 janelas"
+                      - option "25 janelas"
+                  - button "Histórico" [ref=e137] [cursor=pointer]:
+                    - img [ref=e138]
+                    - generic [ref=e142]: Histórico
+              - generic [ref=e145]:
+                - generic [ref=e147]: 30 de abr. de 2026
+                - button "minute video [video] 13:25:00" [ref=e149] [cursor=pointer]:
+                  - generic [ref=e151]: minute
+                  - generic [ref=e152]: video
+                  - generic [ref=e154]: "[video]"
+                  - generic [ref=e155]:
+                    - generic [ref=e156]: 13:25:00
+                    - img [ref=e157]
+                - button "minute Jsj 13:25:00" [ref=e160] [cursor=pointer]:
+                  - generic [ref=e162]: minute
+                  - generic [ref=e163]: Jsj
+                  - generic [ref=e164]:
+                    - generic [ref=e165]: 13:25:00
+                    - img [ref=e166]
+                    - img [ref=e168]
+                - button "encaminhada minute image [image] 13:25:00" [ref=e171] [cursor=pointer]:
+                  - generic [ref=e172]:
+                    - generic [ref=e173]: encaminhada
+                    - generic [ref=e174]: minute
+                  - generic [ref=e175]: image
+                  - generic [ref=e177]: "[image]"
+                  - generic [ref=e178]:
+                    - generic [ref=e179]: 13:25:00
+                    - img [ref=e180]
+                - button "minute audio [audio] 13:25:00" [ref=e183] [cursor=pointer]:
+                  - generic [ref=e185]: minute
+                  - generic [ref=e186]: audio
+                  - generic [ref=e188]: "[audio]"
+                  - generic [ref=e189]:
+                    - generic [ref=e190]: 13:25:00
+                    - img [ref=e191]
+                - button "minute Teste 13:25:00" [ref=e194] [cursor=pointer]:
+                  - generic [ref=e196]: minute
+                  - generic [ref=e197]: Teste
+                  - generic [ref=e198]:
+                    - generic [ref=e199]: 13:25:00
+                    - img [ref=e200]
+                - button "minute Vai dar certoo 13:25:00" [ref=e203] [cursor=pointer]:
+                  - generic [ref=e205]: minute
+                  - generic [ref=e206]: Vai dar certoo
+                  - generic [ref=e207]:
+                    - generic [ref=e208]: 13:25:00
+                    - img [ref=e209]
+                - button "minute Teste 2 13:25:00" [ref=e212] [cursor=pointer]:
+                  - generic [ref=e214]: minute
+                  - generic [ref=e215]: Teste 2
+                  - generic [ref=e216]:
+                    - generic [ref=e217]: 13:25:00
+                    - img [ref=e218]
+                - 'button "minute Para o codex: vou apagar a proxima 13:25:00" [ref=e221] [cursor=pointer]':
+                  - generic [ref=e223]: minute
+                  - generic [ref=e224]: "Para o codex: vou apagar a proxima"
+                  - generic [ref=e225]:
+                    - generic [ref=e226]: 13:25:00
+                    - img [ref=e227]
+                - button "minute Não foi possível carregar a mensagem. Use seu celular para acessá-la. Clique para atualizar 13:25:00" [ref=e230] [cursor=pointer]:
+                  - generic [ref=e232]: minute
+                  - generic [ref=e233]: Não foi possível carregar a mensagem. Use seu celular para acessá-la. Clique para atualizar
+                  - generic [ref=e234]:
+                    - generic [ref=e235]: 13:25:00
+                    - img [ref=e236]
+                - button "minute Não foi possível carregar a mensagem. Use seu celular para acessá-la. Clique para atualizar 13:25:00" [ref=e239] [cursor=pointer]:
+                  - generic [ref=e241]: minute
+                  - generic [ref=e242]: Não foi possível carregar a mensagem. Use seu celular para acessá-la. Clique para atualizar
+                  - generic [ref=e243]:
+                    - generic [ref=e244]: 13:25:00
+                    - img [ref=e245]
+                - button "minute Não foi possível carregar a mensagem. Use seu celular para acessá-la. Clique para atualizar 13:25:00" [ref=e248] [cursor=pointer]:
+                  - generic [ref=e250]: minute
+                  - generic [ref=e251]: Não foi possível carregar a mensagem. Use seu celular para acessá-la. Clique para atualizar
+                  - generic [ref=e252]:
+                    - generic [ref=e253]: 13:25:00
+                    - img [ref=e254]
+                - button "minute Não foi possível carregar a mensagem. Use seu celular para acessá-la. Clique para atualizar 13:25:00" [ref=e257] [cursor=pointer]:
+                  - generic [ref=e259]: minute
+                  - generic [ref=e260]: Não foi possível carregar a mensagem. Use seu celular para acessá-la. Clique para atualizar
+                  - generic [ref=e261]:
+                    - generic [ref=e262]: 13:25:00
+                    - img [ref=e263]
+                - button "minute Não foi possível carregar a mensagem. Use seu celular para acessá-la. Clique para atualizar 13:25:00" [ref=e266] [cursor=pointer]:
+                  - generic [ref=e268]: minute
+                  - generic [ref=e269]: Não foi possível carregar a mensagem. Use seu celular para acessá-la. Clique para atualizar
+                  - generic [ref=e270]:
+                    - generic [ref=e271]: 13:25:00
+                    - img [ref=e272]
+                - button "minute Misericora 13:25:00" [ref=e275] [cursor=pointer]:
+                  - generic [ref=e277]: minute
+                  - generic [ref=e278]: Misericora
+                  - generic [ref=e279]:
+                    - generic [ref=e280]: 13:25:00
+                    - img [ref=e281]
+                    - img [ref=e283]
+                - button "minute image [image] 13:25:00" [ref=e286] [cursor=pointer]:
+                  - generic [ref=e288]: minute
+                  - generic [ref=e289]: image
+                  - generic [ref=e291]: "[image]"
+                  - generic [ref=e292]:
+                    - generic [ref=e293]: 13:25:00
+                    - img [ref=e294]
+                    - img [ref=e296]
+                - button "minute image [image] 13:25:00" [ref=e299] [cursor=pointer]:
+                  - generic [ref=e301]: minute
+                  - generic [ref=e302]: image
+                  - generic [ref=e304]: "[image]"
+                  - generic [ref=e305]:
+                    - generic [ref=e306]: 13:25:00
+                    - img [ref=e307]
+                    - img [ref=e309]
+                - button "minute ~teste< 13:25:00" [ref=e312] [cursor=pointer]:
+                  - generic [ref=e314]: minute
+                  - generic [ref=e315]: ~teste<
+                  - generic [ref=e316]:
+                    - generic [ref=e317]: 13:25:00
+                    - img [ref=e318]
+                    - img [ref=e320]
+                - button "minute teste 13:26:00" [ref=e323] [cursor=pointer]:
+                  - generic [ref=e325]: minute
+                  - generic [ref=e326]: teste
+                  - generic [ref=e327]:
+                    - generic [ref=e328]: 13:26:00
+                    - img [ref=e329]
+                    - img [ref=e331]
+                - button "minute <teste> 13:26:00" [ref=e334] [cursor=pointer]:
+                  - generic [ref=e336]: minute
+                  - generic [ref=e337]: <teste>
+                  - generic [ref=e338]:
+                    - generic [ref=e339]: 13:26:00
+                    - img [ref=e340]
+                    - img [ref=e342]
+                - button "minute teste 13:26:00" [ref=e345] [cursor=pointer]:
+                  - generic [ref=e347]: minute
+                  - generic [ref=e348]: teste
+                  - generic [ref=e349]:
+                    - generic [ref=e350]: 13:26:00
+                    - img [ref=e351]
+                    - img [ref=e353]
+                - button "minute audio [audio] 13:37:00" [ref=e356] [cursor=pointer]:
+                  - generic [ref=e358]: minute
+                  - generic [ref=e359]: audio
+                  - generic [ref=e361]: "[audio]"
+                  - generic [ref=e362]:
+                    - generic [ref=e363]: 13:37:00
+                    - img [ref=e364]
+                    - img [ref=e366]
+                - button "minute audio [audio] 13:38:00" [ref=e369] [cursor=pointer]:
+                  - generic [ref=e371]: minute
+                  - generic [ref=e372]: audio
+                  - generic [ref=e374]: "[audio]"
+                  - generic [ref=e375]:
+                    - generic [ref=e376]: 13:38:00
+                    - img [ref=e377]
+                    - img [ref=e379]
+                - button "minute audio [audio] 13:40:00" [ref=e382] [cursor=pointer]:
+                  - generic [ref=e384]: minute
+                  - generic [ref=e385]: audio
+                  - generic [ref=e387]: "[audio]"
+                  - generic [ref=e388]:
+                    - generic [ref=e389]: 13:40:00
+                    - img [ref=e390]
+                    - img [ref=e392]
+                - button "minute audio [audio] 13:42:00" [ref=e395] [cursor=pointer]:
+                  - generic [ref=e397]: minute
+                  - generic [ref=e398]: audio
+                  - generic [ref=e400]: "[audio]"
+                  - generic [ref=e401]:
+                    - generic [ref=e402]: 13:42:00
+                    - img [ref=e403]
+                    - img [ref=e405]
+                - button "minute audio [audio] 13:43:00" [ref=e408] [cursor=pointer]:
+                  - generic [ref=e410]: minute
+                  - generic [ref=e411]: audio
+                  - generic [ref=e413]: "[audio]"
+                  - generic [ref=e414]:
+                    - generic [ref=e415]: 13:43:00
+                    - img [ref=e416]
+                    - img [ref=e418]
+                - button "editada minute audio [audio] 13:45:00" [ref=e421] [cursor=pointer]:
+                  - generic [ref=e422]:
+                    - generic [ref=e423]: editada
+                    - generic [ref=e424]: minute
+                  - generic [ref=e425]: audio
+                  - generic [ref=e427]: "[audio]"
+                  - generic [ref=e428]:
+                    - generic [ref=e429]: 13:45:00
+                    - img [ref=e430]
+                    - img [ref=e432]
+            - generic [ref=e435]:
+              - generic [ref=e436]:
+                - button "Foto" [ref=e437] [cursor=pointer]:
+                  - img [ref=e438]
+                - button "Arquivo" [ref=e442] [cursor=pointer]:
+                  - img [ref=e443]
+                - button "Áudio" [ref=e446] [cursor=pointer]:
+                  - img [ref=e447]
+                - button "Emoji" [ref=e450] [cursor=pointer]:
+                  - img [ref=e451]
+              - textbox "Mensagem… (enter envia · shift+enter quebra)" [ref=e454]
+              - generic [ref=e455]:
+                - button "Anexar" [ref=e456] [cursor=pointer]:
+                  - img [ref=e457]
+                - button "Enviar" [disabled] [ref=e459]:
+                  - img [ref=e460]
+                  - generic [ref=e463]: Enviar
+          - complementary [ref=e465]:
+            - generic [ref=e466]:
+              - generic [ref=e467]:
+                - generic [ref=e470]: GA
+                - generic [ref=e474]:
+                  - generic [ref=e475]: Gabriel Braga Nuoma
+                  - generic [ref=e476]: "5531982066263"
+                  - img [ref=e479]
+              - generic [ref=e481]:
+                - button "Ressincronizar" [ref=e482] [cursor=pointer]:
+                  - img [ref=e483]
+                  - generic [ref=e488]: Ressincronizar
+                - button "Histórico" [ref=e489] [cursor=pointer]:
+                  - img [ref=e538]
+                  - generic [ref=e494]: Histórico
+                - generic [ref=e495]:
+                  - img [ref=e496]
+                  - combobox "Profundidade do histórico" [ref=e500]:
+                    - option "3 janelas" [selected]
+                    - option "10 janelas"
+                    - option "25 janelas"
+                - button "Tag" [disabled] [ref=e501]:
+                  - img [ref=e502]
+                  - generic [ref=e505]: Tag
+            - generic [ref=e506]:
+              - tablist [ref=e508]:
+                - tab "Detalhes" [selected] [ref=e509] [cursor=pointer]:
+                  - img [ref=e510]
+                  - text: Detalhes
+                - tab "Tags" [ref=e513] [cursor=pointer]:
+                  - img [ref=e514]
+                  - text: Tags
+                - tab "Notas" [ref=e517] [cursor=pointer]:
+                  - img [ref=e518]
+                  - text: Notas
+              - tabpanel "Detalhes" [ref=e521]:
+                - generic [ref=e522]:
+                  - generic [ref=e523]: ID
+                  - generic [ref=e524]: "#28654"
+                - generic [ref=e525]:
+                  - generic [ref=e526]: External
+                  - generic [ref=e527]: "5531982066263"
+                - generic [ref=e528]:
+                  - generic [ref=e529]: Canal
+                  - generic [ref=e530]: whatsapp
+                - generic [ref=e531]:
+                  - generic [ref=e532]: Última msg
+                  - time [ref=e534]: 13h
+                - generic [ref=e535]:
+                  - generic [ref=e536]: Não lidas
+                  - generic [ref=e537]: "0"
+  - region "Notificações":
+    - status [ref=e542]:
+      - generic [ref=e544]: Histórico enfileirado
+      - button "Dispensar" [ref=e545] [cursor=pointer]:
+        - img [ref=e546]
