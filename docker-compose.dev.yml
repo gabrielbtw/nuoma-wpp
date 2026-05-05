@@ -1,0 +1,18 @@
+services:
+  api:
+    command: npm run dev --workspace @nuoma/api
+    volumes:
+      - .:/app
+      - /app/node_modules
+
+  web:
+    command: npm run dev --workspace @nuoma/web
+    volumes:
+      - .:/app
+      - /app/node_modules
+
+  worker:
+    command: npm run dev --workspace @nuoma/worker
+    volumes:
+      - .:/app
+      - /app/node_modules

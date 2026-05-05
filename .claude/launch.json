@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "v2-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--workspace", "@nuoma/web"],
+      "port": 3002
+    },
+    {
+      "name": "v2-api",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--workspace", "@nuoma/api"],
+      "port": 3001
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+node_modules/
+.turbo/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# env
+.env
+.env.local
+.env.*.local
+
+# os
+.DS_Store
+Thumbs.db
+
+# editor
+.vscode/
+.idea/
+*.swp
+
+# local data
+data/
+storage/
+chromium-profile/
+profile-snapshot/
+
+# logs
+*.log
+npm-debug.log*
+
+# vite
+.vite/
+
+# generated
+*.generated.ts

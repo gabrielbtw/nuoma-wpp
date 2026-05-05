@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "baseUrl": ".",
+    "paths": {
+      "@nuoma/api": ["apps/api/src/router.ts"],
+      "@nuoma/api/router": ["apps/api/src/router.ts"],
+      "@nuoma/api/app": ["apps/api/src/app.ts"],
+      "@nuoma/config": ["packages/config/src/index.ts"],
+      "@nuoma/contracts": ["packages/contracts/src/index.ts"],
+      "@nuoma/db": ["packages/db/src/index.ts"],
+      "@nuoma/db/schema": ["packages/db/src/schema.ts"],
+      "@nuoma/ui": ["packages/ui/src/index.ts"],
+      "@nuoma/ui/tokens": ["packages/ui/src/tokens/index.ts"],
+      "@nuoma/ui/tailwind-preset": ["packages/ui/src/tailwind/preset.ts"]
+    },
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "forceConsistentCasingInFileNames": true,
+    "incremental": true,
+    "composite": false
+  }
+}

@@ -1,0 +1,68 @@
+@import "@fontsource-variable/geist/index.css";
+@import "@fontsource-variable/geist-mono/index.css";
+@import "@fontsource/instrument-serif/400.css";
+@import "@fontsource/instrument-serif/400-italic.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  font-family: "Geist Variable", "Geist", system-ui, sans-serif;
+  --color-bg-base: oklch(0.19 0.024 198);
+  --color-bg-deep: oklch(0.15 0.024 205);
+  --color-fg-primary: oklch(0.94 0.010 175);
+}
+
+html,
+body {
+  margin: 0;
+  min-width: 320px;
+  background: var(--color-bg-base);
+  color: var(--color-fg-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-height: 100vh;
+  font-feature-settings: "ss01" on, "cv11" on;
+}
+
+::selection {
+  background: oklch(0.74 0.12 202 / 0.42);
+  color: var(--color-fg-primary);
+}
+
+/* Custom scrollbar - cartographic recessed rail */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: oklch(0.15 0.024 205);
+}
+*::-webkit-scrollbar-thumb {
+  background: oklch(0.38 0.030 186);
+  border-radius: 999px;
+  border: 2px solid oklch(0.15 0.024 205);
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.48 0.034 186);
+}
+
+@keyframes nuoma-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes nuoma-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+[data-state="open"].animate-in {
+  animation: nuoma-fade-in 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+[data-state="closed"].animate-out {
+  animation: nuoma-fade-out 150ms cubic-bezier(0.22, 1, 0.36, 1);
+}
