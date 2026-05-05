@@ -1,17 +1,17 @@
 :8080 {
-  handle /api/* {
-    reverse_proxy api:3001
-  }
+	handle /api/* {
+		reverse_proxy api:3001
+	}
 
-  handle /trpc/* {
-    reverse_proxy api:3001
-  }
+	handle /trpc/* {
+		reverse_proxy api:3001
+	}
 
-  handle /health {
-    reverse_proxy api:3001
-  }
+	handle /health {
+		reverse_proxy api:3001
+	}
 
-  handle {
-    reverse_proxy web:3002
-  }
+	handle {
+		reverse_proxy web:3002
+	}
 }
