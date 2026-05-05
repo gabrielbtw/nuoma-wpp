@@ -44,6 +44,7 @@ const contactUtils = await import("../apps/web-app/src/client/lib/contact-utils.
 const {
   buildCampaignImportPreview,
   closeDb,
+  createAttachmentCandidate,
   createCampaign,
   createContact,
   deactivateContactChannel,
@@ -197,6 +198,80 @@ test("contacts patch rejects removing every channel and still records history fo
   const historyItems = historyResponse.json() as Array<{ field: string; nextValue: string | null }>;
   assert(historyItems.some((item) => item.field === "status" && item.nextValue === "cliente"));
   assert(historyItems.some((item) => item.field === "notes" && item.nextValue === "Contato priorizado"));
+});
+
+test("visible attachment candidates are persisted as media assets and exposed by contact", async () => {
+  const contact = createContact(buildContact(7, { name: "Contato Midia" }));
+  const conversation = upsertConversation({
+    contactId: contact.id,
+    waChatId: contact.phone ?? "5531982066263",
+    title: contact.name,
+    unreadCount: 0,
+    lastMessagePreview: "Foto recebida",
+    lastMessageAt: "2026-05-05T12:00:00.000Z",
+    contactPhone: contact.phone
+  });
+  assert.ok(conversation);
+
+  const messageId = addMessage({
+    conversationId: conversation.id,
+    contactId: contact.id,
+    direction: "incoming",
+    contentType: "image",
+    body: "Foto recebida",
+    sentAt: "2026-05-05T12:00:00.000Z",
+    meta: { source: "test" }
+  });
+
+  const candidate = createAttachmentCandidate({
+    conversationId: conversation.id,
+    contactId: contact.id,
+    messageId,
+    channel: "whatsapp",
+    contentType: "image",
+    originalName: "foto-visible.jpg",
+    safeName: "foto-visible.jpg",
+    mimeType: "image/jpeg",
+    sizeBytes: 0,
+    sha256: "a".repeat(64),
+    storagePath: `wa-visible://${"a".repeat(64)}`,
+    sourceUrl: "blob:https://web.whatsapp.com/visible-photo",
+    caption: "Foto recebida",
+    observedAt: "2026-05-05T12:00:01.000Z",
+    metadata: { source: "wa-dom-visible" }
+  });
+
+  assert.ok(candidate);
+  assert.equal(candidate.contentType, "image");
+  assert.equal(candidate.storagePath, `wa-visible://${"a".repeat(64)}`);
+
+  const repeated = createAttachmentCandidate({
+    conversationId: conversation.id,
+    contactId: contact.id,
+    messageId,
+    channel: "whatsapp",
+    contentType: "image",
+    originalName: "foto-visible.jpg",
+    safeName: "foto-visible.jpg",
+    mimeType: "image/jpeg",
+    sha256: "a".repeat(64),
+    storagePath: `wa-visible://${"a".repeat(64)}`,
+    observedAt: "2026-05-05T12:00:02.000Z"
+  });
+  assert.equal(repeated?.id, candidate.id);
+
+  const response = await app.inject({
+    method: "GET",
+    url: `/contacts/${contact.id}/attachment-candidates?limit=10`
+  });
+
+  assert.equal(response.statusCode, 200);
+  const payload = response.json() as { total: number; items: Array<{ contentType: string; sha256: string; storagePath: string }> };
+  assert.equal(payload.total, 1);
+  assert.equal(payload.items.length, 1);
+  assert.equal(payload.items[0]?.contentType, "image");
+  assert.equal(payload.items[0]?.sha256, "a".repeat(64));
+  assert.equal(payload.items[0]?.storagePath, `wa-visible://${"a".repeat(64)}`);
 });
 
 test("campaign import preview resolves Instagram matches and blocks duplicate or invalid recipients", () => {

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
 import os from "node:os";
@@ -10,6 +10,7 @@ import {
   claimDueJobForTypes,
   completeJob,
   createLogger,
+  createAttachmentCandidate,
   deactivateContactChannel,
   ensureRuntimeDirectories,
   failJobPermanently,
@@ -134,6 +135,124 @@ type BrowserSessionManifest = {
     lastCheckedAt: string | null;
   };
 };
+
+type VisibleAttachmentCandidate = {
+  contentType: "audio" | "image" | "video" | "file";
+  originalName: string;
+  safeName: string;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+  storagePath: string;
+  sourceUrl: string | null;
+  caption: string | null;
+  observedAt: string;
+  metadata: Record<string, unknown>;
+};
+
+type VisibleBubble = {
+  body: string;
+  direction: "incoming" | "outgoing";
+  contentType: "text" | "audio" | "image" | "video" | "file";
+  sentAt: string | null;
+  fingerprint: string;
+  attachmentCandidate: VisibleAttachmentCandidate | null;
+};
+
+function sanitizeFileName(input: string) {
+  return input
+    .normalize("NFKD")
+    .replace(/[^\w.\-]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120) || "attachment";
+}
+
+function mimeForVisibleAttachment(contentType: VisibleAttachmentCandidate["contentType"], sourceUrl: string | null) {
+  const lower = (sourceUrl ?? "").toLowerCase();
+  if (contentType === "image") {
+    if (lower.includes(".webp")) return "image/webp";
+    if (lower.includes(".png")) return "image/png";
+    return "image/jpeg";
+  }
+  if (contentType === "video") return "video/mp4";
+  if (contentType === "audio") return "audio/ogg";
+  if (lower.includes(".pdf")) return "application/pdf";
+  return "application/octet-stream";
+}
+
+function extensionForMime(mimeType: string) {
+  if (mimeType === "image/png") return "png";
+  if (mimeType === "image/webp") return "webp";
+  if (mimeType.startsWith("image/")) return "jpg";
+  if (mimeType.startsWith("video/")) return "mp4";
+  if (mimeType.startsWith("audio/")) return "ogg";
+  if (mimeType === "application/pdf") return "pdf";
+  return "bin";
+}
+
+function normalizeVisibleSourceUrl(sourceUrl: string | null) {
+  if (!sourceUrl) {
+    return null;
+  }
+
+  const trimmed = sourceUrl.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.length <= 700) {
+    return trimmed;
+  }
+
+  const digest = createHash("sha256").update(trimmed).digest("hex").slice(0, 16);
+  return `${trimmed.slice(0, 96)}#sha256:${digest}`;
+}
+
+function buildVisibleAttachmentCandidate(input: {
+  body: string;
+  contentType: "audio" | "image" | "video" | "file";
+  direction: "incoming" | "outgoing";
+  fileName: string | null;
+  preText: string | null;
+  sourceUrl: string | null;
+  sentAt: string | null;
+}) {
+  const sourceUrl = normalizeVisibleSourceUrl(input.sourceUrl);
+  const mimeType = mimeForVisibleAttachment(input.contentType, sourceUrl);
+  const sha256 = createHash("sha256")
+    .update(JSON.stringify({
+      body: input.body.slice(0, 240),
+      contentType: input.contentType,
+      direction: input.direction,
+      fileName: input.fileName ?? "",
+      preText: input.preText ?? "",
+      sourceUrl: sourceUrl ?? ""
+    }))
+    .digest("hex");
+  const extension = extensionForMime(mimeType);
+  const originalName = sanitizeFileName(input.fileName ?? `${input.contentType}-${sha256.slice(0, 12)}.${extension}`);
+  const safeName = sanitizeFileName(originalName);
+
+  return {
+    contentType: input.contentType,
+    originalName,
+    safeName,
+    mimeType,
+    sizeBytes: 0,
+    sha256,
+    storagePath: `wa-visible://${sha256}`,
+    sourceUrl,
+    caption: input.body.trim() || null,
+    observedAt: input.sentAt ?? nowIso(),
+    metadata: {
+      source: "wa-dom-visible",
+      direction: input.direction,
+      preText: input.preText,
+      hasSourceUrl: Boolean(sourceUrl)
+    }
+  } satisfies VisibleAttachmentCandidate;
+}
 
 export class WhatsAppWorker {
   private env = loadEnv();
@@ -2302,13 +2421,7 @@ export class WhatsAppWorker {
     return true;
   }
 
-  private async extractVisibleBubbles(isCancelled: () => boolean): Promise<Array<{
-    body: string;
-    direction: "incoming" | "outgoing";
-    contentType: "text" | "audio" | "image" | "video" | "file";
-    sentAt: string | null;
-    fingerprint: string;
-  }> | null> {
+  private async extractVisibleBubbles(isCancelled: () => boolean): Promise<VisibleBubble[] | null> {
     if (!this.page) return null;
     if (isCancelled()) return null;
 
@@ -2317,7 +2430,14 @@ export class WhatsAppWorker {
       const doc = (globalThis as any).document;
       const main = doc.querySelector("#main") ?? doc;
       const bubbles = main.querySelectorAll("[data-pre-plain-text]");
-      const results: Array<{ body: string; preText: string | null; outgoing: boolean; mediaType: string | null }> = [];
+      const results: Array<{
+        body: string;
+        preText: string | null;
+        outgoing: boolean;
+        mediaType: string | null;
+        sourceUrl: string | null;
+        fileName: string | null;
+      }> = [];
 
       for (const el of bubbles) {
         const preText = el.getAttribute("data-pre-plain-text");
@@ -2325,19 +2445,34 @@ export class WhatsAppWorker {
         const outgoing = msgContainer?.classList.contains("message-out") ?? false;
 
         let mediaType: string | null = null;
+        let sourceUrl: string | null = null;
+        let fileName: string | null = null;
         if (el.querySelector("[data-icon='audio-play'], [data-icon='ptt'], [data-testid='audio-play'], [data-testid='ptt']")) {
           mediaType = "audio";
+          const audio = el.querySelector("audio[src], audio source[src]");
+          sourceUrl = audio?.getAttribute("src") ?? null;
         } else if (el.querySelector("img[src*='blob:'], img[src*='media'], [data-testid='image-thumb']")) {
           mediaType = "image";
+          const image = el.querySelector("img[src*='blob:'], img[src*='media'], img[src^='data:'], img[src]");
+          sourceUrl = image?.getAttribute("src") ?? null;
         } else if (el.querySelector("video, [data-testid='video-thumb'], [data-icon='video-pip']")) {
           mediaType = "video";
+          const video = el.querySelector("video[src], video source[src]");
+          sourceUrl = video?.getAttribute("src") ?? video?.getAttribute("poster") ?? null;
         } else if (el.querySelector("[data-icon='audio-download'], [data-icon='document'], [data-testid='document-thumb']")) {
           mediaType = "file";
+          const link = el.querySelector("a[href]");
+          sourceUrl = link?.getAttribute("href") ?? null;
         } else if (
           el.querySelector("[data-icon='call'], [data-icon='video-call'], [data-icon='phone-missed'], [data-testid='call-log']") ||
           el.closest("[data-testid='call-log']")
         ) {
           mediaType = "call";
+        }
+
+        if (mediaType && mediaType !== "call") {
+          const named = el.querySelector("[title], [download], [aria-label]");
+          fileName = named?.getAttribute("title") ?? named?.getAttribute("download") ?? named?.getAttribute("aria-label") ?? null;
         }
 
         let body = "";
@@ -2369,20 +2504,14 @@ export class WhatsAppWorker {
           body = labels[mediaType] ?? "Mídia";
         }
 
-        results.push({ body, preText, outgoing, mediaType });
+        results.push({ body, preText, outgoing, mediaType, sourceUrl, fileName });
       }
       return results;
     }).catch(() => null);
 
     if (!raw) return null;
 
-    const out: Array<{
-      body: string;
-      direction: "incoming" | "outgoing";
-      contentType: "text" | "audio" | "image" | "video" | "file";
-      sentAt: string | null;
-      fingerprint: string;
-    }> = [];
+    const out: VisibleBubble[] = [];
     const validContentTypes = new Set(["text", "audio", "image", "video", "file"]);
 
     for (const r of raw) {
@@ -2405,18 +2534,23 @@ export class WhatsAppWorker {
           : "text";
       const direction: "incoming" | "outgoing" = r.outgoing ? "outgoing" : "incoming";
       const fingerprint = `${r.preText ?? ""}|${direction}|${r.body.slice(0, 40)}`;
-      out.push({ body: r.body, direction, contentType, sentAt, fingerprint });
+      const attachmentCandidate = contentType === "text"
+        ? null
+        : buildVisibleAttachmentCandidate({
+          body: r.body,
+          contentType,
+          direction,
+          fileName: r.fileName,
+          preText: r.preText,
+          sourceUrl: r.sourceUrl,
+          sentAt
+        });
+      out.push({ body: r.body, direction, contentType, sentAt, fingerprint, attachmentCandidate });
     }
     return out;
   }
 
-  private async readLastBubble(isCancelled: () => boolean): Promise<{
-    body: string;
-    direction: "incoming" | "outgoing";
-    contentType: "text" | "audio" | "image" | "video" | "file";
-    sentAt: string | null;
-    fingerprint: string;
-  } | null> {
+  private async readLastBubble(isCancelled: () => boolean): Promise<VisibleBubble | null> {
     const bubbles = await this.extractVisibleBubbles(isCancelled);
     if (!bubbles || bubbles.length === 0) return null;
     return bubbles[bubbles.length - 1] ?? null;
@@ -2436,29 +2570,22 @@ export class WhatsAppWorker {
     target: { title: string; phone: string | null; conversationId: string },
     isCancelled: () => boolean,
     budgetExceeded?: () => boolean
-  ): Promise<number> {
-    if (!this.page) return 0;
-    if (isCancelled()) return 0;
+  ): Promise<{ inserted: number; attachmentCandidates: number }> {
+    if (!this.page) return { inserted: 0, attachmentCandidates: 0 };
+    if (isCancelled()) return { inserted: 0, attachmentCandidates: 0 };
 
     const row = await this.findSidebarRowByTitle(target.title, isCancelled);
     if (!row) {
       this.logger.warn({ title: target.title }, "backfill: sidebar row not found");
-      return 0;
+      return { inserted: 0, attachmentCandidates: 0 };
     }
 
     const opened = await this.openChatFromRow(row, isCancelled);
-    if (!opened) return 0;
-    if (isCancelled()) return 0;
+    if (!opened) return { inserted: 0, attachmentCandidates: 0 };
+    if (isCancelled()) return { inserted: 0, attachmentCandidates: 0 };
 
     const bubblesSeen = new Set<string>();
-    type Bubble = {
-      body: string;
-      direction: "incoming" | "outgoing";
-      contentType: "text" | "audio" | "image" | "video" | "file";
-      sentAt: string | null;
-      fingerprint: string;
-    };
-    const pending: Bubble[] = [];
+    const pending: VisibleBubble[] = [];
     const scrollCap = this.env.WA_SYNC_BACKFILL_SCROLL_CAP;
     let foundOverlap = false;
     let passes = 0;
@@ -2477,7 +2604,7 @@ export class WhatsAppWorker {
       }
       if (!bubbles || bubbles.length === 0) { stopReason = "empty"; break; }
 
-      const fresh: Bubble[] = [];
+      const fresh: VisibleBubble[] = [];
       for (const b of bubbles) {
         if (bubblesSeen.has(b.fingerprint)) continue;
         bubblesSeen.add(b.fingerprint);
@@ -2492,7 +2619,7 @@ export class WhatsAppWorker {
       // Walk newest → oldest among fresh bubbles. Break as soon as we find a
       // match (everything older is assumed already in DB).
       const reversed = fresh.slice().reverse();
-      const batchReverseChrono: Bubble[] = [];
+      const batchReverseChrono: VisibleBubble[] = [];
       for (const bubble of reversed) {
         if (isCancelled()) break;
         if (!bubble.sentAt) {
@@ -2529,9 +2656,10 @@ export class WhatsAppWorker {
     // work defeats the point of the budget check. addMessage is idempotent by
     // (minuteKey, direction, body) via findMessageByMinute on re-sync.
     let inserted = 0;
+    let attachmentCandidates = 0;
     for (const b of pending) {
       try {
-        addMessage({
+        const messageId = addMessage({
           conversationId: target.conversationId,
           direction: b.direction,
           contentType: b.contentType,
@@ -2540,6 +2668,23 @@ export class WhatsAppWorker {
           meta: { source: "snapshot" }
         });
         inserted++;
+        if (b.attachmentCandidate) {
+          const candidate = createAttachmentCandidate({
+            conversationId: target.conversationId,
+            messageId,
+            channel: "whatsapp",
+            ...b.attachmentCandidate,
+            metadata: {
+              ...b.attachmentCandidate.metadata,
+              syncFingerprint: b.fingerprint,
+              chatTitle: target.title,
+              contactPhone: target.phone
+            }
+          });
+          if (candidate) {
+            attachmentCandidates++;
+          }
+        }
       } catch (err) {
         this.logger.warn({
           title: target.title,
@@ -2553,10 +2698,11 @@ export class WhatsAppWorker {
       passes,
       bubblesSeen: bubblesSeen.size,
       inserted,
+      attachmentCandidates,
       stopReason
     }, "Backfill chat complete");
 
-    return inserted;
+    return { inserted, attachmentCandidates };
   }
 
   async syncInbox(reason: "startup" | "interval" | "full") {
@@ -2588,6 +2734,7 @@ export class WhatsAppWorker {
     let pinnedSkipped = 0;
     let specialSkipped = 0;
     let openFailures = 0;
+    let attachmentCandidates = 0;
 
     try {
       if (this.env.DEBUG_MODE && this.page) {
@@ -2766,7 +2913,8 @@ export class WhatsAppWorker {
         if (backfillBudgetExceeded()) { backfillStopReason = "budget"; break; }
         try {
           const added = await this.backfillChat(target, isCancelled, backfillBudgetExceeded);
-          insertedMsgs += added;
+          insertedMsgs += added.inserted;
+          attachmentCandidates += added.attachmentCandidates;
           backfilledChats++;
         } catch (err) {
           this.logger.warn({
@@ -2794,6 +2942,7 @@ export class WhatsAppWorker {
         boundaryFound,
         backfilledChats,
         insertedMsgs,
+        attachmentCandidates,
         forwardDurationMs,
         backfillDurationMs,
         durationMs: syncDurationMs,
@@ -2819,6 +2968,7 @@ export class WhatsAppWorker {
         boundaryFound,
         backfilledChats,
         insertedMsgs,
+        attachmentCandidates,
         cancelled,
         forwardStopReason,
         backfillStopReason,

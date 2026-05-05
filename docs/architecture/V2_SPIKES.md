@@ -175,13 +175,15 @@ Garantir que a implementação de **voice recording** do V1 (Web Audio API injec
 
 Harness criado em `experiments/spike-3-voice/` com geração determinística de WAVs de 3s, 30s e 120s, snapshots `.bin`, metadados `.json`, `Dockerfile` e modo de envio real travado para o alvo permitido `5531982066263`.
 
-Dry-run local passou: os 3 payloads foram validados como WAV PCM 48kHz mono 16-bit, com `ffprobe` retornando erro de 0.000ms para 3s, 30s e 120s. `npm run typecheck` também passou. Status do Spike 3 permanece **AMARELO** até executar o E2E real no WhatsApp e validar Docker/Xvfb.
+Dry-run local passou: os 3 payloads foram validados como WAV PCM 48kHz mono 16-bit, com `ffprobe` retornando erro de 0.000ms para 3s, 30s e 120s. `npm run typecheck` também passou.
 
 ### Resultado G.3b/G.3c em 2026-04-30
 
 E2E local real executado com `TARGET_PHONE=5531982066263 npm run send`: 3s, 30s e 120s entregues com `delivered=true`, evidência de voice nativo e duração exibida de 3s/30s/120s (`displayErrorMs=0`). A primeira tentativa havia provado voice nativo, mas inflou a duração por herdar o wait `duração + 2s`; o harness foi calibrado para parar perto da duração real.
 
 Docker validado para o pipeline seco: `docker build -t nuoma-spike-3-voice .` e `docker run --rm nuoma-spike-3-voice` passaram com Node 22, Playwright image, Chromium, Xvfb e `ffprobe`. Para marcar o Spike 3 como verde hosted absoluto, ainda falta executar o `--send` dentro de container com um perfil WhatsApp autenticado.
+
+Decisão de gate em 2026-04-30: Spike 3 fica **VERDE para local IC-1 + Docker dry-run** e **AMARELO hosted**. O amarelo hosted não bloqueia V2.1 Foundations porque nenhum envio produtivo roda nessa fase; ele bloqueia V2 worker/deploy assumir áudio em produção.
 
 ### Critério de aceitação
 
@@ -293,7 +295,7 @@ Status atualizado após decisão do owner: **VERDE com política aceita**. Há 3
 | Resultado | Ação |
 |---|---|
 | 4 verdes | Cria `nuoma-wpp-v2/`, inicia V2.1 Foundations. Aprova ADRs 0002, 0005, 0007, 0010. |
-| 3 verdes + 1 amarelo | Avalia o amarelo: se não-bloqueador, segue. Se bloqueador, espera fix antes. |
+| 3 verdes + 1 amarelo | Avalia o amarelo: se não-bloqueador, segue. Em 2026-04-30, Spike 3 hosted foi classificado como não-bloqueador para V2.1 Foundations e bloqueador antes do worker/deploy produtivo de áudio. |
 | 2+ amarelos OU 1 vermelho | **NÃO inicia V2**. Re-avalia em sprint dedicada OU pivota estratégia (mais V1 patches, ou produto outro). |
 
 ## Ferramentas reutilizáveis

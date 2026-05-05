@@ -168,6 +168,7 @@ Validacao minima:
 - Regra de handoff: se um agente precisar de mudanca fora da propria area, ele abre demanda para o dono da pasta e espera o contrato final.
 - Regra de validacao: cada agente valida o proprio escopo antes de entregar.
 - Regra de artefato: nao editar manualmente `node_modules/**`, `apps/web-app/dist/**`, `storage/**` ou outros artefatos gerados.
+- Regra de smoke de envio: todo teste de envio real deve conferir o destino/canal testado e anexar evidencia visual. Quando houver Instagram/DM disponivel no fluxo, tambem anexar print do Instagram; se o teste for WhatsApp-only sem IG aplicavel, registrar explicitamente `IG nao aplicavel` no resultado.
 
 ## Trilha Separada De Integracoes
 Instagram, Data Lake e AI ficam fora do fluxo cotidiano e so entram quando houver iniciativa explicita.

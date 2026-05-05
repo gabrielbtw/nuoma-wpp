@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
   ArrowUpRight, BookOpen, CheckCheck, ChevronLeft, ChevronRight, Clock, FileText, Globe2, Instagram,
-  Mail, MessageCircleMore, Paperclip, Pencil, Phone, Save, Search, SendHorizonal,
+  Image as ImageIcon, Mail, MessageCircleMore, Mic2, Paperclip, Pencil, Phone, Save, Search, SendHorizonal,
   Tag as TagIcon, Trash2, User, UserCircle, X, Zap
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
@@ -55,6 +55,23 @@ type UnifiedMessage = {
   status?: string;
 };
 
+type AttachmentCandidate = {
+  id: string;
+  contentType: "audio" | "image" | "video" | "file";
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+  storagePath: string;
+  caption: string | null;
+  observedAt: string;
+};
+
+type AttachmentCandidatesResponse = {
+  total: number;
+  items: AttachmentCandidate[];
+};
+
 // ----- Helpers -----
 
 function formatTime(value?: string | null) {
@@ -70,6 +87,20 @@ function formatDate(value?: string | null) {
 function ChannelIcon({ channel, size = 14 }: { channel: string; size?: number }) {
   if (channel === "instagram") return <Instagram style={{ width: size, height: size }} className="text-n-ig" />;
   return <MessageCircleMore style={{ width: size, height: size }} className="text-n-wa" />;
+}
+
+function AttachmentCandidateIcon({ type }: { type: AttachmentCandidate["contentType"] }) {
+  if (type === "image") return <ImageIcon className="h-3 w-3 text-n-blue" />;
+  if (type === "video") return <ArrowUpRight className="h-3 w-3 text-cmm-purple" />;
+  if (type === "audio") return <Mic2 className="h-3 w-3 text-n-wa" />;
+  return <FileText className="h-3 w-3 text-n-text-dim" />;
+}
+
+function formatAttachmentType(type: AttachmentCandidate["contentType"]) {
+  if (type === "image") return "Imagem";
+  if (type === "video") return "Video";
+  if (type === "audio") return "Audio";
+  return "Documento";
 }
 
 // ----- Contact Sidebar -----
@@ -112,6 +143,13 @@ function ContactSidebar({ contactId, channels, lastMessageAt, messageCount, inSh
     queryFn: () => apiFetch<TagRecord[]>("/tags")
   });
 
+  const attachmentCandidatesQuery = useQuery({
+    queryKey: ["attachment-candidates", contactId],
+    queryFn: () => apiFetch<AttachmentCandidatesResponse>(`/contacts/${contactId}/attachment-candidates?limit=3`),
+    enabled: Boolean(contactId),
+    refetchInterval: 15_000
+  });
+
   const updateMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) =>
       apiFetch(`/contacts/${contactId}`, { method: "PATCH", body: toJsonBody(data) }),
@@ -133,6 +171,8 @@ function ContactSidebar({ contactId, channels, lastMessageAt, messageCount, inSh
   });
 
   const contact = contactQuery.data;
+  const attachmentCandidates = attachmentCandidatesQuery.data?.items ?? [];
+  const attachmentTotal = attachmentCandidatesQuery.data?.total ?? 0;
 
   function startEdit() {
     if (!contact) return;
@@ -303,6 +343,37 @@ function ContactSidebar({ contactId, channels, lastMessageAt, messageCount, inSh
               </datalist>
               <button onClick={() => addTag(tagInput)} className="h-7 px-2 rounded-lg bg-n-surface-2 text-micro text-n-text-dim hover:text-n-text transition-fast ring-1 ring-white/[0.04]">+</button>
             </div>
+          )}
+        </div>
+
+        {/* Visible attachment candidates */}
+        <div className="pt-2 border-t border-n-border/40 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-micro uppercase tracking-wider text-n-text-dim">
+              <Paperclip className="h-3 w-3" />
+              Anexos capturados
+            </span>
+            <span className="rounded-full bg-n-blue/10 px-2 py-0.5 text-micro text-n-blue ring-1 ring-n-blue/15">
+              {attachmentTotal}
+            </span>
+          </div>
+          {attachmentCandidates.length > 0 ? (
+            <div className="space-y-1">
+              {attachmentCandidates.map((item) => (
+                <div key={item.id} className="flex items-center gap-2 rounded-lg bg-n-bg px-2.5 py-1.5 ring-1 ring-white/[0.04]">
+                  <AttachmentCandidateIcon type={item.contentType} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-caption text-n-text">{formatAttachmentType(item.contentType)}</p>
+                    <p className="truncate font-mono text-micro text-n-text-dim">{item.sha256.slice(0, 12)}</p>
+                  </div>
+                  <span className="shrink-0 text-micro text-n-text-dim">{formatTime(item.observedAt)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-lg bg-n-bg px-2.5 py-2 text-caption text-n-text-dim ring-1 ring-white/[0.04]">
+              Nenhum candidato capturado ainda
+            </p>
           )}
         </div>
 

@@ -28,7 +28,7 @@ Multi-user desde dia 1: `user_id NOT NULL` em todas tabelas operacionais. Single
 ## Alternativas
 
 - SQL puro continua (V1 model): descartada — falta type safety.
-- Prisma: descartada — heavyweight, prisma-client gerado é grande, slow starts em Bun.
+- Prisma: descartada — heavyweight, prisma-client gerado é grande e aumenta a complexidade operacional.
 - Kysely: viável mas Drizzle tem ecossistema mais ativo.
 - Postgres: descartada — local-first é valor central; user nunca pediu mover pra Postgres.
 

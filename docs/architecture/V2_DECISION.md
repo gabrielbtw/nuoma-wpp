@@ -49,7 +49,11 @@ A equipe (owner + IA) precisa **fechar 4 spikes** com critérios de aceitação 
 3. **Spike 3** — Áudio do V1 portado literal funciona em ambiente V2 (IC-1).
 4. **Spike 4** — Migration dryrun lê SQLite V1 e mapeia contatos/conversas/mensagens corretamente.
 
-Sem os 4 verdes, **NÃO se cria o `nuoma-wpp-v2/`**. Recua pra patch V1 e re-avalia.
+Decisão em 2026-04-30: Spike 1, Spike 2 e Spike 4 fecharam verde. Spike 3 fechou
+verde para IC-1 local + Docker dry-run e amarelo para hosted `--send` com perfil
+WhatsApp autenticado. Esse amarelo foi classificado como **não-bloqueador para
+V2.1 Foundations**, porque Foundations nao executa envio produtivo; ele continua
+**bloqueador antes de V2 worker/deploy assumir áudio em produção**.
 
 ## Multi-user na realidade do WhatsApp
 
@@ -93,7 +97,9 @@ Tudo abaixo só é endereçado **depois** dos spikes verdes:
 
 ## Próximo turno
 
-**Não criar** `nuoma-wpp-v2/`, **não criar** os 24 docs / 8 agents / 7 skills planejados. Em vez disso, **executar os 4 spikes** (cada um em branch separada do V1 OU em playground temporário), reportar resultados, decidir continuar ou recuar.
+Com a decisão de gate de 2026-04-30, iniciar `nuoma-wpp-v2/` apenas com V2.1
+Foundations. Nao portar produto ainda. Antes de envio hosted real, executar o
+procedimento `experiments/spike-3-voice/HOSTED_PROCEDURE.md`.
 
 ## Referências
 

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { contactInputSchema, contactPatchSchema, createContact, deleteContact, getContactById, listContactHistory, listContactsPage, queryContactsBySegment, updateContact } from "@nuoma/core";
+import { contactInputSchema, contactPatchSchema, createContact, deleteContact, getContactById, listAttachmentCandidatesByContact, listContactHistory, listContactsPage, queryContactsBySegment, updateContact } from "@nuoma/core";
 import type { SegmentQuery } from "@nuoma/core";
 
 export async function registerContactRoutes(app: FastifyInstance) {
@@ -24,6 +24,18 @@ export async function registerContactRoutes(app: FastifyInstance) {
     const contact = createContact(payload);
     reply.code(201);
     return contact;
+  });
+
+  app.get("/contacts/:id/attachment-candidates", async (request, reply) => {
+    const params = request.params as { id: string };
+    const query = request.query as { limit?: string };
+    const contact = getContactById(params.id);
+    if (!contact) {
+      reply.code(404);
+      return { message: "Contato não encontrado" };
+    }
+
+    return listAttachmentCandidatesByContact(params.id, Number(query.limit ?? 20));
   });
 
   app.get("/contacts/:id", async (request, reply) => {

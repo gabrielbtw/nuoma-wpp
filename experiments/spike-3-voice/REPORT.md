@@ -64,5 +64,5 @@ Resultado: dry-run passou dentro do container com Node 22, Playwright image, Chr
 
 ## Próximo critério
 
-1. Para fechar o Spike 3 como verde hosted absoluto: executar `TARGET_PHONE=5531982066263 npm run send` dentro de container com perfil WhatsApp autenticado.
+1. Para fechar o Spike 3 como verde hosted absoluto: seguir `HOSTED_PROCEDURE.md` e executar `--send` dentro de container com perfil WhatsApp autenticado.
 2. Preservar a calibração de duração; não voltar ao wait fixo `duração + 2s` no V2.

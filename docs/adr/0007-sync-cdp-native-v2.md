@@ -2,7 +2,7 @@
 
 ## Status
 
-**Provisória — gated por Spike 1**. Resolve a desconfiança #1 do usuário no V1 (sync com lag e msgs sumindo/duplicando), **se Spike 1 provar que o observer captura msg real <3s consistentemente**.
+**Aceita para V2** após Spike 1. Resolve a desconfiança #1 do usuário no V1 (sync com lag e msgs sumindo/duplicando), com observer capturando mensagens reais abaixo do SLA de 3s no spike.
 
 Crítica do owner aceita: "CDP-only é arriscado. Playwright/page objects para navegação e ações onde já é mais estável; CDP para observers, eventos, screencast e captura fina."
 

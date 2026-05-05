@@ -333,6 +333,9 @@ export type SendJobPayload = z.infer<typeof sendJobPayloadSchema>;
 export const uploadCategorySchema = z.enum(["campaign", "rule", "temp"]);
 export type UploadCategory = z.infer<typeof uploadCategorySchema>;
 
+export const attachmentCandidateContentTypeValues = ["audio", "image", "video", "file"] as const;
+export type AttachmentCandidateContentType = (typeof attachmentCandidateContentTypeValues)[number];
+
 export interface ContactRecord extends ContactInput {
   id: string;
   tags: string[];
@@ -423,6 +426,29 @@ export interface MessageRecord {
   sentAt: string | null;
   createdAt: string;
   meta: Record<string, unknown>;
+}
+
+export interface AttachmentCandidateRecord {
+  id: string;
+  conversationId: string;
+  contactId: string | null;
+  messageId: string | null;
+  mediaAssetId: string;
+  channel: ChannelType;
+  contentType: AttachmentCandidateContentType;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string;
+  storagePath: string;
+  sourceUrl: string | null;
+  caption: string | null;
+  observedAt: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  conversationTitle?: string | null;
+  messageBody?: string | null;
 }
 
 export interface ChannelAccountRecord {

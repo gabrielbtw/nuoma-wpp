@@ -3,6 +3,7 @@ import {
   addMessage,
   enqueueJob,
   getContactById,
+  listAttachmentCandidatesByConversation,
   getConversationById,
   getLatestConversationForContactChannel,
   listConversations,
@@ -69,6 +70,17 @@ export async function registerConversationRoutes(app: FastifyInstance) {
       return { message: "Conversa não encontrada" };
     }
     return listMessagesForConversation(params.id);
+  });
+
+  app.get("/conversations/:id/attachment-candidates", async (request, reply) => {
+    const params = request.params as { id: string };
+    const query = request.query as { limit?: string };
+    const conversation = getConversationById(params.id);
+    if (!conversation) {
+      reply.code(404);
+      return { message: "Conversa não encontrada" };
+    }
+    return listAttachmentCandidatesByConversation(params.id, Number(query.limit ?? 20));
   });
 
   app.patch("/conversations/:id", async (request, reply) => {

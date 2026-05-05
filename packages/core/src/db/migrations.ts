@@ -857,5 +857,46 @@ export const migrations = [
       ALTER TABLE automation_runs ADD COLUMN batch_position INTEGER;
       CREATE INDEX IF NOT EXISTS idx_automation_runs_batch ON automation_runs(batch_id, batch_position);
     `
+  },
+  {
+    id: "0015_attachment_candidates",
+    sql: `
+      CREATE TABLE IF NOT EXISTS attachment_candidates (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL,
+        contact_id TEXT,
+        message_id TEXT,
+        media_asset_id TEXT NOT NULL,
+        channel TEXT NOT NULL DEFAULT 'whatsapp',
+        content_type TEXT NOT NULL,
+        original_name TEXT NOT NULL DEFAULT '',
+        mime_type TEXT NOT NULL DEFAULT '',
+        size_bytes INTEGER NOT NULL DEFAULT 0,
+        source_url TEXT,
+        caption TEXT,
+        observed_at TEXT NOT NULL,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+        FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL,
+        FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE SET NULL,
+        FOREIGN KEY (media_asset_id) REFERENCES media_assets(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_attachment_candidates_conversation
+        ON attachment_candidates(conversation_id, observed_at DESC);
+
+      CREATE INDEX IF NOT EXISTS idx_attachment_candidates_contact
+        ON attachment_candidates(contact_id, observed_at DESC);
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_attachment_candidates_message_asset
+        ON attachment_candidates(conversation_id, message_id, media_asset_id)
+        WHERE message_id IS NOT NULL;
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_attachment_candidates_source_asset
+        ON attachment_candidates(conversation_id, media_asset_id, source_url)
+        WHERE source_url IS NOT NULL;
+    `
   }
 ] as const;

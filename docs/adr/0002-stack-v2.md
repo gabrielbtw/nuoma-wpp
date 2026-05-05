@@ -2,8 +2,8 @@
 
 ## Status
 
-**Provisória** (escopo: V2 greenfield em `nuoma-wpp-v2/`).
-**Gating**: depende dos 4 spikes em [`V2_SPIKES.md`](../architecture/V2_SPIKES.md) passarem antes de virar definitiva. Sem spikes verdes, recuamos pra stack atual do V1 (Node 22 + Fastify + better-sqlite3).
+**Aceita para V2.1 Foundations** (escopo: V2 greenfield em `nuoma-wpp-v2/`).
+**Gating restante**: Spike 3 hosted `--send` ainda precisa passar antes de V2 worker/deploy assumir envio de áudio em produção.
 
 ## Contexto
 
@@ -55,7 +55,7 @@ A crítica do owner foi: "o maior risco do produto é WhatsApp Web/Chromium, nã
 3. [Spike 3 — Áudio porta literal V1→V2 (IC-1)](../architecture/V2_SPIKES.md#spike-3)
 4. [Spike 4 — Migration dryrun + Drizzle schema válido](../architecture/V2_SPIKES.md#spike-4)
 
-Sem os 4 spikes verdes, esta ADR não é aprovada para execução — fica como visão.
+Resultado de gate em 2026-04-30: Spike 1, Spike 2 e Spike 4 verdes; Spike 3 verde local + Docker dry-run e amarelo hosted. A ADR fica aprovada para iniciar Foundations, com bloqueio explícito para envio de áudio hosted até o procedimento final passar.
 
 ## Referências
 
