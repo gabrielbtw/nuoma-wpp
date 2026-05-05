@@ -377,11 +377,23 @@ export async function startSyncEngine(input: {
   }
 
   async function handleOverlayApiPayload(payload: string): Promise<void> {
+    const startedAt = Date.now();
     let request: OverlayApiRequest | null = null;
+    let auditPhone: string | null = null;
+    let auditPhoneSource: string | null = null;
     try {
       request = parseOverlayApiRequest(payload);
       if (!request) {
         metrics.overlayApiErrors += 1;
+        await auditOverlayApiRequest({
+          request,
+          ok: false,
+          phone: auditPhone,
+          phoneSource: auditPhoneSource,
+          latencyMs: Date.now() - startedAt,
+          errorCode: "invalid_payload",
+          errorMessage: "Invalid Nuoma overlay API payload",
+        });
         return;
       }
 
@@ -395,19 +407,28 @@ export async function startSyncEngine(input: {
             observedAtUtc: new Date().toISOString(),
           },
         });
+        await auditOverlayApiRequest({
+          request,
+          ok: true,
+          phone: auditPhone,
+          phoneSource: auditPhoneSource,
+          latencyMs: Date.now() - startedAt,
+        });
         return;
       }
 
       if (request.method === "contactSummary") {
         const title = stringValue(request.params.title);
+        auditPhoneSource = stringValue(request.params.phoneSource);
         const phone =
           normalizePhone(stringValue(request.params.phone)) ??
           normalizePhone(title) ??
           normalizePhone((await readOverlayThreadState()).phone);
+        auditPhone = phone;
         const snapshot = await buildOverlaySnapshot({
           userId: CONSTANTS.defaultUserId,
           phone,
-          phoneSource: stringValue(request.params.phoneSource),
+          phoneSource: auditPhoneSource,
           title,
           reason: `overlay-api:${request.method}`,
         });
@@ -421,15 +442,32 @@ export async function startSyncEngine(input: {
             apiLastError: null,
           },
         });
+        await auditOverlayApiRequest({
+          request,
+          ok: true,
+          phone: auditPhone,
+          phoneSource: auditPhoneSource,
+          latencyMs: Date.now() - startedAt,
+        });
         return;
       }
 
+      metrics.overlayApiErrors += 1;
       await resolveOverlayApiRequest(request.id, {
         ok: false,
         error: {
           code: "unknown_method",
           message: `Unknown Nuoma overlay API method: ${request.method}`,
         },
+      });
+      await auditOverlayApiRequest({
+        request,
+        ok: false,
+        phone: auditPhone,
+        phoneSource: auditPhoneSource,
+        latencyMs: Date.now() - startedAt,
+        errorCode: "unknown_method",
+        errorMessage: `Unknown Nuoma overlay API method: ${request.method}`,
       });
     } catch (error) {
       metrics.overlayApiErrors += 1;
@@ -443,6 +481,48 @@ export async function startSyncEngine(input: {
           },
         });
       }
+      await auditOverlayApiRequest({
+        request,
+        ok: false,
+        phone: auditPhone,
+        phoneSource: auditPhoneSource,
+        latencyMs: Date.now() - startedAt,
+        errorCode: "handler_error",
+        errorMessage: serializeError(error),
+      });
+    }
+  }
+
+  async function auditOverlayApiRequest(inputAudit: {
+    request: OverlayApiRequest | null;
+    ok: boolean;
+    phone: string | null;
+    phoneSource: string | null;
+    latencyMs: number;
+    errorCode?: string;
+    errorMessage?: string;
+  }): Promise<void> {
+    try {
+      await input.repos.systemEvents.create({
+        userId: CONSTANTS.defaultUserId,
+        type: "overlay.api.request",
+        severity: inputAudit.ok ? "info" : "warn",
+        payload: JSON.stringify({
+          requestId: inputAudit.request?.id ?? null,
+          method: inputAudit.request?.method ?? null,
+          version: inputAudit.request?.version ?? null,
+          phone: inputAudit.phone,
+          phoneSource: inputAudit.phoneSource,
+          ok: inputAudit.ok,
+          latencyMs: inputAudit.latencyMs,
+          errorCode: inputAudit.errorCode ?? null,
+          errorMessage: inputAudit.errorMessage ?? null,
+          requestedAt: inputAudit.request?.requestedAt ?? null,
+          auditedAtUtc: new Date().toISOString(),
+        }),
+      });
+    } catch (auditError) {
+      input.logger.warn({ auditError }, "overlay api audit log failed");
     }
   }
 

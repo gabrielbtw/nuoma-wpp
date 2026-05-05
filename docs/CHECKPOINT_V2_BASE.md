@@ -33,7 +33,6 @@ Escopo: este checkpoint considera somente o repo `nuoma-wpp-v2`.
    - persistir exposição/conversão de variante de chatbot.
 
 2. Fechar hardening curto de `V2.11` que transforma o overlay em ferramenta segura:
-   - audit log dos requests `window.__nuomaApi`;
    - fila segura para mutações futuras;
    - estados reais de loading/erro/sem contato.
 
