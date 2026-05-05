@@ -14,6 +14,10 @@ import {
 const fixtureScreenshotPath =
   process.env.FIXTURE_SCREENSHOT_PATH ?? "data/v211-overlay-panel-m33-fixture.png";
 const wppScreenshotPath = process.env.WPP_SCREENSHOT_PATH ?? "data/v211-overlay-panel-m33-wpp.png";
+const fixtureStateScreenshotPath =
+  process.env.FIXTURE_STATE_SCREENSHOT_PATH ?? "data/v211-overlay-panel-states-m36-fixture.png";
+const wppStateScreenshotPath =
+  process.env.WPP_STATE_SCREENSHOT_PATH ?? "data/v211-overlay-panel-states-m36-wpp.png";
 const cdpUrl = process.env.CDP_URL ?? "http://127.0.0.1:9223";
 const whatsappUrl = process.env.WA_WEB_URL ?? "https://web.whatsapp.com/";
 const canaryPhone = "5531982066263";
@@ -61,6 +65,8 @@ const panelData: NuomaOverlayData = {
 async function main() {
   await fs.mkdir(path.dirname(fixtureScreenshotPath), { recursive: true });
   await fs.mkdir(path.dirname(wppScreenshotPath), { recursive: true });
+  await fs.mkdir(path.dirname(fixtureStateScreenshotPath), { recursive: true });
+  await fs.mkdir(path.dirname(wppStateScreenshotPath), { recursive: true });
 
   const sendJobsBefore = await countActiveSendJobs();
   const fixtureResult = await validateFixture();
@@ -83,12 +89,16 @@ async function main() {
       `summary=${Number(wppResult.hasSummary)}`,
       `automations=${Number(wppResult.hasAutomations)}`,
       `notes=${Number(wppResult.hasNotes)}`,
+      `fixtureStates=${Number(fixtureResult.hasStateFeedback)}`,
+      `wppStates=${Number(wppResult.hasStateFeedback)}`,
       `sendJobsDelta=${sendJobsDelta}`,
       `fixture=${fixtureScreenshotPath}`,
+      `fixtureStatesShot=${fixtureStateScreenshotPath}`,
       `wpp=${wppScreenshotPath}`,
+      `wppStatesShot=${wppStateScreenshotPath}`,
       `wppMode=${wppResult.mode}`,
       "ig=nao_aplicavel",
-      "m=33",
+      "m=36",
     ].join("|"),
   );
 }
@@ -104,6 +114,9 @@ async function validateFixture() {
     const panel = await readPanelState(page);
     assertPanel(panel, "fixture");
     await page.screenshot({ path: fixtureScreenshotPath, fullPage: false });
+    const statePanel = await validatePanelStateFeedback(page);
+    assertPanelStateFeedback(statePanel, "fixture");
+    await page.screenshot({ path: fixtureStateScreenshotPath, fullPage: false });
     const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
     const blocking = axe.violations.filter(
       (violation) => violation.impact === "critical" || violation.impact === "serious",
@@ -116,7 +129,7 @@ async function validateFixture() {
       );
     }
     await context.close();
-    return { ...panel, blocking: blocking.length };
+    return { ...panel, ...statePanel, blocking: blocking.length };
   } finally {
     await browser.close();
   }
@@ -136,10 +149,93 @@ async function validateWhatsAppWeb() {
     const panel = await readPanelState(page);
     assertPanel(panel, "wpp");
     await page.screenshot({ path: wppScreenshotPath, fullPage: false, timeout: 15_000 });
-    return { ...panel, mode: "cdp" };
+    const statePanel = await validatePanelStateFeedback(page);
+    assertPanelStateFeedback(statePanel, "wpp");
+    await page.screenshot({ path: wppStateScreenshotPath, fullPage: false, timeout: 15_000 });
+    return { ...panel, ...statePanel, mode: "cdp" };
   } finally {
     await browser.close();
   }
+}
+
+async function validatePanelStateFeedback(page: Page) {
+  return page.evaluate(
+    ({ rootId, panelTestId, canaryPhone }) => {
+      const host = document.getElementById(rootId);
+      const setData = (
+        window as unknown as {
+          __nuomaOverlaySetData: (value: unknown) => unknown;
+        }
+      ).__nuomaOverlaySetData;
+
+      setData({
+        phone: canaryPhone,
+        phoneSource: "header-title",
+        title: canaryPhone,
+        contact: null,
+        source: "nuoma-api",
+        apiStatus: "loading",
+        apiLastMethod: "contactSummary",
+      });
+      const loadingText =
+        host?.shadowRoot?.querySelector(`[data-testid="${panelTestId}"]`)?.textContent ?? "";
+
+      setData({
+        phone: canaryPhone,
+        phoneSource: "header-title",
+        title: canaryPhone,
+        contact: null,
+        source: "nuoma-api",
+        apiStatus: "error",
+        apiLastMethod: "contactSummary",
+        apiLastError: "bridge offline smoke",
+      });
+      const errorText =
+        host?.shadowRoot?.querySelector(`[data-testid="${panelTestId}"]`)?.textContent ?? "";
+
+      setData({
+        phone: canaryPhone,
+        phoneSource: "header-title",
+        title: canaryPhone,
+        contact: null,
+        conversations: [],
+        latestMessages: [],
+        automations: [],
+        notes: null,
+        source: "nuoma-api",
+        apiStatus: "online",
+        apiLastMethod: "contactSummary",
+        apiLastError: "",
+      });
+      const noContactText =
+        host?.shadowRoot?.querySelector(`[data-testid="${panelTestId}"]`)?.textContent ?? "";
+      const buttons = host?.shadowRoot?.querySelectorAll<HTMLButtonElement>(".nuoma-empty-action") ?? [];
+      const disabledActions: Array<{ text: string; disabled: boolean }> = [];
+      for (const button of buttons) {
+        disabledActions.push({ text: button.textContent ?? "", disabled: button.disabled });
+      }
+      let allActionsDisabled = disabledActions.length === 2;
+      for (const action of disabledActions) {
+        if (!action.disabled) {
+          allActionsDisabled = false;
+        }
+      }
+
+      return {
+        hasStateFeedback:
+          loadingText.includes("Carregando contato") &&
+          errorText.includes("Erro na ponte API") &&
+          errorText.includes("bridge offline smoke") &&
+          noContactText.includes("Contato nao encontrado no CRM") &&
+          allActionsDisabled,
+        loadingText,
+        errorText,
+        noContactText,
+        disabledActions,
+      };
+    },
+    { rootId: NUOMA_OVERLAY_ROOT_ID, panelTestId: NUOMA_OVERLAY_PANEL_TEST_ID, canaryPhone },
+  );
 }
 
 async function mountAndOpenPanel(page: Page) {
@@ -198,6 +294,15 @@ function assertPanel(
   }
   if (!panel.hasSummary || !panel.hasAutomations || !panel.hasNotes) {
     throw new Error(`${label} overlay panel missing required content: ${JSON.stringify(panel)}`);
+  }
+}
+
+function assertPanelStateFeedback(
+  panel: Awaited<ReturnType<typeof validatePanelStateFeedback>>,
+  label: string,
+) {
+  if (!panel.hasStateFeedback) {
+    throw new Error(`${label} overlay panel missing state feedback: ${JSON.stringify(panel)}`);
   }
 }
 

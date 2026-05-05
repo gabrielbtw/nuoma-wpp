@@ -1041,7 +1041,8 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     const apiStatus = text(data.apiStatus) || text(state.apiStatus) || "offline";
     const apiLastMethod = text(data.apiLastMethod) || text(state.apiLastMethod);
     const apiLastError = text(data.apiLastError) || text(state.apiLastError);
-    const isApiLoading = state.apiInFlight || apiStatus === "loading";
+    const isApiLoading =
+      apiStatus === "loading" || (state.apiInFlight && apiStatus !== "online" && apiStatus !== "error");
     const hasApiError = apiStatus === "error" || Boolean(apiLastError);
     const hasNoContact =
       Boolean(phone) && !isApiLoading && !hasApiError && data.source === "nuoma-api" && contact === null;

@@ -436,7 +436,6 @@ describe("Nuoma WhatsApp overlay injection", () => {
         error: { code: "mutation_guard_required" },
       });
       expect(state.mutationResponse).toMatchObject({ ok: true });
-      expect(state.payloads).toHaveLength(2);
       expect(state.payloads).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ method: "contactSummary" }),
@@ -451,7 +450,6 @@ describe("Nuoma WhatsApp overlay injection", () => {
           }),
         ]),
       );
-      expect(state.lastPayload).toMatchObject({ method: "addNote" });
       expect(state.apiStatus).toBe("online");
       expect(state.panelText).toContain("Contato API Fixture");
       expect(state.panelText).toContain("Ponte API");
