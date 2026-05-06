@@ -88,8 +88,11 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
   print fonte de verdade antes do envio em
   `data/m303-neferpeel-before-send-24h-proof-v5.png` com chat
   `Gabriel Braga Nuoma` e painel real `Mensagens temporarias` em `24 horas`;
-  depois restaurou `90d` com `after_completion_restore verified=true`.
-  Smoke M30.3: `completed=3`, `failed=0`, `activeJobs=0`,
+  depois restaurou `90d` com `after_completion_restore verified=true` e print
+  visual em `data/m303-neferpeel-after-restore-90d-proof.png` mostrando o radio
+  `90 dias` marcado. O verificador CDP passou a exigir a opcao marcada
+  (`aria-checked=true` / `checked`) em vez de aceitar texto solto no painel.
+  Smoke M30.3: `completed=5`, `failed=0`, `activeJobs=0`,
   `outsideAllowlist=0`, `IG nao_aplicavel`.
 - **2026-05-06 / Remarketing seguro:** validado com typecheck dos workspaces
   `db`, `api`, `worker`, `web`, testes direcionados de DB/API/worker e build web.

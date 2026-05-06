@@ -4124,11 +4124,35 @@ function temporaryMessagesUiScript(
         const text = visibleNodes("#main, [role='dialog'], [data-animate-modal-popup], section, aside, div, span", true)
           .map((node) => node.textContent || "")
           .join("\\n");
-        if (preferredDuration) {
-          const durations = text.split("\\n").map(durationFromText).filter(Boolean);
-          if (durations.includes(preferredDuration)) return preferredDuration;
-        }
         return durationFromText(text);
+      };
+      const optionDuration = (node) => {
+        if (!(node instanceof HTMLElement)) return null;
+        const texts = [
+          node.getAttribute("aria-label"),
+          node.getAttribute("title"),
+          node.textContent,
+          node.closest("label")?.textContent,
+          node.parentElement?.textContent,
+          node.nextElementSibling?.textContent,
+          node.parentElement?.querySelector("span")?.textContent,
+        ];
+        for (const text of texts) {
+          const duration = durationFromText(text || "");
+          if (duration) return duration;
+        }
+        return null;
+      };
+      const selectedDuration = () => {
+        const selected = visibleNodes(
+          "input[aria-checked='true'], input:checked, [role='radio'][aria-checked='true'], [aria-checked='true']",
+          true,
+        );
+        for (const node of selected) {
+          const duration = optionDuration(node);
+          if (duration) return duration;
+        }
+        return null;
       };
       const findByText = (needles, root = document) => {
         const normalizedNeedles = needles.map(clean);
@@ -4204,20 +4228,21 @@ function temporaryMessagesUiScript(
         await sleep(300);
       };
 
-      const beforeDuration = bodyDuration();
+      const closedPanelDuration = bodyDuration();
       const menuDetected = await openTemporaryMenu();
       if (!menuDetected) {
         return {
           changed: false,
           menuDetected: false,
-          verifiedDuration: beforeDuration,
+          verifiedDuration: closedPanelDuration,
           reason: "temporary-menu-not-found"
         };
       }
       await sleep(700);
+      const beforeDuration = selectedDuration() || closedPanelDuration;
       const clickedDuration = await clickDuration();
       await sleep(900);
-      const verifiedDuration = bodyDuration(requestedDuration);
+      const verifiedDuration = selectedDuration();
       if (!keepPanelOpen) {
         await closePanels();
       }
@@ -4225,7 +4250,9 @@ function temporaryMessagesUiScript(
         changed: clickedDuration && beforeDuration !== requestedDuration,
         menuDetected: true,
         verifiedDuration,
-        reason: clickedDuration ? "duration-clicked" : "duration-option-not-found"
+        reason: clickedDuration
+          ? (verifiedDuration ? "duration-clicked" : "selected-duration-not-detected")
+          : "duration-option-not-found"
       };
     })()
   `;
@@ -4275,6 +4302,33 @@ function temporaryMessagesProofScript(duration: SyncTemporaryMessagesDuration): 
       };
       const visibleNodes = (selector) => Array.from(document.querySelectorAll(selector))
         .filter((node) => isVisible(node) && isChatSurfaceNode(node));
+      const optionDuration = (node) => {
+        if (!(node instanceof HTMLElement)) return null;
+        const texts = [
+          node.getAttribute("aria-label"),
+          node.getAttribute("title"),
+          node.textContent,
+          node.closest("label")?.textContent,
+          node.parentElement?.textContent,
+          node.nextElementSibling?.textContent,
+          node.parentElement?.querySelector("span")?.textContent,
+        ];
+        for (const text of texts) {
+          const duration = durationFromText(text || "");
+          if (duration) return duration;
+        }
+        return null;
+      };
+      const selectedDuration = () => {
+        const selected = visibleNodes(
+          "input[aria-checked='true'], input:checked, [role='radio'][aria-checked='true'], [aria-checked='true']",
+        );
+        for (const node of selected) {
+          const duration = optionDuration(node);
+          if (duration) return duration;
+        }
+        return null;
+      };
       const findByText = (needles) => {
         const normalizedNeedles = needles.map(clean);
         return visibleNodes("button, [role='button'], [role='menuitem'], [role='radio'], [role='option'], div, span")
@@ -4319,12 +4373,12 @@ function temporaryMessagesProofScript(duration: SyncTemporaryMessagesDuration): 
       const proofText = visibleNodes("#main, [role='dialog'], [data-animate-modal-popup], section, aside, div, span")
         .map((node) => node.textContent || "")
         .join("\\n");
+      const selected = selectedDuration();
       const durationEvidence = visibleNodes("button, [role='button'], [role='radio'], [role='option'], div, span")
         .map((node) => node.textContent || node.getAttribute("aria-label") || "")
-        .find((text) => durationFromText(text) === requestedDuration) || "";
-      const durations = proofText.split("\\n").map(durationFromText).filter(Boolean);
+        .find((text) => durationFromText(text) === selected) || "";
       return {
-        verifiedDuration: durations.includes(requestedDuration) ? requestedDuration : (durations[0] || null),
+        verifiedDuration: selected,
         textEvidence: (durationEvidence + "\\n" + proofText).replace(/\\s+/g, " ").trim().slice(0, 2000),
       };
     })()
