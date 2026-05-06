@@ -38,6 +38,7 @@ export async function startBrowserRuntime(input: {
       (await hasExistingCdpBrowser(input.env).catch(() => false))
     ) {
       attachedToExisting = true;
+      await ensureSingleWhatsAppTab({ env: input.env, logger: input.logger });
       input.logger.info(
         {
           cdpHost: input.env.CHROMIUM_CDP_HOST,
@@ -93,6 +94,7 @@ export async function startBrowserRuntime(input: {
       });
       child.unref();
       await waitForExistingCdpBrowser(input.env);
+      await ensureSingleWhatsAppTab({ env: input.env, logger: input.logger });
       attachedToExisting = true;
       input.logger.info(
         {
@@ -194,6 +196,67 @@ export async function startBrowserRuntime(input: {
       await launch();
     },
   };
+}
+
+async function ensureSingleWhatsAppTab(input: { env: WorkerEnv; logger: Logger }): Promise<void> {
+  if (!input.env.WORKER_SYNC_ENABLED) {
+    return;
+  }
+  const targets = await listCdpTargets(input.env).catch((error: unknown) => {
+    input.logger.warn({ error }, "failed to list Chromium targets for WhatsApp tab cleanup");
+    return [];
+  });
+  const whatsappPages = targets.filter(
+    (target) => target.type === "page" && target.url.includes("web.whatsapp.com"),
+  );
+  if (whatsappPages.length <= 1) {
+    return;
+  }
+  const [keep, ...duplicates] = whatsappPages;
+  let closed = 0;
+  for (const target of duplicates) {
+    if (!target.id) {
+      continue;
+    }
+    const response = await fetch(
+      `http://${input.env.CHROMIUM_CDP_HOST}:${input.env.CHROMIUM_CDP_PORT}/json/close/${encodeURIComponent(target.id)}`,
+      { signal: AbortSignal.timeout(2_000) },
+    ).catch(() => null);
+    if (response?.ok) {
+      closed += 1;
+    }
+  }
+  input.logger.info(
+    {
+      keptTargetId: keep?.id ?? null,
+      keptUrl: keep?.url ?? null,
+      duplicateTabs: duplicates.length,
+      closedTabs: closed,
+    },
+    "worker browser closed duplicate WhatsApp tabs",
+  );
+}
+
+async function listCdpTargets(env: WorkerEnv): Promise<Array<{ id?: string; type?: string; url: string }>> {
+  const response = await fetch(
+    `http://${env.CHROMIUM_CDP_HOST}:${env.CHROMIUM_CDP_PORT}/json/list`,
+    { signal: AbortSignal.timeout(2_000) },
+  );
+  if (!response.ok) {
+    throw new Error(`CDP target list failed with HTTP ${response.status}`);
+  }
+  const value = await response.json();
+  return Array.isArray(value)
+    ? value
+        .filter((target): target is { id?: string; type?: string; url: string } => {
+          return typeof target === "object" && target !== null && typeof target.url === "string";
+        })
+        .map((target) => ({
+          id: typeof target.id === "string" ? target.id : undefined,
+          type: typeof target.type === "string" ? target.type : undefined,
+          url: target.url,
+        }))
+    : [];
 }
 
 async function hasExistingCdpBrowser(env: WorkerEnv): Promise<boolean> {

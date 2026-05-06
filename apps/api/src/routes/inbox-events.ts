@@ -1,11 +1,10 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance } from "fastify";
 
 import type { ApiEnv } from "@nuoma/config";
 import type { Conversation } from "@nuoma/contracts";
 import type { Repositories } from "@nuoma/db";
 
-import { verifyAccessToken, type AuthUser } from "../trpc/auth.js";
-import { ACCESS_COOKIE, readCookie } from "../trpc/cookies.js";
+import { authenticateSseRequest, sendSse, startSse } from "./sse.js";
 
 const pollMs = 2_000;
 
@@ -20,26 +19,11 @@ export async function registerInboxEventsRoutes(
   deps: { env: ApiEnv; repos: Repositories },
 ): Promise<void> {
   app.get("/api/inbox/events", async (request, reply) => {
-    const user = await authenticateRequest(request, reply, deps.env);
+    const user = await authenticateSseRequest(request, reply, deps.env);
     if (!user) return reply;
     const userId = user.id;
 
-    const origin = request.headers.origin;
-    reply.raw.writeHead(200, {
-      "Content-Type": "text/event-stream; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-      "X-Accel-Buffering": "no",
-      Vary: "Origin",
-      ...(typeof origin === "string"
-        ? {
-            "Access-Control-Allow-Origin": origin,
-            "Access-Control-Allow-Credentials": "true",
-          }
-        : {}),
-    });
-    reply.raw.write(": nuoma inbox stream\n\n");
-    reply.hijack();
+    startSse(reply, request.headers.origin, "nuoma inbox stream");
 
     let closed = false;
     let initialized = false;
@@ -115,24 +99,6 @@ export async function registerInboxEventsRoutes(
   });
 }
 
-async function authenticateRequest(
-  request: FastifyRequest,
-  reply: FastifyReply,
-  env: ApiEnv,
-): Promise<AuthUser | null> {
-  const token = readCookie(request, ACCESS_COOKIE);
-  if (!token) {
-    reply.code(401).send({ error: "Unauthorized" });
-    return null;
-  }
-  try {
-    return await verifyAccessToken(env, token);
-  } catch {
-    reply.code(401).send({ error: "Unauthorized" });
-    return null;
-  }
-}
-
 function conversationSignature(conversation: Conversation): string {
   return [
     conversation.lastMessageAt ?? "",
@@ -140,12 +106,4 @@ function conversationSignature(conversation: Conversation): string {
     conversation.unreadCount,
     conversation.updatedAt,
   ].join("|");
-}
-
-function sendSse(reply: FastifyReply, event: string, data: unknown): void {
-  if (reply.raw.destroyed || reply.raw.writableEnded) {
-    return;
-  }
-  reply.raw.write(`event: ${event}\n`);
-  reply.raw.write(`data: ${JSON.stringify(data)}\n\n`);
 }

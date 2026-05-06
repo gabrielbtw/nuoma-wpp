@@ -55,6 +55,7 @@ const apiSchema = baseSchema.extend({
   API_CRM_STORAGE_PROVIDER: z.enum(["local", "s3"]).default("local"),
   API_CRM_STORAGE_NAMESPACE: z.string().min(1).default("/nuoma/files/crm"),
   API_CRM_STORAGE_LOCAL_ROOT: z.string().min(1).optional(),
+  API_CRM_STORAGE_CACHE_ROOT: z.string().min(1).optional(),
   API_CRM_STORAGE_S3_BUCKET: z.string().min(1).optional(),
   API_CRM_STORAGE_S3_REGION: z.string().min(1).default("us-east-1"),
   API_CRM_STORAGE_S3_ENDPOINT: z.string().url().optional(),
@@ -62,6 +63,11 @@ const apiSchema = baseSchema.extend({
   API_CRM_STORAGE_S3_ACCESS_KEY_ID: z.string().min(1).optional(),
   API_CRM_STORAGE_S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
   API_CRM_STORAGE_S3_SESSION_TOKEN: z.string().min(1).optional(),
+  API_STREAMING_ENABLED: booleanFromEnv.default(false),
+  API_STREAMING_CDP_HOST: z.string().default("127.0.0.1"),
+  API_STREAMING_CDP_PORT: z.coerce.number().int().min(1).max(65535).default(9223),
+  API_STREAMING_TARGET_URL_MATCH: z.string().min(1).default("web.whatsapp.com"),
+  API_STREAMING_TIMEOUT_MS: z.coerce.number().int().min(500).max(30_000).default(5_000),
   DATABASE_URL: z.string().default("../../data/nuoma-v2.db"),
 });
 
@@ -76,6 +82,8 @@ const workerSchema = baseSchema.extend({
   WORKER_SYNC_MULTI_CHAT_LIMIT: z.coerce.number().int().min(1).max(20).default(5),
   WORKER_SYNC_MULTI_CHAT_DELAY_MS: z.coerce.number().int().min(250).default(1_200),
   WORKER_SEND_REUSE_OPEN_CHAT_ENABLED: booleanFromEnv.default(false),
+  WORKER_SEND_CONFIRMATION_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(60_000).default(5_000),
+  WORKER_SEND_STRICT_DELIVERY: booleanFromEnv.default(true),
   WA_SEND_POLICY_MODE: z.enum(["test", "production"]).default("test"),
   WA_SEND_ALLOWED_PHONES: z.string().default(""),
   WA_SEND_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).default(60_000),

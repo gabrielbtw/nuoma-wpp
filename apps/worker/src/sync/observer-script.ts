@@ -436,11 +436,29 @@ export function createWhatsAppObserverScript(bindingName = SYNC_BINDING_NAME): s
     if (label.includes("enquete") || label.includes("poll")) return "system";
     if (label.includes("sticker")) return "sticker";
     if (label.includes("ic-play-arrow-filled") || label.includes("ptt-status")) return "audio";
-    if (label.includes("image") || label.includes("imagem") || node.querySelector("img")) return "image";
+    if (label.includes("image") || label.includes("imagem") || hasMediaImage(node)) return "image";
     if (label.includes("audio") || label.includes("áudio")) return "audio";
     if (label.includes("video") || label.includes("vídeo")) return "video";
     if (label.includes("document") || label.includes("documento")) return "document";
     return "text";
+  }
+
+  function hasMediaImage(node) {
+    return Array.from(node.querySelectorAll("img")).some((image) => {
+      const rect = image.getBoundingClientRect();
+      const alt = String(image.getAttribute("alt") || "");
+      const src = String(image.currentSrc || image.src || "");
+      const looksLikeInlineEmoji = alt && alt.length <= 8 && rect.width <= 48 && rect.height <= 48;
+      if (looksLikeInlineEmoji) {
+        return false;
+      }
+      return (
+        rect.width >= 64 ||
+        rect.height >= 64 ||
+        src.startsWith("blob:") ||
+        Boolean(image.closest("[data-testid*='media'], [aria-label*='imagem'], [aria-label*='image']"))
+      );
+    });
   }
 
   function attachmentCandidateFromEntry(entry) {

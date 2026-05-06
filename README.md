@@ -86,6 +86,22 @@ Defaults:
 - Web: `http://127.0.0.1:3002`
 - Worker CDP: `127.0.0.1:9223` (different from V1 `9222` to avoid clash)
 
+## Local worker operation
+
+Use the root worker scripts for real WhatsApp smokes. They stop duplicate local
+worker/screens before starting a single `worker-local-1` instance on CDP
+`127.0.0.1:9223`, with the persistent WhatsApp profile in
+`data/chromium-profile/whatsapp`.
+
+```bash
+npm run worker:status
+npm run worker:restart
+npm run worker:stop
+```
+
+The log stays at `data/worker-screen.log`. Keep API/Web running separately on
+ports `3001`/`3002` before running real send/inbound smoke tests.
+
 ## Smoke check
 
 ```bash

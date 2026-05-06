@@ -38,6 +38,17 @@ export interface NuomaOverlayData {
   }>;
   notes?: string | null;
   source?: string;
+  syncStatus?: string;
+  syncLastResult?: {
+    mode?: string;
+    conversationId?: number | null;
+    phone?: string | null;
+    history?: {
+      scrollsCompleted?: number;
+      syncedWindows?: number;
+      stoppedReason?: string;
+    } | null;
+  } | null;
   apiStatus?: string;
   apiLastMethod?: string;
   apiLastError?: string | null;
@@ -307,6 +318,48 @@ function createNuomaOverlayCss(): string {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+.nuoma-action-row {
+  display: grid;
+  gap: 8px;
+}
+
+.nuoma-action {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  min-block-size: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 10px;
+  border-radius: 10px;
+  color: ${overlayTokens.fg};
+  background: oklch(0.74 0.12 202 / 0.14);
+  border: 1px solid oklch(0.74 0.12 202 / 0.34);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.nuoma-action:hover,
+.nuoma-action:focus-visible {
+  border-color: oklch(0.74 0.12 202 / 0.68);
+  background: oklch(0.74 0.12 202 / 0.20);
+  outline: none;
+}
+
+.nuoma-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.nuoma-sync-note {
+  color: ${overlayTokens.fgDim};
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .nuoma-stat {
@@ -624,6 +677,27 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       request: requestNuomaApi,
       ping: () => requestNuomaApi("ping", {}),
       contactSummary: (input) => requestNuomaApi("contactSummary", input || {}),
+      forceConversationSync: (input) => {
+        const intent = prepareMutation("forceConversationSync", input || {});
+        return requestNuomaApi("forceConversationSync", input || {}, {
+          mutationIntent: intent,
+          confirmationText: "Forcar sync da conversa atual",
+          confirm: true,
+          timeoutMs: 30000,
+        }).then((response) => {
+          if (response && response.ok && response.data && typeof window.__nuomaOverlaySetData === "function") {
+            window.__nuomaOverlaySetData({
+              ...(response.data.snapshot || {}),
+              syncStatus: "done",
+              syncLastResult: response.data.result || null,
+              apiStatus: "online",
+              apiLastMethod: "forceConversationSync",
+              apiLastError: null,
+            });
+          }
+          return response;
+        });
+      },
       prepareMutation,
       confirmMutation: (intent, confirmationText) =>
         requestNuomaApi(intent && intent.method, intent && intent.params, {
@@ -1022,6 +1096,61 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       });
   }
 
+  function forceSyncCurrentConversation(host) {
+    installNuomaApi();
+    if (state.apiInFlight || !window.__nuomaApi || typeof window.__nuomaApi.forceConversationSync !== "function") {
+      return Promise.resolve(null);
+    }
+    const phone = host.getAttribute("data-nuoma-thread-phone") || "";
+    if (!phone) {
+      return Promise.resolve(null);
+    }
+    const currentConversation =
+      state.data &&
+      Array.isArray(state.data.conversations) &&
+      state.data.conversations[0] &&
+      typeof state.data.conversations[0].id === "number"
+        ? state.data.conversations[0]
+        : null;
+    state.apiInFlight = true;
+    state.data = {
+      ...(state.data || {}),
+      syncStatus: "running",
+      apiStatus: "loading",
+      apiLastMethod: "forceConversationSync",
+      apiLastError: null,
+    };
+    renderPanel(host);
+    return window.__nuomaApi
+      .forceConversationSync({
+        phone,
+        phoneSource: host.getAttribute("data-nuoma-phone-source") || "",
+        title: host.getAttribute("data-nuoma-thread-title") || "",
+        conversationId: currentConversation ? currentConversation.id : null,
+        reason: "overlay-button",
+      })
+      .then((response) => {
+        if (!response || !response.ok) {
+          state.data = {
+            ...(state.data || {}),
+            syncStatus: "error",
+            apiStatus: "error",
+            apiLastMethod: "forceConversationSync",
+            apiLastError:
+              response && response.error && response.error.message
+                ? response.error.message
+                : "Falha ao forcar sync",
+          };
+        }
+        renderPanel(host);
+        return response;
+      })
+      .finally(() => {
+        state.apiInFlight = false;
+        renderPanel(host);
+      });
+  }
+
   function renderPanel(host) {
     const panel = host.shadowRoot?.querySelector("[data-nuoma-panel]");
     if (!panel) {
@@ -1041,6 +1170,8 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     const apiStatus = text(data.apiStatus) || text(state.apiStatus) || "offline";
     const apiLastMethod = text(data.apiLastMethod) || text(state.apiLastMethod);
     const apiLastError = text(data.apiLastError) || text(state.apiLastError);
+    const syncStatus = text(data.syncStatus);
+    const syncLastResult = data.syncLastResult || null;
     const isApiLoading =
       apiStatus === "loading" || (state.apiInFlight && apiStatus !== "online" && apiStatus !== "error");
     const hasApiError = apiStatus === "error" || Boolean(apiLastError);
@@ -1122,6 +1253,39 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     grid.appendChild(stat("Ponte API", apiStatus + (apiLastMethod ? " / " + apiLastMethod : "")));
     summary.appendChild(grid);
     body.appendChild(summary);
+
+    const syncSection = section("Sync", syncStatus === "done" ? "atualizado" : "manual");
+    const syncActions = document.createElement("div");
+    syncActions.className = "nuoma-action-row";
+    const syncButton = document.createElement("button");
+    syncButton.type = "button";
+    syncButton.className = "nuoma-action";
+    syncButton.textContent = state.apiInFlight ? "Sincronizando..." : "Forcar sync";
+    syncButton.disabled = !phone || state.apiInFlight;
+    syncButton.addEventListener("click", () => {
+      void forceSyncCurrentConversation(host);
+    });
+    syncActions.appendChild(syncButton);
+    const syncNote = document.createElement("div");
+    syncNote.className = "nuoma-sync-note";
+    if (syncLastResult && syncStatus === "done") {
+      const history = syncLastResult.history || null;
+      syncNote.textContent = [
+        syncLastResult.mode || "sync",
+        syncLastResult.phone ? "+" + syncLastResult.phone : "",
+        history ? "janelas " + (history.syncedWindows || 0) : "",
+        history && history.stoppedReason ? history.stoppedReason : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+    } else {
+      syncNote.textContent = phone
+        ? "Rele a conversa atual pelo WhatsApp Web e grava mensagens por ID unico."
+        : "Abra uma conversa individual para liberar o sync manual.";
+    }
+    syncActions.appendChild(syncNote);
+    syncSection.appendChild(syncActions);
+    body.appendChild(syncSection);
 
     const automationSection = section("Automacoes", automations.length ? String(automations.length) : "0");
     const automationList = document.createElement("div");

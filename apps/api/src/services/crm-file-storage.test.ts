@@ -7,7 +7,12 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { loadApiEnv } from "@nuoma/config";
 
-import { crmNamespace, normalizeCrmOwnerKey, storeCrmFile } from "./crm-file-storage.js";
+import {
+  crmNamespace,
+  normalizeCrmOwnerKey,
+  resolveCrmReadableFile,
+  storeCrmFile,
+} from "./crm-file-storage.js";
 
 const tempDirs: string[] = [];
 
@@ -91,6 +96,63 @@ describe("CRM file storage", () => {
     expect(headers.authorization).toContain("AWS4-HMAC-SHA256 Credential=AKIATEST/");
     expect(headers["x-amz-content-sha256"]).toBe(sha256);
     expect(headers["x-amz-date"]).toBe("20260505T120000Z");
+  });
+
+  it("downloads S3 CRM files through signed GET and reuses the local cache", async () => {
+    const cacheRoot = await fs.mkdtemp(path.join(os.tmpdir(), "nuoma-crm-cache-"));
+    tempDirs.push(cacheRoot);
+    const objectKey = "nuoma/files/crm/contact-42/documento.txt";
+    const body = Buffer.from("cached s3 crm bytes");
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    const fetchImpl: typeof fetch = async (url, init) => {
+      calls.push({ url: String(url), init: init ?? {} });
+      return new Response(body, { status: 200 });
+    };
+    const env = loadApiEnv({
+      NODE_ENV: "test",
+      API_CRM_STORAGE_PROVIDER: "s3",
+      API_CRM_STORAGE_CACHE_ROOT: cacheRoot,
+      API_CRM_STORAGE_S3_BUCKET: "nuoma-crm-test",
+      API_CRM_STORAGE_S3_REGION: "us-east-1",
+      API_CRM_STORAGE_S3_ENDPOINT: "https://s3.local.test",
+      API_CRM_STORAGE_S3_ACCESS_KEY_ID: "AKIATEST",
+      API_CRM_STORAGE_S3_SECRET_ACCESS_KEY: "secret-test-key",
+    });
+
+    const first = await resolveCrmReadableFile({
+      env,
+      storagePath: `s3://nuoma-crm-test/${objectKey}`,
+      now: new Date("2026-05-06T06:00:00.000Z"),
+      fetchImpl,
+    });
+    const second = await resolveCrmReadableFile({
+      env,
+      storagePath: `s3://nuoma-crm-test/${objectKey}`,
+      now: new Date("2026-05-06T06:01:00.000Z"),
+      fetchImpl,
+    });
+
+    expect(first).toMatchObject({
+      provider: "s3",
+      cached: false,
+      bucket: "nuoma-crm-test",
+      objectKey,
+    });
+    expect(second).toMatchObject({
+      provider: "s3",
+      cached: true,
+      bucket: "nuoma-crm-test",
+      objectKey,
+    });
+    expect(first.localPath).toBe(path.join(cacheRoot, "nuoma-crm-test", objectKey));
+    await expect(fs.readFile(first.localPath)).resolves.toEqual(body);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toBe(`https://s3.local.test/nuoma-crm-test/${objectKey}`);
+    expect(calls[0]?.init.method).toBe("GET");
+    const headers = calls[0]?.init.headers as Record<string, string>;
+    expect(headers.authorization).toContain("AWS4-HMAC-SHA256 Credential=AKIATEST/");
+    expect(headers["x-amz-content-sha256"]).toBe("UNSIGNED-PAYLOAD");
+    expect(headers["x-amz-date"]).toBe("20260506T060000Z");
   });
 
   it("normalizes unsafe namespace and owner inputs", () => {

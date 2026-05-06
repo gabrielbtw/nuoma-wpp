@@ -48,7 +48,9 @@ erDiagram
 
   AUTOMATION ||--o{ AUTOMATION_ACTION : runs
   CHATBOT ||--o{ CHATBOT_RULE : evaluates
+  CHATBOT ||--o{ CHATBOT_VARIANT_EVENT : records
   CHATBOT_RULE ||--o{ AUTOMATION_ACTION : reuses
+  CHATBOT_RULE ||--o{ CHATBOT_VARIANT_EVENT : attributes
 ```
 
 ## Entity Groups
@@ -73,7 +75,9 @@ erDiagram
 - `MediaAsset`: local/S3 media object deduped by SHA256. CRM-owned files use
   the canonical namespace `/nuoma/files/crm/<phone-or-contact>/`; the local
   provider stores this under `crm-files/`, while the S3 provider PUTs the same
-  object key to an S3-compatible bucket.
+  object key to an S3-compatible bucket. Reads from `s3://` are private:
+  `/api/media/assets/:id` signs a GET request, downloads the object into a local
+  read-through cache and serves later reads from that cache.
 - `AttachmentCandidate`: evidence that an image/audio/video/document was seen
   inside a conversation. It links `conversation`, optional `message` and
   `mediaAsset`, allowing the Inbox to show captured attachments before the
@@ -85,6 +89,9 @@ erDiagram
 - `Automation`: event-triggered flow using the same step/action primitives.
 - `Chatbot`: reactive message rules as a separate entity, not an automation
   subtype.
+- `ChatbotVariantEvent`: immutable exposure/conversion history for chatbot A/B
+  variants. Rows link user, chatbot, rule, variant, optional contact/conversation
+  and optional source message; `sourceEventId` deduplicates replayed evaluations.
 
 ### Operations
 

@@ -370,29 +370,55 @@ async function handleSendMediaJob(job: Job, context: JobHandlerContext): Promise
     throw new PermanentJobError("send_media requires payload.conversationId");
   }
   const mediaAssetId = numberFromPayload(job.payload.mediaAssetId);
-  if (!mediaAssetId) {
+  const mediaAssetIdsFromPayload = Array.isArray(job.payload.mediaAssetIds)
+    ? uniquePositiveIds(
+        job.payload.mediaAssetIds
+          .map((value) => numberFromPayload(value))
+          .filter((value): value is number => value !== null),
+      )
+    : [];
+  const selectedMediaAssetId = mediaAssetId ?? mediaAssetIdsFromPayload[0];
+  if (!selectedMediaAssetId) {
     throw new PermanentJobError("send_media requires payload.mediaAssetId");
   }
   const mediaType = job.payload.mediaType;
   if (mediaType !== "image" && mediaType !== "video") {
     throw new PermanentJobError("send_media requires payload.mediaType image or video");
   }
-  const mediaAsset = await context.repos.mediaAssets.findById({
-    userId: job.userId,
-    id: mediaAssetId,
-  });
-  if (!mediaAsset) {
+  const mediaAssetIds = mediaAssetIdsFromPayload.length ? mediaAssetIdsFromPayload : [selectedMediaAssetId];
+  if (mediaAssetIds.length > 1 && mediaType !== "image") {
+    throw new PermanentJobError("send_media mediaAssetIds is only supported for image media");
+  }
+
+  const mediaAssets: MediaAsset[] = [];
+  for (const id of mediaAssetIds) {
+    const mediaAsset = await context.repos.mediaAssets.findById({
+      userId: job.userId,
+      id,
+    });
+    if (!mediaAsset) {
+      throw new PermanentJobError("send_media media asset not found");
+    }
+    assertNativeMediaAsset("send_media", mediaAsset, mediaType);
+    mediaAssets.push(mediaAsset);
+  }
+  const primaryMediaAsset = mediaAssets[0];
+  if (!primaryMediaAsset) {
     throw new PermanentJobError("send_media media asset not found");
   }
-  assertNativeMediaAsset("send_media", mediaAsset, mediaType);
 
   const result = await sendNativeMediaToConversation(job, context, {
     conversationId,
     phoneInput: typeof job.payload.phone === "string" ? job.payload.phone : null,
     mediaType,
-    mediaPath: resolveMediaStoragePath(mediaAsset.storagePath),
-    fileName: mediaAsset.fileName,
-    mimeType: mediaAsset.mimeType,
+    mediaPath: resolveMediaStoragePath(primaryMediaAsset.storagePath),
+    fileName: primaryMediaAsset.fileName,
+    mimeType: primaryMediaAsset.mimeType,
+    files: mediaAssets.map((mediaAsset) => ({
+      mediaPath: resolveMediaStoragePath(mediaAsset.storagePath),
+      fileName: mediaAsset.fileName,
+      mimeType: mediaAsset.mimeType,
+    })),
     caption: typeof job.payload.caption === "string" ? job.payload.caption : null,
     reason: "send_media",
   });
@@ -402,7 +428,8 @@ async function handleSendMediaJob(job: Job, context: JobHandlerContext): Promise
     severity: "info",
     payload: JSON.stringify({
       jobId: job.id,
-      mediaAssetId: mediaAsset.id,
+      mediaAssetId: primaryMediaAsset.id,
+      mediaAssetIds: mediaAssets.map((mediaAsset) => mediaAsset.id),
       mediaType,
       ...result,
     }),
@@ -468,11 +495,12 @@ async function sendVoiceToConversation(
     audioPath: input.audioPath,
     tempDir: path.resolve(process.cwd(), context.env.WORKER_TEMP_DIR),
   });
+  const sendPath = shouldSendVoiceSourceDirectly(prepared.sourcePath) ? prepared.sourcePath : prepared.wavPath;
   const result = await context.sync.sendVoiceMessage({
     userId: job.userId,
     conversationId: input.conversationId,
     phone: targetPhone,
-    wavPath: prepared.wavPath,
+    wavPath: sendPath,
     durationSecs: prepared.durationSecs,
     reason: input.reason,
   });
@@ -480,6 +508,7 @@ async function sendVoiceToConversation(
     audio: {
       sourcePath: prepared.sourcePath,
       wavPath: prepared.wavPath,
+      sendPath,
       durationSecs: prepared.durationSecs,
       durationSource: prepared.durationSource,
       sha256: prepared.sha256,
@@ -490,6 +519,11 @@ async function sendVoiceToConversation(
     },
     ...result,
   };
+}
+
+function shouldSendVoiceSourceDirectly(sourcePath: string): boolean {
+  const extension = path.extname(sourcePath).toLowerCase();
+  return extension === ".ogg" || extension === ".opus";
 }
 
 async function sendDocumentToConversation(

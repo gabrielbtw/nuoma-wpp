@@ -6,6 +6,7 @@ import {
   automationSchema,
   campaignRecipientSchema,
   campaignSchema,
+  chatbotVariantEventSchema,
   chatbotRuleSchema,
   chatbotSchema,
   contactSchema,
@@ -26,6 +27,7 @@ import {
   type CampaignRecipient,
   type Chatbot,
   type ChatbotRule,
+  type ChatbotVariantEvent,
   type Contact,
   type Conversation,
   type DeadJob,
@@ -47,6 +49,7 @@ import {
   automations,
   campaignRecipients,
   campaigns,
+  chatbotVariantEvents,
   chatbotRules,
   chatbots,
   contactTags,
@@ -69,6 +72,7 @@ import {
   type NewContact,
   type NewConversation,
   type NewAttachmentCandidate,
+  type NewChatbotVariantEvent,
   type NewJob,
   type NewJobDead,
   type NewMessage,
@@ -102,6 +106,9 @@ export interface UserRecord extends User {
 
 type CreateJobRecord = Omit<NewJob, "payload"> & { payload: JsonObject };
 type CreateAttachmentCandidateRecord = Omit<NewAttachmentCandidate, "metadata"> & {
+  metadata?: JsonObject;
+};
+type CreateChatbotVariantEventRecord = Omit<NewChatbotVariantEvent, "metadata"> & {
   metadata?: JsonObject;
 };
 type ContactRow = typeof contacts.$inferSelect;
@@ -279,6 +286,13 @@ function mapChatbotRule(row: typeof chatbotRules.$inferSelect): ChatbotRule {
     match: decodeJsonObject(row.match),
     segment: decodeNullableJsonObject(row.segment),
     actions: decodeArray(row.actions),
+    metadata: decodeJsonObject(row.metadata),
+  });
+}
+
+function mapChatbotVariantEvent(row: typeof chatbotVariantEvents.$inferSelect): ChatbotVariantEvent {
+  return chatbotVariantEventSchema.parse({
+    ...row,
     metadata: decodeJsonObject(row.metadata),
   });
 }
@@ -1736,6 +1750,115 @@ export function createRepositories(handle: DbHandle) {
           .returning();
         return row ? mapChatbotRule(row) : null;
       },
+      async recordVariantEvent(
+        input: CreateChatbotVariantEventRecord,
+      ): Promise<ChatbotVariantEvent | null> {
+        const values = {
+          ...input,
+          metadata: encodeJson(input.metadata ?? {}),
+        } satisfies NewChatbotVariantEvent;
+        const [row] = await db
+          .insert(chatbotVariantEvents)
+          .values(values)
+          .onConflictDoNothing()
+          .returning();
+        if (row) {
+          return mapChatbotVariantEvent(row);
+        }
+        if (!input.sourceEventId) {
+          return null;
+        }
+        const existing = await db
+          .select()
+          .from(chatbotVariantEvents)
+          .where(
+            and(
+              eq(chatbotVariantEvents.userId, input.userId),
+              eq(chatbotVariantEvents.sourceEventId, input.sourceEventId),
+            ),
+          )
+          .get();
+        return existing ? mapChatbotVariantEvent(existing) : null;
+      },
+      async listVariantEvents(input: {
+        userId: number;
+        chatbotId?: number;
+        ruleId?: number;
+        eventType?: typeof chatbotVariantEvents.$inferInsert.eventType;
+        cursor?: number;
+        limit?: number;
+      }): Promise<ChatbotVariantEvent[]> {
+        const rows = await db
+          .select()
+          .from(chatbotVariantEvents)
+          .where(
+            and(
+              eq(chatbotVariantEvents.userId, input.userId),
+              input.chatbotId ? eq(chatbotVariantEvents.chatbotId, input.chatbotId) : undefined,
+              input.ruleId ? eq(chatbotVariantEvents.ruleId, input.ruleId) : undefined,
+              input.eventType ? eq(chatbotVariantEvents.eventType, input.eventType) : undefined,
+              input.cursor ? gt(chatbotVariantEvents.id, input.cursor) : undefined,
+            ),
+          )
+          .orderBy(desc(chatbotVariantEvents.createdAt), desc(chatbotVariantEvents.id))
+          .limit(input.limit ?? 100);
+        return rows.map(mapChatbotVariantEvent);
+      },
+      async summarizeVariantEvents(input: {
+        userId: number;
+        chatbotId?: number;
+        ruleId?: number;
+      }): Promise<
+        Array<{
+          chatbotId: number;
+          ruleId: number;
+          variantId: string;
+          variantLabel: string | null;
+          exposures: number;
+          conversions: number;
+        }>
+      > {
+        const params: Array<string | number> = [input.userId];
+        let filters = "WHERE user_id = ?";
+        if (input.chatbotId) {
+          filters += " AND chatbot_id = ?";
+          params.push(input.chatbotId);
+        }
+        if (input.ruleId) {
+          filters += " AND rule_id = ?";
+          params.push(input.ruleId);
+        }
+        const rows = handle.raw
+          .prepare(
+            `SELECT
+               chatbot_id AS chatbotId,
+               rule_id AS ruleId,
+               variant_id AS variantId,
+               variant_label AS variantLabel,
+               SUM(CASE WHEN event_type = 'exposure' THEN 1 ELSE 0 END) AS exposures,
+               SUM(CASE WHEN event_type = 'conversion' THEN 1 ELSE 0 END) AS conversions
+             FROM chatbot_variant_events
+             ${filters}
+             GROUP BY chatbot_id, rule_id, variant_id, variant_label
+             ORDER BY rule_id ASC, variant_id ASC`,
+          )
+          .all(...params) as Array<{
+          chatbotId: number;
+          ruleId: number;
+          variantId: string;
+          variantLabel: string | null;
+          exposures: number | null;
+          conversions: number | null;
+        }>;
+        return rows.map((row) => ({
+          chatbotId: row.chatbotId,
+          ruleId: row.ruleId,
+          variantId: row.variantId,
+          variantLabel: row.variantLabel,
+          exposures: row.exposures ?? 0,
+          conversions: row.conversions ?? 0,
+        }));
+      },
     },
 
     jobs: {
@@ -2196,6 +2319,8 @@ export function createRepositories(handle: DbHandle) {
           userId?: number;
           type?: string;
           severity?: typeof systemEvents.$inferInsert.severity;
+          afterId?: number;
+          order?: "asc" | "desc";
           limit?: number;
         } = {},
       ) {
@@ -2203,12 +2328,13 @@ export function createRepositories(handle: DbHandle) {
           input.userId ? eq(systemEvents.userId, input.userId) : undefined,
           input.type ? eq(systemEvents.type, input.type) : undefined,
           input.severity ? eq(systemEvents.severity, input.severity) : undefined,
+          input.afterId !== undefined ? gt(systemEvents.id, input.afterId) : undefined,
         ].filter(Boolean);
         const rows = await db
           .select()
           .from(systemEvents)
           .where(clauses.length > 0 ? and(...clauses) : undefined)
-          .orderBy(desc(systemEvents.createdAt))
+          .orderBy(input.order === "asc" ? asc(systemEvents.id) : desc(systemEvents.createdAt))
           .limit(input.limit ?? 100);
         return rows.map(mapSystemEvent);
       },

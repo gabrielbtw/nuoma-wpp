@@ -25,6 +25,21 @@ export interface StoredCrmFile {
   localPath: string | null;
 }
 
+export interface ResolveCrmReadableFileInput {
+  env: ApiEnv;
+  storagePath: string;
+  now?: Date;
+  fetchImpl?: typeof fetch;
+}
+
+export interface ResolvedCrmReadableFile {
+  localPath: string;
+  cached: boolean;
+  provider: "local" | "s3";
+  bucket: string | null;
+  objectKey: string | null;
+}
+
 export async function storeCrmFile(input: StoreCrmFileInput): Promise<StoredCrmFile> {
   const sha256 = createHash("sha256").update(input.buffer).digest("hex");
   const namespace = crmNamespace(input.env, input.ownerKey);
@@ -67,6 +82,58 @@ export async function storeCrmFile(input: StoreCrmFileInput): Promise<StoredCrmF
   };
 }
 
+export async function resolveCrmReadableFile(
+  input: ResolveCrmReadableFileInput,
+): Promise<ResolvedCrmReadableFile> {
+  if (!input.storagePath.startsWith("s3://")) {
+    return {
+      localPath: path.isAbsolute(input.storagePath)
+        ? input.storagePath
+        : path.resolve(process.cwd(), input.storagePath),
+      cached: false,
+      provider: "local",
+      bucket: null,
+      objectKey: null,
+    };
+  }
+
+  const parsed = parseS3StoragePath(input.storagePath);
+  const expectedBucket = requireS3Bucket(input.env);
+  if (parsed.bucket !== expectedBucket) {
+    throw new Error("CRM S3 storage bucket mismatch");
+  }
+
+  const localPath = path.join(crmCacheRoot(input.env), parsed.bucket, safeObjectKey(parsed.objectKey));
+  try {
+    await fs.access(localPath);
+    return {
+      localPath,
+      cached: true,
+      provider: "s3",
+      bucket: parsed.bucket,
+      objectKey: parsed.objectKey,
+    };
+  } catch {
+    // Cache miss; download below.
+  }
+
+  await getS3Object({
+    env: input.env,
+    objectKey: parsed.objectKey,
+    targetPath: localPath,
+    now: input.now ?? new Date(),
+    fetchImpl: input.fetchImpl ?? fetch,
+  });
+
+  return {
+    localPath,
+    cached: false,
+    provider: "s3",
+    bucket: parsed.bucket,
+    objectKey: parsed.objectKey,
+  };
+}
+
 export function crmNamespace(env: ApiEnv, ownerKey: string): string {
   const namespace = sanitizeNamespace(env.API_CRM_STORAGE_NAMESPACE);
   const owner = normalizeCrmOwnerKey(ownerKey);
@@ -96,6 +163,13 @@ export function crmLocalRoot(env: ApiEnv): string {
     return path.resolve(path.dirname(env.DATABASE_URL), "crm-files");
   }
   return path.resolve(process.cwd(), "data", "crm-files");
+}
+
+export function crmCacheRoot(env: ApiEnv): string {
+  if (env.API_CRM_STORAGE_CACHE_ROOT) {
+    return path.resolve(env.API_CRM_STORAGE_CACHE_ROOT);
+  }
+  return path.resolve(crmLocalRoot(env), ".cache");
 }
 
 function sanitizeNamespace(value: string): string {
@@ -158,6 +232,48 @@ async function putS3Object(input: {
   return `s3://${bucket}/${input.objectKey}`;
 }
 
+async function getS3Object(input: {
+  env: ApiEnv;
+  objectKey: string;
+  targetPath: string;
+  now: Date;
+  fetchImpl: typeof fetch;
+}): Promise<void> {
+  const bucket = requireS3Bucket(input.env);
+  const accessKeyId = input.env.API_CRM_STORAGE_S3_ACCESS_KEY_ID;
+  const secretAccessKey = input.env.API_CRM_STORAGE_S3_SECRET_ACCESS_KEY;
+  if (!accessKeyId || !secretAccessKey) {
+    throw new Error("CRM S3 storage requires API_CRM_STORAGE_S3_ACCESS_KEY_ID and SECRET_ACCESS_KEY");
+  }
+
+  const region = input.env.API_CRM_STORAGE_S3_REGION;
+  const endpoint = s3Endpoint(input.env, bucket);
+  const url = s3ObjectUrl(input.env, endpoint, bucket, input.objectKey);
+  const signed = signS3Request({
+    method: "GET",
+    url,
+    region,
+    accessKeyId,
+    secretAccessKey,
+    sessionToken: input.env.API_CRM_STORAGE_S3_SESSION_TOKEN,
+    payloadHash: "UNSIGNED-PAYLOAD",
+    now: input.now,
+  });
+
+  const response = await input.fetchImpl(url, {
+    method: "GET",
+    headers: signed.headers,
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`CRM S3 download failed: ${response.status} ${detail}`.trim());
+  }
+
+  const bytes = Buffer.from(await response.arrayBuffer());
+  await fs.mkdir(path.dirname(input.targetPath), { recursive: true });
+  await fs.writeFile(input.targetPath, bytes);
+}
+
 function requireS3Bucket(env: ApiEnv): string {
   const bucket = env.API_CRM_STORAGE_S3_BUCKET;
   if (!bucket) {
@@ -207,14 +323,30 @@ function signS3Put(input: {
   payloadHash: string;
   now: Date;
 }): { headers: Record<string, string> } {
+  return signS3Request({ ...input, method: "PUT" });
+}
+
+function signS3Request(input: {
+  method: "GET" | "PUT";
+  url: URL;
+  region: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken?: string;
+  contentType?: string;
+  payloadHash: string;
+  now: Date;
+}): { headers: Record<string, string> } {
   const amzDate = toAmzDate(input.now);
   const dateStamp = amzDate.slice(0, 8);
   const headers: Record<string, string> = {
-    "content-type": input.contentType,
     host: input.url.host,
     "x-amz-content-sha256": input.payloadHash,
     "x-amz-date": amzDate,
   };
+  if (input.contentType) {
+    headers["content-type"] = input.contentType;
+  }
   if (input.sessionToken) {
     headers["x-amz-security-token"] = input.sessionToken;
   }
@@ -225,7 +357,7 @@ function signS3Put(input: {
     .map((key) => `${key}:${headers[key]?.trim() ?? ""}\n`)
     .join("");
   const canonicalRequest = [
-    "PUT",
+    input.method,
     input.url.pathname,
     input.url.searchParams.toString(),
     canonicalHeaders,
@@ -248,6 +380,27 @@ function signS3Put(input: {
     `Signature=${signature}`,
   ].join(", ");
   return { headers };
+}
+
+function parseS3StoragePath(storagePath: string): { bucket: string; objectKey: string } {
+  const withoutScheme = storagePath.slice("s3://".length);
+  const slashIndex = withoutScheme.indexOf("/");
+  if (slashIndex <= 0 || slashIndex === withoutScheme.length - 1) {
+    throw new Error("Invalid CRM S3 storage path");
+  }
+  return {
+    bucket: withoutScheme.slice(0, slashIndex),
+    objectKey: withoutScheme.slice(slashIndex + 1),
+  };
+}
+
+function safeObjectKey(objectKey: string): string {
+  const normalized = objectKey.replace(/\\/g, "/");
+  const parts = normalized.split("/").filter(Boolean);
+  if (parts.length === 0 || parts.some((part) => part === "." || part === "..")) {
+    throw new Error("Invalid CRM S3 object key");
+  }
+  return path.join(...parts);
 }
 
 function getSignatureKey(secretAccessKey: string, dateStamp: string, region: string, service: string) {

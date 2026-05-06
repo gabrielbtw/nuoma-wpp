@@ -351,30 +351,42 @@ describe("Nuoma WhatsApp overlay injection", () => {
             ((window as unknown as { __nuomaApiPayloads?: unknown[] }).__nuomaApiPayloads ??= []);
           payloads.push(request);
           setTimeout(() => {
+            const snapshot = {
+              phone: "5531982066263",
+              phoneSource: "header-title",
+              title: "5531982066263",
+              contact: {
+                name: "Contato API Fixture",
+                status: "lead",
+                primaryChannel: "whatsapp",
+                notes: "Nota hidratada via window.__nuomaApi.",
+              },
+              conversations: [{ id: 7, channel: "whatsapp", lastPreview: "API bridge" }],
+              latestMessages: [{ body: "Mensagem via API bridge", direction: "inbound" }],
+              automations: [{ id: 7, name: "Bridge automation", category: "Embed", status: "active" }],
+              notes: "Nota hidratada via window.__nuomaApi.",
+              source: "nuoma-api",
+              apiStatus: "online",
+              apiLastMethod: request.method,
+            };
             (
               window as unknown as {
                 __nuomaApiResolve?: (id: string, response: unknown) => unknown;
               }
             ).__nuomaApiResolve?.(request.id, {
               ok: true,
-              data: {
-                phone: "5531982066263",
-                phoneSource: "header-title",
-                title: "5531982066263",
-                contact: {
-                  name: "Contato API Fixture",
-                  status: "lead",
-                  primaryChannel: "whatsapp",
-                  notes: "Nota hidratada via window.__nuomaApi.",
-                },
-                conversations: [{ id: 7, channel: "whatsapp", lastPreview: "API bridge" }],
-                latestMessages: [{ body: "Mensagem via API bridge", direction: "inbound" }],
-                automations: [{ id: 7, name: "Bridge automation", category: "Embed", status: "active" }],
-                notes: "Nota hidratada via window.__nuomaApi.",
-                source: "nuoma-api",
-                apiStatus: "online",
-                apiLastMethod: request.method,
-              },
+              data:
+                request.method === "forceConversationSync"
+                  ? {
+                      result: {
+                        mode: "phone-navigation",
+                        conversationId: 7,
+                        phone: "5531982066263",
+                        history: { syncedWindows: 1, stoppedReason: "top-reached" },
+                      },
+                      snapshot,
+                    }
+                  : snapshot,
             });
           }, 0);
         };
@@ -388,6 +400,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
               __nuomaApi: {
                 __nuomaManaged: boolean;
                 refreshContact: (input: unknown) => Promise<unknown>;
+                forceConversationSync: (input: unknown) => Promise<unknown>;
                 request: (method: string, input: unknown) => Promise<unknown>;
                 prepareMutation: (method: string, input: unknown) => {
                   method: string;
@@ -410,6 +423,11 @@ describe("Nuoma WhatsApp overlay injection", () => {
           const blockedMutation = await api.request("addNote", { body: "sem confirmacao" });
           const mutationIntent = api.prepareMutation("addNote", { body: "nota segura" });
           const mutationResponse = await api.confirmMutation(mutationIntent, "Adicionar nota ao contato");
+          const forceResponse = await api.forceConversationSync({
+            phone: "5531982066263",
+            conversationId: 7,
+            reason: "unit-test",
+          });
           const host = document.getElementById(rootId);
           host?.shadowRoot?.querySelector<HTMLButtonElement>("[data-nuoma-fab]")?.click();
           await new Promise((resolve) => setTimeout(resolve, 50));
@@ -420,6 +438,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
             response,
             blockedMutation,
             mutationResponse,
+            forceResponse,
             lastPayload: (window as unknown as { __nuomaApiLastPayload?: unknown }).__nuomaApiLastPayload,
             payloads: (window as unknown as { __nuomaApiPayloads?: unknown[] }).__nuomaApiPayloads,
             apiStatus: host?.getAttribute("data-nuoma-api-status"),
@@ -436,9 +455,19 @@ describe("Nuoma WhatsApp overlay injection", () => {
         error: { code: "mutation_guard_required" },
       });
       expect(state.mutationResponse).toMatchObject({ ok: true });
+      expect(state.forceResponse).toMatchObject({ ok: true });
       expect(state.payloads).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ method: "contactSummary" }),
+          expect.objectContaining({
+            method: "forceConversationSync",
+            mutation: expect.objectContaining({
+              confirmed: true,
+              confirmationText: "Forcar sync da conversa atual",
+              nonce: expect.any(String),
+              idempotencyKey: expect.any(String),
+            }),
+          }),
           expect.objectContaining({
             method: "addNote",
             mutation: expect.objectContaining({
@@ -454,6 +483,8 @@ describe("Nuoma WhatsApp overlay injection", () => {
       expect(state.panelText).toContain("Contato API Fixture");
       expect(state.panelText).toContain("Ponte API");
       expect(state.panelText).toContain("online / contactSummary");
+      expect(state.panelText).toContain("Forcar sync");
+      expect(state.panelText).toContain("atualizado");
       expect(state.panelText).toContain("Bridge automation");
     } finally {
       await browser.close();

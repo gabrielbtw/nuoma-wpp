@@ -57,6 +57,13 @@
       "when": 1778005200000,
       "tag": "0007_contact_tag_order",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1778040000000,
+      "tag": "0008_chatbot_variant_events",
+      "breakpoints": true
     }
   ]
 }

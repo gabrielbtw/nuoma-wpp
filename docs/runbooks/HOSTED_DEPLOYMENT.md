@@ -65,6 +65,10 @@ CHROMIUM_PROFILE_DIR=/app/data/chromium-profile/whatsapp
 CHROMIUM_CDP_HOST=127.0.0.1
 CHROMIUM_CDP_BIND_HOST=0.0.0.0
 CHROMIUM_CDP_PORT=9223
+API_STREAMING_ENABLED=false
+API_STREAMING_CDP_HOST=127.0.0.1
+API_STREAMING_CDP_PORT=9223
+API_STREAMING_TARGET_URL_MATCH=web.whatsapp.com
 API_SEND_POLICY_MODE=test
 API_SEND_ALLOWED_PHONES=5531982066263
 WA_SEND_POLICY_MODE=test
@@ -90,6 +94,10 @@ profile; ele não apaga cookies, IndexedDB nem dados da sessão.
 API e Web não publicam `3001`/`3002` no host em Docker hosted; o acesso externo
 passa pelo Caddy em `8080`. O CDP fica publicado apenas em
 `127.0.0.1:9223` para túnel SSH.
+
+`API_STREAMING_ENABLED=false` é o default recomendado no hosted. Ligue apenas
+durante uma sessão administrativa explícita de screencast; quando ligado, a API
+usa o CDP local para capturar PNG e relayar input por sessão curta.
 
 ## QR inicial
 

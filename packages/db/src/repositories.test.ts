@@ -190,6 +190,156 @@ describe("repositories", () => {
     ]);
   });
 
+  it("records and summarizes chatbot variant exposure and conversion events", async () => {
+    const repos = createRepositories(handle);
+    const user = await repos.users.create({
+      email: "chatbot-variants@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const chatbot = await repos.chatbots.create({
+      userId: user.id,
+      name: "Bot A/B",
+      channel: "whatsapp",
+      status: "active",
+      fallbackMessage: null,
+    });
+    const rule = await repos.chatbots.createRule({
+      userId: user.id,
+      chatbotId: chatbot.id,
+      name: "Preco",
+      priority: 10,
+      match: { type: "contains", value: "preco" },
+      actions: [
+        {
+          type: "send_step",
+          step: {
+            id: "controle-step",
+            label: "Controle",
+            delaySeconds: 0,
+            conditions: [],
+            type: "text",
+            template: "Controle",
+          },
+        },
+      ],
+      metadata: {
+        abTest: {
+          enabled: true,
+          assignment: "deterministic",
+          variants: [
+            {
+              id: "controle",
+              label: "Controle",
+              weight: 50,
+              actions: [
+                {
+                  type: "send_step",
+                  step: {
+                    id: "controle-step",
+                    label: "Controle",
+                    delaySeconds: 0,
+                    conditions: [],
+                    type: "text",
+                    template: "Controle",
+                  },
+                },
+              ],
+            },
+            {
+              id: "variante-b",
+              label: "Variante B",
+              weight: 50,
+              actions: [
+                {
+                  type: "send_step",
+                  step: {
+                    id: "b-step",
+                    label: "Variante B",
+                    delaySeconds: 0,
+                    conditions: [],
+                    type: "text",
+                    template: "B",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
+      isActive: true,
+    });
+    const exposure = await repos.chatbots.recordVariantEvent({
+      userId: user.id,
+      chatbotId: chatbot.id,
+      ruleId: rule.id,
+      variantId: "controle",
+      variantLabel: "Controle",
+      eventType: "exposure",
+      channel: "whatsapp",
+      contactId: null,
+      conversationId: null,
+      messageId: null,
+      exposureId: null,
+      sourceEventId: "chatbot:1:message:1",
+      metadata: { source: "test" },
+    });
+    const duplicate = await repos.chatbots.recordVariantEvent({
+      userId: user.id,
+      chatbotId: chatbot.id,
+      ruleId: rule.id,
+      variantId: "controle",
+      variantLabel: "Controle",
+      eventType: "exposure",
+      channel: "whatsapp",
+      contactId: null,
+      conversationId: null,
+      messageId: null,
+      exposureId: null,
+      sourceEventId: "chatbot:1:message:1",
+      metadata: { source: "duplicate" },
+    });
+    const conversion = await repos.chatbots.recordVariantEvent({
+      userId: user.id,
+      chatbotId: chatbot.id,
+      ruleId: rule.id,
+      variantId: "controle",
+      variantLabel: "Controle",
+      eventType: "conversion",
+      channel: "whatsapp",
+      contactId: null,
+      conversationId: null,
+      messageId: null,
+      exposureId: exposure?.id ?? null,
+      sourceEventId: "chatbot:1:conversion:1",
+      metadata: { source: "test" },
+    });
+
+    const events = await repos.chatbots.listVariantEvents({
+      userId: user.id,
+      chatbotId: chatbot.id,
+    });
+    const summary = await repos.chatbots.summarizeVariantEvents({
+      userId: user.id,
+      chatbotId: chatbot.id,
+      ruleId: rule.id,
+    });
+
+    expect(duplicate?.id).toBe(exposure?.id);
+    expect(conversion?.exposureId).toBe(exposure?.id);
+    expect(events).toHaveLength(2);
+    expect(summary).toEqual([
+      {
+        chatbotId: chatbot.id,
+        ruleId: rule.id,
+        variantId: "controle",
+        variantLabel: "Controle",
+        exposures: 1,
+        conversions: 1,
+      },
+    ]);
+  });
+
   it("lists and updates reminders by conversation", async () => {
     const repos = createRepositories(handle);
     const user = await repos.users.create({

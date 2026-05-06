@@ -31,6 +31,11 @@ const baseEnv: ApiEnv = {
   API_CRM_STORAGE_NAMESPACE: "/nuoma/files/crm",
   API_CRM_STORAGE_S3_REGION: "us-east-1",
   API_CRM_STORAGE_S3_FORCE_PATH_STYLE: false,
+  API_STREAMING_ENABLED: false,
+  API_STREAMING_CDP_HOST: "127.0.0.1",
+  API_STREAMING_CDP_PORT: 9223,
+  API_STREAMING_TARGET_URL_MATCH: "web.whatsapp.com",
+  API_STREAMING_TIMEOUT_MS: 5000,
   DATABASE_URL: "../../data/nuoma-v2.db",
 };
 

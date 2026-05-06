@@ -20,6 +20,26 @@ const listChatbotsBodySchema = listChatbotsFilterSchema.omit({ userId: true }).o
 const updateChatbotBodySchema = updateChatbotInputSchema.omit({ userId: true });
 const listChatbotRulesBodySchema = listChatbotRulesFilterSchema.omit({ userId: true });
 const updateChatbotRuleBodySchema = updateChatbotRuleInputSchema.omit({ userId: true });
+const chatbotVariantEventBodySchema = z.object({
+  chatbotId: z.number().int().positive(),
+  ruleId: z.number().int().positive(),
+  variantId: z.string().min(1).max(64),
+  eventType: z.enum(["exposure", "conversion"]),
+  channel: z.enum(["whatsapp", "instagram", "system"]).default("whatsapp"),
+  contactId: z.number().int().positive().nullable().optional(),
+  conversationId: z.number().int().positive().nullable().optional(),
+  messageId: z.number().int().positive().nullable().optional(),
+  exposureId: z.number().int().positive().nullable().optional(),
+  sourceEventId: z.string().min(1).max(160).nullable().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+const listVariantEventsBodySchema = z.object({
+  chatbotId: z.number().int().positive().optional(),
+  ruleId: z.number().int().positive().optional(),
+  eventType: z.enum(["exposure", "conversion"]).optional(),
+  cursor: z.number().int().positive().optional(),
+  limit: z.number().int().min(1).max(200).default(100),
+});
 
 function bodyMatchesRule(rule: ChatbotRule, body: string): boolean {
   const value = rule.match.value ?? "";
@@ -103,6 +123,10 @@ function resolveRuleActions(
   input: { body: string; phone?: string },
 ): AutomationAction[] {
   return selectAbTestVariant(rule, input)?.actions ?? rule.actions;
+}
+
+function findAbTestVariant(rule: ChatbotRule, variantId: string): ChatbotRuleAbTestVariant | null {
+  return rule.metadata.abTest?.variants.find((variant) => variant.id === variantId) ?? null;
 }
 
 function stableHash(value: string): number {
@@ -228,6 +252,71 @@ export const chatbotsRouter = router({
         isActive: false,
       });
       return { rule, ok: Boolean(rule) };
+    }),
+
+  recordVariantEvent: protectedCsrfProcedure
+    .input(chatbotVariantEventBodySchema)
+    .mutation(async ({ ctx, input }) => {
+      const chatbot = await ctx.repos.chatbots.findById({
+        id: input.chatbotId,
+        userId: ctx.user.id,
+      });
+      if (!chatbot) {
+        return { event: null, ok: false as const, reason: "chatbot_not_found" };
+      }
+      const rules = await ctx.repos.chatbots.listRules({
+        userId: ctx.user.id,
+        chatbotId: chatbot.id,
+      });
+      const rule = rules.find((candidate) => candidate.id === input.ruleId) ?? null;
+      if (!rule) {
+        return { event: null, ok: false as const, reason: "rule_not_found" };
+      }
+      const variant = findAbTestVariant(rule, input.variantId);
+      if (!variant) {
+        return { event: null, ok: false as const, reason: "variant_not_found" };
+      }
+      const event = await ctx.repos.chatbots.recordVariantEvent({
+        userId: ctx.user.id,
+        chatbotId: chatbot.id,
+        ruleId: rule.id,
+        variantId: variant.id,
+        variantLabel: variant.label,
+        eventType: input.eventType,
+        channel: input.channel,
+        contactId: input.contactId ?? null,
+        conversationId: input.conversationId ?? null,
+        messageId: input.messageId ?? null,
+        exposureId: input.exposureId ?? null,
+        sourceEventId: input.sourceEventId ?? null,
+        metadata: input.metadata ?? {},
+      });
+      return { event, ok: Boolean(event), reason: null };
+    }),
+
+  listVariantEvents: protectedProcedure
+    .input(listVariantEventsBodySchema)
+    .query(async ({ ctx, input }) => {
+      const events = await ctx.repos.chatbots.listVariantEvents({
+        userId: ctx.user.id,
+        chatbotId: input.chatbotId,
+        ruleId: input.ruleId,
+        eventType: input.eventType,
+        cursor: input.cursor,
+        limit: input.limit,
+      });
+      return { events };
+    }),
+
+  summarizeVariantEvents: protectedProcedure
+    .input(z.object({ chatbotId: z.number().int().positive().optional(), ruleId: z.number().int().positive().optional() }).optional())
+    .query(async ({ ctx, input }) => {
+      const variants = await ctx.repos.chatbots.summarizeVariantEvents({
+        userId: ctx.user.id,
+        chatbotId: input?.chatbotId,
+        ruleId: input?.ruleId,
+      });
+      return { variants };
     }),
 
   testRule: protectedProcedure

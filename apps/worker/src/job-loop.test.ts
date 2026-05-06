@@ -1516,6 +1516,148 @@ describe("worker job loop", () => {
     );
   });
 
+  it("executes direct send_media image albums from mediaAssetIds", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const imagePaths = await Promise.all(
+      [1, 2, 3, 4, 5].map(async (index) => {
+        const imagePath = path.join(tempDir, `direct-album-${index}.jpg`);
+        await fs.writeFile(imagePath, Buffer.from([0xff, 0xd8, index, 0xff, 0xd9]));
+        return imagePath;
+      }),
+    );
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-direct-image-album",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_ALLOWED_PHONE: "5531982066263",
+    });
+    const user = await repos.users.create({
+      email: "direct-image-album@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      title: "Gabriel Braga Nuoma",
+    });
+    const mediaAssets = [];
+    for (const [index, imagePath] of imagePaths.entries()) {
+      mediaAssets.push(
+        await repos.mediaAssets.create({
+          userId: user.id,
+          type: "image",
+          fileName: `direct-album-${index + 1}.jpg`,
+          mimeType: "image/jpeg",
+          sha256: `${index + 5}`.repeat(64),
+          sizeBytes: (await fs.stat(imagePath)).size,
+          durationMs: null,
+          storagePath: imagePath,
+        }),
+      );
+    }
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "send_media",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        phone: "5531982066263",
+        mediaAssetId: mediaAssets[0]?.id,
+        mediaAssetIds: mediaAssets.map((mediaAsset) => mediaAsset.id),
+        mediaType: "image",
+        caption: "Album direto",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    if (!job) {
+      throw new Error("expected direct send_media image album job to be created");
+    }
+    const calls: unknown[] = [];
+
+    await handleJob(job, {
+      env,
+      db,
+      repos,
+      logger,
+      sync: {
+        connected: true,
+        metrics: {} as never,
+        forceConversation: async () => {
+          throw new Error("unexpected force sync");
+        },
+        sendTextMessage: async () => {
+          throw new Error("unexpected text send");
+        },
+        sendVoiceMessage: async () => {
+          throw new Error("unexpected voice send");
+        },
+        sendDocumentMessage: async () => {
+          throw new Error("unexpected document send");
+        },
+        sendMediaMessage: async (input) => {
+          calls.push(input);
+          return {
+            mode: "media-message",
+            contentType: input.mediaType,
+            conversationId: input.conversationId,
+            phone: input.phone,
+            reason: input.reason ?? "send_media",
+            navigationMode: "reused-open-chat",
+            externalId: "direct-album-after",
+            fileName: input.fileName,
+            mimeType: input.mimeType,
+            fileNames: input.files?.map((file) => file.fileName) ?? [input.fileName],
+            mimeTypes: input.files?.map((file) => file.mimeType) ?? [input.mimeType],
+            mediaCount: input.files?.length ?? 1,
+            captionSent: Boolean(input.caption),
+            visibleMessageCountBefore: 8,
+            visibleMessageCountAfter: 9,
+            lastExternalIdBefore: "direct-album-before",
+            lastExternalIdAfter: "direct-album-after",
+          };
+        },
+        close: async () => {},
+      },
+    });
+
+    expect(calls).toEqual([
+      expect.objectContaining({
+        conversationId: conversation.id,
+        phone: "5531982066263",
+        mediaType: "image",
+        filePath: imagePaths[0],
+        fileName: "direct-album-1.jpg",
+        mimeType: "image/jpeg",
+        files: imagePaths.map((imagePath, index) => ({
+          filePath: imagePath,
+          fileName: `direct-album-${index + 1}.jpg`,
+          mimeType: "image/jpeg",
+        })),
+        caption: "Album direto",
+        reason: "send_media",
+      }),
+    ]);
+    const events = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.media_message.completed",
+    });
+    expect(events[0]?.payload).toEqual(
+      expect.objectContaining({
+        jobId: job.id,
+        mediaAssetId: mediaAssets[0]?.id,
+        mediaAssetIds: mediaAssets.map((mediaAsset) => mediaAsset.id),
+        mediaCount: 5,
+        captionSent: true,
+      }),
+    );
+  });
+
   it("executes campaign video steps through the guarded native media sender", async () => {
     const repos = createRepositories(db);
     const logger = pino({ level: "silent" });

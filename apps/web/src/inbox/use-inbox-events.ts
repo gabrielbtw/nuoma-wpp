@@ -16,6 +16,13 @@ interface MessageAddedEvent {
   observedAt: string;
 }
 
+interface GlobalEventEnvelope {
+  channel: string;
+  type: string;
+  payload: unknown;
+  observedAt: string;
+}
+
 export interface InboxRealtimeState {
   status: "connecting" | "live" | "error" | "unsupported";
   conversationCount: number | null;
@@ -40,13 +47,13 @@ export function useInboxEvents(selectedConversationId: number | null): InboxReal
       return;
     }
 
-    const events = new EventSource(`${API_URL}/api/inbox/events`, {
+    const events = new EventSource(`${API_URL}/api/events?channels=inbox`, {
       withCredentials: true,
     });
     let closed = false;
 
-    events.addEventListener("inbox-ready", (event) => {
-      const payload = parseInboxReady(event);
+    events.addEventListener("events-ready", (event) => {
+      const payload = parseEventsReady(event);
       if (closed) return;
       setState((current) => ({
         ...current,
@@ -56,8 +63,10 @@ export function useInboxEvents(selectedConversationId: number | null): InboxReal
       }));
     });
 
-    events.addEventListener("message-added", (event) => {
-      const payload = parseMessageAdded(event);
+    events.addEventListener("nuoma-event", (event) => {
+      const envelope = parseGlobalEvent(event);
+      if (envelope?.channel !== "inbox" || envelope.type !== "message-added") return;
+      const payload = parseMessageAddedPayload(envelope.payload);
       if (!payload || closed) return;
       reorderConversationCache(utils, payload);
       void utils.conversations.list.invalidate();
@@ -75,7 +84,7 @@ export function useInboxEvents(selectedConversationId: number | null): InboxReal
       }));
     });
 
-    events.addEventListener("heartbeat", (event) => {
+    events.addEventListener("events-heartbeat", (event) => {
       const payload = parseObservedAt(event);
       if (closed) return;
       setState((current) => ({
@@ -105,12 +114,26 @@ export function useInboxEvents(selectedConversationId: number | null): InboxReal
   return state;
 }
 
-function parseMessageAdded(event: Event): MessageAddedEvent | null {
-  if (!(event instanceof MessageEvent) || typeof event.data !== "string") {
+function parseGlobalEvent(event: Event): GlobalEventEnvelope | null {
+  const parsed = parseJsonEvent(event);
+  if (
+    typeof parsed?.channel !== "string" ||
+    typeof parsed.type !== "string" ||
+    typeof parsed.observedAt !== "string"
+  ) {
     return null;
   }
+  return {
+    channel: parsed.channel,
+    type: parsed.type,
+    payload: parsed.payload,
+    observedAt: parsed.observedAt,
+  };
+}
+
+function parseMessageAddedPayload(payload: unknown): MessageAddedEvent | null {
   try {
-    const parsed = JSON.parse(event.data) as Partial<MessageAddedEvent>;
+    const parsed = payload as Partial<MessageAddedEvent>;
     return typeof parsed.conversationId === "number" &&
       typeof parsed.nextRank === "number" &&
       typeof parsed.unreadCount === "number" &&
@@ -132,30 +155,31 @@ function parseMessageAdded(event: Event): MessageAddedEvent | null {
   }
 }
 
-function parseInboxReady(event: Event): { conversationCount: number; observedAt: string } | null {
-  if (!(event instanceof MessageEvent) || typeof event.data !== "string") {
-    return null;
-  }
-  try {
-    const parsed = JSON.parse(event.data) as {
-      conversationCount?: unknown;
-      observedAt?: unknown;
-    };
-    return typeof parsed.conversationCount === "number" && typeof parsed.observedAt === "string"
-      ? { conversationCount: parsed.conversationCount, observedAt: parsed.observedAt }
-      : null;
-  } catch {
-    return null;
-  }
+function parseEventsReady(event: Event): { conversationCount?: number; observedAt: string } | null {
+  const parsed = parseJsonEvent(event);
+  return typeof parsed?.observedAt === "string"
+    ? {
+        conversationCount:
+          typeof parsed.conversationCount === "number" ? parsed.conversationCount : undefined,
+        observedAt: parsed.observedAt,
+      }
+    : null;
 }
 
 function parseObservedAt(event: Event): string | null {
+  const parsed = parseJsonEvent(event);
+  return typeof parsed?.observedAt === "string" ? parsed.observedAt : null;
+}
+
+function parseJsonEvent(event: Event): Record<string, unknown> | null {
   if (!(event instanceof MessageEvent) || typeof event.data !== "string") {
     return null;
   }
   try {
-    const parsed = JSON.parse(event.data) as { observedAt?: unknown };
-    return typeof parsed.observedAt === "string" ? parsed.observedAt : null;
+    const parsed = JSON.parse(event.data) as unknown;
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
   } catch {
     return null;
   }

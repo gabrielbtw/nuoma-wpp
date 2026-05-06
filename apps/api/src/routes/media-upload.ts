@@ -10,7 +10,7 @@ import type { ApiEnv } from "@nuoma/config";
 import { mediaAssetTypeSchema, type MediaAssetType } from "@nuoma/contracts";
 import type { Repositories } from "@nuoma/db";
 
-import { storeCrmFile } from "../services/crm-file-storage.js";
+import { resolveCrmReadableFile, storeCrmFile } from "../services/crm-file-storage.js";
 import { checkCsrf, verifyAccessToken } from "../trpc/auth.js";
 import { ACCESS_COOKIE, readCookie } from "../trpc/cookies.js";
 
@@ -125,19 +125,32 @@ export async function registerMediaUploadRoutes(
     if (asset.sourceUrl) {
       return reply.redirect(asset.sourceUrl);
     }
-    if (asset.storagePath.startsWith("s3://") || asset.storagePath.startsWith("wa-visible://")) {
+    if (asset.storagePath.startsWith("wa-visible://")) {
       return reply.code(404).send({ error: "Media asset is not locally readable" });
     }
 
-    const resolvedPath = path.isAbsolute(asset.storagePath)
-      ? asset.storagePath
-      : path.resolve(process.cwd(), asset.storagePath);
+    let resolvedPath: string;
+    let cacheStatus: "hit" | "miss" | null = null;
+    try {
+      const readable = await resolveCrmReadableFile({
+        env: deps.env,
+        storagePath: asset.storagePath,
+      });
+      resolvedPath = readable.localPath;
+      cacheStatus = readable.provider === "s3" ? (readable.cached ? "hit" : "miss") : null;
+    } catch {
+      return reply.code(404).send({ error: "Media asset file not found" });
+    }
+
     try {
       await fs.access(resolvedPath);
       reply
         .header("content-type", asset.mimeType)
         .header("cache-control", "private, max-age=300")
         .header("content-length", String(asset.sizeBytes));
+      if (cacheStatus) {
+        reply.header("x-nuoma-storage-cache", cacheStatus);
+      }
       return reply.send(createReadStream(resolvedPath));
     } catch {
       return reply.code(404).send({ error: "Media asset file not found" });

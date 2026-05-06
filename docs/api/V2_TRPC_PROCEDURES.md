@@ -12,7 +12,7 @@ Status: V2.7 API surface auditada em 2026-05-04.
 - `quickReplies`: respostas rápidas salvas, busca, criação, update, soft delete e contador de uso.
 - `campaigns`: listagem com métricas/timeline, detalhe, criação, update, arquivamento, elegibilidade por conversa, execute seguro e tick scheduler.
 - `automations`: listagem, detalhe, criação, update, elegibilidade por conversa, teste seco e trigger manual seguro.
-- `chatbots`: listagem, detalhe, criação, update, arquivamento/restauração, regras, desativação de regra e teste seco de regra.
+- `chatbots`: listagem, detalhe, criação, update, arquivamento/restauração, regras, desativação de regra, teste seco de regra e histórico A/B de variantes.
 - `tags`: listagem, criação, update e delete.
 - `attendants`: listagem, criação e update admin.
 - `jobs`: listagem, DLQ, retry e cleanup.
@@ -21,7 +21,8 @@ Status: V2.7 API surface auditada em 2026-05-04.
 - `media`: registro/dedup de assets por SHA256, upload físico multipart, detalhe, update, soft delete e listagem.
 - `push`: subscribe, unsubscribe e teste com entrega web-push quando VAPID estiver configurado.
 - `embed`: resumo de contato, automações elegíveis, dispatch seguro e nota por telefone.
-- `streaming`: contrato seguro para screencast/input relay, ainda indisponível no runtime local.
+- `streaming`: screencast CDP opt-in com captura PNG e relay seguro de input por sessão curta.
+- `/api/events`: SSE global autenticado por cookie com canais `inbox` e `system`, envelopes `nuoma-event`, replay de `system_events` por cursor e heartbeat único.
 
 ## Segurança
 
@@ -29,7 +30,8 @@ Status: V2.7 API surface auditada em 2026-05-04.
 - Mutations usam CSRF.
 - Jobs/admin/system sensíveis exigem role `admin`.
 - `messages.send` e `messages.sendVoice` têm hard guard para `5531982066263` e depois aplicam `API_SEND_POLICY_MODE`/`API_SEND_ALLOWED_PHONES` antes de enfileirar job; `campaigns.execute` e `automations.trigger` só aceitam override cliente `allowedPhone` quando ele é o canário `5531982066263`; envio real continua protegido no worker por `WA_SEND_POLICY_MODE`, `WA_SEND_ALLOWED_PHONES`/`WA_SEND_ALLOWED_PHONE`, rate limit persistido e guarda do chat ativo.
-- `streaming.*` não controla browser enquanto não houver sessão explícita de screencast.
+- `streaming.*` só controla browser quando `API_STREAMING_ENABLED=true`, existe sessão explícita de screencast e o usuário é admin.
+- `/api/events` exige cookie de acesso, aceita `channels=system,inbox` e cursor `sinceSystemEventId` ou `Last-Event-ID: system:<id>`; o cliente deve filtrar pelo campo `channel` do envelope.
 - `push.test` tenta entrega real via Web Push quando `API_WEB_PUSH_VAPID_PUBLIC_KEY` e `API_WEB_PUSH_VAPID_PRIVATE_KEY` existem; sem VAPID, registra evento local em modo seguro `event-only`.
 
 ## V2.7 Coverage
@@ -56,18 +58,20 @@ Status: V2.7 API surface auditada em 2026-05-04.
 | V2.7.17 automations.trigger             | Feito           | Trigger manual com `dryRun=true` por padrão; aceita `phone` ou `conversationId`; execução real usa a política `test`/`production` da API                      |
 | V2.7.18 automations.test                | Feito           | Teste seco de elegibilidade sem enfileirar job                                                                                                                |
 | V2.7.19 chatbots.testRule               | Feito           | Teste seco por `phone` + `body`, sem enfileirar job                                                                                                           |
+| V2.7.19a chatbots A/B history           | Feito           | `recordVariantEvent`, `listVariantEvents` e `summarizeVariantEvents` persistem exposição/conversão por chatbot/regra/variante com dedupe por `sourceEventId` |
 | V2.7.20 embed.contactSummary            | Feito           | Busca por telefone, conversas e últimas mensagens                                                                                                             |
 | V2.7.21 embed.eligibleAutomations       | Feito           | Filtra automações ativas compatíveis com canal                                                                                                                |
 | V2.7.22 embed.dispatchAutomation        | Feito           | Reusa trigger manual seguro com dry-run padrão                                                                                                                |
 | V2.7.23 embed.addNote                   | Feito           | Anexa nota no contato por telefone                                                                                                                            |
-| V2.7.24 streaming.startScreencast       | Contrato seguro | Retorna `available=false` até runtime existir                                                                                                                 |
-| V2.7.25 streaming.dispatchInput         | Contrato seguro | Retorna `accepted=false` sem sessão ativa                                                                                                                     |
+| V2.7.24 streaming.startScreencast       | Feito           | Com `API_STREAMING_ENABLED=true`, conecta ao CDP, captura PNG por `Page.captureScreenshot`, retorna `sessionId`, `targetUrl` e expiração curta                |
+| V2.7.25 streaming.dispatchInput         | Feito           | Com sessão ativa, relaya `click`, `keydown` e `text` via CDP; sem sessão ou streaming desligado retorna bloqueio seguro                                      |
 | V2.7.26 system.health/metrics/events    | Feito           | Health público, events admin e metrics de implantação com fila, DLQ, workers, CDP/sessão WhatsApp, política de envio e eventos críticos                       |
+| V2.13 global event stream               | Feito           | `/api/events` entrega canais `system` e `inbox` em SSE único, com replay incremental de `system_events`, `Last-Event-ID` e consumidor da Inbox migrado para o canal global |
 | V2.7.27 push.subscribe/unsubscribe/test | Feito           | Persistência subscription, unsubscribe, `push.test` com Web Push real quando VAPID existe e fallback `event-only` sem VAPID                                   |
 | V2.7.28 media.upload                    | Feito           | tRPC registra asset por SHA256; `/api/media/upload` recebe multipart real, grava arquivo físico, deduplica por SHA256 e cria `media_assets`                   |
 | V2.7.29 docs                            | Feito           | Este documento                                                                                                                                                |
 | V2.7.30 tests                           | Feito           | Suite API (`app`, scheduler e push delivery) e suite DB passam; cobre rotas operacionais, import/search, upload multipart, Web Push configurado e FTS5 físico |
-| V2.7.31 CRM file storage                | Feito           | `/api/media/upload` aceita `crmOwnerKey` ou `conversationId` e grava no provider `local`/`s3` sob `/nuoma/files/crm/<phone-or-contact>/`                      |
+| V2.7.31 CRM file storage                | Feito           | `/api/media/upload` aceita `crmOwnerKey` ou `conversationId` e grava no provider `local`/`s3` sob `/nuoma/files/crm/<phone-or-contact>/`; `/api/media/assets/:id` lê `s3://` por GET SigV4 com cache local privado |
 
 ## Extensões V2.9
 

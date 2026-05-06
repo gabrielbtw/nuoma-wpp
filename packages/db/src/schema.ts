@@ -407,6 +407,52 @@ export const chatbotRules = sqliteTable(
   }),
 );
 
+export const chatbotVariantEvents = sqliteTable(
+  "chatbot_variant_events",
+  {
+    ...id,
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    chatbotId: integer("chatbot_id")
+      .notNull()
+      .references(() => chatbots.id, { onDelete: "cascade" }),
+    ruleId: integer("rule_id")
+      .notNull()
+      .references(() => chatbotRules.id, { onDelete: "cascade" }),
+    variantId: text("variant_id").notNull(),
+    variantLabel: text("variant_label"),
+    eventType: text("event_type", { enum: ["exposure", "conversion"] }).notNull(),
+    channel: text("channel", { enum: ["whatsapp", "instagram", "system"] }).notNull(),
+    contactId: integer("contact_id").references(() => contacts.id, { onDelete: "set null" }),
+    conversationId: integer("conversation_id").references(() => conversations.id, {
+      onDelete: "set null",
+    }),
+    messageId: integer("message_id").references(() => messages.id, { onDelete: "set null" }),
+    exposureId: integer("exposure_id"),
+    sourceEventId: text("source_event_id"),
+    metadata: text("metadata_json").notNull().default("{}"),
+    ...timestamps,
+  },
+  (t) => ({
+    userChatbotRuleIdx: index("idx_chatbot_variant_events_rule").on(
+      t.userId,
+      t.chatbotId,
+      t.ruleId,
+    ),
+    variantEventIdx: index("idx_chatbot_variant_events_variant_type").on(
+      t.userId,
+      t.ruleId,
+      t.variantId,
+      t.eventType,
+    ),
+    sourceEventIdx: uniqueIndex("idx_chatbot_variant_events_source").on(
+      t.userId,
+      t.sourceEventId,
+    ),
+  }),
+);
+
 export const jobs = sqliteTable(
   "jobs",
   {
@@ -677,6 +723,8 @@ export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
 export type AttachmentCandidate = typeof attachmentCandidates.$inferSelect;
 export type NewAttachmentCandidate = typeof attachmentCandidates.$inferInsert;
+export type ChatbotVariantEvent = typeof chatbotVariantEvents.$inferSelect;
+export type NewChatbotVariantEvent = typeof chatbotVariantEvents.$inferInsert;
 export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;
 export type JobDead = typeof jobsDead.$inferSelect;

@@ -11,6 +11,11 @@ describe("loadApiEnv", () => {
     expect(env.API_CRM_STORAGE_PROVIDER).toBe("local");
     expect(env.API_CRM_STORAGE_NAMESPACE).toBe("/nuoma/files/crm");
     expect(env.API_CRM_STORAGE_LOCAL_ROOT).toBeUndefined();
+    expect(env.API_CRM_STORAGE_CACHE_ROOT).toBeUndefined();
+    expect(env.API_STREAMING_ENABLED).toBe(false);
+    expect(env.API_STREAMING_CDP_HOST).toBe("127.0.0.1");
+    expect(env.API_STREAMING_CDP_PORT).toBe(9223);
+    expect(env.API_STREAMING_TARGET_URL_MATCH).toBe("web.whatsapp.com");
   });
 
   it("parses explicit S3 CRM storage configuration", () => {
@@ -21,6 +26,7 @@ describe("loadApiEnv", () => {
       API_CRM_STORAGE_S3_BUCKET: "nuoma-crm",
       API_CRM_STORAGE_S3_REGION: "us-east-1",
       API_CRM_STORAGE_S3_ENDPOINT: "https://s3.local.test",
+      API_CRM_STORAGE_CACHE_ROOT: "../../data/crm-cache",
       API_CRM_STORAGE_S3_FORCE_PATH_STYLE: "true",
       API_CRM_STORAGE_S3_ACCESS_KEY_ID: "AKIATEST",
       API_CRM_STORAGE_S3_SECRET_ACCESS_KEY: "secret",
@@ -29,8 +35,26 @@ describe("loadApiEnv", () => {
 
     expect(env.API_CRM_STORAGE_PROVIDER).toBe("s3");
     expect(env.API_CRM_STORAGE_S3_BUCKET).toBe("nuoma-crm");
+    expect(env.API_CRM_STORAGE_CACHE_ROOT).toBe("../../data/crm-cache");
     expect(env.API_CRM_STORAGE_S3_FORCE_PATH_STYLE).toBe(true);
     expect(env.API_CRM_STORAGE_S3_SESSION_TOKEN).toBe("session");
+  });
+
+  it("parses API streaming CDP configuration explicitly", () => {
+    const env = loadApiEnv({
+      NODE_ENV: "test",
+      API_STREAMING_ENABLED: "true",
+      API_STREAMING_CDP_HOST: "127.0.0.2",
+      API_STREAMING_CDP_PORT: "9333",
+      API_STREAMING_TARGET_URL_MATCH: "example.test",
+      API_STREAMING_TIMEOUT_MS: "1500",
+    });
+
+    expect(env.API_STREAMING_ENABLED).toBe(true);
+    expect(env.API_STREAMING_CDP_HOST).toBe("127.0.0.2");
+    expect(env.API_STREAMING_CDP_PORT).toBe(9333);
+    expect(env.API_STREAMING_TARGET_URL_MATCH).toBe("example.test");
+    expect(env.API_STREAMING_TIMEOUT_MS).toBe(1500);
   });
 });
 
@@ -61,6 +85,8 @@ describe("loadWorkerEnv", () => {
     expect(env.WA_SEND_ALLOWED_PHONES).toBe("");
     expect(env.WA_SEND_RATE_LIMIT_WINDOW_MS).toBe(60_000);
     expect(env.WA_SEND_RATE_LIMIT_MAX).toBe(12);
+    expect(env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS).toBe(5_000);
+    expect(env.WORKER_SEND_STRICT_DELIVERY).toBe(true);
   });
 
   it("parses production send policy explicitly", () => {
@@ -70,12 +96,16 @@ describe("loadWorkerEnv", () => {
       WA_SEND_ALLOWED_PHONES: "5531982066263, 5531999999999",
       WA_SEND_RATE_LIMIT_WINDOW_MS: "30000",
       WA_SEND_RATE_LIMIT_MAX: "3",
+      WORKER_SEND_CONFIRMATION_TIMEOUT_MS: "5000",
+      WORKER_SEND_STRICT_DELIVERY: "false",
     });
 
     expect(env.WA_SEND_POLICY_MODE).toBe("production");
     expect(env.WA_SEND_ALLOWED_PHONES).toBe("5531982066263, 5531999999999");
     expect(env.WA_SEND_RATE_LIMIT_WINDOW_MS).toBe(30_000);
     expect(env.WA_SEND_RATE_LIMIT_MAX).toBe(3);
+    expect(env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS).toBe(5_000);
+    expect(env.WORKER_SEND_STRICT_DELIVERY).toBe(false);
   });
 
   it("allows hosted CDP bind host to differ from the local connect host", () => {

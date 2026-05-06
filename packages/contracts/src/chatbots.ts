@@ -7,6 +7,7 @@ import {
   idSchema,
   isoDateTimeSchema,
   jsonObjectSchema,
+  nullableIdSchema,
 } from "./common.js";
 import { automationActionSchema } from "./automations.js";
 import { segmentSchema } from "./campaigns.js";
@@ -53,6 +54,23 @@ export const chatbotRuleSchema = baseEntitySchema.extend({
   actions: z.array(automationActionSchema).min(1),
   isActive: z.boolean(),
   metadata: chatbotRuleMetadataSchema,
+});
+
+export const chatbotVariantEventTypeSchema = z.enum(["exposure", "conversion"]);
+
+export const chatbotVariantEventSchema = baseEntitySchema.extend({
+  chatbotId: idSchema,
+  ruleId: idSchema,
+  variantId: z.string().min(1).max(64),
+  variantLabel: z.string().min(1).max(80).nullable(),
+  eventType: chatbotVariantEventTypeSchema,
+  channel: channelTypeSchema,
+  contactId: nullableIdSchema,
+  conversationId: nullableIdSchema,
+  messageId: nullableIdSchema,
+  exposureId: nullableIdSchema,
+  sourceEventId: z.string().min(1).max(160).nullable(),
+  metadata: jsonObjectSchema,
 });
 
 export const createChatbotInputSchema = z.object({
@@ -116,6 +134,8 @@ export type ChatbotRuleAbTest = z.infer<typeof chatbotRuleAbTestSchema>;
 export type ChatbotRuleAbTestVariant = z.infer<typeof chatbotRuleAbTestVariantSchema>;
 export type ChatbotRuleMetadata = z.infer<typeof chatbotRuleMetadataSchema>;
 export type ChatbotRule = z.infer<typeof chatbotRuleSchema>;
+export type ChatbotVariantEventType = z.infer<typeof chatbotVariantEventTypeSchema>;
+export type ChatbotVariantEvent = z.infer<typeof chatbotVariantEventSchema>;
 export type CreateChatbotInput = z.infer<typeof createChatbotInputSchema>;
 export type UpdateChatbotInput = z.infer<typeof updateChatbotInputSchema>;
 export type CreateChatbotRuleInput = z.infer<typeof createChatbotRuleInputSchema>;

@@ -128,6 +128,15 @@ interface OverlayThreadState {
   title: string | null;
 }
 
+export interface ActiveSendTargetState {
+  href: string;
+  hrefPhone: string | null;
+  title: string;
+  titlePhone: string | null;
+  overlayPhone: string | null;
+  hasComposer: boolean;
+}
+
 interface OverlayApiRequest {
   id: string;
   method: string;
@@ -254,6 +263,8 @@ export interface SyncSendMediaMessageResult {
   fileNames: string[];
   mimeTypes: string[];
   mediaCount: number;
+  previewAttachmentCount?: number;
+  sentByInternalFallback?: boolean;
   captionSent: boolean;
   visibleMessageCountBefore: number;
   visibleMessageCountAfter: number;
@@ -301,6 +312,7 @@ export async function startSyncEngine(input: {
   let reconcileQueue: Promise<void> = Promise.resolve();
   let reconcileTimer: NodeJS.Timeout | null = null;
   let openChatPhone: string | null = null;
+  let openChatPhoneNavigatedAtMs = 0;
   const profilePhotoSeenByThread = new Map<string, string>();
   try {
     const target = await selectSyncTarget(input.env);
@@ -474,6 +486,56 @@ export async function startSyncEngine(input: {
             apiStatus: "online",
             apiLastMethod: request.method,
             apiLastError: null,
+          },
+        });
+        await auditOverlayApiRequest({
+          request,
+          ok: true,
+          phone: auditPhone,
+          phoneSource: auditPhoneSource,
+          latencyMs: Date.now() - startedAt,
+        });
+        return;
+      }
+
+      if (request.method === "forceConversationSync") {
+        const title = stringValue(request.params.title);
+        auditPhoneSource = stringValue(request.params.phoneSource);
+        const phone =
+          normalizePhone(stringValue(request.params.phone)) ??
+          normalizePhone(title) ??
+          normalizePhone((await readOverlayThreadState()).phone);
+        auditPhone = phone;
+        const conversationId = positiveIntegerValue(request.params.conversationId);
+        const result = await forceConversation({
+          userId: CONSTANTS.defaultUserId,
+          conversationId: conversationId ?? undefined,
+          phone,
+          reason: `overlay-api:${stringValue(request.params.reason) ?? request.method}`,
+          history: {
+            enabled: true,
+            maxScrolls: 8,
+            delayMs: 450,
+          },
+        });
+        const snapshot = await buildOverlaySnapshot({
+          userId: CONSTANTS.defaultUserId,
+          phone: result.phone ?? phone,
+          phoneSource: auditPhoneSource,
+          title,
+          reason: `overlay-api:${request.method}:after`,
+        });
+        await resolveOverlayApiRequest(request.id, {
+          ok: true,
+          data: {
+            result,
+            snapshot: {
+              ...snapshot,
+              source: "nuoma-api",
+              apiStatus: "online",
+              apiLastMethod: request.method,
+              apiLastError: null,
+            },
           },
         });
         await auditOverlayApiRequest({
@@ -1058,7 +1120,11 @@ export async function startSyncEngine(input: {
       throw new Error("send_message requires a valid WhatsApp phone");
     }
     const reason = sendInput.reason ?? "send_message";
-    const navigationMode = await navigateWhatsAppPhoneForSend(phone);
+    const navigationMode = await navigateWhatsAppPhoneForSend({
+      phone,
+      userId: sendInput.userId,
+      conversationId: sendInput.conversationId,
+    });
     await assertActiveSendTarget({
       expectedPhone: phone,
       operation: "send_message",
@@ -1075,7 +1141,12 @@ export async function startSyncEngine(input: {
 
     await focusComposerAndInsertText(sendInput.body);
     await clickComposerSendButton();
-    const sent = await waitForOutgoingTextBubble(sendInput.body, "send_message", 25_000);
+    const sent = await waitForOutgoingTextBubble(
+      sendInput.body,
+      "send_message",
+      input.env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS,
+      { requireDeliveredOrSent: input.env.WORKER_SEND_STRICT_DELIVERY },
+    );
 
     const after = await requestActiveReconcile(`${reason}:after-send`, {
       scope: "send-message",
@@ -1112,7 +1183,11 @@ export async function startSyncEngine(input: {
     const wavBase64 = (await fs.readFile(voiceInput.wavPath)).toString("base64");
     const initScript = voiceRecorderInitScript(wavBase64);
     const script = await client.Page.addScriptToEvaluateOnNewDocument({ source: initScript });
-    const navigationMode = await navigateWhatsAppPhoneForVoice(phone);
+    const navigationMode = await navigateWhatsAppPhoneForVoice({
+      phone,
+      userId: voiceInput.userId,
+      conversationId: voiceInput.conversationId,
+    });
     try {
       await assertActiveSendTarget({
         expectedPhone: phone,
@@ -1135,12 +1210,62 @@ export async function startSyncEngine(input: {
 
       await waitForVoiceOverrideReady();
       await sleep(1_500);
-      await clickVoiceRecordButton();
-      const injectionConsumed = await waitForVoiceInjectionConsumed();
       const recordingMs = Math.round(voiceInput.durationSecs * 1000) + 250;
-      await sleep(recordingMs);
-      await clickSendButton();
-      const deliveryStatus = await pollLastOutgoingDeliveryStatus(30_000);
+      let injectionConsumed = false;
+      let sentByInternalFallback = false;
+      let deliveryStatus: SyncSendVoiceMessageResult["deliveryStatus"] = "unknown";
+      const voiceMimeType = audioMimeTypeForPath(voiceInput.wavPath);
+      const voiceInternalOptions =
+        voiceMimeType.startsWith("audio/ogg") ? { isPtt: true } : { isAudio: true };
+      if (voiceMimeType !== "audio/wav") {
+        await withTimeout(
+          sendMediaViaWhatsAppInternal({
+            file: {
+              filePath: voiceInput.wavPath,
+              fileName: path.basename(voiceInput.wavPath),
+              mimeType: voiceMimeType,
+            },
+            caption: "",
+            mediaType: "audio",
+            ...voiceInternalOptions,
+          }),
+          60_000,
+          "send_voice internal media send timed out",
+        );
+        sentByInternalFallback = true;
+      } else {
+        await clickVoiceRecordButton();
+        try {
+          injectionConsumed = await waitForVoiceInjectionConsumed();
+        } catch (error) {
+          input.logger.warn(
+            { error },
+            "send_voice recorder injection did not consume payload; sending via WhatsApp internal media API",
+          );
+          await withTimeout(
+            sendMediaViaWhatsAppInternal({
+              file: {
+                filePath: voiceInput.wavPath,
+                fileName: path.basename(voiceInput.wavPath),
+                mimeType: voiceMimeType,
+              },
+              caption: "",
+              mediaType: "audio",
+              ...voiceInternalOptions,
+            }),
+            60_000,
+            "send_voice internal media send timed out",
+          );
+          sentByInternalFallback = true;
+        }
+      }
+      if (!sentByInternalFallback) {
+        await sleep(recordingMs);
+        await clickSendButton();
+        deliveryStatus = await pollLastOutgoingDeliveryStatus(30_000);
+      } else {
+        deliveryStatus = await pollLastOutgoingDeliveryStatus(30_000).catch(() => "sent");
+      }
       await sleep(1_000);
 
       const after = await requestActiveReconcile(`${reason}:after-send`, {
@@ -1150,7 +1275,26 @@ export async function startSyncEngine(input: {
         navigationMode,
       });
       await bindingQueue;
-      const bubble = await waitForVoiceBubbleByExternalId(after?.lastExternalId ?? null, 10_000);
+      const bubble = await waitForVoiceBubbleByExternalId(after?.lastExternalId ?? null, 10_000).catch(
+        () => ({
+          nativeVoiceEvidence: false,
+          displayDurationSecs: null,
+        }),
+      );
+      const externalId = sentExternalId(before, after);
+      const visibleMessageCountBefore = before?.visibleMessageCount ?? 0;
+      const visibleMessageCountAfter = after?.visibleMessageCount ?? 0;
+      if (
+        !bubble.nativeVoiceEvidence ||
+        bubble.displayDurationSecs === null ||
+        (!externalId && input.env.WORKER_SEND_STRICT_DELIVERY)
+      ) {
+        throw new Error(
+          `send_voice did not produce a verified WhatsApp voice bubble: externalId=${externalId ?? "null"} nativeVoiceEvidence=${String(
+            bubble.nativeVoiceEvidence,
+          )} displayDurationSecs=${String(bubble.displayDurationSecs)} visibleBefore=${visibleMessageCountBefore} visibleAfter=${visibleMessageCountAfter}`,
+        );
+      }
 
       return {
         mode: "voice-message",
@@ -1164,9 +1308,9 @@ export async function startSyncEngine(input: {
         deliveryStatus,
         nativeVoiceEvidence: bubble.nativeVoiceEvidence,
         displayDurationSecs: bubble.displayDurationSecs,
-        externalId: sentExternalId(before, after),
-        visibleMessageCountBefore: before?.visibleMessageCount ?? 0,
-        visibleMessageCountAfter: after?.visibleMessageCount ?? 0,
+        externalId,
+        visibleMessageCountBefore,
+        visibleMessageCountAfter,
         lastExternalIdBefore: before?.lastExternalId ?? null,
         lastExternalIdAfter: after?.lastExternalId ?? null,
       };
@@ -1190,7 +1334,11 @@ export async function startSyncEngine(input: {
     await fs.access(documentInput.filePath);
 
     const reason = documentInput.reason ?? "send_document";
-    const navigationMode = await navigateWhatsAppPhoneForDocument(phone);
+    const navigationMode = await navigateWhatsAppPhoneForDocument({
+      phone,
+      userId: documentInput.userId,
+      conversationId: documentInput.conversationId,
+    });
     await assertActiveSendTarget({
       expectedPhone: phone,
       operation: "send_document",
@@ -1228,11 +1376,17 @@ export async function startSyncEngine(input: {
       phone,
       navigationMode,
       before,
-      timeoutMs: 25_000,
+      timeoutMs: input.env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS,
       preferExternalId: false,
     });
     const externalId = sentExternalId(before, after);
-    await waitForOutgoingBubbleDelivery(externalId, "send_document", 30_000);
+    if (input.env.WORKER_SEND_STRICT_DELIVERY) {
+      await waitForOutgoingBubbleDelivery(
+        externalId,
+        "send_document",
+        input.env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS,
+      );
+    }
     const visibleMessageCountBefore = before?.visibleMessageCount ?? 0;
     const visibleMessageCountAfter = after.visibleMessageCount;
 
@@ -1277,7 +1431,11 @@ export async function startSyncEngine(input: {
     }
 
     const reason = mediaInput.reason ?? "send_media";
-    const navigationMode = await navigateWhatsAppPhoneForDocument(phone);
+    const navigationMode = await navigateWhatsAppPhoneForDocument({
+      phone,
+      userId: mediaInput.userId,
+      conversationId: mediaInput.conversationId,
+    });
     await assertActiveSendTarget({
       expectedPhone: phone,
       operation: `send_media ${mediaInput.mediaType}`,
@@ -1292,32 +1450,193 @@ export async function startSyncEngine(input: {
     });
     await bindingQueue;
 
-    await clearDocumentPreviewAttachments();
-    await attachMediaFiles(
-      mediaFiles.map((file) => file.filePath),
-      mediaInput.mediaType,
-    );
-    await waitForMediaPreview(mediaInput.mediaType, 8_000);
     const caption = mediaInput.caption?.trim() ?? "";
     let captionSent = false;
-    if (caption) {
-      captionSent = await tryInsertAttachmentCaption(caption);
+    let captionVisible = true;
+    let previewClosed = true;
+    let sentByInternalFallback = false;
+    let previewAttachmentCount = 0;
+    const expectedMediaCount = mediaFiles.length;
+    const allowInternalFallback = expectedMediaCount === 1;
+    const sendInternalFallback = async () => {
+      if (!allowInternalFallback) {
+        throw new Error(
+          `send_media ${mediaInput.mediaType} internal fallback disabled for ${expectedMediaCount} files`,
+        );
+      }
+      const fallbackFile = mediaFiles[0];
+      if (!fallbackFile) {
+        throw new Error(`send_media ${mediaInput.mediaType} internal fallback requires at least one media file`);
+      }
+      const fallback = await withTimeout(
+        sendMediaViaWhatsAppInternal({
+          file: fallbackFile,
+          caption,
+          mediaType: mediaInput.mediaType,
+        }),
+        90_000,
+        `send_media ${mediaInput.mediaType} internal fallback timed out`,
+      );
+      sentByInternalFallback = true;
+      previewAttachmentCount = 1;
+      await clearDocumentPreviewAttachments().catch((error: unknown) => {
+        input.logger.debug({ error }, "send_media preview cleanup after internal fallback failed");
+      });
+      previewClosed = await waitForAttachmentPreviewClosed(5_000);
+      return fallback;
+    };
+
+    if (allowInternalFallback) {
+      try {
+        const fallback = await sendInternalFallback();
+        input.logger.info(
+          { mediaType: mediaInput.mediaType, chatId: fallback.chatId },
+          "send_media sent via WhatsApp internal media API before visual attachment flow",
+        );
+      } catch (error) {
+        input.logger.warn(
+          { error, mediaType: mediaInput.mediaType },
+          "send_media internal media API failed before visual attachment flow; falling back to WhatsApp UI attachment",
+        );
+      }
+    } else {
+      input.logger.info(
+        { mediaType: mediaInput.mediaType, mediaCount: expectedMediaCount },
+        "send_media internal media API skipped for multi-file media",
+      );
     }
-    await dismissStartingConversationDialog();
-    await clickSendButton();
-    const after = await waitForDocumentSendResult({
-      reason,
-      reconcileScope: "send-media",
-      errorPrefix: `send_media ${mediaInput.mediaType}`,
-      conversationId: mediaInput.conversationId,
-      phone,
-      navigationMode,
-      before,
-      timeoutMs: 25_000,
-      preferExternalId: true,
-    });
+
+    if (!sentByInternalFallback) {
+    input.logger.info(
+      { mediaType: mediaInput.mediaType, mediaCount: mediaFiles.length },
+      "send_media stage clear-preview",
+    );
+    await withTimeout(
+      clearDocumentPreviewAttachments(),
+      10_000,
+      `send_media ${mediaInput.mediaType} clear preview timed out`,
+    );
+    input.logger.info(
+      { mediaType: mediaInput.mediaType, mediaCount: mediaFiles.length },
+      "send_media stage attach-files",
+    );
+    await withTimeout(
+      attachMediaFiles(
+        mediaFiles.map((file) => file.filePath),
+        mediaInput.mediaType,
+      ),
+      20_000,
+      `send_media ${mediaInput.mediaType} attach files timed out`,
+    );
+    input.logger.info({ mediaType: mediaInput.mediaType }, "send_media stage wait-preview");
+    try {
+      const preview = await withTimeout(
+        waitForMediaPreview(mediaInput.mediaType, 15_000, expectedMediaCount),
+        18_000,
+        `send_media ${mediaInput.mediaType} preview wait timed out`,
+      );
+      previewAttachmentCount = preview.attachmentCount;
+    } catch (error) {
+      if (!allowInternalFallback) {
+        throw error;
+      }
+      const fallback = await sendInternalFallback();
+      input.logger.warn(
+        { error, mediaType: mediaInput.mediaType, chatId: fallback.chatId },
+        "send_media attachment preview did not open; sent via WhatsApp internal media API",
+      );
+    }
+    if (!sentByInternalFallback) {
+      if (caption) {
+        input.logger.info({ mediaType: mediaInput.mediaType }, "send_media stage caption");
+        captionSent = await withTimeout(
+          tryInsertAttachmentCaption(caption),
+          10_000,
+          `send_media ${mediaInput.mediaType} caption timed out`,
+        );
+      }
+      input.logger.info({ mediaType: mediaInput.mediaType }, "send_media stage dismiss-dialog");
+      await withTimeout(
+        dismissStartingConversationDialog(),
+        8_000,
+        `send_media ${mediaInput.mediaType} dismiss dialog timed out`,
+      );
+      input.logger.info({ mediaType: mediaInput.mediaType }, "send_media stage click-send");
+      await withTimeout(
+        clickSendButton(),
+        10_000,
+        `send_media ${mediaInput.mediaType} click send timed out`,
+      );
+      input.logger.info({ mediaType: mediaInput.mediaType }, "send_media stage wait-outgoing");
+      captionVisible = caption
+        ? await withTimeout(
+            waitForVisiblePageText(caption, input.env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS),
+            input.env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS + 5_000,
+            `send_media ${mediaInput.mediaType} outgoing caption visibility timed out`,
+          )
+        : true;
+      previewClosed = await waitForAttachmentPreviewClosed(10_000);
+      if (!previewClosed && (await hasStartingConversationDialog())) {
+        input.logger.info(
+          { mediaType: mediaInput.mediaType },
+          "send_media starting conversation dialog blocked first click; retrying send",
+        );
+        await dismissStartingConversationDialog();
+        await withTimeout(
+          clickSendButton(),
+          10_000,
+          `send_media ${mediaInput.mediaType} retry click send timed out`,
+        );
+        previewClosed = await waitForAttachmentPreviewClosed(30_000);
+      }
+      if (!previewClosed) {
+        if (!allowInternalFallback) {
+          throw new Error(`send_media ${mediaInput.mediaType} preview remained open after send click`);
+        }
+        const fallback = await sendInternalFallback();
+        input.logger.warn(
+          { mediaType: mediaInput.mediaType, chatId: fallback.chatId },
+          "send_media visual send button did not close preview; sent via WhatsApp internal media API",
+        );
+      }
+    }
+    }
+    input.logger.info(
+      { mediaType: mediaInput.mediaType, captionVisible, previewClosed, sentByInternalFallback },
+      "send_media stage reconcile-after",
+    );
+    const after = await withTimeout(
+      requestActiveReconcile(`${reason}:after-send`, {
+        scope: "send-media",
+        conversationId: mediaInput.conversationId,
+        candidatePhone: phone,
+        navigationMode,
+      }),
+      20_000,
+      `send_media ${mediaInput.mediaType} after reconcile timed out`,
+    );
+    await bindingQueue;
     const externalId = sentExternalId(before, after);
-    await waitForOutgoingBubbleDelivery(externalId, `send_media ${mediaInput.mediaType}`, 30_000);
+    if (caption && !captionVisible && input.env.WORKER_SEND_STRICT_DELIVERY) {
+      throw new Error(`send_media ${mediaInput.mediaType} caption was not visible after send`);
+    }
+    if (!previewClosed && !externalId && !sentByInternalFallback) {
+      throw new Error(`send_media ${mediaInput.mediaType} preview remained open after send click`);
+    }
+    if (externalId) {
+      if (input.env.WORKER_SEND_STRICT_DELIVERY) {
+        await waitForOutgoingBubbleDelivery(
+          externalId,
+          `send_media ${mediaInput.mediaType}`,
+          input.env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS,
+        );
+      }
+    } else {
+      input.logger.warn(
+        { mediaType: mediaInput.mediaType },
+        "send_media completed by preview/text evidence without isolated external id",
+      );
+    }
 
     return {
       mode: "media-message",
@@ -1332,9 +1651,11 @@ export async function startSyncEngine(input: {
       fileNames: mediaFiles.map((file) => file.fileName),
       mimeTypes: mediaFiles.map((file) => file.mimeType),
       mediaCount: mediaFiles.length,
+      previewAttachmentCount,
+      sentByInternalFallback,
       captionSent,
       visibleMessageCountBefore: before?.visibleMessageCount ?? 0,
-      visibleMessageCountAfter: after.visibleMessageCount,
+      visibleMessageCountAfter: after?.visibleMessageCount ?? before?.visibleMessageCount ?? 0,
       lastExternalIdBefore: before?.lastExternalId ?? null,
       lastExternalIdAfter: after?.lastExternalId ?? null,
     };
@@ -1398,6 +1719,165 @@ export async function startSyncEngine(input: {
       throw new Error(`${input.errorPrefix} did not produce a new visible outgoing bubble`);
     }
     return lastAfter;
+  }
+
+  async function withTimeout<T>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    message: string,
+  ): Promise<T> {
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    }
+  }
+
+  async function waitForVisiblePageText(text: string, timeoutMs: number): Promise<boolean> {
+    if (!client) {
+      throw new Error("sync engine is not connected");
+    }
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const result = await client.Runtime.evaluate({
+        expression: `
+          (() => String(document.body?.innerText || "").includes(${JSON.stringify(text)}))()
+        `,
+        awaitPromise: false,
+        returnByValue: true,
+        includeCommandLineAPI: false,
+      });
+      if (result.result.value === true) {
+        return true;
+      }
+      await sleep(750);
+    }
+    return false;
+  }
+
+  async function waitForAttachmentPreviewClosed(timeoutMs: number): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const preview = await getAttachmentPreviewState();
+      if (!preview.open) {
+        return true;
+      }
+      await sleep(750);
+    }
+    return false;
+  }
+
+  async function sendMediaViaWhatsAppInternal(inputMedia: {
+    file: {
+      filePath: string;
+      fileName: string;
+      mimeType: string;
+    };
+    caption: string;
+    mediaType: "image" | "video" | "audio";
+    isPtt?: boolean;
+    isAudio?: boolean;
+  }): Promise<{ chatId: string | null }> {
+    if (!client) {
+      throw new Error("sync engine is not connected");
+    }
+    const base64 = (await fs.readFile(inputMedia.file.filePath)).toString("base64");
+    let lastValue: unknown = null;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const result = await client.Runtime.evaluate({
+        expression: `
+          (async () => {
+            const Store = window.require("WAWebCollections");
+            const Opaque = window.require("WAWebMediaOpaqueData");
+            const PrepRaw = window.require("WAWebPrepRawMedia");
+            const MediaPrep = window.require("WAWebMediaPrep");
+            const chats = Store.Chat._models || Store.Chat.models || [];
+            const chat = chats.find((item) => item.active) || null;
+            if (!chat) {
+              return { ok: false, reason: "active-chat-not-found" };
+            }
+            const raw = atob(${JSON.stringify(base64)});
+            const bytes = new Uint8Array(raw.length);
+            for (let index = 0; index < raw.length; index += 1) {
+              bytes[index] = raw.charCodeAt(index);
+            }
+            const mimeType = ${JSON.stringify(inputMedia.file.mimeType)};
+            const caption = ${JSON.stringify(inputMedia.caption)};
+            const options = {
+              filename: ${JSON.stringify(inputMedia.file.fileName)},
+              mimetype: mimeType,
+              ...(caption ? { caption } : {}),
+              ...(${JSON.stringify(inputMedia.isPtt === true)} ? { isPtt: true } : {}),
+              ...(${JSON.stringify(inputMedia.isAudio === true)} ? { isAudio: true } : {})
+            };
+            const blob = new Blob([bytes], { type: mimeType });
+            const opaque = await Opaque.createFromData(blob, mimeType);
+            const prep = PrepRaw.prepRawMedia(opaque, options);
+            await Promise.race([
+              prep.waitForPrep(),
+              new Promise((resolve) => setTimeout(resolve, 15_000))
+            ]);
+            const sendResult = MediaPrep.sendMediaMsgToChat({
+              chat,
+              prep,
+              options: {
+                ...(caption ? { caption } : {}),
+                ...(${JSON.stringify(inputMedia.isPtt === true)} ? { isPtt: true } : {}),
+                ...(${JSON.stringify(inputMedia.isAudio === true)} ? { isAudio: true } : {})
+              }
+            });
+            await Promise.race([
+              sendResult,
+              new Promise((resolve) => setTimeout(resolve, 15_000))
+            ]);
+            return {
+              ok: true,
+              chatId: chat.id?._serialized || String(chat.id || "")
+            };
+          })()
+        `,
+        awaitPromise: true,
+        returnByValue: true,
+        includeCommandLineAPI: false,
+      });
+      const value = result.result.value;
+      if (isRecord(value) && value.ok === true) {
+        return {
+          chatId: typeof value.chatId === "string" && value.chatId ? value.chatId : null,
+        };
+      }
+      lastValue = value;
+      const serializedValue = JSON.stringify(value ?? null);
+      if (!serializedValue.includes("InvalidMediaCheckRepairFailedType") || attempt === 3) {
+        break;
+      }
+      await sleep(2_500 * attempt);
+    }
+    throw new Error(
+      `send_media ${inputMedia.mediaType} internal fallback failed: ${JSON.stringify(lastValue ?? null)}`,
+    );
+  }
+
+  function audioMimeTypeForPath(filePath: string): string {
+    const extension = path.extname(filePath).toLowerCase();
+    if (extension === ".mp3") {
+      return "audio/mpeg";
+    }
+    if (extension === ".ogg" || extension === ".opus") {
+      return "audio/ogg; codecs=opus";
+    }
+    if (extension === ".m4a") {
+      return "audio/mp4";
+    }
+    return "audio/wav";
   }
 
   async function focusComposerAndInsertText(body: string): Promise<void> {
@@ -1545,7 +2025,8 @@ export async function startSyncEngine(input: {
     body: string,
     errorPrefix: string,
     timeoutMs: number,
-  ): Promise<{ externalId: string }> {
+    options: { requireDeliveredOrSent: boolean } = { requireDeliveredOrSent: true },
+  ): Promise<{ externalId: string | null }> {
     const deadline = Date.now() + timeoutMs;
     let last: OutgoingBubbleStatus | null = null;
     while (Date.now() < deadline) {
@@ -1553,7 +2034,18 @@ export async function startSyncEngine(input: {
       if (last?.hasError) {
         throw new Error(`${errorPrefix} outgoing text bubble failed in WhatsApp`);
       }
-      if (last?.externalId && last.hasExpectedText && isDeliveredOrSent(last.deliveryStatus)) {
+      if (
+        last?.hasExpectedText &&
+        last.externalId &&
+        (!options.requireDeliveredOrSent || isDeliveredOrSent(last.deliveryStatus))
+      ) {
+        return { externalId: last.externalId };
+      }
+      if (
+        last?.hasExpectedText &&
+        !options.requireDeliveredOrSent &&
+        (last.deliveryStatus === "pending" || last.deliveryStatus === "unknown")
+      ) {
         return { externalId: last.externalId };
       }
       await sleep(750);
@@ -1587,15 +2079,19 @@ export async function startSyncEngine(input: {
   }
 
   async function inspectOutgoingTextBubble(body: string): Promise<OutgoingBubbleStatus | null> {
+    const expectedTexts = textProofCandidates(body);
     return inspectOutgoingBubble(
       `
       (() => {
-        const body = ${JSON.stringify(body)};
+        const expectedTexts = ${JSON.stringify(expectedTexts)};
         const messages = Array.from(document.querySelectorAll(".message-out")).reverse();
-        return messages.find((message) => String(message.textContent || "").includes(body)) || null;
+        return messages.find((message) => {
+          const text = String(message.textContent || "").replace(/\\s+/g, " ").trim();
+          return expectedTexts.some((expectedText) => text.includes(expectedText));
+        }) || null;
       })()
     `,
-      body,
+      expectedTexts,
     );
   }
 
@@ -1615,7 +2111,7 @@ export async function startSyncEngine(input: {
 
   async function inspectOutgoingBubble(
     rootExpression: string,
-    expectedText: string | null,
+    expectedText: string[] | null,
   ): Promise<OutgoingBubbleStatus | null> {
     if (!client) {
       return null;
@@ -1632,6 +2128,8 @@ export async function startSyncEngine(input: {
             : root.closest("[data-id]") || root.querySelector("[data-id]");
           const externalId = dataNode ? dataNode.getAttribute("data-id") : root.getAttribute("data-id");
           const text = String(root.textContent || "");
+          const normalizedText = text.replace(/\\s+/g, " ").trim();
+          const expectedTexts = ${JSON.stringify(expectedText ?? [])};
           const hasError = Boolean(root.querySelector("span[data-icon='ic-error'], span[data-icon='msg-error'], [data-icon='ic-error'], [data-icon='msg-error']")) ||
             /(^|\\s)ic-error(\\s|$)/i.test(text);
           const deliveryStatus = root.querySelector("span[data-icon='msg-dblcheck-ack']") ? "read"
@@ -1644,7 +2142,7 @@ export async function startSyncEngine(input: {
             text,
             hasError,
             deliveryStatus,
-            hasExpectedText: ${expectedText === null ? "true" : `text.includes(${JSON.stringify(expectedText)})`}
+            hasExpectedText: ${expectedText === null ? "true" : "expectedTexts.some((expectedText) => normalizedText.includes(expectedText))"}
           };
         })()
       `,
@@ -1668,6 +2166,15 @@ export async function startSyncEngine(input: {
         : "unknown",
       hasExpectedText: value.hasExpectedText === true,
     };
+  }
+
+  function textProofCandidates(body: string): string[] {
+    const withoutEmoji = body
+      .replace(/[\u{1f000}-\u{1faff}\u{2600}-\u{27bf}]/gu, "")
+      .replace(/\ufe0f/gu, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    return [...new Set([body.replace(/\s+/g, " ").trim(), withoutEmoji].filter(Boolean))];
   }
 
   function isDeliveredOrSent(status: OutgoingDeliveryStatus): boolean {
@@ -2034,30 +2541,52 @@ export async function startSyncEngine(input: {
   async function waitForMediaPreview(
     mediaType: "image" | "video",
     timeoutMs: number,
-  ): Promise<void> {
+    expectedCount = 1,
+  ): Promise<{ attachmentCount: number }> {
     if (!client) {
-      return;
+      return { attachmentCount: 0 };
     }
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       const result = await client.Runtime.evaluate({
         expression: `
-          (() => {
+          ((expectedCount) => {
             const body = String(document.body?.innerText || "");
             const incompatible = /arquivo que você tentou adicionar não é compatível|file you tried to add is not supported/i.test(body);
-            const sendVisible = Boolean(Array.from(document.querySelectorAll("[aria-label^='Enviar'], [aria-label^='Send'], span[data-icon*='send'], span[data-icon*='end-filled']"))
+            const sendLabels = Array.from(document.querySelectorAll("[role='button'][aria-label], button[aria-label], div[aria-label]"))
+              .map((item) => {
+                const label = String(item.getAttribute("aria-label") || "");
+                const target = item.closest("button") || item.closest("[role='button']") || item;
+                const rect = target.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0 ? label : "";
+              })
+              .filter(Boolean);
+            const sendVisible = sendLabels.some((label) =>
+              /(send|enviar).*(selected|selecionad)|\\d+\\s+(selected|selecionad)/i.test(label)
+            );
+            const selectedCounts = sendLabels
+              .map((label) => {
+                const match = label.match(/(\\d+)\\s+(?:selected|selecionad)/i);
+                return match ? Number(match[1]) : 0;
+              })
+              .filter((count) => Number.isFinite(count) && count > 0);
+            const selectedCount = selectedCounts.length ? Math.max(...selectedCounts) : 0;
+            const removeVisible = Boolean(Array.from(document.querySelectorAll("[aria-label='Remover anexo'], [aria-label='Remove attachment']"))
               .find((item) => {
                 const target = item.closest("button") || item.closest("[role='button']") || item;
                 const rect = target.getBoundingClientRect();
                 return rect.width > 0 && rect.height > 0;
               }));
-            const previewVisible = Boolean(Array.from(document.querySelectorAll("img, video, canvas, [aria-label*='imagem'], [aria-label*='Imagem'], [aria-label*='image'], [aria-label*='Image'], [aria-label*='vídeo'], [aria-label*='Vídeo'], [aria-label*='video'], [aria-label*='Video']"))
-              .find((item) => {
+            const thumbnailCount = Array.from(document.querySelectorAll("[role='tab'][aria-label*='Miniatura'], [role='tab'][aria-label*='Thumbnail'], [role='tab'][aria-label*='thumbnail']"))
+              .filter((item) => {
                 const rect = item.getBoundingClientRect();
-                return rect.width > 24 && rect.height > 24 && !item.closest("footer");
-              }));
-            return { sendVisible, previewVisible, incompatible };
-          })()
+                return rect.width > 24 && rect.height > 24;
+              }).length;
+            const attachmentCount = Math.max(selectedCount, thumbnailCount, removeVisible ? 1 : 0);
+            const previewVisible = removeVisible || thumbnailCount > 0;
+            const countSatisfied = expectedCount <= 1 || attachmentCount >= expectedCount;
+            return { sendVisible, previewVisible, incompatible, attachmentCount, countSatisfied };
+          })(${JSON.stringify(expectedCount)})
         `,
         awaitPromise: false,
         returnByValue: true,
@@ -2067,12 +2596,22 @@ export async function startSyncEngine(input: {
       if (isRecord(value) && value.incompatible === true) {
         throw new Error(`send_media ${mediaType} file is not supported by WhatsApp preview`);
       }
-      if (isRecord(value) && value.sendVisible === true && value.previewVisible === true) {
-        return;
+      if (
+        isRecord(value) &&
+        value.sendVisible === true &&
+        value.previewVisible === true &&
+        value.countSatisfied === true
+      ) {
+        return {
+          attachmentCount:
+            typeof value.attachmentCount === "number" && Number.isFinite(value.attachmentCount)
+              ? value.attachmentCount
+              : 1,
+        };
       }
       await sleep(250);
     }
-    throw new Error(`send_media ${mediaType} preview did not open`);
+    throw new Error(`send_media ${mediaType} preview did not open with ${expectedCount} attachment(s)`);
   }
 
   async function getAttachmentPreviewState(): Promise<{ open: boolean }> {
@@ -2082,12 +2621,7 @@ export async function startSyncEngine(input: {
     const result = await client.Runtime.evaluate({
       expression: `
           (() => ({
-          open: Boolean(document.querySelector("[aria-label='Remover anexo'], [aria-label='Remove attachment'], [aria-label^='Miniatura de documento'], [aria-label^='Document thumbnail']")) ||
-            Boolean(Array.from(document.querySelectorAll("img, video, canvas, [aria-label*='imagem'], [aria-label*='Imagem'], [aria-label*='image'], [aria-label*='Image'], [aria-label*='vídeo'], [aria-label*='Vídeo'], [aria-label*='video'], [aria-label*='Video']"))
-              .find((item) => {
-                const rect = item.getBoundingClientRect();
-                return rect.width > 24 && rect.height > 24 && !item.closest("footer");
-              }))
+          open: Boolean(document.querySelector("[aria-label='Remover anexo'], [aria-label='Remove attachment'], [aria-label^='Miniatura de documento'], [aria-label^='Document thumbnail'], [role='tab'][aria-label*='Miniatura'], [role='tab'][aria-label*='Thumbnail'], [role='tab'][aria-label*='thumbnail']"))
         }))()
       `,
       awaitPromise: false,
@@ -2096,6 +2630,22 @@ export async function startSyncEngine(input: {
     });
     const value = result.result.value;
     return { open: isRecord(value) && value.open === true };
+  }
+
+  async function hasStartingConversationDialog(): Promise<boolean> {
+    if (!client) {
+      return false;
+    }
+    const result = await client.Runtime.evaluate({
+      expression: `
+        (() => Boolean(Array.from(document.querySelectorAll("[role='dialog']"))
+          .find((item) => /iniciando conversa|starting chat/i.test(String(item.textContent || "")))))()
+      `,
+      awaitPromise: false,
+      returnByValue: true,
+      includeCommandLineAPI: false,
+    });
+    return result.result.value === true;
   }
 
   async function dismissStartingConversationDialog(): Promise<void> {
@@ -2113,7 +2663,7 @@ export async function startSyncEngine(input: {
             }
             const cancel = Array.from(dialog.querySelectorAll("button, [role='button']"))
               .find((item) => /cancelar|cancel/i.test(String(item.textContent || item.getAttribute("aria-label") || "")));
-            if (cancel instanceof HTMLElement) {
+            if (cancel instanceof HTMLElement && ${JSON.stringify(attempt)} === 0) {
               cancel.click();
               return { found: true, dismissed: true, mode: "cancel" };
             }
@@ -2192,27 +2742,40 @@ export async function startSyncEngine(input: {
     const result = await client.Runtime.evaluate({
       expression: `
         (() => {
-          const nodes = Array.from(document.querySelectorAll(
+          const allNodes = Array.from(document.querySelectorAll(
             "button[aria-label^='Enviar'], button[aria-label^='Send'], div[aria-label^='Enviar'], div[aria-label^='Send'], [role='button'][aria-label^='Enviar'], [role='button'][aria-label^='Send'], span[data-icon*='send'], span[data-icon*='end-filled']"
-          )).filter((item) => {
-            const target = item.closest("button") || item.closest("[role='button']") || item;
+          ));
+          const selectedNodes = allNodes.filter((item) => {
+            const target = item.closest("button") || item.closest("[role='button']") || item.closest("div[aria-label]") || item;
+            const label = String(item.getAttribute("aria-label") || target.getAttribute("aria-label") || "");
             const rect = target.getBoundingClientRect();
-            return rect.width > 0 && rect.height > 0;
+            return /(send|enviar).*(selected|selecionad)/i.test(label) &&
+              rect.width > 0 &&
+              rect.height > 0;
           });
-          const node = nodes[nodes.length - 1];
-          const clickable = node && (
-            node.closest("button") ||
-            node.closest("[role='button']") ||
-            node.closest("div[aria-label]") ||
-            node
-          );
+          const candidates = (selectedNodes.length ? selectedNodes : allNodes).map((item) => {
+            const target = item.closest("button") || item.closest("[role='button']") || item.closest("div[aria-label]") || item;
+            const rect = target.getBoundingClientRect();
+            const label = String(item.getAttribute("aria-label") || target.getAttribute("aria-label") || "");
+            return {
+              item,
+              target,
+              label,
+              x: rect.left + rect.width / 2,
+              y: rect.top + rect.height / 2,
+              visible: rect.width > 0 && rect.height > 0,
+            };
+          }).filter((item) => item.visible);
+          const candidate = candidates.sort((a, b) => b.x - a.x || b.y - a.y)[0] || null;
+          const clickable = candidate?.target || null;
           if (clickable) {
             const rect = clickable.getBoundingClientRect();
             return {
               ok: true,
-              mode: "coordinates",
+              mode: selectedNodes.length ? "selected-attachment" : "coordinates",
               x: rect.left + rect.width / 2,
-              y: rect.top + rect.height / 2
+              y: rect.top + rect.height / 2,
+              label: candidate.label
             };
           }
           return { ok: false, reason: "send-button-not-found" };
@@ -2225,6 +2788,10 @@ export async function startSyncEngine(input: {
     const value = result.result.value;
     if (isRecord(value) && value.ok === true) {
       if (typeof value.x === "number" && typeof value.y === "number") {
+        input.logger.info(
+          { mode: value.mode, label: value.label, x: value.x, y: value.y },
+          "send button candidate",
+        );
         await client.Input.dispatchMouseEvent({
           type: "mouseMoved",
           x: value.x,
@@ -2235,6 +2802,7 @@ export async function startSyncEngine(input: {
           x: value.x,
           y: value.y,
           button: "left",
+          buttons: 1,
           clickCount: 1,
         });
         await client.Input.dispatchMouseEvent({
@@ -2242,8 +2810,13 @@ export async function startSyncEngine(input: {
           x: value.x,
           y: value.y,
           button: "left",
+          buttons: 0,
           clickCount: 1,
         });
+        if (value.mode === "selected-attachment") {
+          await sleep(1_500);
+          return;
+        }
         await sleep(300);
         await client.Runtime.evaluate({
           expression: `
@@ -2668,59 +3241,87 @@ export async function startSyncEngine(input: {
     });
     await hydrateOverlayData("navigate-phone");
     openChatPhone = normalized;
+    openChatPhoneNavigatedAtMs = Date.now();
   }
 
-  async function navigateWhatsAppPhoneForSend(
-    phone: string,
-  ): Promise<SyncSendTextMessageResult["navigationMode"]> {
-    const normalized = normalizePhone(phone);
+  async function navigateWhatsAppPhoneForSend(inputSend: {
+    phone: string;
+    userId: number;
+    conversationId: number;
+  }): Promise<SyncSendTextMessageResult["navigationMode"]> {
+    const normalized = normalizePhone(inputSend.phone);
     if (!normalized) {
       throw new Error("send_message requires a valid WhatsApp phone");
     }
-    if (await canReuseOpenChat(normalized)) {
+    if (await canReuseOpenChat(inputSend.userId, inputSend.conversationId, normalized)) {
       return "reused-open-chat";
     }
-    await client?.Page.navigate({ url: "about:blank" });
-    await sleep(500);
     await navigateWhatsAppPhone(normalized);
     return "navigated";
   }
 
-  async function navigateWhatsAppPhoneForVoice(
-    phone: string,
-  ): Promise<SyncSendVoiceMessageResult["navigationMode"]> {
-    const normalized = normalizePhone(phone);
+  async function navigateWhatsAppPhoneForVoice(inputVoice: {
+    phone: string;
+    userId: number;
+    conversationId: number;
+  }): Promise<SyncSendVoiceMessageResult["navigationMode"]> {
+    const normalized = normalizePhone(inputVoice.phone);
     if (!normalized) {
       throw new Error("send_voice requires a valid WhatsApp phone");
     }
-    if (await canReuseOpenChat(normalized)) {
+    if (await canReuseOpenChat(inputVoice.userId, inputVoice.conversationId, normalized)) {
       return "reused-open-chat";
     }
-    await client?.Page.navigate({ url: "about:blank" });
-    await sleep(500);
     await navigateWhatsAppPhone(normalized);
     return "navigated";
   }
 
-  async function navigateWhatsAppPhoneForDocument(
-    phone: string,
-  ): Promise<SyncSendDocumentMessageResult["navigationMode"]> {
-    const normalized = normalizePhone(phone);
+  async function navigateWhatsAppPhoneForDocument(inputDocument: {
+    phone: string;
+    userId: number;
+    conversationId: number;
+  }): Promise<SyncSendDocumentMessageResult["navigationMode"]> {
+    const normalized = normalizePhone(inputDocument.phone);
     if (!normalized) {
       throw new Error("send_document requires a valid WhatsApp phone");
     }
-    if (await canReuseOpenChat(normalized)) {
+    if (await canReuseOpenChat(inputDocument.userId, inputDocument.conversationId, normalized)) {
       return "reused-open-chat";
     }
     await navigateWhatsAppPhone(normalized);
     return "navigated";
   }
 
-  async function canReuseOpenChat(normalizedPhone: string): Promise<boolean> {
+  async function canReuseOpenChat(
+    userId: number,
+    conversationId: number,
+    normalizedPhone: string,
+  ): Promise<boolean> {
     if (!input.env.WORKER_SEND_REUSE_OPEN_CHAT_ENABLED) {
       return false;
     }
-    return openChatPhone === normalizedPhone && (await isWhatsAppChatReady());
+    if (!(await isWhatsAppChatReady())) {
+      return false;
+    }
+    const state = await readActiveSendTargetState();
+    const expectedTitle = await expectedSendTargetTitle(userId, conversationId);
+    const allowedSelfChatPhones = parseAllowedSendPhones(input.env);
+    const canReuse = shouldAllowActiveSendTarget({
+      expectedPhone: normalizedPhone,
+      state,
+      openChatPhone,
+      openChatPhoneNavigatedAtMs,
+      nowMs: Date.now(),
+      allowedSelfChatPhones,
+      expectedTitle,
+    });
+    if (!canReuse) {
+      openChatPhone = null;
+      openChatPhoneNavigatedAtMs = 0;
+      return false;
+    }
+    openChatPhone = normalizedPhone;
+    return state.hasComposer;
   }
 
   async function assertActiveSendTarget(assertInput: {
@@ -2732,14 +3333,56 @@ export async function startSyncEngine(input: {
     if (!client) {
       throw new Error(`${assertInput.operation} blocked: sync engine is not connected`);
     }
+    const expectedTitle = await expectedSendTargetTitle(
+      assertInput.userId,
+      assertInput.conversationId,
+    );
+    const allowedSelfChatPhones = parseAllowedSendPhones(input.env);
+    const deadline = Date.now() + 25_000;
+    let state = await readActiveSendTargetState();
+    while (Date.now() < deadline) {
+      if (shouldAllowActiveSendTarget({
+        expectedPhone: assertInput.expectedPhone,
+        state,
+        openChatPhone,
+        openChatPhoneNavigatedAtMs,
+        nowMs: Date.now(),
+        allowedSelfChatPhones,
+        expectedTitle,
+      })) {
+        return;
+      }
+      await sleep(300);
+      state = await readActiveSendTargetState();
+    }
+    openChatPhone = null;
+    openChatPhoneNavigatedAtMs = 0;
+    throw new Error(
+      `${assertInput.operation} blocked: active WhatsApp chat does not match target phone ${assertInput.expectedPhone}; hrefPhone=${state.hrefPhone ?? "none"} titlePhone=${state.titlePhone ?? "none"} overlayPhone=${state.overlayPhone ?? "none"} expectedTitle=${JSON.stringify(expectedTitle)} title=${JSON.stringify(state.title)} href=${JSON.stringify(state.href)}`,
+    );
+  }
+
+  async function expectedSendTargetTitle(userId: number, conversationId: number): Promise<string | null> {
     const expectedConversation = await input.repos.conversations.findById({
-      userId: assertInput.userId,
-      id: assertInput.conversationId,
+      userId,
+      id: conversationId,
     });
-    const expectedTitle = isUsefulSendTitle(expectedConversation?.title ?? null)
+    return isUsefulSendTitle(expectedConversation?.title ?? null)
       ? normalizeTitle(expectedConversation?.title ?? "")
       : null;
-    const allowedSelfChatPhones = parseAllowedSendPhones(input.env);
+  }
+
+  async function readActiveSendTargetState(): Promise<ActiveSendTargetState> {
+    if (!client) {
+      return {
+        href: "",
+        hrefPhone: null,
+        title: "",
+        titlePhone: null,
+        overlayPhone: null,
+        hasComposer: false,
+      };
+    }
     const result = await client.Runtime.evaluate({
       expression: `
         (() => {
@@ -2777,15 +3420,22 @@ export async function startSyncEngine(input: {
                 .map((node) => clean(node.textContent))
                 .filter(isChatTitleCandidate)
             : [];
-          const title =
-            titleCandidates[0] ||
-            textCandidates[0] ||
-            "";
+          const title = titleCandidates[0] || textCandidates[0] || "";
+          let overlayPhone = null;
+          try {
+            if (typeof window.__nuomaOverlayRefresh === "function") {
+              const overlay = window.__nuomaOverlayRefresh();
+              overlayPhone = normalizePhone(overlay && overlay.phone);
+            }
+          } catch {
+            overlayPhone = null;
+          }
           return {
             href,
             hrefPhone: normalizePhone(hrefPhone),
             title,
             titlePhone: normalizePhone(title),
+            overlayPhone,
             hasComposer: Boolean(document.querySelector("footer [contenteditable='true']")),
           };
         })()
@@ -2794,32 +3444,15 @@ export async function startSyncEngine(input: {
       returnByValue: true,
       includeCommandLineAPI: false,
     });
-    const state = isRecord(result.result.value) ? result.result.value : {};
-    const hrefPhone = typeof state.hrefPhone === "string" ? state.hrefPhone : null;
-    const titlePhone = typeof state.titlePhone === "string" ? state.titlePhone : null;
-    const title = typeof state.title === "string" ? state.title : "";
-    const hasComposer = state.hasComposer === true;
-    const normalizedTitle = normalizeTitle(title);
-    if (
-      hrefPhone === assertInput.expectedPhone ||
-      titlePhone === assertInput.expectedPhone ||
-      (openChatPhone === assertInput.expectedPhone && hasComposer) ||
-      isAllowedSelfChatTarget({
-        expectedPhone: assertInput.expectedPhone,
-        allowedPhones: allowedSelfChatPhones,
-        title,
-        expectedTitle,
-      }) ||
-      (expectedTitle &&
-        (normalizedTitle === expectedTitle || normalizedTitle.startsWith(`${expectedTitle} `)))
-    ) {
-      return;
-    }
-    openChatPhone = null;
-    const href = typeof state.href === "string" ? state.href : "";
-    throw new Error(
-      `${assertInput.operation} blocked: active WhatsApp chat does not match target phone ${assertInput.expectedPhone}; hrefPhone=${hrefPhone ?? "none"} titlePhone=${titlePhone ?? "none"} expectedTitle=${JSON.stringify(expectedTitle)} title=${JSON.stringify(title)} href=${JSON.stringify(href)}`,
-    );
+    const value = isRecord(result.result.value) ? result.result.value : {};
+    return {
+      href: typeof value.href === "string" ? value.href : "",
+      hrefPhone: typeof value.hrefPhone === "string" ? value.hrefPhone : null,
+      title: typeof value.title === "string" ? value.title : "",
+      titlePhone: typeof value.titlePhone === "string" ? value.titlePhone : null,
+      overlayPhone: typeof value.overlayPhone === "string" ? value.overlayPhone : null,
+      hasComposer: value.hasComposer === true,
+    };
   }
 
   async function waitForWhatsAppChatReady(timeoutMs: number): Promise<void> {
@@ -2893,18 +3526,56 @@ export async function startSyncEngine(input: {
     sendDocumentMessage,
     sendMediaMessage,
     close: async () => {
-      metrics.connected = false;
       if (reconcileTimer) {
         clearInterval(reconcileTimer);
-        reconcileTimer = null;
       }
-      await reconcileQueue;
-      await bindingQueue;
-      await overlayApiQueue;
       await client?.close();
-      client = null;
+      metrics.connected = false;
     },
   };
+}
+
+export function shouldAllowActiveSendTarget(input: {
+  expectedPhone: string;
+  state: ActiveSendTargetState;
+  openChatPhone: string | null;
+  openChatPhoneNavigatedAtMs: number;
+  nowMs: number;
+  allowedSelfChatPhones: string[];
+  expectedTitle: string | null;
+  recentNavigationGraceMs?: number;
+}): boolean {
+  const normalizedTitle = normalizeTitle(input.state.title);
+  const livePhoneMismatch =
+    (Boolean(input.state.titlePhone) && input.state.titlePhone !== input.expectedPhone) ||
+    (Boolean(input.state.overlayPhone) && input.state.overlayPhone !== input.expectedPhone);
+  if (livePhoneMismatch) {
+    return false;
+  }
+  if (
+    input.expectedTitle &&
+    isUsefulSendTitle(input.state.title) &&
+    normalizedTitle !== input.expectedTitle &&
+    !normalizedTitle.startsWith(`${input.expectedTitle} `)
+  ) {
+    return false;
+  }
+  return (
+    input.state.hrefPhone === input.expectedPhone ||
+    input.state.titlePhone === input.expectedPhone ||
+    input.state.overlayPhone === input.expectedPhone ||
+    isAllowedSelfChatTarget({
+      expectedPhone: input.expectedPhone,
+      allowedPhones: input.allowedSelfChatPhones,
+      title: input.state.title,
+      expectedTitle: input.expectedTitle,
+    }) ||
+    Boolean(
+      input.expectedTitle &&
+        (normalizedTitle === input.expectedTitle ||
+          normalizedTitle.startsWith(`${input.expectedTitle} `)),
+    )
+  );
 }
 
 async function selectSyncTarget(env: WorkerEnv): Promise<CDP.Target | undefined> {
@@ -2912,11 +3583,76 @@ async function selectSyncTarget(env: WorkerEnv): Promise<CDP.Target | undefined>
     host: env.CHROMIUM_CDP_HOST,
     port: env.CHROMIUM_CDP_PORT,
   });
-  return (
-    targets.find((target) => target.type === "page" && target.url.startsWith(env.WA_WEB_URL)) ??
-    targets.find((target) => target.type === "page" && target.url.includes("web.whatsapp.com")) ??
-    targets.find((target) => target.type === "page")
-  );
+  const pageTargets = targets.filter((target) => target.type === "page");
+  const preferredTargets = [
+    ...pageTargets.filter((target) => target.url.startsWith(env.WA_WEB_URL)),
+    ...pageTargets.filter(
+      (target) => target.url.includes("web.whatsapp.com") && !target.url.startsWith(env.WA_WEB_URL),
+    ),
+    ...pageTargets.filter((target) => !target.url.includes("web.whatsapp.com")),
+  ];
+  let selected: { target: CDP.Target; score: number } | null = null;
+  for (const target of preferredTargets) {
+    const score = await scoreSyncTarget(env, target);
+    if (!selected || score > selected.score) {
+      selected = { target, score };
+    }
+  }
+  return selected?.target;
+}
+
+async function scoreSyncTarget(env: WorkerEnv, target: CDP.Target): Promise<number> {
+  let score = 0;
+  if (target.url.startsWith(env.WA_WEB_URL)) {
+    score += 20;
+  } else if (target.url.includes("web.whatsapp.com")) {
+    score += 10;
+  }
+  const targetClient = await CDP({
+    host: env.CHROMIUM_CDP_HOST,
+    port: env.CHROMIUM_CDP_PORT,
+    target,
+  }).catch(() => null);
+  if (!targetClient) {
+    return score;
+  }
+  try {
+    const result = await targetClient.Runtime.evaluate({
+      expression: `
+        (() => ({
+          href: location.href,
+          title: document.title,
+          body: String(document.body?.innerText || "").slice(0, 2000),
+          hasComposer: Boolean(document.querySelector("#main footer [contenteditable='true'], footer [contenteditable='true']")),
+          hasChatList: Boolean(document.querySelector("[aria-label='Lista de conversas'], [aria-label='Chat list'], #pane-side"))
+        }))()
+      `,
+      awaitPromise: false,
+      returnByValue: true,
+      includeCommandLineAPI: false,
+    });
+    const value = result.result.value;
+    if (!isRecord(value)) {
+      return score;
+    }
+    const body = typeof value.body === "string" ? value.body : "";
+    const title = typeof value.title === "string" ? value.title : "";
+    if (/whatsapp/i.test(title)) {
+      score += 5;
+    }
+    if (value.hasComposer === true) {
+      score += 40;
+    }
+    if (value.hasChatList === true || /Tudo|Não lidas|Favoritas|Arquivadas|All|Unread|Favorites|Archived/i.test(body)) {
+      score += 25;
+    }
+    if (/WhatsApp está aberto em outra janela|WhatsApp is open in another window|Usar nesta janela|Use here/i.test(body)) {
+      score -= 100;
+    }
+    return score;
+  } finally {
+    await targetClient.close().catch(() => null);
+  }
 }
 
 function disabledRuntime(metrics: SyncEngineMetrics): SyncEngineRuntime {
@@ -3050,6 +3786,14 @@ function parseOverlayApiMutationGuard(value: unknown): OverlayApiMutationGuard |
 
 function stringValue(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function positiveIntegerValue(value: unknown): number | null {
+  const numeric = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  if (!Number.isInteger(numeric) || numeric <= 0) {
+    return null;
+  }
+  return numeric;
 }
 
 function updateBackfillResult(

@@ -272,6 +272,54 @@ describe("WhatsApp observer script", () => {
     );
   }, 30_000);
 
+  it("classifies text messages with inline emoji images as text", async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    const events: unknown[] = [];
+
+    try {
+      await page.exposeFunction("__nuomaSync", (payload: string) => {
+        events.push(JSON.parse(payload) as unknown);
+      });
+      await page.setContent(`
+        <main id="app">
+          <header><span title="Gabriel Braga Nuoma">Gabriel Braga Nuoma</span></header>
+          <section id="main">
+            <div data-id="3EB0EMOJI">
+              <div class="message-out focusable-list-item">
+                <div class="copyable-text" data-pre-plain-text="[10:20, 06/05/2026] Nuoma: ">
+                  <span data-testid="selectable-text">Smoke emoji ROUND-TEST-EMOJI <img alt="🚀" style="width:20px;height:20px" /> <img alt="👍" style="width:20px;height:20px" /></span>
+                </div>
+                <div data-testid="msg-meta"><span>10:20</span><span>msg-dblcheck</span></div>
+              </div>
+            </div>
+          </section>
+        </main>
+      `);
+      await page.evaluate(createWhatsAppObserverScript());
+      await page.waitForFunction("Boolean(globalThis.__nuomaSyncObserverInstalled)");
+      await page.waitForTimeout(250);
+    } finally {
+      await browser.close();
+    }
+
+    const message = events.find(
+      (
+        event,
+      ): event is {
+        type: string;
+        message: { externalId: string; contentType: string; body: string | null };
+      } => isMessageEvent(event) && event.message.externalId === "3EB0EMOJI",
+    )?.message;
+
+    expect(message).toEqual(
+      expect.objectContaining({
+        contentType: "text",
+        body: "Smoke emoji ROUND-TEST-EMOJI",
+      }),
+    );
+  }, 30_000);
+
   it("skips WhatsApp grouped-sticker wrapper nodes when collecting visible messages", async () => {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();

@@ -438,6 +438,7 @@ export function ChatbotsPage() {
 
 function ChatbotRulesPanel({ chatbotId }: { chatbotId: number }) {
   const rules = trpc.chatbots.listRules.useQuery({ chatbotId, isActive: true });
+  const variantStats = trpc.chatbots.summarizeVariantEvents.useQuery({ chatbotId });
   const utils = trpc.useUtils();
   const [dragRuleId, setDragRuleId] = useState<number | null>(null);
   const updateRule = trpc.chatbots.updateRule.useMutation({
@@ -472,6 +473,11 @@ function ChatbotRulesPanel({ chatbotId }: { chatbotId: number }) {
     <div className="mt-4 grid gap-3">
       {rules.data.rules.map((rule) => {
         const abTest = readAbTest(rule.metadata);
+        const statsByVariant = new Map(
+          (variantStats.data?.variants ?? [])
+            .filter((stats) => stats.ruleId === rule.id)
+            .map((stats) => [stats.variantId, stats]),
+        );
         return (
           <article
             key={rule.id}
@@ -513,20 +519,30 @@ function ChatbotRulesPanel({ chatbotId }: { chatbotId: number }) {
                 data-rule-id={rule.id}
                 data-variants={abTest.variants.length}
               >
-                {abTest.variants.map((variant) => (
-                  <div
-                    key={variant.id}
-                    className="rounded-md border border-border-muted bg-bg-sunken/60 px-3 py-2"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm font-medium">{variant.label}</span>
-                      <Badge variant="neutral">{variant.weight}</Badge>
+                {abTest.variants.map((variant) => {
+                  const stats = statsByVariant.get(variant.id);
+                  return (
+                    <div
+                      key={variant.id}
+                      className="rounded-md border border-border-muted bg-bg-sunken/60 px-3 py-2"
+                      data-testid="chatbot-ab-variant-stats"
+                      data-variant-id={variant.id}
+                      data-exposures={stats?.exposures ?? 0}
+                      data-conversions={stats?.conversions ?? 0}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-sm font-medium">{variant.label}</span>
+                        <Badge variant="neutral">{variant.weight}</Badge>
+                      </div>
+                      <p className="mt-1 text-xs font-mono text-fg-dim">
+                        {variant.actionsCount} ação(ões) · {abTest.assignment}
+                      </p>
+                      <p className="mt-2 text-xs text-fg-muted">
+                        {stats?.exposures ?? 0} exposição(ões) · {stats?.conversions ?? 0} conversão(ões)
+                      </p>
                     </div>
-                    <p className="mt-1 text-xs font-mono text-fg-dim">
-                      {variant.actionsCount} ação(ões) · {abTest.assignment}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </article>

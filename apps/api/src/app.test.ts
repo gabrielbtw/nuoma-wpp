@@ -5,7 +5,7 @@ import * as path from "node:path";
 
 import argon2 from "argon2";
 import type { FastifyInstance } from "fastify";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { loadApiEnv } from "@nuoma/config";
 import { createRepositories, openDb, runMigrations } from "@nuoma/db";
@@ -313,6 +313,126 @@ describe("api health", () => {
 
       const reordered = await repos.conversations.list(user.id, 10);
       expect(reordered.map((conversation) => conversation.id)).toEqual([older.id, newest.id]);
+    } finally {
+      controller.abort();
+      if (reader) {
+        await reader.cancel().catch(() => undefined);
+      }
+      await app.close();
+      db.close();
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("streams V2.13 global events by channel with cursor support", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "nuoma-v2-api-global-events-"));
+    const db = openDb(path.join(tempDir, "api.db"));
+    await runMigrations(db);
+    const repos = createRepositories(db);
+    const passwordHash = await argon2.hash("initial-password-123", { type: argon2.argon2id });
+    const user = await repos.users.create({
+      email: "admin@nuoma.local",
+      passwordHash,
+      role: "admin",
+      displayName: "Admin",
+    });
+    await repos.systemEvents.create({
+      userId: user.id,
+      type: "sync.dom_changed",
+      severity: "warn",
+      payload: JSON.stringify({ reason: "cursor-test" }),
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      title: "Gabriel",
+      lastMessageAt: "2026-05-04T12:00:00.000Z",
+      lastPreview: "inicio",
+      unreadCount: 0,
+    });
+    const app = await buildApiApp({
+      env: loadApiEnv({
+        API_LOG_LEVEL: "silent",
+        NODE_ENV: "test",
+        API_JWT_SECRET: "test-secret-with-more-than-16-chars",
+        DATABASE_URL: path.join(tempDir, "api.db"),
+      }),
+      db,
+      migrate: false,
+    });
+    let reader: SseReader | null = null;
+    const controller = new AbortController();
+
+    try {
+      const login = await trpcCall(app, "POST", "auth.login", {
+        email: "admin@nuoma.local",
+        password: "initial-password-123",
+      });
+      const cookies = cookieHeader(login.setCookie);
+      expect(cookies).toContain("nuoma_access=");
+
+      await app.listen({ host: "127.0.0.1", port: 0 });
+      const address = app.server.address();
+      if (!address || typeof address === "string") {
+        throw new Error("Expected Fastify to listen on a TCP address");
+      }
+      const baseUrl = `http://127.0.0.1:${address.port}`;
+      const response = await fetch(
+        `${baseUrl}/api/events?channels=system,inbox&sinceSystemEventId=0`,
+        {
+          headers: {
+            cookie: cookies,
+            origin: "http://127.0.0.1:3002",
+          },
+          signal: controller.signal,
+        },
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/event-stream");
+      if (!response.body) {
+        throw new Error("Expected SSE response body");
+      }
+      reader = response.body.getReader() as SseReader;
+      const streamState: SseReadState = { buffer: "" };
+
+      const ready = await readUntilSseEvent(reader, streamState, "events-ready");
+      expect(ready.data).toMatchObject({
+        channels: ["system", "inbox"],
+        conversationCount: 1,
+        pollMs: 2_000,
+      });
+
+      const systemEvent = await readUntilSseEvent(reader, streamState, "nuoma-event");
+      expect(systemEvent.data).toMatchObject({
+        channel: "system",
+        type: "sync.dom_changed",
+        payload: {
+          severity: "warn",
+          payload: { reason: "cursor-test" },
+        },
+      });
+
+      await repos.conversations.update({
+        userId: user.id,
+        id: conversation.id,
+        lastMessageAt: "2026-05-04T12:20:00.000Z",
+        lastPreview: "global stream",
+        unreadCount: 2,
+      });
+
+      const inboxEvent = await readUntilSseEvent(reader, streamState, "nuoma-event");
+      expect(inboxEvent.data).toMatchObject({
+        channel: "inbox",
+        type: "message-added",
+        payload: {
+          conversationId: conversation.id,
+          preview: "global stream",
+          unreadCount: 2,
+          previousRank: 0,
+          nextRank: 0,
+        },
+      });
     } finally {
       controller.abort();
       if (reader) {
@@ -856,6 +976,11 @@ describe("api health", () => {
         NODE_ENV: "test",
         API_JWT_SECRET: "test-secret-with-more-than-16-chars",
         DATABASE_URL: path.join(tempDir, "api.db"),
+        API_CRM_STORAGE_CACHE_ROOT: path.join(tempDir, "crm-cache"),
+        API_CRM_STORAGE_S3_BUCKET: "nuoma-crm-test",
+        API_CRM_STORAGE_S3_ENDPOINT: "https://s3.local.test",
+        API_CRM_STORAGE_S3_ACCESS_KEY_ID: "AKIATEST",
+        API_CRM_STORAGE_S3_SECRET_ACCESS_KEY: "secret-test-key",
       }),
       db,
       migrate: false,
@@ -1077,6 +1202,50 @@ describe("api health", () => {
         ),
       );
       await expect(fs.readFile(crmJson.asset.storagePath)).resolves.toEqual(crmBody);
+
+      const s3Body = Buffer.from("s3 cached download bytes");
+      const s3Asset = await repos.mediaAssets.create({
+        userId: user.id,
+        type: "document",
+        fileName: "crm-s3.txt",
+        mimeType: "text/plain",
+        sha256: createHash("sha256").update(s3Body).digest("hex"),
+        sizeBytes: s3Body.byteLength,
+        durationMs: null,
+        storagePath: "s3://nuoma-crm-test/nuoma/files/crm/5531982066263/crm-s3.txt",
+        sourceUrl: null,
+        deletedAt: null,
+      });
+      expect(s3Asset.storagePath).toBe(
+        "s3://nuoma-crm-test/nuoma/files/crm/5531982066263/crm-s3.txt",
+      );
+      const fetchMock = vi.fn<typeof fetch>(async () => new Response(s3Body, { status: 200 }));
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = fetchMock;
+      try {
+        const s3Download = await app.inject({
+          method: "GET",
+          url: `/api/media/assets/${s3Asset.id}`,
+          headers: { cookie: cookies },
+        });
+        const s3DownloadCached = await app.inject({
+          method: "GET",
+          url: `/api/media/assets/${s3Asset.id}`,
+          headers: { cookie: cookies },
+        });
+        expect(
+          s3Download.statusCode,
+          `${s3Download.payload} calls=${fetchMock.mock.calls.length}`,
+        ).toBe(200);
+        expect(s3Download.payload).toBe(s3Body.toString());
+        expect(s3Download.headers["x-nuoma-storage-cache"]).toBe("miss");
+        expect(s3DownloadCached.statusCode).toBe(200);
+        expect(s3DownloadCached.payload).toBe(s3Body.toString());
+        expect(s3DownloadCached.headers["x-nuoma-storage-cache"]).toBe("hit");
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
 
       const mediaGet = await trpcCall<{ asset: { fileName: string } | null }>(
         app,
@@ -1649,6 +1818,98 @@ describe("api health", () => {
         },
       });
 
+      const exposureCreate = await trpcCall<{
+        ok: boolean;
+        event: { id: number; eventType: string; variantId: string; sourceEventId: string | null } | null;
+        reason: string | null;
+      }>(
+        app,
+        "POST",
+        "chatbots.recordVariantEvent",
+        {
+          chatbotId: chatbotCreate.data!.chatbot.id,
+          ruleId: chatbotRuleCreate.data!.rule.id,
+          variantId: "controle",
+          eventType: "exposure",
+          channel: "whatsapp",
+          sourceEventId: "app-test-chatbot-exposure-1",
+          metadata: { source: "app.test" },
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(exposureCreate.data).toMatchObject({
+        ok: true,
+        event: {
+          eventType: "exposure",
+          variantId: "controle",
+          sourceEventId: "app-test-chatbot-exposure-1",
+        },
+        reason: null,
+      });
+
+      const conversionCreate = await trpcCall<{
+        ok: boolean;
+        event: { eventType: string; variantId: string; exposureId: number | null } | null;
+      }>(
+        app,
+        "POST",
+        "chatbots.recordVariantEvent",
+        {
+          chatbotId: chatbotCreate.data!.chatbot.id,
+          ruleId: chatbotRuleCreate.data!.rule.id,
+          variantId: "controle",
+          eventType: "conversion",
+          channel: "whatsapp",
+          exposureId: exposureCreate.data!.event!.id,
+          sourceEventId: "app-test-chatbot-conversion-1",
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(conversionCreate.data).toMatchObject({
+        ok: true,
+        event: {
+          eventType: "conversion",
+          variantId: "controle",
+          exposureId: exposureCreate.data!.event!.id,
+        },
+      });
+
+      const variantEvents = await trpcCall<{
+        events: Array<{ id: number; eventType: string; variantId: string }>;
+      }>(
+        app,
+        "GET",
+        "chatbots.listVariantEvents",
+        { chatbotId: chatbotCreate.data!.chatbot.id },
+        { cookie: cookies },
+      );
+      expect(variantEvents.data?.events).toHaveLength(2);
+
+      const variantSummary = await trpcCall<{
+        variants: Array<{
+          ruleId: number;
+          variantId: string;
+          exposures: number;
+          conversions: number;
+        }>;
+      }>(
+        app,
+        "GET",
+        "chatbots.summarizeVariantEvents",
+        { chatbotId: chatbotCreate.data!.chatbot.id },
+        { cookie: cookies },
+      );
+      expect(variantSummary.data?.variants).toEqual([
+        {
+          chatbotId: chatbotCreate.data!.chatbot.id,
+          ruleId: chatbotRuleCreate.data!.rule.id,
+          variantId: "controle",
+          variantLabel: "Controle",
+          exposures: 1,
+          conversions: 1,
+        },
+      ]);
+
       const chatbotRuleUpdate = await trpcCall<{
         rule: { isActive: boolean } | null;
       }>(
@@ -1890,7 +2151,7 @@ describe("api health", () => {
       expect(tagDelete.statusCode, JSON.stringify(tagDelete.error)).toBe(200);
       expect(tagDelete.data?.ok).toBe(true);
 
-      const screencast = await trpcCall<{ available: false; url: null }>(
+      const screencast = await trpcCall<{ available: false; sessionId: null; image: null }>(
         app,
         "GET",
         "streaming.startScreencast",
@@ -1898,7 +2159,7 @@ describe("api health", () => {
         { cookie: cookies },
       );
       expect(screencast.statusCode).toBe(200);
-      expect(screencast.data).toMatchObject({ available: false, url: null });
+      expect(screencast.data).toMatchObject({ available: false, sessionId: null, image: null });
     } finally {
       await app.close();
       db.close();

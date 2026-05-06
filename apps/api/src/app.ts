@@ -9,11 +9,13 @@ import { healthResponseSchema, type HealthResponse } from "@nuoma/contracts";
 import { createRepositories, openDb, runMigrations, type DbHandle } from "@nuoma/db";
 
 import { appRouter } from "./router.js";
+import { registerGlobalEventsRoutes } from "./routes/global-events.js";
 import { registerInboxEventsRoutes } from "./routes/inbox-events.js";
 import { registerMediaUploadRoutes } from "./routes/media-upload.js";
 import { createAutomationEngineDaemon } from "./services/automation-engine-daemon.js";
 import { createCampaignSchedulerDaemon } from "./services/campaign-scheduler-daemon.js";
 import { resolveApiSendPolicy } from "./services/send-policy.js";
+import { createStreamingCdpService } from "./services/streaming-cdp.js";
 import { createContextFactory } from "./trpc/context.js";
 
 const startedAt = new Date();
@@ -56,6 +58,8 @@ export async function buildApiApp(options: ApiAppOptions): Promise<FastifyInstan
   app.get("/health", async () => buildHealthResponse());
 
   const repos = createRepositories(dbHandle);
+  const streaming = createStreamingCdpService({ env: options.env });
+  await registerGlobalEventsRoutes(app, { env: options.env, repos });
   await registerInboxEventsRoutes(app, { env: options.env, repos });
   await registerMediaUploadRoutes(app, { env: options.env, repos });
 
@@ -91,7 +95,7 @@ export async function buildApiApp(options: ApiAppOptions): Promise<FastifyInstan
     prefix: "/trpc",
     trpcOptions: {
       router: appRouter,
-      createContext: createContextFactory({ env: options.env, repos }),
+      createContext: createContextFactory({ env: options.env, repos, streaming }),
       onError(opts: { error: Error; path?: string }) {
         app.log.error({ err: opts.error, path: opts.path }, "trpc error");
       },
