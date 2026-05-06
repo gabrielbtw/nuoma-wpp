@@ -14,7 +14,13 @@ import {
   CardTitle,
   EmptyState,
   ErrorState,
+  Input,
   LoadingState,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   useToast,
 } from "@nuoma/ui";
 
@@ -22,6 +28,7 @@ import { trpc } from "../lib/trpc.js";
 import { CampaignFlowBuilder } from "../flow-builder/FlowBuilder.js";
 
 type CampaignTickResult = inferRouterOutputs<AppRouter>["campaigns"]["tick"];
+type CampaignReadyReport = inferRouterOutputs<AppRouter>["campaigns"]["ready"];
 type CampaignListItem = inferRouterOutputs<AppRouter>["campaigns"]["list"]["campaigns"][number];
 type CampaignRecipientItem = CampaignListItem["recipients"][number];
 
@@ -29,8 +36,22 @@ export function CampaignsPage() {
   const campaigns = trpc.campaigns.list.useQuery();
   const utils = trpc.useUtils();
   const [lastTick, setLastTick] = useState<CampaignTickResult | null>(null);
+  const [safeCampaignId, setSafeCampaignId] = useState<string>("");
+  const [safeConfirm, setSafeConfirm] = useState("");
   const toast = useToast();
   const intent = usePageIntent();
+  const selectedSafeCampaignId = useMemo(() => {
+    const parsed = Number(safeCampaignId);
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+    return campaigns.data?.campaigns[0]?.id ?? null;
+  }, [campaigns.data?.campaigns, safeCampaignId]);
+  const readiness = trpc.campaigns.ready.useQuery(
+    { campaignId: selectedSafeCampaignId ?? 1 },
+    {
+      enabled: false,
+      retry: false,
+    },
+  );
   const tick = trpc.campaigns.tick.useMutation({
     onSuccess(result) {
       setLastTick(result);
@@ -79,19 +100,42 @@ export function CampaignsPage() {
   });
 
   const isGlobalTickPending = (dryRun: boolean) =>
-    tick.isPending && tick.variables?.campaignId === undefined && (tick.variables?.dryRun ?? false) === dryRun;
+    tick.isPending &&
+    tick.variables?.campaignId === undefined &&
+    (tick.variables?.dryRun ?? false) === dryRun;
   const isCampaignTickPending = (campaignId: number, dryRun: boolean) =>
-    tick.isPending && tick.variables?.campaignId === campaignId && (tick.variables?.dryRun ?? false) === dryRun;
+    tick.isPending &&
+    tick.variables?.campaignId === campaignId &&
+    (tick.variables?.dryRun ?? false) === dryRun;
+  const runSafeReady = async () => {
+    if (!selectedSafeCampaignId) return;
+    const result = await readiness.refetch();
+    setSafeConfirm("");
+    if (result.data) {
+      toast.push({
+        title: result.data.canEnqueue ? "Campanha pronta" : "Campanha bloqueada",
+        description: result.data.canEnqueue
+          ? `${result.data.summary.plannedJobs} job(s) prontos com guardrails aprovados.`
+          : `${result.data.issues.filter((issue) => issue.severity === "error").length} bloqueio(s) encontrados.`,
+        variant: result.data.canEnqueue ? "success" : "warning",
+      });
+    }
+  };
+  const runSafeEnqueue = () => {
+    if (!selectedSafeCampaignId || !readiness.data?.canEnqueue) return;
+    tick.mutate({ dryRun: false, campaignId: selectedSafeCampaignId });
+    setSafeConfirm("");
+  };
 
   return (
     <div className="flex flex-col gap-7 max-w-5xl mx-auto pt-2">
       <Animate preset="rise-in">
         <header className="flex items-end justify-between gap-6">
           <div>
-            <p className="text-[0.65rem] uppercase tracking-[0.25em] text-fg-dim font-mono">
+            <p className="botforge-kicker">
               Campanhas
             </p>
-            <h1 className="font-serif italic text-5xl md:text-6xl leading-[1] mt-2 tracking-tight">
+            <h1 className="botforge-title mt-2 text-5xl md:text-6xl">
               Outbound <span className="text-brand-violet">orquestrado</span>.
             </h1>
             <p className="text-sm text-fg-muted mt-3 max-w-xl">
@@ -118,6 +162,23 @@ export function CampaignsPage() {
           </div>
         </header>
       </Animate>
+
+      <SafeRemarketingConsole
+        campaigns={campaigns.data?.campaigns ?? []}
+        selectedCampaignId={selectedSafeCampaignId}
+        selectedValue={safeCampaignId}
+        onSelect={setSafeCampaignId}
+        confirmation={safeConfirm}
+        onConfirmationChange={setSafeConfirm}
+        readiness={readiness.data ?? null}
+        loadingReady={readiness.isFetching}
+        readyError={readiness.error?.message ?? null}
+        enqueuePending={
+          selectedSafeCampaignId ? isCampaignTickPending(selectedSafeCampaignId, false) : false
+        }
+        onReady={runSafeReady}
+        onEnqueue={runSafeEnqueue}
+      />
 
       {intent === "enqueue" && (
         <Animate preset="rise-in" delaySeconds={0.08}>
@@ -184,8 +245,14 @@ export function CampaignsPage() {
                   data-planned={lastTick.evergreenRecipientsPlanned}
                   data-created={lastTick.evergreenRecipientsCreated}
                 >
-                  <CampaignMetric label="evergreen campanhas" value={lastTick.evergreenCampaignsScanned} />
-                  <CampaignMetric label="contatos lidos" value={lastTick.evergreenContactsScanned} />
+                  <CampaignMetric
+                    label="evergreen campanhas"
+                    value={lastTick.evergreenCampaignsScanned}
+                  />
+                  <CampaignMetric
+                    label="contatos lidos"
+                    value={lastTick.evergreenContactsScanned}
+                  />
                   <CampaignMetric label="planejados" value={lastTick.evergreenRecipientsPlanned} />
                   <CampaignMetric label="criados" value={lastTick.evergreenRecipientsCreated} />
                 </div>
@@ -198,7 +265,9 @@ export function CampaignsPage() {
                       className="grid gap-2 rounded-lg bg-bg-base px-3 py-2.5 text-xs shadow-flat md:grid-cols-[1fr_auto_auto]"
                     >
                       <div className="min-w-0">
-                        <span className="font-mono text-fg-dim">#{job.campaignId}/{job.recipientId}</span>{" "}
+                        <span className="font-mono text-fg-dim">
+                          #{job.campaignId}/{job.recipientId}
+                        </span>{" "}
                         <span className="text-fg-primary">{job.stepId}</span>
                         {job.variantId && (
                           <span className="ml-2 inline-flex rounded-full bg-brand-violet/15 px-2 py-0.5 font-mono text-[0.65rem] text-brand-violet">
@@ -215,7 +284,10 @@ export function CampaignsPage() {
               {lastTick.errors.length > 0 && (
                 <ul className="mt-4 flex flex-col gap-1">
                   {lastTick.errors.map((error) => (
-                    <li key={`${error.recipientId}-${error.error}`} className="text-xs text-semantic-danger">
+                    <li
+                      key={`${error.recipientId}-${error.error}`}
+                      className="text-xs text-semantic-danger"
+                    >
                       #{error.recipientId}: {error.error}
                     </li>
                   ))}
@@ -296,7 +368,9 @@ export function CampaignsPage() {
                           size="xs"
                           data-testid="campaign-resume-button"
                           data-campaign-id={c.id}
-                          loading={resumeCampaign.isPending && resumeCampaign.variables?.id === c.id}
+                          loading={
+                            resumeCampaign.isPending && resumeCampaign.variables?.id === c.id
+                          }
                           onClick={() => resumeCampaign.mutate({ id: c.id })}
                         >
                           Retomar
@@ -334,7 +408,10 @@ export function CampaignsPage() {
                       <CampaignMetric label="falhas" value={c.metrics.failedSteps} />
                       <CampaignMetric label="navegou" value={c.metrics.navigatedSteps} />
                       <CampaignMetric label="reuso" value={c.metrics.reusedOpenChatSteps} />
-                      <CampaignMetric label="tempo" value={formatDuration(c.metrics.durationSeconds)} />
+                      <CampaignMetric
+                        label="tempo"
+                        value={formatDuration(c.metrics.durationSeconds)}
+                      />
                     </div>
                     {c.stepStats.length > 0 && (
                       <CampaignStepStatsPanel campaignId={c.id} stats={c.stepStats} />
@@ -357,6 +434,157 @@ export function CampaignsPage() {
         </Card>
       </Animate>
     </div>
+  );
+}
+
+function SafeRemarketingConsole({
+  campaigns,
+  selectedCampaignId,
+  selectedValue,
+  onSelect,
+  confirmation,
+  onConfirmationChange,
+  readiness,
+  loadingReady,
+  readyError,
+  enqueuePending,
+  onReady,
+  onEnqueue,
+}: {
+  campaigns: CampaignListItem[];
+  selectedCampaignId: number | null;
+  selectedValue: string;
+  onSelect: (value: string) => void;
+  confirmation: string;
+  onConfirmationChange: (value: string) => void;
+  readiness: CampaignReadyReport | null;
+  loadingReady: boolean;
+  readyError: string | null;
+  enqueuePending: boolean;
+  onReady: () => void;
+  onEnqueue: () => void;
+}) {
+  const canConfirm = Boolean(readiness?.canEnqueue && confirmation === readiness.confirmText);
+  const selected =
+    campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? campaigns[0] ?? null;
+  return (
+    <Animate preset="rise-in" delaySeconds={0.06}>
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>Console seguro de remarketing</CardTitle>
+              <CardDescription>
+                Dry-run forte, serialização por telefone e confirmação explícita antes de
+                enfileirar.
+              </CardDescription>
+            </div>
+            <Badge variant={readiness?.canEnqueue ? "success" : "warning"}>
+              {readiness?.canEnqueue ? "campanha pronta" : "guardrails"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
+            <Select value={selectedValue || String(selected?.id ?? "")} onValueChange={onSelect}>
+              <SelectTrigger data-testid="safe-dispatch-campaign-select">
+                <SelectValue placeholder="Selecione a campanha" />
+              </SelectTrigger>
+              <SelectContent>
+                {campaigns.map((campaign) => (
+                  <SelectItem key={campaign.id} value={String(campaign.id)}>
+                    {campaign.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="accent"
+              loading={loadingReady}
+              disabled={!selectedCampaignId}
+              data-testid="safe-dispatch-ready-button"
+              onClick={onReady}
+            >
+              Campanha pronta
+            </Button>
+            <Button
+              variant="soft"
+              loading={enqueuePending}
+              disabled={!canConfirm}
+              data-testid="safe-dispatch-enqueue-button"
+              onClick={onEnqueue}
+            >
+              Disparar
+            </Button>
+          </div>
+
+          {readyError && <div className="text-xs text-semantic-danger">{readyError}</div>}
+
+          {readiness && (
+            <div
+              className="grid gap-3"
+              data-testid="safe-dispatch-report"
+              data-can-enqueue={readiness.canEnqueue}
+              data-planned-jobs={readiness.summary.plannedJobs}
+            >
+              <div className="grid gap-2 sm:grid-cols-6">
+                <CampaignMetric label="steps" value={readiness.summary.steps} />
+                <CampaignMetric label="recipients" value={readiness.summary.recipientsActive} />
+                <CampaignMetric label="telefones" value={readiness.summary.phonesUnique} />
+                <CampaignMetric label="jobs" value={readiness.summary.plannedJobs} />
+                <CampaignMetric label="política" value={readiness.summary.policyMode} />
+                <CampaignMetric label="allowlist" value={readiness.summary.allowedPhones} />
+              </div>
+              <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_17rem]">
+                <ul className="grid max-h-44 gap-1 overflow-y-auto rounded-lg bg-bg-deep p-2 shadow-pressed-sm">
+                  {readiness.issues.map((issue) => (
+                    <li
+                      key={`${issue.severity}-${issue.code}-${issue.count ?? 0}`}
+                      className="grid gap-1 rounded-md bg-bg-base px-3 py-2 text-xs shadow-flat sm:grid-cols-[6rem_1fr_auto]"
+                    >
+                      <Badge
+                        variant={
+                          issue.severity === "error"
+                            ? "danger"
+                            : issue.severity === "warning"
+                              ? "warning"
+                              : "neutral"
+                        }
+                      >
+                        {issue.severity}
+                      </Badge>
+                      <span className="text-fg-muted">{issue.message}</span>
+                      <span className="font-mono text-fg-dim">{issue.count ?? issue.code}</span>
+                    </li>
+                  ))}
+                  {readiness.issues.length === 0 && (
+                    <li className="rounded-md bg-bg-base px-3 py-2 text-xs text-fg-muted shadow-flat">
+                      Guardrails sem bloqueios.
+                    </li>
+                  )}
+                </ul>
+                <div className="grid content-start gap-2 rounded-lg bg-bg-deep p-2 shadow-pressed-sm">
+                  <div className="px-1 font-mono text-[0.62rem] uppercase tracking-widest text-fg-dim">
+                    Confirmação
+                  </div>
+                  <Input
+                    monospace
+                    value={confirmation}
+                    placeholder={readiness.confirmText}
+                    disabled={!readiness.canEnqueue}
+                    data-testid="safe-dispatch-confirm-input"
+                    onChange={(event) => onConfirmationChange(event.target.value)}
+                  />
+                  <div className="px-1 text-xs text-fg-muted">
+                    Digite {readiness.confirmText} para liberar o botão de disparo.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </Animate>
   );
 }
 
@@ -404,9 +632,7 @@ function CampaignPauseResumePanel({
               : `retomada ${formatTime(summary.resumedAt)}`}
           </div>
         </div>
-        <Badge variant={summary.lastAction === "paused" ? "warning" : "success"}>
-          V2.10.9
-        </Badge>
+        <Badge variant={summary.lastAction === "paused" ? "warning" : "success"}>V2.10.9</Badge>
       </div>
     </div>
   );
@@ -630,9 +856,7 @@ function CampaignAbVariantsPanel({
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="truncate text-sm font-medium text-fg-primary">
-                  {variant.label}
-                </div>
+                <div className="truncate text-sm font-medium text-fg-primary">{variant.label}</div>
                 <div className="mt-0.5 font-mono text-[0.65rem] text-fg-dim">
                   id {variant.id} · peso {variant.weight}
                 </div>
@@ -683,9 +907,7 @@ function RecipientTimelineItem({
               {recipient.lastError ? ` · ${recipient.lastError}` : ""}
             </div>
           </div>
-          <Badge variant={recipientStatusVariant(recipient.status)}>
-            {recipient.status}
-          </Badge>
+          <Badge variant={recipientStatusVariant(recipient.status)}>{recipient.status}</Badge>
         </div>
         {recipient.timeline.length > 0 ? (
           <ol className="mt-3 grid gap-1.5">
@@ -881,7 +1103,9 @@ interface EvergreenEvaluationSummary {
   recipientsSkipped: number;
 }
 
-function evergreenEvaluationSummary(metadata: Record<string, unknown>): EvergreenEvaluationSummary | null {
+function evergreenEvaluationSummary(
+  metadata: Record<string, unknown>,
+): EvergreenEvaluationSummary | null {
   const raw = metadata.lastEvergreenEvaluation;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     return null;

@@ -179,7 +179,7 @@ export const fontFamily = {
   sans:
     '"Geist Variable", "Geist", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   display: '"Geist Variable", "Geist", system-ui, sans-serif',
-  serif: '"Instrument Serif", "Times New Roman", Times, serif',
+  serif: '"Geist Variable", "Geist", system-ui, sans-serif',
   mono:
     '"Geist Mono Variable", "Geist Mono", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace',
 } as const;

@@ -22,7 +22,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
           whileHover={{ y: -2 }}
           transition={{ type: "spring", stiffness: 280, damping: 24 }}
           className={cn(
-            "bg-bg-base rounded-xxl p-6",
+            "botforge-surface rounded-xxl p-6",
             baseShadow,
             "transition-shadow duration-base ease-out",
             hoverShadow,
@@ -36,7 +36,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
       <div
         ref={ref}
         className={cn(
-          "bg-bg-base rounded-xxl p-6",
+          "botforge-surface rounded-xxl p-6",
           baseShadow,
           className,
         )}

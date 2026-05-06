@@ -6,11 +6,11 @@ Status: decisao implementada em 2026-05-04.
 
 - UI/body: `Geist Variable`.
 - Dados, paths, horarios e contadores: `Geist Mono Variable`.
-- Titulos editoriais pontuais: `Instrument Serif`.
+- Titulos de produto: `Geist Variable`, peso alto, sem serifas.
 
 ## Justificativa
 
-O produto e uma ferramenta operacional local-first. A UI precisa ser densa, escaneavel e precisa. `Geist` mantem clareza em paineis, `Geist Mono` separa dados operacionais e `Instrument Serif` adiciona assinatura visual sem dominar a interface.
+O produto e uma ferramenta operacional local-first. A UI precisa ser densa, escaneavel e precisa. `Geist` mantem clareza em paineis, `Geist Mono` separa dados operacionais e os titulos usam uma pegada BotForge/lab com peso alto, tracking negativo e sem serifas.
 
 ## Regras
 
@@ -18,4 +18,3 @@ O produto e uma ferramenta operacional local-first. A UI precisa ser densa, esca
 - Nao usar letter-spacing negativo.
 - Usar uppercase mono apenas para metadados, labels e coordenadas operacionais.
 - Evitar depender de cor para distinguir status; combinar texto, icone ou signal dot.
-

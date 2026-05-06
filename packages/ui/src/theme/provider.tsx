@@ -8,8 +8,30 @@ import {
   type ReactNode,
 } from "react";
 
-export type ThemePreference = "light" | "dark" | "auto";
-export type ResolvedTheme = "light" | "dark";
+export type ThemePreference = "void-flow" | "aurora" | "ocean";
+export type ResolvedTheme = ThemePreference;
+
+export const THEME_OPTIONS: Array<{
+  value: ThemePreference;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "void-flow",
+    label: "Void Flow",
+    description: "Controle tecnico, profundo e compacto.",
+  },
+  {
+    value: "aurora",
+    label: "Aurora",
+    description: "Escuro suave com acentos organicos.",
+  },
+  {
+    value: "ocean",
+    label: "Ocean",
+    description: "Azul-petroleo calmo para sessoes longas.",
+  },
+];
 
 interface ThemeContextValue {
   preference: ThemePreference;
@@ -19,24 +41,25 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 const STORAGE_KEY = "nuoma:theme";
+const DEFAULT_THEME: ThemePreference = "void-flow";
+const validThemes = new Set<ThemePreference>(THEME_OPTIONS.map((theme) => theme.value));
 
 function readStored(): ThemePreference {
-  if (typeof localStorage === "undefined") return "auto";
+  if (typeof localStorage === "undefined") return DEFAULT_THEME;
   const value = localStorage.getItem(STORAGE_KEY);
-  if (value === "light" || value === "dark" || value === "auto") return value;
-  return "auto";
+  if (validThemes.has(value as ThemePreference)) return value as ThemePreference;
+  return DEFAULT_THEME;
 }
 
 function resolve(pref: ThemePreference): ResolvedTheme {
-  if (pref !== "auto") return pref;
-  if (typeof window === "undefined" || !window.matchMedia) return "dark";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return validThemes.has(pref) ? pref : DEFAULT_THEME;
 }
 
 function applyToDom(theme: ResolvedTheme) {
   if (typeof document === "undefined") return;
   document.documentElement.dataset.theme = theme;
-  document.documentElement.classList.toggle("dark", theme === "dark");
+  document.documentElement.classList.add("dark");
+  document.documentElement.style.colorScheme = "dark";
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -50,14 +73,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     applyToDom(resolved);
   }, [resolved]);
-
-  useEffect(() => {
-    if (preference !== "auto" || typeof window === "undefined" || !window.matchMedia) return;
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = () => setResolved(mq.matches ? "dark" : "light");
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, [preference]);
 
   const setPreference = useCallback((pref: ThemePreference) => {
     if (typeof localStorage !== "undefined") localStorage.setItem(STORAGE_KEY, pref);

@@ -435,6 +435,55 @@ describe("repositories", () => {
     expect(backupStat.size).toBeGreaterThan(0);
   });
 
+  it("keeps send jobs serial for the same phone while another send is active", async () => {
+    const repos = createRepositories(handle);
+    const user = await repos.users.create({
+      email: "jobs-phone-serial@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "claimed",
+      payload: { conversationId: 1, phone: "+55 (31) 98206-6263", body: "ativo" },
+      priority: 0,
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+    });
+    await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: { conversationId: 1, phone: "5531982066263" },
+      priority: 0,
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+    });
+    await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: { conversationId: 2, phone: "5531999999999", body: "outro telefone" },
+      priority: 1,
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+    });
+
+    const claimed = await repos.jobs.claimDueJobs({
+      workerId: "worker-serial",
+      now: "2026-04-30T12:00:01.000Z",
+      limit: 5,
+    });
+    const stillQueued = await repos.jobs.list(user.id, "queued");
+
+    expect(claimed).toHaveLength(1);
+    expect(claimed[0]?.payload.phone).toBe("5531999999999");
+    expect(stillQueued).toEqual([
+      expect.objectContaining({
+        type: "campaign_step",
+        payload: expect.objectContaining({ phone: "5531982066263" }),
+      }),
+    ]);
+  });
+
   it("can exclude job types during claim", async () => {
     const repos = createRepositories(handle);
     const user = await repos.users.create({

@@ -1621,6 +1621,28 @@ describe("api health", () => {
       );
       expect(campaignDisableEvergreen.data?.campaign?.evergreen).toBe(false);
 
+      const campaignReadyDraft = await trpcCall<{
+        canEnqueue: boolean;
+        issues: Array<{ code: string; severity: string }>;
+        summary: { plannedJobs: number };
+      }>(
+        app,
+        "GET",
+        "campaigns.ready",
+        { campaignId: campaignCreate.data!.campaign.id },
+        { cookie: cookies },
+      );
+      expect(campaignReadyDraft.data).toMatchObject({
+        canEnqueue: false,
+        summary: { plannedJobs: 0 },
+      });
+      expect(campaignReadyDraft.data?.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: "campaign_status_not_runnable", severity: "error" }),
+          expect.objectContaining({ code: "no_active_recipients", severity: "error" }),
+        ]),
+      );
+
       const campaignExecutePreview = await trpcCall<{
         dryRun: boolean;
         recipientsPlanned: number;
@@ -1820,7 +1842,12 @@ describe("api health", () => {
 
       const exposureCreate = await trpcCall<{
         ok: boolean;
-        event: { id: number; eventType: string; variantId: string; sourceEventId: string | null } | null;
+        event: {
+          id: number;
+          eventType: string;
+          variantId: string;
+          sourceEventId: string | null;
+        } | null;
         reason: string | null;
       }>(
         app,

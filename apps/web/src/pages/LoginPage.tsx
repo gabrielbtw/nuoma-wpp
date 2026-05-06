@@ -59,7 +59,7 @@ export function LoginPage() {
           </div>
 
           <div>
-            <h1 className="font-serif italic text-6xl xl:text-7xl leading-[0.95] tracking-tight text-fg-primary">
+            <h1 className="botforge-title text-6xl xl:text-7xl text-fg-primary">
               Operação <br />
               local. <br />
               <span className="text-brand-cyan">Soberania</span> total.

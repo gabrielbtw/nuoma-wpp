@@ -66,16 +66,16 @@ export function Sidebar({ mode = "desktop", onNavigate }: SidebarProps) {
     >
       <div
         className={cn(
-          "flex flex-col items-center gap-3 overflow-hidden rounded-xxxl bg-bg-base p-3 shadow-raised-md",
+          "botforge-surface flex flex-col items-center gap-3 rounded-xxxl p-3",
           mode === "desktop" ? "sticky top-5 h-[calc(100vh-2.5rem)]" : "min-h-[calc(100vh-1.5rem)]",
         )}
       >
-        <MicroGrid className="opacity-35" size={22} />
+        <MicroGrid className="hidden" size={56} />
         <Link
           to="/"
           aria-label="Nuoma"
           onClick={onNavigate}
-          className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-bg-base shadow-pressed-sm hover:shadow-raised-sm transition-shadow"
+          className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-bg-surface shadow-pressed-sm hover:shadow-raised-sm transition-shadow"
         >
           <SignalDot status="active" size="md" />
         </Link>
@@ -137,14 +137,14 @@ function NavLink({
             whileTap={{ scale: 0.96 }}
             transition={{ type: "spring", stiffness: 400, damping: 22 }}
             className={cn(
-              "relative inline-flex h-12 w-12 items-center justify-center rounded-xl bg-bg-base",
+              "relative inline-flex h-12 w-12 items-center justify-center rounded-xl bg-bg-surface",
               "transition-shadow duration-base ease-out",
               active
                 ? "shadow-pressed-md text-brand-cyan"
                 : "shadow-flat text-fg-muted hover:shadow-raised-sm hover:text-fg-primary",
             )}
           >
-            <Icon className={cn("h-4 w-4", active && "drop-shadow-[0_0_8px_oklch(0.78_0.16_220_/_0.6)]")} />
+            <Icon className={cn("h-4 w-4", active && "drop-shadow-[0_0_8px_var(--glow-active)]")} />
             {active && (
               <motion.span
                 layoutId="sidebar-active-marker"

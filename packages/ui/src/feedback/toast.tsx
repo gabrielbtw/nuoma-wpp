@@ -81,7 +81,7 @@ function ToastViewport({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: num
             role="status"
             aria-live="polite"
             className={cn(
-              "relative flex items-start gap-3 p-4 pl-5 rounded-xl bg-bg-base shadow-raised-md pointer-events-auto",
+              "botforge-surface relative flex items-start gap-3 p-4 pl-5 rounded-xl pointer-events-auto",
               "before:absolute before:left-1.5 before:top-3 before:bottom-3 before:w-1 before:rounded-full",
               VARIANT_RING[toast.variant],
             )}

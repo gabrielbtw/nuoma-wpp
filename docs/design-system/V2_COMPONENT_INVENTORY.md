@@ -4,7 +4,7 @@ Status: inventario inicial em 2026-05-04.
 
 ## Primitives
 
-- `Surface`: painel base flat/contour, variantes `raised`, `pressed`, `flat`, `floating`.
+- `Surface`: painel base glass/slab escuro, variantes `raised`, `pressed`, `flat`, `floating`.
 - `Glass`: alias permitido apenas para overlays flutuantes.
 - `Contour`: wrapper de contorno para areas operacionais.
 - `MicroGrid`: textura cartografica para shell, login e contextos de mapa.
@@ -25,11 +25,11 @@ Status: inventario inicial em 2026-05-04.
 - `Tooltip`.
 - `DropdownMenu`.
 
-Overlays podem usar glass/lift; cards e listas nao.
+Overlays usam lift/glass mais forte; cards e listas usam glass/slab mais contido.
 
 ## Display
 
-- `Card`: flat contour tile.
+- `Card`: surface BotForge escura com volume e specular sutil.
 - `Badge`.
 - `Avatar`.
 - `Tabs`.
@@ -41,7 +41,7 @@ Overlays podem usar glass/lift; cards e listas nao.
 ## Feedback, Theme e Utils
 
 - `ToastProvider`/`useToast`: toast flutuante com `role=status`.
-- `ThemeProvider`/`useTheme`: preferencia `dark`, `light`, `auto`, persistida em `localStorage`.
+- `ThemeProvider`/`useTheme`: preferencia `void-flow`, `aurora`, `ocean`, persistida em `localStorage`.
 - `Animate`, `StaggerContainer`: motion wrapper com suporte a reduced motion.
 - `KeyboardShortcut`.
 - `VisuallyHidden`.
@@ -50,4 +50,3 @@ Overlays podem usar glass/lift; cards e listas nao.
 ## Previews
 
 `/dev/components` renderiza o inventario visual em desenvolvimento.
-

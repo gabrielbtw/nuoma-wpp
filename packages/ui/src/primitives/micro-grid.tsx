@@ -1,8 +1,6 @@
 import { forwardRef, type HTMLAttributes } from "react";
 
 import { cn } from "../utils/cn.js";
-import { microGrid } from "../tokens/index.js";
-
 /**
  * MicroGrid - subtle dotted grid for cartographic operational context.
  */
@@ -13,10 +11,11 @@ export interface MicroGridProps extends HTMLAttributes<HTMLDivElement> {
 
 export const MicroGrid = forwardRef<HTMLDivElement, MicroGridProps>(
   ({ size, fade = true, className, style, ...props }, ref) => {
-    const gridSize = typeof size === "number" ? `${size}px` : microGrid.size;
+    const gridSize = typeof size === "number" ? `${size}px` : "28px";
     const gridStyle: React.CSSProperties = {
       ...style,
-      backgroundImage: `radial-gradient(${microGrid.color} 1px, transparent 1px)`,
+      backgroundImage:
+        "radial-gradient(rgb(var(--color-contour-grid) / 0.9) 1px, transparent 1px)",
       backgroundSize: `${gridSize} ${gridSize}`,
       maskImage: fade
         ? "radial-gradient(ellipse at center, black 40%, transparent 100%)"

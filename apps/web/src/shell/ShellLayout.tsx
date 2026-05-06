@@ -26,6 +26,7 @@ import {
 import { useAuth } from "../auth/auth-context.js";
 import { LoginPage } from "../pages/LoginPage.js";
 import { CommandPalette } from "./CommandPalette.js";
+import { NuomaAssistant } from "./NuomaAssistant.js";
 import { SHELL_SHORTCUT_ITEMS, Sidebar } from "./Sidebar.js";
 
 export function ShellLayout() {
@@ -80,13 +81,13 @@ export function ShellLayout() {
 
   return (
     <TooltipProvider delayDuration={250}>
-      <div className="relative min-h-screen bg-bg-base text-fg-primary">
-        <MicroGrid className="fixed opacity-50" fade={false} />
+      <div className="relative min-h-screen bg-bg-canvas text-fg-primary">
+        <MicroGrid className="hidden" fade={false} size={56} />
 
         <div className="relative flex min-h-screen">
           <Sidebar />
           <div className="flex-1 flex flex-col min-w-0 px-3 py-5">
-            <header className="flex items-center gap-3 px-3 py-3 mb-4 rounded-xxl bg-bg-base shadow-raised-sm">
+            <header className="botforge-surface flex items-center gap-3 px-3 py-3 mb-4 rounded-xxl">
               <Button
                 variant="soft"
                 size="sm"
@@ -110,6 +111,7 @@ export function ShellLayout() {
               </Button>
 
               <div className="ml-auto flex items-center gap-3">
+                <NuomaAssistant className="hidden sm:block" />
                 <span className="hidden md:inline text-[0.65rem] uppercase tracking-widest text-fg-dim font-mono px-3 py-1.5 rounded-md bg-bg-base shadow-pressed-sm">
                   {router.state.location.pathname}
                 </span>

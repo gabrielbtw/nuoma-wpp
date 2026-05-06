@@ -391,6 +391,149 @@ describe("worker job loop", () => {
     );
   });
 
+  it("records started and failed evidence for campaign steps before retry or DLQ handling", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-campaign-evidence",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_ALLOWED_PHONE: "5531982066263",
+    });
+    const user = await repos.users.create({
+      email: "campaign-evidence@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      title: "Gabriel Braga Nuoma",
+    });
+    const campaign = await repos.campaigns.create({
+      userId: user.id,
+      name: "Evidencia",
+      channel: "whatsapp",
+      status: "running",
+      evergreen: false,
+      startsAt: null,
+      segment: null,
+      steps: [
+        {
+          id: "step-fail",
+          label: "Falha controlada",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Oi {{nome}}",
+        },
+      ],
+      metadata: {},
+    });
+    const recipient = await repos.campaignRecipients.create({
+      userId: user.id,
+      campaignId: campaign.id,
+      contactId: null,
+      phone: "5531982066263",
+      channel: "whatsapp",
+      status: "running",
+      currentStepId: null,
+      metadata: {},
+    });
+    await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        campaignId: campaign.id,
+        recipientId: recipient.id,
+        conversationId: conversation.id,
+        phone: "5531982066263",
+        step: campaign.steps[0],
+        variables: {},
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 1,
+    });
+    const [job] = await repos.jobs.claimDueJobs({
+      workerId: "worker-campaign-evidence",
+      now: "2026-04-30T12:00:01.000Z",
+      limit: 1,
+    });
+    if (!job) {
+      throw new Error("expected campaign_step job to be created");
+    }
+
+    await expect(
+      handleJob(job, {
+        env,
+        db,
+        repos,
+        logger,
+        sync: {
+          connected: true,
+          metrics: {} as never,
+          forceConversation: async () => {
+            throw new Error("unexpected force sync");
+          },
+          sendTextMessage: async () => {
+            throw new Error("unexpected text send");
+          },
+          sendVoiceMessage: async () => {
+            throw new Error("unexpected voice send");
+          },
+          sendDocumentMessage: async () => {
+            throw new Error("unexpected document send");
+          },
+          sendMediaMessage: async () => {
+            throw new Error("unexpected media send");
+          },
+          close: async () => {},
+        },
+      }),
+    ).rejects.toThrow("missing template variables");
+
+    const started = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.campaign_step.started",
+    });
+    const failed = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.campaign_step.failed",
+    });
+    const updated = await repos.campaignRecipients.findById({
+      userId: user.id,
+      id: recipient.id,
+    });
+
+    expect(started[0]?.payload).toEqual(
+      expect.objectContaining({
+        jobId: job.id,
+        stepId: "step-fail",
+        evidence: expect.objectContaining({ phase: "before_runtime_send" }),
+      }),
+    );
+    expect(failed[0]?.payload).toEqual(
+      expect.objectContaining({
+        jobId: job.id,
+        stepId: "step-fail",
+        terminal: true,
+        error: expect.stringContaining("nome"),
+      }),
+    );
+    expect(updated?.status).toBe("failed");
+    expect(updated?.metadata).toEqual(
+      expect.objectContaining({
+        lastFailedJobId: job.id,
+        lastFailedStepId: "step-fail",
+        lastFailureTerminal: true,
+      }),
+    );
+  });
+
   it("allows production send policy beyond the test allowlist and audits before sending", async () => {
     const repos = createRepositories(db);
     const logger = pino({ level: "silent" });

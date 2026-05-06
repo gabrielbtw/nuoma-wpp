@@ -112,6 +112,15 @@ type CreateChatbotVariantEventRecord = Omit<NewChatbotVariantEvent, "metadata"> 
   metadata?: JsonObject;
 };
 type ContactRow = typeof contacts.$inferSelect;
+const serialSendJobTypes: NewJob["type"][] = [
+  "send_message",
+  "send_instagram_message",
+  "send_voice",
+  "send_document",
+  "send_media",
+  "campaign_step",
+  "chatbot_reply",
+];
 
 export interface PushSubscriptionRecord {
   id: number;
@@ -290,7 +299,9 @@ function mapChatbotRule(row: typeof chatbotRules.$inferSelect): ChatbotRule {
   });
 }
 
-function mapChatbotVariantEvent(row: typeof chatbotVariantEvents.$inferSelect): ChatbotVariantEvent {
+function mapChatbotVariantEvent(
+  row: typeof chatbotVariantEvents.$inferSelect,
+): ChatbotVariantEvent {
   return chatbotVariantEventSchema.parse({
     ...row,
     metadata: decodeJsonObject(row.metadata),
@@ -335,6 +346,10 @@ function mapQuickReply(row: typeof quickReplies.$inferSelect): QuickReply {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function normalizedJsonPhoneSql(tableAlias: string): string {
+  return `replace(replace(replace(replace(replace(coalesce(json_extract(${tableAlias}.payload_json, '$.phone'), ''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', '')`;
 }
 
 function expectRow<T>(row: T | undefined, context: string): T {
@@ -1882,15 +1897,32 @@ export function createRepositories(handle: DbHandle) {
             excludeTypes.length > 0
               ? `AND type NOT IN (${excludeTypes.map(() => "?").join(", ")})`
               : "";
+          const sendTypePlaceholders = serialSendJobTypes.map(() => "?").join(", ");
+          const jobPhoneExpr = normalizedJsonPhoneSql("jobs");
+          const activePhoneExpr = normalizedJsonPhoneSql("active_jobs");
           const rows = handle.raw
             .prepare(
               `SELECT id FROM jobs
                WHERE status = 'queued' AND scheduled_at <= ?
                ${typeFilter}
+               AND NOT (
+                 type IN (${sendTypePlaceholders})
+                 AND ${jobPhoneExpr} != ''
+                 AND EXISTS (
+                   SELECT 1
+                   FROM jobs active_jobs
+                   WHERE active_jobs.id != jobs.id
+                     AND active_jobs.status IN ('claimed', 'running')
+                     AND active_jobs.type IN (${sendTypePlaceholders})
+                     AND ${activePhoneExpr} = ${jobPhoneExpr}
+                 )
+               )
                ORDER BY priority ASC, scheduled_at ASC, id ASC
                LIMIT ?`,
             )
-            .all(...[now, ...excludeTypes, limit]) as Array<{ id: number }>;
+            .all(
+              ...[now, ...excludeTypes, ...serialSendJobTypes, ...serialSendJobTypes, limit],
+            ) as Array<{ id: number }>;
 
           const update = handle.raw.prepare(
             `UPDATE jobs

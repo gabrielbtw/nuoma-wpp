@@ -12,6 +12,7 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
+  THEME_OPTIONS,
   SignalDot,
   useTheme,
   useToast,
@@ -123,10 +124,10 @@ export function SettingsPage() {
     <div className="flex flex-col gap-7 max-w-3xl mx-auto pt-2">
       <Animate preset="rise-in">
         <header>
-          <p className="text-[0.65rem] uppercase tracking-[0.25em] text-fg-dim font-mono">
+          <p className="botforge-kicker">
             Configurações
           </p>
-          <h1 className="font-serif italic text-5xl md:text-6xl leading-[1] mt-2 tracking-tight">
+          <h1 className="botforge-title mt-2 text-5xl md:text-6xl">
             Suas <span className="text-brand-cyan">preferências</span>.
           </h1>
         </header>
@@ -163,24 +164,41 @@ export function SettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Tema</CardTitle>
-                <CardDescription>
-                  A base é dark por design (mission-control). Light/auto previewable.
-                </CardDescription>
+                <CardDescription>Escolha a pele visual do cockpit.</CardDescription>
               </CardHeader>
               <CardContent>
                 <RadioGroup
                   value={theme.preference}
                   onValueChange={(value) => theme.setPreference(value as ThemePreference)}
+                  className="grid gap-3 md:grid-cols-3"
                 >
-                  <label className="flex items-center gap-3 text-sm">
-                    <RadioItem value="dark" /> Escuro
-                  </label>
-                  <label className="flex items-center gap-3 text-sm">
-                    <RadioItem value="light" /> Claro (preview)
-                  </label>
-                  <label className="flex items-center gap-3 text-sm">
-                    <RadioItem value="auto" /> Auto (sistema)
-                  </label>
+                  {THEME_OPTIONS.map((option) => (
+                    <label
+                      key={option.value}
+                      className="botforge-readable group relative flex min-h-32 cursor-pointer flex-col justify-between rounded-xl p-4 transition-transform hover:-translate-y-0.5 hover:shadow-raised-sm"
+                    >
+                      <span
+                        data-theme={option.value}
+                        className="absolute inset-x-3 top-3 h-10 rounded-lg bg-bg-canvas shadow-pressed-sm"
+                        aria-hidden="true"
+                      >
+                        <span className="absolute left-3 top-3 h-4 w-14 rounded-full bg-brand-cyan/70" />
+                        <span className="absolute right-3 top-3 h-4 w-8 rounded-full bg-brand-violet/55" />
+                        <span className="absolute bottom-2 left-3 right-3 h-px bg-contour-line/80" />
+                      </span>
+                      <span className="relative mt-14 flex items-start gap-3">
+                        <RadioItem value={option.value} />
+                        <span>
+                          <span className="block text-sm font-medium text-fg-primary">
+                            {option.label}
+                          </span>
+                          <span className="mt-1 block text-xs leading-5 text-fg-muted">
+                            {option.description}
+                          </span>
+                        </span>
+                      </span>
+                    </label>
+                  ))}
                 </RadioGroup>
               </CardContent>
             </Card>

@@ -3,7 +3,7 @@ import { forwardRef, type InputHTMLAttributes, type TextareaHTMLAttributes } fro
 import { cn } from "../utils/cn.js";
 
 const baseField = cn(
-  "w-full bg-bg-base text-fg-primary placeholder:text-fg-dim",
+  "w-full bg-bg-sunken/76 text-fg-primary placeholder:text-fg-dim",
   "rounded-lg shadow-pressed-sm",
   "border-0 outline-none",
   "focus:shadow-pressed-md focus:ring-2 focus:ring-brand-cyan/40",

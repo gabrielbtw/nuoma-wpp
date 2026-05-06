@@ -12,7 +12,7 @@ export const TabsList = forwardRef<
   <RadixTabs.List
     ref={ref}
     className={cn(
-      "inline-flex items-center gap-1 p-1.5 rounded-xl bg-bg-base shadow-pressed-sm",
+      "inline-flex items-center gap-1 p-1.5 rounded-xl bg-bg-surface/56 shadow-pressed-sm",
       className,
     )}
     {...props}
@@ -28,7 +28,7 @@ export const TabsTrigger = forwardRef<
     ref={ref}
     className={cn(
       "px-4 py-1.5 text-sm font-medium rounded-md text-fg-muted",
-      "data-[state=active]:bg-bg-base data-[state=active]:text-fg-primary data-[state=active]:shadow-raised-sm",
+      "data-[state=active]:bg-bg-elevated/72 data-[state=active]:text-fg-primary data-[state=active]:shadow-raised-sm",
       "outline-none focus-visible:ring-2 focus-visible:ring-brand-cyan/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base",
       "transition-shadow duration-base",
       className,

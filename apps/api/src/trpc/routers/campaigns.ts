@@ -3,6 +3,7 @@ import {
   updateCampaignInputSchema,
   type Campaign,
   type ChannelType,
+  type Contact,
 } from "@nuoma/contracts";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -48,12 +49,18 @@ const tickCampaignBodySchema = z
     campaignId: z.number().int().positive().optional(),
   })
   .optional();
+const readyCampaignBodySchema = z.object({
+  campaignId: z.number().int().positive(),
+  maxRecipients: z.number().int().min(1).max(500).default(250),
+});
 
 interface CampaignExecuteCandidate {
   contactId: number | null;
   phone: string;
   source: "contact" | "phone" | "conversation";
 }
+
+type ReadinessSeverity = "info" | "warning" | "error";
 
 export const campaignsRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -118,6 +125,51 @@ export const campaignsRouter = router({
       }
       return { campaign };
     }),
+
+  ready: protectedProcedure.input(readyCampaignBodySchema).query(async ({ ctx, input }) => {
+    const campaign = await ctx.repos.campaigns.findById({
+      userId: ctx.user.id,
+      id: input.campaignId,
+    });
+    if (!campaign) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found" });
+    }
+
+    const recipients = await ctx.repos.campaignRecipients.listByCampaign({
+      userId: ctx.user.id,
+      campaignId: campaign.id,
+      statuses: ["queued", "running"],
+      limit: input.maxRecipients,
+    });
+    const contactsById = new Map<number, Contact>();
+    for (const contactId of recipients
+      .map((recipient) => recipient.contactId)
+      .filter((contactId): contactId is number => Boolean(contactId))) {
+      if (contactsById.has(contactId)) continue;
+      const contact = await ctx.repos.contacts.findById(contactId);
+      if (contact && contact.userId === ctx.user.id) {
+        contactsById.set(contact.id, contact);
+      }
+    }
+    const scheduler = await runCampaignSchedulerTick({
+      repos: ctx.repos,
+      userId: ctx.user.id,
+      ownerId: `api:${ctx.user.id}:campaigns.ready`,
+      campaignId: campaign.id,
+      limit: input.maxRecipients,
+      dryRun: true,
+    });
+    const sendPolicy = resolveApiSendPolicy(ctx.env);
+    const report = buildCampaignReadinessReport({
+      campaign,
+      recipients,
+      contactsById,
+      sendPolicy,
+      scheduler,
+    });
+
+    return report;
+  }),
 
   listForConversation: protectedProcedure
     .input(listForConversationInputSchema)
@@ -223,52 +275,50 @@ export const campaignsRouter = router({
       return { campaign };
     }),
 
-  pause: protectedCsrfProcedure
-    .input(pauseCampaignBodySchema)
-    .mutation(async ({ ctx, input }) => {
-      const existing = await ctx.repos.campaigns.findById({
-        userId: ctx.user.id,
-        id: input.id,
+  pause: protectedCsrfProcedure.input(pauseCampaignBodySchema).mutation(async ({ ctx, input }) => {
+    const existing = await ctx.repos.campaigns.findById({
+      userId: ctx.user.id,
+      id: input.id,
+    });
+    if (!existing) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found" });
+    }
+    if (existing.status === "archived" || existing.status === "completed") {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Campaign cannot be paused from status ${existing.status}`,
       });
-      if (!existing) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found" });
-      }
-      if (existing.status === "archived" || existing.status === "completed") {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Campaign cannot be paused from status ${existing.status}`,
-        });
-      }
+    }
 
-      const now = new Date().toISOString();
-      const campaign = await ctx.repos.campaigns.update({
-        userId: ctx.user.id,
-        id: existing.id,
-        status: "paused",
-        metadata: {
-          ...existing.metadata,
-          pauseResume: {
-            ...objectRecord(existing.metadata.pauseResume),
-            lastAction: "paused",
-            pausedAt: now,
-            pausedByUserId: ctx.user.id,
-            pauseReason: input.reason?.trim() || null,
-          },
+    const now = new Date().toISOString();
+    const campaign = await ctx.repos.campaigns.update({
+      userId: ctx.user.id,
+      id: existing.id,
+      status: "paused",
+      metadata: {
+        ...existing.metadata,
+        pauseResume: {
+          ...objectRecord(existing.metadata.pauseResume),
+          lastAction: "paused",
+          pausedAt: now,
+          pausedByUserId: ctx.user.id,
+          pauseReason: input.reason?.trim() || null,
         },
-      });
-      await ctx.repos.auditLogs.create({
-        userId: ctx.user.id,
-        actorUserId: ctx.user.id,
-        action: "campaigns.pause",
-        targetTable: "campaigns",
-        targetId: existing.id,
-        before: JSON.stringify({ status: existing.status }),
-        after: JSON.stringify({ status: campaign?.status, reason: input.reason ?? null }),
-        ipAddress: ctx.req.ip,
-        userAgent: ctx.req.headers["user-agent"] ?? null,
-      });
-      return { campaign, ok: Boolean(campaign) };
-    }),
+      },
+    });
+    await ctx.repos.auditLogs.create({
+      userId: ctx.user.id,
+      actorUserId: ctx.user.id,
+      action: "campaigns.pause",
+      targetTable: "campaigns",
+      targetId: existing.id,
+      before: JSON.stringify({ status: existing.status }),
+      after: JSON.stringify({ status: campaign?.status, reason: input.reason ?? null }),
+      ipAddress: ctx.req.ip,
+      userAgent: ctx.req.headers["user-agent"] ?? null,
+    });
+    return { campaign, ok: Boolean(campaign) };
+  }),
 
   resume: protectedCsrfProcedure
     .input(resumeCampaignBodySchema)
@@ -378,6 +428,9 @@ export const campaignsRouter = router({
 
       if (conversation) {
         const phone = deriveConversationPhone(conversation);
+        const contact = conversation.contactId
+          ? await ctx.repos.contacts.findById(conversation.contactId)
+          : null;
         if (conversation.channel !== "whatsapp") {
           rejected.push({
             source: "conversation",
@@ -396,6 +449,12 @@ export const campaignsRouter = router({
             value: conversation.id,
             reason: "invalid_phone",
           });
+        } else if (contact && !isContactRemarketingAllowed(contact)) {
+          rejected.push({
+            source: "conversation",
+            value: conversation.id,
+            reason: `contact_${contact.status}_suppressed`,
+          });
         } else {
           candidates.push({
             contactId: conversation.contactId ?? null,
@@ -409,6 +468,14 @@ export const campaignsRouter = router({
         const contact = await ctx.repos.contacts.findById(contactId);
         if (!contact || contact.userId !== ctx.user.id) {
           rejected.push({ source: "contact", value: contactId, reason: "not_found" });
+          continue;
+        }
+        if (!isContactRemarketingAllowed(contact)) {
+          rejected.push({
+            source: "contact",
+            value: contactId,
+            reason: `contact_${contact.status}_suppressed`,
+          });
           continue;
         }
         const phone = normalizePhone(contact.phone);
@@ -546,27 +613,25 @@ export const campaignsRouter = router({
       };
     }),
 
-  tick: adminCsrfProcedure
-    .input(tickCampaignBodySchema)
-    .mutation(async ({ ctx, input }) => {
-      const result = await runCampaignSchedulerTick({
-        repos: ctx.repos,
-        userId: ctx.user.id,
-        ownerId: `api:${ctx.user.id}`,
-        campaignId: input?.campaignId,
-        dryRun: input?.dryRun ?? false,
-      });
-      await ctx.repos.auditLogs.create({
-        userId: ctx.user.id,
-        actorUserId: ctx.user.id,
-        action: "campaigns.scheduler.tick",
-        targetTable: "campaigns",
-        after: JSON.stringify(result),
-        ipAddress: ctx.req.ip,
-        userAgent: ctx.req.headers["user-agent"] ?? null,
-      });
-      return result;
-    }),
+  tick: adminCsrfProcedure.input(tickCampaignBodySchema).mutation(async ({ ctx, input }) => {
+    const result = await runCampaignSchedulerTick({
+      repos: ctx.repos,
+      userId: ctx.user.id,
+      ownerId: `api:${ctx.user.id}`,
+      campaignId: input?.campaignId,
+      dryRun: input?.dryRun ?? false,
+    });
+    await ctx.repos.auditLogs.create({
+      userId: ctx.user.id,
+      actorUserId: ctx.user.id,
+      action: "campaigns.scheduler.tick",
+      targetTable: "campaigns",
+      after: JSON.stringify(result),
+      ipAddress: ctx.req.ip,
+      userAgent: ctx.req.headers["user-agent"] ?? null,
+    });
+    return result;
+  }),
 });
 
 function objectRecord(value: unknown): Record<string, unknown> {
@@ -587,6 +652,153 @@ function dedupeCandidates(candidates: CampaignExecuteCandidate[]): CampaignExecu
     deduped.push(candidate);
   }
   return deduped;
+}
+
+function buildCampaignReadinessReport(input: {
+  campaign: Campaign;
+  recipients: Array<{
+    id: number;
+    contactId: number | null;
+    phone: string | null;
+    channel: ChannelType;
+    status: string;
+    metadata: Record<string, unknown>;
+  }>;
+  contactsById: Map<number, Contact>;
+  sendPolicy: ReturnType<typeof resolveApiSendPolicy>;
+  scheduler: Awaited<ReturnType<typeof runCampaignSchedulerTick>>;
+}) {
+  const issues: Array<{
+    code: string;
+    severity: ReadinessSeverity;
+    message: string;
+    count?: number;
+  }> = [];
+  const error = (code: string, message: string, count?: number) =>
+    issues.push({ code, severity: "error", message, ...(count !== undefined ? { count } : {}) });
+  const warning = (code: string, message: string, count?: number) =>
+    issues.push({
+      code,
+      severity: "warning",
+      message,
+      ...(count !== undefined ? { count } : {}),
+    });
+  const info = (code: string, message: string, count?: number) =>
+    issues.push({ code, severity: "info", message, ...(count !== undefined ? { count } : {}) });
+
+  if (!isCampaignReadyForEnqueue(input.campaign)) {
+    error(
+      "campaign_status_not_runnable",
+      `Campanha está em ${input.campaign.status}; use running ou scheduled para enfileirar.`,
+    );
+  }
+  if (input.campaign.channel !== "whatsapp") {
+    error("channel_not_supported", "Remarketing seguro está liberado apenas para WhatsApp.");
+  }
+  if (input.campaign.steps.length === 0) {
+    error("campaign_without_steps", "Campanha não tem steps configurados.");
+  }
+  const emptyTextSteps = input.campaign.steps.filter(
+    (step) =>
+      (step.type === "text" && !step.template.trim()) ||
+      (step.type === "link" && !step.text.trim()),
+  );
+  if (emptyTextSteps.length > 0) {
+    error("empty_message_step", "Há step de texto/link sem mensagem útil.", emptyTextSteps.length);
+  }
+
+  const activeRecipients = input.recipients.filter(
+    (recipient) => recipient.status === "queued" || recipient.status === "running",
+  );
+  if (activeRecipients.length === 0) {
+    error("no_active_recipients", "Não há recipients queued/running para avaliar.");
+  }
+
+  const normalizedPhones = activeRecipients.map((recipient) => normalizePhone(recipient.phone));
+  const invalidPhones = normalizedPhones.filter((phone) => !phone).length;
+  if (invalidPhones > 0) {
+    error("invalid_recipient_phone", "Recipients sem telefone WhatsApp válido.", invalidPhones);
+  }
+
+  const blockedContacts = activeRecipients.filter((recipient) => {
+    const contact = recipient.contactId ? input.contactsById.get(recipient.contactId) : null;
+    return contact ? !isContactRemarketingAllowed(contact) : false;
+  });
+  if (blockedContacts.length > 0) {
+    error(
+      "suppressed_contact",
+      "Recipients ligados a contatos blocked/archived foram bloqueados para remarketing.",
+      blockedContacts.length,
+    );
+  }
+
+  const duplicatePhones = countDuplicatePhones(normalizedPhones);
+  if (duplicatePhones > 0) {
+    error(
+      "duplicate_recipient_phone",
+      "Há mais de um recipient ativo para o mesmo telefone.",
+      duplicatePhones,
+    );
+  }
+
+  const awaitingRecipients = activeRecipients.filter(
+    (recipient) =>
+      numberFromUnknown(recipient.metadata.awaitingJobId) > 0 ||
+      arrayLength(recipient.metadata.awaitingJobIds) > 0,
+  );
+  if (awaitingRecipients.length > 0) {
+    info(
+      "recipient_already_waiting",
+      "Alguns recipients já aguardam jobs anteriores e não serão reenfileirados agora.",
+      awaitingRecipients.length,
+    );
+  }
+
+  const allowedPhones = new Set(input.sendPolicy.allowedPhones);
+  const eligiblePhones = normalizedPhones.filter((phone): phone is string => Boolean(phone));
+  const policyBlocked =
+    input.sendPolicy.mode === "test"
+      ? eligiblePhones.filter((phone) => !allowedPhones.has(phone)).length
+      : allowedPhones.size > 0
+        ? eligiblePhones.filter((phone) => !allowedPhones.has(phone)).length
+        : 0;
+  if (policyBlocked > 0) {
+    error(
+      "send_policy_blocks_recipients",
+      "Política atual da API bloquearia parte dos telefones em envio real.",
+      policyBlocked,
+    );
+  }
+  if (input.sendPolicy.mode === "production" && allowedPhones.size === 0) {
+    warning(
+      "production_without_canary_allowlist",
+      "Produção está sem allowlist canária; confirme limite e público antes do disparo.",
+    );
+  }
+  if (input.scheduler.plannedJobs.length === 0) {
+    error("dry_run_without_jobs", "Dry-run forte não encontrou nenhum job pronto para enfileirar.");
+  }
+  for (const schedulerError of input.scheduler.errors) {
+    error("scheduler_preview_error", schedulerError.error);
+  }
+
+  const errors = issues.filter((issue) => issue.severity === "error").length;
+  return {
+    campaign: input.campaign,
+    generatedAt: new Date().toISOString(),
+    canEnqueue: errors === 0,
+    confirmText: "DISPARAR",
+    summary: {
+      steps: input.campaign.steps.length,
+      recipientsActive: activeRecipients.length,
+      phonesUnique: new Set(eligiblePhones).size,
+      plannedJobs: input.scheduler.plannedJobs.length,
+      policyMode: input.sendPolicy.mode,
+      allowedPhones: input.sendPolicy.allowedPhones.length,
+    },
+    issues,
+    scheduler: input.scheduler,
+  };
 }
 
 async function evaluateCampaignForConversation(input: {
@@ -652,6 +864,32 @@ function isCampaignRunnableForManualDispatch(campaign: Campaign): boolean {
   return campaign.status !== "archived" && campaign.status !== "completed";
 }
 
+function isCampaignReadyForEnqueue(campaign: Campaign): boolean {
+  return campaign.status === "running" || campaign.status === "scheduled";
+}
+
+function isContactRemarketingAllowed(contact: Contact): boolean {
+  return contact.status !== "blocked" && contact.status !== "archived" && !contact.deletedAt;
+}
+
+function countDuplicatePhones(phones: Array<string | null>): number {
+  const counts = new Map<string, number>();
+  for (const phone of phones) {
+    if (!phone) continue;
+    counts.set(phone, (counts.get(phone) ?? 0) + 1);
+  }
+  return [...counts.values()].filter((count) => count > 1).length;
+}
+
+function arrayLength(value: unknown): number {
+  return Array.isArray(value) ? value.length : 0;
+}
+
+function numberFromUnknown(value: unknown): number {
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
 function deriveConversationPhone(
   conversation: { externalThreadId: string; title: string } | null,
 ): string | null {
@@ -695,18 +933,25 @@ function summarizeCampaignStepStats(input: {
 }) {
   const totalRecipients = input.recipients.length;
   return input.steps.map((step, index) => {
-    const stepEvents = input.events.filter((event) => payloadField(event.payload, "stepId") === step.id);
-    const completedEvents = stepEvents.filter((event) => event.type === "sender.campaign_step.completed");
+    const stepEvents = input.events.filter(
+      (event) => payloadField(event.payload, "stepId") === step.id,
+    );
+    const completedEvents = stepEvents.filter(
+      (event) => event.type === "sender.campaign_step.completed",
+    );
     const failedEvents = stepEvents.filter((event) => event.type === "sender.campaign_step.failed");
     const completedRecipients = uniqueNumericPayloadValues(completedEvents, "recipientId");
     const failedRecipients = uniqueNumericPayloadValues(failedEvents, "recipientId");
-    const currentRecipients = input.recipients.filter((recipient) => recipient.currentStepId === step.id);
+    const currentRecipients = input.recipients.filter(
+      (recipient) => recipient.currentStepId === step.id,
+    );
     const awaitingRecipients = input.recipients.filter(
       (recipient) => recipient.metadata.awaitingStepId === step.id,
     );
     const navigationCounts = {
-      navigated: stepEvents.filter((event) => payloadField(event.payload, "navigationMode") === "navigated")
-        .length,
+      navigated: stepEvents.filter(
+        (event) => payloadField(event.payload, "navigationMode") === "navigated",
+      ).length,
       reusedOpenChat: stepEvents.filter(
         (event) => payloadField(event.payload, "navigationMode") === "reused-open-chat",
       ).length,
@@ -853,10 +1098,7 @@ function stringField(record: Record<string, unknown>, key: string): string | nul
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function uniqueNumericPayloadValues(
-  events: Array<{ payload: unknown }>,
-  key: string,
-): Set<number> {
+function uniqueNumericPayloadValues(events: Array<{ payload: unknown }>, key: string): Set<number> {
   const values = new Set<number>();
   for (const event of events) {
     const value = payloadField(event.payload, key);

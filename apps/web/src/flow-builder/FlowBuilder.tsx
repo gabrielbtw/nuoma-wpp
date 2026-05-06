@@ -502,7 +502,7 @@ export function CampaignFlowBuilder() {
   }
 
   return (
-    <Card className="overflow-hidden border border-contour-line/50 bg-bg-base/75 backdrop-blur-xl">
+    <Card className="overflow-hidden">
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -537,7 +537,7 @@ export function CampaignFlowBuilder() {
 
           <TabsContent value="base" data-testid="campaign-builder-base">
             <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
-              <div className="rounded-xl bg-bg-deep/80 p-4 shadow-pressed-sm">
+              <div className="botforge-surface rounded-xl p-4">
                 <div className="mb-3 flex items-center gap-2 text-sm font-medium text-fg-primary">
                   <ClipboardList className="h-4 w-4 text-brand-cyan" />
                   Configuração
@@ -559,7 +559,7 @@ export function CampaignFlowBuilder() {
                   </label>
                 </div>
               </div>
-              <div className="rounded-xl bg-bg-deep/80 p-4 shadow-pressed-sm">
+              <div className="botforge-surface rounded-xl p-4">
                 <div className="mb-3 flex items-center gap-2 text-sm font-medium text-fg-primary">
                   <Sparkles className="h-4 w-4 text-brand-violet" />
                   Templates
@@ -1056,28 +1056,28 @@ function WorkflowViewer({
   return (
     <div
       ref={rootRef}
-      className="rounded-xl bg-bg-deep/80 p-4 shadow-pressed-sm"
+      className="botforge-surface rounded-xl p-4"
       data-testid="campaign-workflow-viewer"
     >
       <div className="flex items-center gap-2 text-sm font-medium text-fg-primary">
         <GitBranch className="h-4 w-4 text-brand-violet" />
         Workflow
       </div>
-      <div className="mt-4 grid gap-3">
+      <div className="mt-4 grid gap-3 rounded-xl bg-bg-sunken/58 p-3">
         {nodes.map((node, index) => {
           const Icon = node.icon;
           return (
             <div key={node.id} className="relative">
               {index > 0 && (
-                <div className="absolute -top-3 left-5 h-3 w-px bg-contour-line/70" aria-hidden="true" />
+                <div className="absolute -top-3 left-5 h-3 w-px bg-brand-cyan/35" aria-hidden="true" />
               )}
               <div
                 data-workflow-node="true"
                 data-testid="campaign-workflow-node"
-                className="rounded-xl border border-contour-line/45 bg-bg-base/80 px-3 py-3 shadow-flat backdrop-blur"
+                className="botforge-readable rounded-xl px-3 py-3 transition-transform hover:-translate-y-0.5"
               >
                 <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-bg-deep text-brand-cyan shadow-pressed-sm">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-cyan/12 text-brand-cyan shadow-pressed-sm">
                     <Icon className="h-4 w-4" />
                   </span>
                   <div className="min-w-0">
@@ -1952,7 +1952,7 @@ function AutomationPreviewPanel({
   error: string | null;
 }) {
   return (
-    <div className="rounded-xl bg-bg-deep p-4 shadow-pressed-sm" data-testid="automation-flow-preview">
+    <div className="botforge-surface rounded-xl p-4" data-testid="automation-flow-preview">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-sm font-medium text-fg-primary">
@@ -1967,7 +1967,7 @@ function AutomationPreviewPanel({
       </div>
       {error ? <div className="mt-3 text-xs text-semantic-danger">{error}</div> : null}
       <div className="mt-4 grid gap-3 lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="rounded-lg bg-bg-base p-3 shadow-flat">
+        <div className="botforge-readable rounded-lg p-3">
           <div className="font-mono text-[0.62rem] uppercase tracking-widest text-fg-dim">Resumo</div>
           <div className="mt-2 grid gap-2 text-sm">
             <div className="flex items-center justify-between gap-3">
@@ -1994,14 +1994,14 @@ function AutomationPreviewPanel({
         </div>
         <div className="grid gap-2">
           {actions.length === 0 ? (
-            <div className="rounded-lg bg-bg-base px-3 py-4 text-xs text-fg-dim shadow-flat">
+            <div className="botforge-readable rounded-lg px-3 py-4 text-xs text-fg-dim">
               Nenhuma ação válida para prévia.
             </div>
           ) : (
             actions.map((action, index) => (
               <div
                 key={`${action.type}-${index}`}
-                className="grid grid-cols-[2rem_1fr_auto] items-center gap-3 rounded-lg bg-bg-base px-3 py-2.5 shadow-flat"
+                className="botforge-readable grid grid-cols-[2rem_1fr_auto] items-center gap-3 rounded-lg px-3 py-2.5"
                 data-testid="automation-preview-node"
                 data-action-type={action.type}
               >

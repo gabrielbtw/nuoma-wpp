@@ -75,10 +75,10 @@ export function ImplementationPage() {
       <Animate preset="rise-in">
         <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-[0.65rem] uppercase tracking-[0.25em] text-fg-dim font-mono">
+            <p className="botforge-kicker">
               Implementação
             </p>
-            <h1 className="font-serif italic text-5xl md:text-6xl leading-[1] mt-2 tracking-tight">
+            <h1 className="botforge-title mt-2 text-5xl md:text-6xl">
               Execução <span className="text-brand-cyan">visível</span>.
             </h1>
             <p className="text-sm text-fg-muted mt-3 max-w-2xl">

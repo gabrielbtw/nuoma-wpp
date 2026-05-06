@@ -90,54 +90,156 @@ async function handleCampaignStepJob(job: Job, context: JobHandlerContext): Prom
   const recipientId = numberFromPayload(job.payload.recipientId);
   const phoneInput = typeof job.payload.phone === "string" ? job.payload.phone : null;
 
-  if (step.type === "text" || step.type === "link") {
-    const body =
-      step.type === "text"
-        ? renderTemplate(step.template, variables)
-        : renderTemplate(`${step.text}\n${step.url}`, variables);
-    const result = await withCampaignTemporaryMessagesAudit(
-      job,
-      context,
-      { campaignId, recipientId, conversationId, phone: phoneInput, step },
-      () =>
-        sendTextToConversation(job, context, {
-          conversationId,
-          phoneInput,
-          body,
-          reason: "campaign_step",
-        }),
-    );
-    await recordCampaignStepCompleted(job, context, {
-      campaignId,
-      recipientId,
-      step,
-      result,
-    });
-    return;
-  }
+  await recordCampaignStepStarted(job, context, {
+    campaignId,
+    recipientId,
+    conversationId,
+    phone: phoneInput,
+    step,
+  });
 
-  if (step.type === "document") {
+  try {
+    if (step.type === "text" || step.type === "link") {
+      const body =
+        step.type === "text"
+          ? renderTemplate(step.template, variables)
+          : renderTemplate(`${step.text}\n${step.url}`, variables);
+      const result = await withCampaignTemporaryMessagesAudit(
+        job,
+        context,
+        { campaignId, recipientId, conversationId, phone: phoneInput, step },
+        () =>
+          sendTextToConversation(job, context, {
+            conversationId,
+            phoneInput,
+            body,
+            reason: "campaign_step",
+          }),
+      );
+      await recordCampaignStepCompleted(job, context, {
+        campaignId,
+        recipientId,
+        step,
+        result,
+      });
+      return;
+    }
+
+    if (step.type === "document") {
+      const mediaAsset = await context.repos.mediaAssets.findById({
+        userId: job.userId,
+        id: step.mediaAssetId,
+      });
+      if (!mediaAsset) {
+        throw new PermanentJobError("campaign_step document media asset not found");
+      }
+      assertDocumentMediaAsset("campaign_step document", mediaAsset);
+
+      const result = await withCampaignTemporaryMessagesAudit(
+        job,
+        context,
+        { campaignId, recipientId, conversationId, phone: phoneInput, step },
+        () =>
+          sendDocumentToConversation(job, context, {
+            conversationId,
+            phoneInput,
+            documentPath: resolveMediaStoragePath(mediaAsset.storagePath),
+            fileName: renderTemplate(step.fileName || mediaAsset.fileName, variables),
+            mimeType: mediaAsset.mimeType,
+            caption: renderOptionalTemplate(step.caption, variables),
+            reason: "campaign_step",
+          }),
+      );
+      await recordCampaignStepCompleted(job, context, {
+        campaignId,
+        recipientId,
+        step,
+        result: {
+          ...result,
+          mediaAssetId: mediaAsset.id,
+        },
+      });
+      return;
+    }
+
+    if (step.type === "image" || step.type === "video") {
+      const mediaAssetIds =
+        step.type === "image" && step.mediaAssetIds?.length
+          ? uniquePositiveIds(step.mediaAssetIds)
+          : [step.mediaAssetId];
+      const mediaAssets: MediaAsset[] = [];
+      for (const mediaAssetId of mediaAssetIds) {
+        const mediaAsset = await context.repos.mediaAssets.findById({
+          userId: job.userId,
+          id: mediaAssetId,
+        });
+        if (!mediaAsset) {
+          throw new PermanentJobError(`campaign_step ${step.type} media asset not found`);
+        }
+        assertNativeMediaAsset(`campaign_step ${step.type}`, mediaAsset, step.type);
+        mediaAssets.push(mediaAsset);
+      }
+      const primaryMediaAsset = mediaAssets[0];
+      if (!primaryMediaAsset) {
+        throw new PermanentJobError(`campaign_step ${step.type} media asset not found`);
+      }
+
+      const result = await withCampaignTemporaryMessagesAudit(
+        job,
+        context,
+        { campaignId, recipientId, conversationId, phone: phoneInput, step },
+        () =>
+          sendNativeMediaToConversation(job, context, {
+            conversationId,
+            phoneInput,
+            mediaType: step.type,
+            mediaPath: resolveMediaStoragePath(primaryMediaAsset.storagePath),
+            fileName: primaryMediaAsset.fileName,
+            mimeType: primaryMediaAsset.mimeType,
+            files: mediaAssets.map((mediaAsset) => ({
+              mediaPath: resolveMediaStoragePath(mediaAsset.storagePath),
+              fileName: mediaAsset.fileName,
+              mimeType: mediaAsset.mimeType,
+            })),
+            caption: renderOptionalTemplate(step.caption, variables),
+            reason: "campaign_step",
+          }),
+      );
+      await recordCampaignStepCompleted(job, context, {
+        campaignId,
+        recipientId,
+        step,
+        result: {
+          ...result,
+          mediaAssetId: primaryMediaAsset.id,
+          mediaAssetIds: mediaAssets.map((mediaAsset) => mediaAsset.id),
+        },
+      });
+      return;
+    }
+
     const mediaAsset = await context.repos.mediaAssets.findById({
       userId: job.userId,
       id: step.mediaAssetId,
     });
     if (!mediaAsset) {
-      throw new PermanentJobError("campaign_step document media asset not found");
+      throw new PermanentJobError("campaign_step voice media asset not found");
     }
-    assertDocumentMediaAsset("campaign_step document", mediaAsset);
+    if (mediaAsset.type !== "voice" && mediaAsset.type !== "audio") {
+      throw new PermanentJobError(
+        `campaign_step voice requires voice/audio media asset, got ${mediaAsset.type}`,
+      );
+    }
 
     const result = await withCampaignTemporaryMessagesAudit(
       job,
       context,
       { campaignId, recipientId, conversationId, phone: phoneInput, step },
       () =>
-        sendDocumentToConversation(job, context, {
+        sendVoiceToConversation(job, context, {
           conversationId,
           phoneInput,
-          documentPath: resolveMediaStoragePath(mediaAsset.storagePath),
-          fileName: renderTemplate(step.fileName || mediaAsset.fileName, variables),
-          mimeType: mediaAsset.mimeType,
-          caption: renderOptionalTemplate(step.caption, variables),
+          audioPath: resolveMediaStoragePath(mediaAsset.storagePath),
           reason: "campaign_step",
         }),
     );
@@ -148,102 +250,20 @@ async function handleCampaignStepJob(job: Job, context: JobHandlerContext): Prom
       result: {
         ...result,
         mediaAssetId: mediaAsset.id,
+        captionIgnored: Boolean(step.caption?.trim()),
       },
     });
-    return;
-  }
-
-  if (step.type === "image" || step.type === "video") {
-    const mediaAssetIds =
-      step.type === "image" && step.mediaAssetIds?.length
-        ? uniquePositiveIds(step.mediaAssetIds)
-        : [step.mediaAssetId];
-    const mediaAssets: MediaAsset[] = [];
-    for (const mediaAssetId of mediaAssetIds) {
-      const mediaAsset = await context.repos.mediaAssets.findById({
-        userId: job.userId,
-        id: mediaAssetId,
-      });
-      if (!mediaAsset) {
-        throw new PermanentJobError(`campaign_step ${step.type} media asset not found`);
-      }
-      assertNativeMediaAsset(`campaign_step ${step.type}`, mediaAsset, step.type);
-      mediaAssets.push(mediaAsset);
-    }
-    const primaryMediaAsset = mediaAssets[0];
-    if (!primaryMediaAsset) {
-      throw new PermanentJobError(`campaign_step ${step.type} media asset not found`);
-    }
-
-    const result = await withCampaignTemporaryMessagesAudit(
-      job,
-      context,
-      { campaignId, recipientId, conversationId, phone: phoneInput, step },
-      () =>
-        sendNativeMediaToConversation(job, context, {
-          conversationId,
-          phoneInput,
-          mediaType: step.type,
-          mediaPath: resolveMediaStoragePath(primaryMediaAsset.storagePath),
-          fileName: primaryMediaAsset.fileName,
-          mimeType: primaryMediaAsset.mimeType,
-          files: mediaAssets.map((mediaAsset) => ({
-            mediaPath: resolveMediaStoragePath(mediaAsset.storagePath),
-            fileName: mediaAsset.fileName,
-            mimeType: mediaAsset.mimeType,
-          })),
-          caption: renderOptionalTemplate(step.caption, variables),
-          reason: "campaign_step",
-        }),
-    );
-    await recordCampaignStepCompleted(job, context, {
+  } catch (error) {
+    await recordCampaignStepFailed(job, context, {
       campaignId,
       recipientId,
+      conversationId,
+      phone: phoneInput,
       step,
-      result: {
-        ...result,
-        mediaAssetId: primaryMediaAsset.id,
-        mediaAssetIds: mediaAssets.map((mediaAsset) => mediaAsset.id),
-      },
+      error,
     });
-    return;
+    throw error;
   }
-
-  const mediaAsset = await context.repos.mediaAssets.findById({
-    userId: job.userId,
-    id: step.mediaAssetId,
-  });
-  if (!mediaAsset) {
-    throw new PermanentJobError("campaign_step voice media asset not found");
-  }
-  if (mediaAsset.type !== "voice" && mediaAsset.type !== "audio") {
-    throw new PermanentJobError(
-      `campaign_step voice requires voice/audio media asset, got ${mediaAsset.type}`,
-    );
-  }
-
-  const result = await withCampaignTemporaryMessagesAudit(
-    job,
-    context,
-    { campaignId, recipientId, conversationId, phone: phoneInput, step },
-    () =>
-      sendVoiceToConversation(job, context, {
-        conversationId,
-        phoneInput,
-        audioPath: resolveMediaStoragePath(mediaAsset.storagePath),
-        reason: "campaign_step",
-      }),
-  );
-  await recordCampaignStepCompleted(job, context, {
-    campaignId,
-    recipientId,
-    step,
-    result: {
-      ...result,
-      mediaAssetId: mediaAsset.id,
-      captionIgnored: Boolean(step.caption?.trim()),
-    },
-  });
 }
 
 async function withCampaignTemporaryMessagesAudit<T>(
@@ -275,7 +295,8 @@ async function withCampaignTemporaryMessagesAudit<T>(
     await recordCampaignTemporaryMessagesEvent(job, context, {
       ...input,
       config,
-      phase: job.payload.isLastStep === true ? "after_completion_restore" : "step_completed_keep_window",
+      phase:
+        job.payload.isLastStep === true ? "after_completion_restore" : "step_completed_keep_window",
       duration:
         job.payload.isLastStep === true
           ? config.afterCompletionDuration
@@ -306,7 +327,11 @@ async function recordCampaignTemporaryMessagesEvent(
     phone: string | null;
     step: CampaignStep;
     config: CampaignTemporaryMessagesConfig;
-    phase: "before_send" | "step_completed_keep_window" | "after_completion_restore" | "failure_restore";
+    phase:
+      | "before_send"
+      | "step_completed_keep_window"
+      | "after_completion_restore"
+      | "failure_restore";
     duration: CampaignTemporaryMessagesConfig["beforeSendDuration"];
     error?: string;
   },
@@ -385,7 +410,9 @@ async function handleSendMediaJob(job: Job, context: JobHandlerContext): Promise
   if (mediaType !== "image" && mediaType !== "video") {
     throw new PermanentJobError("send_media requires payload.mediaType image or video");
   }
-  const mediaAssetIds = mediaAssetIdsFromPayload.length ? mediaAssetIdsFromPayload : [selectedMediaAssetId];
+  const mediaAssetIds = mediaAssetIdsFromPayload.length
+    ? mediaAssetIdsFromPayload
+    : [selectedMediaAssetId];
   if (mediaAssetIds.length > 1 && mediaType !== "image") {
     throw new PermanentJobError("send_media mediaAssetIds is only supported for image media");
   }
@@ -495,7 +522,9 @@ async function sendVoiceToConversation(
     audioPath: input.audioPath,
     tempDir: path.resolve(process.cwd(), context.env.WORKER_TEMP_DIR),
   });
-  const sendPath = shouldSendVoiceSourceDirectly(prepared.sourcePath) ? prepared.sourcePath : prepared.wavPath;
+  const sendPath = shouldSendVoiceSourceDirectly(prepared.sourcePath)
+    ? prepared.sourcePath
+    : prepared.wavPath;
   const result = await context.sync.sendVoiceMessage({
     userId: job.userId,
     conversationId: input.conversationId,
@@ -703,6 +732,44 @@ async function sendTextToConversation(
   });
 }
 
+async function recordCampaignStepStarted(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    campaignId: number | null;
+    recipientId: number | null;
+    conversationId: number;
+    phone: string | null;
+    step: CampaignStep;
+  },
+): Promise<void> {
+  await context.repos.systemEvents.create({
+    userId: job.userId,
+    type: "sender.campaign_step.started",
+    severity: "info",
+    payload: JSON.stringify({
+      jobId: job.id,
+      campaignId: input.campaignId,
+      recipientId: input.recipientId,
+      conversationId: input.conversationId,
+      phone: input.phone,
+      stepId: input.step.id,
+      stepType: input.step.type,
+      campaignBatchId: stringFromPayload(job.payload.campaignBatchId),
+      campaignBatchIndex: numberFromPayload(job.payload.campaignBatchIndex),
+      campaignBatchSize: numberFromPayload(job.payload.campaignBatchSize),
+      attempt: job.attempts,
+      evidence: {
+        phase: "before_runtime_send",
+        hasTemporaryMessages: Boolean(
+          temporaryMessagesConfigFromPayload(job.payload.temporaryMessages),
+        ),
+        scheduledAt: job.scheduledAt,
+      },
+    }),
+  });
+}
+
 async function recordCampaignStepCompleted(
   job: Job,
   context: JobHandlerContext,
@@ -765,6 +832,72 @@ async function recordCampaignStepCompleted(
       campaignBatchIndex: numberFromPayload(job.payload.campaignBatchIndex),
       campaignBatchSize: numberFromPayload(job.payload.campaignBatchSize),
       ...input.result,
+    }),
+  });
+}
+
+async function recordCampaignStepFailed(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    campaignId: number | null;
+    recipientId: number | null;
+    conversationId: number;
+    phone: string | null;
+    step: CampaignStep;
+    error: unknown;
+  },
+): Promise<void> {
+  const message = input.error instanceof Error ? input.error.message : String(input.error);
+  const isTerminal = input.error instanceof PermanentJobError || job.attempts >= job.maxAttempts;
+  if (input.recipientId) {
+    const recipient = await context.repos.campaignRecipients.findById({
+      userId: job.userId,
+      id: input.recipientId,
+    });
+    if (recipient) {
+      await context.repos.campaignRecipients.updateState({
+        userId: job.userId,
+        id: recipient.id,
+        status: isTerminal ? "failed" : recipient.status,
+        lastError: message,
+        metadata: {
+          ...recipient.metadata,
+          lastFailedStepId: input.step.id,
+          lastFailedJobId: job.id,
+          lastFailedAt: new Date().toISOString(),
+          lastFailureAttempt: job.attempts,
+          lastFailureTerminal: isTerminal,
+        },
+      });
+    }
+  }
+
+  await context.repos.systemEvents.create({
+    userId: job.userId,
+    type: "sender.campaign_step.failed",
+    severity: isTerminal ? "error" : "warn",
+    payload: JSON.stringify({
+      jobId: job.id,
+      campaignId: input.campaignId,
+      recipientId: input.recipientId,
+      conversationId: input.conversationId,
+      phone: input.phone,
+      stepId: input.step.id,
+      stepType: input.step.type,
+      campaignBatchId: stringFromPayload(job.payload.campaignBatchId),
+      campaignBatchIndex: numberFromPayload(job.payload.campaignBatchIndex),
+      campaignBatchSize: numberFromPayload(job.payload.campaignBatchSize),
+      attempt: job.attempts,
+      maxAttempts: job.maxAttempts,
+      terminal: isTerminal,
+      error: message,
+      evidence: {
+        phase: "runtime_send_failed",
+        hasTemporaryMessages: Boolean(
+          temporaryMessagesConfigFromPayload(job.payload.temporaryMessages),
+        ),
+      },
     }),
   });
 }

@@ -60,10 +60,10 @@ export function ContactsPage() {
     <div className="flex flex-col gap-7 max-w-5xl mx-auto pt-2">
       <Animate preset="rise-in">
         <header>
-          <p className="text-[0.65rem] uppercase tracking-[0.25em] text-fg-dim font-mono">
+          <p className="botforge-kicker">
             Contatos
           </p>
-          <h1 className="font-serif italic text-5xl md:text-6xl leading-[1] mt-2 tracking-tight">
+          <h1 className="botforge-title mt-2 text-5xl md:text-6xl">
             <span className="text-brand-cyan">Catálogo</span> ativo.
           </h1>
           <p className="text-sm text-fg-muted mt-3 max-w-xl">

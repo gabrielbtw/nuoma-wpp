@@ -52,7 +52,7 @@ export const Surface = forwardRef<HTMLDivElement, SurfaceProps>(
       ref={ref}
       data-surface={variant}
       className={cn(
-        "bg-bg-base rounded-xl",
+        "bg-bg-surface rounded-xl",
         VARIANT_BY_SIZE[variant][size],
         interactive && "transition-shadow duration-base ease-out",
         className,

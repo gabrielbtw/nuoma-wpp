@@ -1,8 +1,7 @@
 # Nuoma WPP V2
 
-Greenfield rebuild of [Nuoma WPP](../nuoma-wpp) following [V2_DECISION.md](../nuoma-wpp/docs/architecture/V2_DECISION.md).
-
-V1 stays on production until V2 reaches feature parity. See [HOSTED_REMOTE_APP](../nuoma-wpp/docs/architecture/V2_DECISION.md) for the cutover strategy.
+Standalone V2 workspace for the Nuoma WhatsApp/CRM runtime. This repo is the
+active source of truth for V2 code, docs, smokes and operational planning.
 
 ## What's here today
 
@@ -21,10 +20,32 @@ For real WhatsApp smoke tests, the session lives in
 CDP browser and leave Chromium open on shutdown so a smoke restart does not ask
 for QR again.
 
-Gate decision: Spike 1, Spike 2 and Spike 4 are green. Spike 3 is green for
-local IC-1 plus Docker dry-run; the hosted `--send` procedure remains required
-before V2 worker/deploy can own production audio sends. That does not block
-V2.1 foundations.
+Current gate: all core V2 tracks are implemented for the local/hosted
+WhatsApp-only flow, with one open hotfix before treating automation/remarketing
+as definitive: `M30.3` must prove real WhatsApp 24h temporary-message context
+before the first automated step.
+
+## Versioning
+
+| Marker | Meaning | Example |
+| --- | --- | --- |
+| `V2.x` | Product release train | `V2.11 Overlay WhatsApp` |
+| `V2.x.y` | Incremental delivery inside the release train | `V2.11.7 Overlay API binding` |
+| `M<n>` | Operational milestone/smoke marker | `M35` |
+| `M<n>.<m>` | Hotfix or subversion for a specific gap/hardening | `M30.3`, `M35.2` |
+
+Current counts from [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md):
+
+- `37` main M markers: `M0` through `M36`.
+- `106` total M/sub-M IDs when `M0.1`, `M35.2`, etc. are included.
+- `1` open hotfix: `M30.3`.
+
+## Current Plan
+
+The short operational plan lives in
+[`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md). Status/checkboxes
+for the `/implementation` page live in
+[`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md).
 
 ## Layout
 
@@ -43,26 +64,28 @@ nuoma-wpp-v2/
 │   ├── docker/     # Dockerfiles per app
 │   ├── caddy/      # reverse proxy snippet
 │   └── scripts/    # deploy, backup, restore
-└── docs/           # ADRs, architecture, runbooks (mirrors V1 conventions)
+└── docs/           # ADRs, architecture, runbooks, plan and status
 ```
 
-## Stack (conservative, gated by 4 spikes)
+## Stack
 
-| Layer          | Tool                                       | Why                                                                   |
+| Layer          | Tool                                       | Reason                                                                |
 | -------------- | ------------------------------------------ | --------------------------------------------------------------------- |
-| Runtime        | Node 22                                    | Same as V1, no surprise                                               |
-| HTTP           | Fastify 5                                  | Same as V1, stable                                                    |
+| Runtime        | Node 22                                    | Stable local/hosted runtime                                           |
+| HTTP           | Fastify 5                                  | Small, fast API surface                                               |
 | DB             | better-sqlite3 + Drizzle ORM               | Type-safe schema, migrations as code                                  |
-| Validation     | Zod                                        | Same as V1                                                            |
-| Frontend       | React 19 + Vite + Tailwind 3 + Radix       | Same as V1                                                            |
-| State (web)    | TanStack Query + React Router 7            | Same as V1                                                            |
-| Logger         | Pino                                       | Same as V1                                                            |
+| Validation     | Zod                                        | Shared runtime validation                                             |
+| Frontend       | React 19 + Vite + Tailwind 3 + Radix       | Product UI with fast local feedback                                   |
+| State (web)    | TanStack Query + React Router 7            | Client cache and typed routing                                        |
+| Logger         | Pino                                       | Structured logs                                                       |
 | Worker browser | Playwright + chrome-remote-interface       | Hybrid: Playwright drives navigation, CDP drives observers/screencast |
-| Auth           | Argon2id + JWT (httpOnly cookie) + refresh | New (V1 had no auth)                                                  |
-| Tests          | Vitest + Playwright E2E                    | Vitest replacing node:test                                            |
-| Container      | Docker + docker-compose                    | Aligned with hosted target                                            |
+| Auth           | Argon2id + JWT (httpOnly cookie) + refresh | Local auth with httpOnly sessions                                     |
+| Tests          | Vitest + Playwright E2E                    | Unit/integration plus browser smokes                                  |
+| Container      | Docker + docker-compose                    | Hosted target parity                                                  |
 
-Why this stack vs the original aggressive proposal (Bun + Hono + tRPC + Tailwind 4 + TanStack Router + shadcn): the real risk in this product is WhatsApp Web/Chromium stability, not HTTP server speed. We change only what gives concrete benefit (Drizzle for type-safe schema). See [ADR 0002](../nuoma-wpp/docs/adr/0002-stack-v2.md).
+The main technical risk is WhatsApp Web/Chromium stability, not HTTP server
+speed. The stack stays conservative and changes only what gives concrete
+benefit. See local ADRs in [`docs/adr/`](docs/adr/).
 
 ## Getting started (dev)
 
@@ -84,7 +107,7 @@ Defaults:
 
 - API: `http://127.0.0.1:3001`
 - Web: `http://127.0.0.1:3002`
-- Worker CDP: `127.0.0.1:9223` (different from V1 `9222` to avoid clash)
+- Worker CDP: `127.0.0.1:9223`
 
 ## Local worker operation
 
@@ -114,7 +137,7 @@ curl -s http://127.0.0.1:3001/health | jq
 
 ## Invariants (do not regress)
 
-- **IC-1**: voice recording = native WhatsApp voice (V2.5.21). Port literal of V1.
+- **IC-1**: voice recording = native WhatsApp voice (V2.5.21).
 - **IC-2**: multi-step sender has an opt-in open-chat reuse path for controlled
   regression tests (V2.5.22). Default real sends re-navigate to the job phone.
 
@@ -133,32 +156,14 @@ Images persisted as `content_type=image`, not stickers; final audit had zero
 queued/active jobs, zero grouped media wrapper rows and zero completed sender
 events outside the allowlist.
 
-## Coexistence with V1
-
-| Resource         | V1                                   | V2                                |
-| ---------------- | ------------------------------------ | --------------------------------- |
-| Path             | `../nuoma-wpp/`                      | `../nuoma-wpp-v2/`                |
-| API port         | 3000                                 | 3001                              |
-| Web port         | (bundled w/ API)                     | 3002                              |
-| Worker CDP port  | 9222                                 | 9223                              |
-| DB               | `storage/database/nuoma.db`          | `data/nuoma-v2.db`                |
-| Chromium profile | `storage/chromium-profile/whatsapp/` | `data/chromium-profile/whatsapp/` |
-| WhatsApp number  | primary                              | secondary chip until cutover      |
-
-V1 never starts a Chromium with V2's profile and vice-versa.
-
 ## Documentation
 
-- Strategic blueprint: [`../nuoma-wpp/docs/architecture/V2_DECISION.md`](../nuoma-wpp/docs/architecture/V2_DECISION.md)
-- Spike specs + outcomes: [`../nuoma-wpp/docs/architecture/V2_SPIKES.md`](../nuoma-wpp/docs/architecture/V2_SPIKES.md)
-- Roadmap (~402 items): [`../nuoma-wpp/docs/IMPROVEMENTS_ROADMAP.md`](../nuoma-wpp/docs/IMPROVEMENTS_ROADMAP.md)
-- Migration mapping: [`../nuoma-wpp/docs/migration/V1_TO_V2_DATA_MAP.md`](../nuoma-wpp/docs/migration/V1_TO_V2_DATA_MAP.md)
-- ADRs: [`../nuoma-wpp/docs/adr/`](../nuoma-wpp/docs/adr/)
+- V2 docs index: [`docs/README.md`](docs/README.md)
+- Implementation plan: [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md)
+- Implementation status: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md)
 - V2 onboarding: [`docs/V2_DEVELOPMENT.md`](docs/V2_DEVELOPMENT.md)
 - V2 deployment skeleton: [`docs/V2_DEPLOYMENT.md`](docs/V2_DEPLOYMENT.md)
 - V2 data model: [`docs/architecture/V2_DATA_MODEL.md`](docs/architecture/V2_DATA_MODEL.md)
 - V2 auth: [`docs/architecture/V2_AUTH.md`](docs/architecture/V2_AUTH.md)
 - V2 job queue: [`docs/architecture/V2_JOB_QUEUE.md`](docs/architecture/V2_JOB_QUEUE.md)
 - V2 sync engine: [`docs/architecture/V2_SYNC_ENGINE.md`](docs/architecture/V2_SYNC_ENGINE.md)
-
-V2-specific docs will land in `nuoma-wpp-v2/docs/` as features ship.

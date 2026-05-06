@@ -22,17 +22,17 @@ export interface ButtonProps extends HTMLMotionProps<"button"> {
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary:
-    "bg-bg-base text-fg-primary shadow-raised-sm hover:shadow-raised-md active:shadow-pressed-sm",
+    "bg-bg-elevated/82 text-fg-primary shadow-raised-sm hover:shadow-raised-md active:shadow-pressed-sm",
   secondary:
-    "bg-bg-base text-fg-muted shadow-raised-sm hover:text-fg-primary hover:shadow-raised-md active:shadow-pressed-sm",
+    "bg-bg-surface/72 text-fg-muted shadow-raised-sm hover:text-fg-primary hover:shadow-raised-md active:shadow-pressed-sm",
   soft:
-    "bg-bg-base text-fg-muted shadow-flat hover:shadow-raised-sm hover:text-fg-primary active:shadow-pressed-sm",
+    "bg-bg-surface/54 text-fg-muted shadow-flat hover:shadow-raised-sm hover:text-fg-primary active:shadow-pressed-sm",
   ghost:
-    "bg-transparent text-fg-muted hover:bg-bg-base hover:shadow-raised-sm hover:text-fg-primary active:shadow-pressed-sm",
+    "bg-transparent text-fg-muted hover:bg-bg-surface hover:shadow-raised-sm hover:text-fg-primary active:shadow-pressed-sm",
   accent:
-    "bg-bg-base text-brand-cyan shadow-raised-sm hover:shadow-glow-cyan active:shadow-pressed-sm",
+    "bg-brand-cyan/88 text-bg-deep shadow-raised-sm hover:shadow-glow-cyan active:shadow-pressed-sm",
   danger:
-    "bg-bg-base text-semantic-danger shadow-raised-sm hover:shadow-glow-danger active:shadow-pressed-sm",
+    "bg-bg-elevated text-semantic-danger shadow-raised-sm hover:shadow-glow-danger active:shadow-pressed-sm",
 };
 
 const SIZES: Record<ButtonSize, string> = {

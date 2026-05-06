@@ -66,10 +66,10 @@ export function DevComponentsPage() {
     <div className="flex flex-col gap-10 max-w-6xl mx-auto pt-2 pb-12">
       <Animate preset="rise-in">
         <header>
-          <p className="text-[0.65rem] uppercase tracking-[0.25em] text-fg-dim font-mono">
+          <p className="botforge-kicker">
             Design system
           </p>
-          <h1 className="font-serif italic text-5xl md:text-6xl leading-[1] mt-2 tracking-tight">
+          <h1 className="botforge-title mt-2 text-5xl md:text-6xl">
             Componentes <span className="text-brand-violet">V2.8</span>.
           </h1>
           <p className="text-sm text-fg-muted mt-3 max-w-xl">
@@ -271,7 +271,7 @@ export function DevComponentsPage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-[0.65rem] uppercase tracking-[0.25em] text-fg-dim font-mono">{title}</h2>
+      <h2 className="botforge-kicker">{title}</h2>
       <div className="flex flex-col gap-4">{children}</div>
     </section>
   );
