@@ -9,7 +9,9 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 - **Linha atual:** V2 standalone em `/Users/gabrielbraga/Projetos/nuoma-wpp-v2`.
 - **M principais:** 37 marcadores, de `M0` ate `M36`.
 - **M/sub-M conhecidos:** 106 IDs quando contamos `M0.1`, `M35.2`, etc.
-- **Pendencia aberta:** 1 hotfix corretivo, `M30.3`.
+- **Pendencia aberta:** nenhuma hotfix corretiva aberta apos o fechamento de
+  `M30.3`; remarketing em lote real e cutover seguem como proximos itens
+  condicionais.
 - **Politica de smoke real:** todo envio real deve confirmar destino/canal e
   anexar evidencia visual. Quando for WhatsApp-only, registrar `IG nao_aplicavel`.
 
@@ -53,6 +55,11 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 - [x] **Remarketing seguro** — Console de disparo com dry-run forte, confirmacao
   textual, guardrails por telefone/status/canal/allowlist/supressao/duplicidade,
   fila serial por telefone e eventos `sender.campaign_step.started|failed|completed`.
+- [x] **M30.3 Contexto real 24h no WhatsApp** — Worker CDP abre/reusa o chat
+  correto, aplica/verifica mensagens temporarias 24h antes do primeiro step,
+  bloqueia envio quando nao consegue provar o estado, mantem a janela nos steps
+  intermediarios e restaura 90d apos conclusao segura com eventos
+  `sender.temporary_messages.audit` em `executionMode=whatsapp_real`.
 
 ## Parcial
 
@@ -61,13 +68,10 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 
 ## Falta
 
-- [ ] **M30.3 Hotfix: contexto 24h real no WhatsApp antes de automacao** — A
-  rodada real da automacao Neferpeel BH validou inbound recente no banco, mas
-  nao confirmou nem aplicou o contexto real de mensagens temporarias 24h no
-  WhatsApp Web. Corrigir para abrir/verificar o menu do chat no WhatsApp,
-  aplicar 24h antes do primeiro step, capturar evidencia visual/estado, manter a
-  sequencia sem refresh por step e restaurar a configuracao final prevista
-  somente apos conclusao segura.
+- [ ] **Remarketing em lote real** — Proximo item condicional apos M30.3; deve
+  reutilizar os guardas reais de contexto temporario, allowlist e auditoria.
+- [ ] **Cutover operacional** — Segue condicionado a uma rodada em lote real
+  lisa e com evidencias completas.
 
 ## Evidencias Recentes
 
@@ -76,6 +80,17 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
   `navigationMode=reused-open-chat`, audio nativo `37s`, album `4/4`,
   `pageCount=1` e zero jobs ativos, mas nao ficou no contexto real de 24h do
   WhatsApp. Esse ponto bloqueia considerar automacao/remarketing definitivo.
+- **2026-05-06 / M30.3 implementado:** runtime CDP ganhou
+  `ensureTemporaryMessages`, o `campaign_step` passa a bloquear envio quando
+  nao consegue verificar 24h e o smoke `test:m303-neferpeel-temporary-context`
+  valida a evidencia real apos execucao Neferpeel confirmada.
+- **2026-05-06 / M30.3 fechado Neferpeel real:** campanha `40` registrou
+  print fonte de verdade antes do envio em
+  `data/m303-neferpeel-before-send-24h-proof-v5.png` com chat
+  `Gabriel Braga Nuoma` e painel real `Mensagens temporarias` em `24 horas`;
+  depois restaurou `90d` com `after_completion_restore verified=true`.
+  Smoke M30.3: `completed=3`, `failed=0`, `activeJobs=0`,
+  `outsideAllowlist=0`, `IG nao_aplicavel`.
 - **2026-05-06 / Remarketing seguro:** validado com typecheck dos workspaces
   `db`, `api`, `worker`, `web`, testes direcionados de DB/API/worker e build web.
 - **2026-05-06 / Smokes fortes:** M22.2, M28.1, V2.12, V2.13 e V2.11 real

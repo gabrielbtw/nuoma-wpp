@@ -487,7 +487,10 @@ function SafeRemarketingConsole({
         <CardContent className="grid gap-4">
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
             <Select value={selectedValue || String(selected?.id ?? "")} onValueChange={onSelect}>
-              <SelectTrigger data-testid="safe-dispatch-campaign-select">
+              <SelectTrigger
+                aria-label="Campanha para remarketing seguro"
+                data-testid="safe-dispatch-campaign-select"
+              >
                 <SelectValue placeholder="Selecione a campanha" />
               </SelectTrigger>
               <SelectContent>
@@ -1013,7 +1016,11 @@ function tempPart(record: Record<string, unknown>) {
   if (record.phase === null || record.phase === undefined) {
     return null;
   }
-  return `${String(record.phase)}:${String(record.duration ?? "")}`;
+  const mode = record.executionMode === "whatsapp_real" ? "real" : "audit";
+  const verified = record.verified === true ? "ok" : record.verified === false ? "falhou" : null;
+  return [mode, String(record.phase), String(record.verifiedDuration ?? record.duration ?? ""), verified]
+    .filter(Boolean)
+    .join(":");
 }
 
 function navigationBadge(payload: unknown) {
@@ -1027,7 +1034,22 @@ function navigationBadge(payload: unknown) {
   if (mode === "navigated") {
     return <Badge variant="neutral">navegou</Badge>;
   }
-  const phase = (payload as Record<string, unknown>).phase;
+  const record = payload as Record<string, unknown>;
+  const phase = record.phase;
+  if (record.executionMode === "whatsapp_real" && record.verified === false) {
+    return <Badge variant="danger">24h falhou</Badge>;
+  }
+  if (record.executionMode === "whatsapp_real" && phase === "before_send" && record.verified === true) {
+    return <Badge variant="success">24h verificado</Badge>;
+  }
+  if (
+    record.executionMode === "whatsapp_real" &&
+    typeof phase === "string" &&
+    phase.includes("restore") &&
+    record.verified === true
+  ) {
+    return <Badge variant="success">restaurado {String(record.verifiedDuration ?? record.duration)}</Badge>;
+  }
   if (typeof phase === "string" && phase.includes("restore")) {
     return <Badge variant="warning">24h/90d</Badge>;
   }

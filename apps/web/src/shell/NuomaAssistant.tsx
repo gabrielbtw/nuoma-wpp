@@ -35,6 +35,7 @@ export function NuomaAssistant({ className }: { className?: string }) {
             "transition-shadow hover:shadow-glow-cyan",
             className,
           )}
+          role="img"
           aria-label="Assistente Nuoma"
           style={{ animation: "nuoma-assistant-float 4.8s ease-in-out infinite" }}
         >

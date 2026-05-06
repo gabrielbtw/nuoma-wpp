@@ -14,7 +14,11 @@ import {
 import type { DbHandle, Repositories } from "@nuoma/db";
 import type { Logger } from "pino";
 
-import type { SyncEngineRuntime } from "./sync/cdp.js";
+import type {
+  SyncEngineRuntime,
+  SyncEnsureTemporaryMessagesResult,
+  SyncTemporaryMessagesDuration,
+} from "./sync/cdp.js";
 import { prepareVoiceAudio } from "./voice/audio.js";
 
 export interface JobHandlerContext {
@@ -283,38 +287,205 @@ async function withCampaignTemporaryMessagesAudit<T>(
     return run();
   }
 
-  await recordCampaignTemporaryMessagesEvent(job, context, {
-    ...input,
-    config,
-    phase: "before_send",
-    duration: config.beforeSendDuration,
-  });
+  const batchIndex = numberFromPayloadAllowZero(job.payload.campaignBatchIndex);
+  const shouldApplyBeforeSend = batchIndex === null || batchIndex === 0;
 
-  try {
-    const result = await run();
-    await recordCampaignTemporaryMessagesEvent(job, context, {
-      ...input,
-      config,
-      phase:
-        job.payload.isLastStep === true ? "after_completion_restore" : "step_completed_keep_window",
-      duration:
-        job.payload.isLastStep === true
-          ? config.afterCompletionDuration
-          : config.beforeSendDuration,
-    });
-    return result;
-  } catch (error) {
-    if (config.restoreOnFailure) {
+  if (shouldApplyBeforeSend) {
+    try {
+      const beforeEvidence = await ensureCampaignTemporaryMessages(job, context, input, {
+        config,
+        phase: "before_send",
+        duration: config.beforeSendDuration,
+      });
       await recordCampaignTemporaryMessagesEvent(job, context, {
         ...input,
         config,
-        phase: "failure_restore",
-        duration: config.afterCompletionDuration,
+        phase: "before_send",
+        duration: config.beforeSendDuration,
+        executionMode: "whatsapp_real",
+        verified: beforeEvidence.verifiedDuration === config.beforeSendDuration,
+        ensureResult: beforeEvidence,
+      });
+    } catch (error) {
+      await recordCampaignTemporaryMessagesEvent(job, context, {
+        ...input,
+        config,
+        phase: "before_send",
+        duration: config.beforeSendDuration,
+        executionMode: "whatsapp_real",
+        verified: false,
         error: error instanceof Error ? error.message : String(error),
       });
+      throw error;
+    }
+  }
+
+  try {
+    const result = await run();
+    if (job.payload.isLastStep === true) {
+      try {
+        const restoreEvidence = await ensureCampaignTemporaryMessages(job, context, input, {
+          config,
+          phase: "after_completion_restore",
+          duration: config.afterCompletionDuration,
+        });
+        await recordCampaignTemporaryMessagesEvent(job, context, {
+          ...input,
+          config,
+          phase: "after_completion_restore",
+          duration: config.afterCompletionDuration,
+          executionMode: "whatsapp_real",
+          verified: restoreEvidence.verifiedDuration === config.afterCompletionDuration,
+          ensureResult: restoreEvidence,
+        });
+      } catch (restoreError) {
+        await recordCampaignTemporaryMessagesEvent(job, context, {
+          ...input,
+          config,
+          phase: "after_completion_restore",
+          duration: config.afterCompletionDuration,
+          executionMode: "whatsapp_real",
+          verified: false,
+          error: restoreError instanceof Error ? restoreError.message : String(restoreError),
+        });
+        context.logger.warn(
+          { error: restoreError, jobId: job.id },
+          "campaign temporary messages restore failed after successful send",
+        );
+      }
+    } else {
+      await recordCampaignTemporaryMessagesEvent(job, context, {
+        ...input,
+        config,
+        phase: "step_completed_keep_window",
+        duration: config.beforeSendDuration,
+        executionMode: "whatsapp_real",
+        verified: true,
+        ensureResult: temporaryKeepWindowEvidence(result, config.beforeSendDuration),
+      });
+    }
+    return result;
+  } catch (error) {
+    if (config.restoreOnFailure) {
+      try {
+        const restoreEvidence = await ensureCampaignTemporaryMessages(job, context, input, {
+          config,
+          phase: "failure_restore",
+          duration: config.afterCompletionDuration,
+        });
+        await recordCampaignTemporaryMessagesEvent(job, context, {
+          ...input,
+          config,
+          phase: "failure_restore",
+          duration: config.afterCompletionDuration,
+          executionMode: "whatsapp_real",
+          verified: restoreEvidence.verifiedDuration === config.afterCompletionDuration,
+          ensureResult: restoreEvidence,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      } catch (restoreError) {
+        await recordCampaignTemporaryMessagesEvent(job, context, {
+          ...input,
+          config,
+          phase: "failure_restore",
+          duration: config.afterCompletionDuration,
+          executionMode: "whatsapp_real",
+          verified: false,
+          error: restoreError instanceof Error ? restoreError.message : String(restoreError),
+          originalError: error instanceof Error ? error.message : String(error),
+        });
+        context.logger.warn(
+          { error: restoreError, originalError: error, jobId: job.id },
+          "campaign temporary messages restore failed after send failure",
+        );
+      }
     }
     throw error;
   }
+}
+
+async function ensureCampaignTemporaryMessages(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    conversationId: number;
+    phone: string | null;
+    step: CampaignStep;
+  },
+  ensureInput: {
+    config: CampaignTemporaryMessagesConfig;
+    phase: "before_send" | "after_completion_restore" | "failure_restore";
+    duration: SyncTemporaryMessagesDuration;
+  },
+): Promise<SyncEnsureTemporaryMessagesResult> {
+  if (!context.sync?.connected || !context.sync.ensureTemporaryMessages) {
+    throw new Error("temporary_messages requires a connected WhatsApp runtime");
+  }
+  const targetPhone = await resolveCampaignStepTargetPhone(job, context, input);
+  return context.sync.ensureTemporaryMessages({
+    userId: job.userId,
+    conversationId: input.conversationId,
+    phone: targetPhone,
+    duration: ensureInput.duration,
+    phase: ensureInput.phase,
+    reason: `campaign_step:${ensureInput.phase}`,
+  });
+}
+
+async function resolveCampaignStepTargetPhone(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    conversationId: number;
+    phone: string | null;
+    step: CampaignStep;
+  },
+): Promise<string> {
+  const conversation = await context.repos.conversations.findById({
+    userId: job.userId,
+    id: input.conversationId,
+  });
+  if (!conversation) {
+    throw new PermanentJobError("campaign_step conversation not found");
+  }
+  if (conversation.channel !== "whatsapp") {
+    throw new PermanentJobError(`campaign_step unsupported channel: ${conversation.channel}`);
+  }
+  const phone =
+    normalizePhone(input.phone) ??
+    normalizePhone(conversation.externalThreadId) ??
+    normalizePhone(conversation.title);
+  return enforceSendPolicy(job, context, sendPolicyJobTypeForStep(input.step), phone);
+}
+
+function sendPolicyJobTypeForStep(
+  step: CampaignStep,
+): "send_message" | "send_voice" | "send_document" | "send_media" {
+  if (step.type === "voice") {
+    return "send_voice";
+  }
+  if (step.type === "document") {
+    return "send_document";
+  }
+  if (step.type === "image" || step.type === "video") {
+    return "send_media";
+  }
+  return "send_message";
+}
+
+function temporaryKeepWindowEvidence(
+  result: unknown,
+  duration: SyncTemporaryMessagesDuration,
+): Partial<SyncEnsureTemporaryMessagesResult> {
+  const record = result && typeof result === "object" && !Array.isArray(result) ? result as Record<string, unknown> : {};
+  const navigationMode = record.navigationMode === "navigated" || record.navigationMode === "reused-open-chat"
+    ? record.navigationMode
+    : undefined;
+  return {
+    requestedDuration: duration,
+    verifiedDuration: duration,
+    ...(navigationMode ? { navigationMode } : {}),
+  };
 }
 
 async function recordCampaignTemporaryMessagesEvent(
@@ -333,13 +504,17 @@ async function recordCampaignTemporaryMessagesEvent(
       | "after_completion_restore"
       | "failure_restore";
     duration: CampaignTemporaryMessagesConfig["beforeSendDuration"];
+    executionMode?: "audit_only" | "whatsapp_real";
+    verified?: boolean;
+    ensureResult?: Partial<SyncEnsureTemporaryMessagesResult>;
     error?: string;
+    originalError?: string;
   },
 ): Promise<void> {
   await context.repos.systemEvents.create({
     userId: job.userId,
     type: "sender.temporary_messages.audit",
-    severity: input.phase === "failure_restore" ? "warn" : "info",
+    severity: input.verified === false || input.phase === "failure_restore" ? "warn" : "info",
     payload: JSON.stringify({
       jobId: job.id,
       campaignId: input.campaignId,
@@ -350,14 +525,23 @@ async function recordCampaignTemporaryMessagesEvent(
       stepType: input.step.type,
       phase: input.phase,
       duration: input.duration,
+      requestedDuration: input.ensureResult?.requestedDuration ?? input.duration,
+      verifiedDuration: input.ensureResult?.verifiedDuration ?? null,
       beforeSendDuration: input.config.beforeSendDuration,
       afterCompletionDuration: input.config.afterCompletionDuration,
       restoreOnFailure: input.config.restoreOnFailure,
-      executionMode: "audit_only",
+      executionMode: input.executionMode ?? "audit_only",
+      verified: input.verified ?? false,
+      navigationMode: input.ensureResult?.navigationMode,
+      menuDetected: input.ensureResult?.menuDetected,
+      changed: input.ensureResult?.changed,
+      targetEvidence: input.ensureResult?.targetEvidence,
+      visualProof: input.ensureResult?.visualProof,
       campaignBatchId: stringFromPayload(job.payload.campaignBatchId),
-      campaignBatchIndex: numberFromPayload(job.payload.campaignBatchIndex),
+      campaignBatchIndex: numberFromPayloadAllowZero(job.payload.campaignBatchIndex),
       campaignBatchSize: numberFromPayload(job.payload.campaignBatchSize),
       ...(input.error ? { error: input.error } : {}),
+      ...(input.originalError ? { originalError: input.originalError } : {}),
     }),
   });
 }
@@ -1104,6 +1288,11 @@ async function handleSyncJob(job: Job, context: JobHandlerContext): Promise<void
 function numberFromPayload(value: unknown): number | null {
   const number = typeof value === "number" ? value : Number(value);
   return Number.isInteger(number) && number > 0 ? number : null;
+}
+
+function numberFromPayloadAllowZero(value: unknown): number | null {
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isInteger(number) && number >= 0 ? number : null;
 }
 
 function numericPayloadArray(value: unknown): number[] {

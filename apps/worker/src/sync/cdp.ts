@@ -38,6 +38,9 @@ export interface SyncEngineRuntime {
   connected: boolean;
   metrics: SyncEngineMetrics;
   forceConversation: (input: SyncForceConversationInput) => Promise<SyncForceConversationResult>;
+  ensureTemporaryMessages?: (
+    input: SyncEnsureTemporaryMessagesInput,
+  ) => Promise<SyncEnsureTemporaryMessagesResult>;
   sendTextMessage: (input: SyncSendTextMessageInput) => Promise<SyncSendTextMessageResult>;
   sendVoiceMessage: (input: SyncSendVoiceMessageInput) => Promise<SyncSendVoiceMessageResult>;
   sendDocumentMessage: (
@@ -63,6 +66,41 @@ export interface SyncForceConversationResult {
   phone: string | null;
   reason: string;
   history?: SyncHistoryBackfillResult;
+}
+
+export type SyncTemporaryMessagesDuration = "24h" | "7d" | "90d";
+
+export type SyncTemporaryMessagesPhase =
+  | "before_send"
+  | "after_completion_restore"
+  | "failure_restore";
+
+export interface SyncEnsureTemporaryMessagesInput {
+  userId: number;
+  conversationId: number;
+  phone: string;
+  duration: SyncTemporaryMessagesDuration;
+  phase: SyncTemporaryMessagesPhase;
+  reason?: string;
+}
+
+export interface SyncEnsureTemporaryMessagesResult {
+  mode: "temporary-messages";
+  conversationId: number;
+  phone: string;
+  requestedDuration: SyncTemporaryMessagesDuration;
+  verifiedDuration: SyncTemporaryMessagesDuration | null;
+  phase: SyncTemporaryMessagesPhase;
+  reason: string;
+  navigationMode: "navigated" | "reused-open-chat";
+  changed: boolean;
+  menuDetected: boolean;
+  targetEvidence: ActiveSendTargetState;
+  visualProof?: {
+    screenshotPath: string;
+    verifiedDuration: SyncTemporaryMessagesDuration;
+    textEvidence: string;
+  };
 }
 
 export interface SyncHistoryBackfillOptions {
@@ -93,6 +131,14 @@ interface SyncReconcileSummary {
   firstExternalId: string | null;
   lastExternalId: string | null;
   visibleExternalIds: string[];
+}
+
+interface ReadyChatState {
+  hasMain: boolean;
+  hasSidebar: boolean;
+  hasComposer: boolean;
+  startingConversation: boolean;
+  headerTitle: string;
 }
 
 interface SyncHistoryScrollSummary extends SyncReconcileSummary {
@@ -1169,6 +1215,132 @@ export async function startSyncEngine(input: {
     };
   }
 
+  async function ensureTemporaryMessages(
+    ensureInput: SyncEnsureTemporaryMessagesInput,
+  ): Promise<SyncEnsureTemporaryMessagesResult> {
+    if (!client) {
+      throw new Error("sync engine is not connected");
+    }
+    const phone = normalizePhone(ensureInput.phone);
+    if (!phone) {
+      throw new Error("temporary_messages requires a valid WhatsApp phone");
+    }
+    const reason = ensureInput.reason ?? "temporary_messages";
+    const navigationMode = await navigateWhatsAppPhoneForTemporaryMessages({
+      phone,
+      userId: ensureInput.userId,
+      conversationId: ensureInput.conversationId,
+    });
+    await assertActiveSendTarget({
+      expectedPhone: phone,
+      operation: `temporary_messages:${ensureInput.phase}`,
+      userId: ensureInput.userId,
+      conversationId: ensureInput.conversationId,
+    });
+    const beforeState = await readActiveSendTargetState();
+    const keepPanelOpenForProof =
+      ensureInput.phase === "before_send" && Boolean(process.env.M303_BEFORE_SEND_SCREENSHOT_PATH);
+    const result = await applyTemporaryMessagesDuration(
+      ensureInput.duration,
+      keepPanelOpenForProof,
+    );
+    const afterState = await readActiveSendTargetState();
+    if (result.verifiedDuration !== ensureInput.duration) {
+      throw new Error(
+        `temporary_messages verification failed: requested=${ensureInput.duration} verified=${result.verifiedDuration ?? "none"} menuDetected=${String(result.menuDetected)} reason=${result.reason ?? "unknown"}`,
+      );
+    }
+    const visualProof = ensureInput.phase === "before_send"
+      ? await captureTemporaryMessagesVisualProof(ensureInput.duration)
+      : null;
+    return {
+      mode: "temporary-messages",
+      conversationId: ensureInput.conversationId,
+      phone,
+      requestedDuration: ensureInput.duration,
+      verifiedDuration: result.verifiedDuration,
+      phase: ensureInput.phase,
+      reason,
+      navigationMode,
+      changed: result.changed,
+      menuDetected: result.menuDetected,
+      targetEvidence: {
+        ...afterState,
+        href: afterState.href || beforeState.href,
+        title: afterState.title || beforeState.title,
+      },
+      ...(visualProof ? { visualProof } : {}),
+    };
+  }
+
+  async function captureTemporaryMessagesVisualProof(
+    duration: SyncTemporaryMessagesDuration,
+  ): Promise<SyncEnsureTemporaryMessagesResult["visualProof"] | null> {
+    if (!client || !process.env.M303_BEFORE_SEND_SCREENSHOT_PATH) {
+      return null;
+    }
+    const proofPath = path.isAbsolute(process.env.M303_BEFORE_SEND_SCREENSHOT_PATH)
+      ? process.env.M303_BEFORE_SEND_SCREENSHOT_PATH
+      : path.resolve(process.cwd(), process.env.M303_BEFORE_SEND_SCREENSHOT_PATH);
+    const proof = await client.Runtime.evaluate({
+      expression: temporaryMessagesProofScript(duration),
+      awaitPromise: true,
+      returnByValue: true,
+      includeCommandLineAPI: false,
+    });
+    const value = proof.result.value;
+    if (!isRecord(value)) {
+      throw new Error(`temporary_messages visual proof returned invalid result: ${JSON.stringify(value ?? null)}`);
+    }
+    const verifiedDuration = parseTemporaryMessagesDuration(value.verifiedDuration);
+    if (verifiedDuration !== duration) {
+      throw new Error(
+        `temporary_messages visual proof failed: requested=${duration} verified=${verifiedDuration ?? "none"} text=${String(value.textEvidence ?? "").slice(0, 160)}`,
+      );
+    }
+    await client.Page.enable();
+    const screenshot = await client.Page.captureScreenshot({ format: "png", fromSurface: true });
+    await fs.mkdir(path.dirname(proofPath), { recursive: true });
+    await fs.writeFile(proofPath, Buffer.from(screenshot.data, "base64"));
+    await client.Runtime.evaluate({
+      expression: `
+        (async () => {
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          const clean = (value) => String(value || "").normalize("NFD")
+            .replace(/[\\u0300-\\u036f]/g, "")
+            .replace(/\\s+/g, " ")
+            .trim()
+            .toLowerCase();
+          const isVisible = (node) => {
+            if (!(node instanceof HTMLElement)) return false;
+            const rect = node.getBoundingClientRect();
+            const style = window.getComputedStyle(node);
+            return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+          };
+          for (let attempt = 0; attempt < 2; attempt += 1) {
+            const back = Array.from(document.querySelectorAll("button, [role='button'], span[data-icon='back']"))
+              .find((node) => {
+                const text = clean(node.getAttribute("aria-label") || node.getAttribute("title") || node.textContent || node.getAttribute("data-icon") || "");
+                return isVisible(node) && (text.includes("voltar") || text.includes("back"));
+              });
+            const target = back && (back.closest("button") || back.closest("[role='button']") || back);
+            if (!(target instanceof HTMLElement)) break;
+            target.click();
+            await sleep(350);
+          }
+        })()
+      `,
+      awaitPromise: true,
+      returnByValue: true,
+      includeCommandLineAPI: false,
+    }).catch(() => null);
+    return {
+      screenshotPath: proofPath,
+      verifiedDuration,
+      textEvidence: String(value.textEvidence ?? "").slice(0, 2000),
+    };
+  }
+
   async function sendVoiceMessage(
     voiceInput: SyncSendVoiceMessageInput,
   ): Promise<SyncSendVoiceMessageResult> {
@@ -1773,6 +1945,36 @@ export async function startSyncEngine(input: {
       await sleep(750);
     }
     return false;
+  }
+
+  async function applyTemporaryMessagesDuration(
+    duration: SyncTemporaryMessagesDuration,
+    keepPanelOpen = false,
+  ): Promise<{
+    changed: boolean;
+    menuDetected: boolean;
+    verifiedDuration: SyncTemporaryMessagesDuration | null;
+    reason: string | null;
+  }> {
+    if (!client) {
+      throw new Error("sync engine is not connected");
+    }
+    const result = await client.Runtime.evaluate({
+      expression: temporaryMessagesUiScript(duration, keepPanelOpen),
+      awaitPromise: true,
+      returnByValue: true,
+      includeCommandLineAPI: false,
+    });
+    const value = result.result.value;
+    if (!isRecord(value)) {
+      throw new Error(`temporary_messages returned invalid result: ${JSON.stringify(value ?? null)}`);
+    }
+    return {
+      changed: value.changed === true,
+      menuDetected: value.menuDetected === true,
+      verifiedDuration: parseTemporaryMessagesDuration(value.verifiedDuration),
+      reason: typeof value.reason === "string" ? value.reason : null,
+    };
   }
 
   async function sendMediaViaWhatsAppInternal(inputMedia: {
@@ -3292,6 +3494,28 @@ export async function startSyncEngine(input: {
     return "navigated";
   }
 
+  async function navigateWhatsAppPhoneForTemporaryMessages(inputTemporary: {
+    phone: string;
+    userId: number;
+    conversationId: number;
+  }): Promise<SyncEnsureTemporaryMessagesResult["navigationMode"]> {
+    const normalized = normalizePhone(inputTemporary.phone);
+    if (!normalized) {
+      throw new Error("temporary_messages requires a valid WhatsApp phone");
+    }
+    if (
+      await canReuseOpenChat(
+        inputTemporary.userId,
+        inputTemporary.conversationId,
+        normalized,
+      )
+    ) {
+      return "reused-open-chat";
+    }
+    await navigateWhatsAppPhone(normalized);
+    return "navigated";
+  }
+
   async function canReuseOpenChat(
     userId: number,
     conversationId: number,
@@ -3466,7 +3690,9 @@ export async function startSyncEngine(input: {
           (() => ({
             hasMain: Boolean(document.querySelector("#main")),
             hasSidebar: Boolean(document.querySelector("#pane-side")),
-            hasComposer: Boolean(document.querySelector("footer [contenteditable='true']")),
+            hasComposer: Boolean(document.querySelector("#main footer [contenteditable='true']")),
+            startingConversation: /Iniciando conversa|Starting chat|Iniciando chat/i.test(String(document.body?.innerText || "")),
+            headerTitle: String(document.querySelector("#main header")?.textContent || "").replace(/\\s+/g, " ").trim(),
             visibleMessages: document.querySelectorAll("#main [data-id]").length,
             href: String(location.href || "")
           }))()
@@ -3493,7 +3719,9 @@ export async function startSyncEngine(input: {
         (() => ({
           hasMain: Boolean(document.querySelector("#main")),
           hasSidebar: Boolean(document.querySelector("#pane-side")),
-          hasComposer: Boolean(document.querySelector("footer [contenteditable='true']")),
+          hasComposer: Boolean(document.querySelector("#main footer [contenteditable='true']")),
+          startingConversation: /Iniciando conversa|Starting chat|Iniciando chat/i.test(String(document.body?.innerText || "")),
+          headerTitle: String(document.querySelector("#main header")?.textContent || "").replace(/\\s+/g, " ").trim(),
           visibleMessages: document.querySelectorAll("#main [data-id]").length,
           href: String(location.href || "")
         }))()
@@ -3521,6 +3749,7 @@ export async function startSyncEngine(input: {
     },
     metrics,
     forceConversation,
+    ensureTemporaryMessages,
     sendTextMessage,
     sendVoiceMessage,
     sendDocumentMessage,
@@ -3545,6 +3774,9 @@ export function shouldAllowActiveSendTarget(input: {
   expectedTitle: string | null;
   recentNavigationGraceMs?: number;
 }): boolean {
+  if (!input.state.hasComposer) {
+    return false;
+  }
   const normalizedTitle = normalizeTitle(input.state.title);
   const livePhoneMismatch =
     (Boolean(input.state.titlePhone) && input.state.titlePhone !== input.expectedPhone) ||
@@ -3660,6 +3892,9 @@ function disabledRuntime(metrics: SyncEngineMetrics): SyncEngineRuntime {
     connected: false,
     metrics,
     forceConversation: async () => {
+      throw new Error("sync engine is disabled");
+    },
+    ensureTemporaryMessages: async () => {
       throw new Error("sync engine is disabled");
     },
     sendTextMessage: async () => {
@@ -3805,6 +4040,297 @@ function updateBackfillResult(
   target.lastLastExternalId = summary.lastExternalId;
 }
 
+export function parseTemporaryMessagesDuration(
+  value: unknown,
+): SyncTemporaryMessagesDuration | null {
+  const text = String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) {
+    return null;
+  }
+  if (/(^|[^0-9])24\s*(h|hora|horas|hour|hours)([^a-z]|$)/i.test(text)) {
+    return "24h";
+  }
+  if (/(^|[^0-9])7\s*(d|dia|dias|day|days)([^a-z]|$)/i.test(text)) {
+    return "7d";
+  }
+  if (/(^|[^0-9])90\s*(d|dia|dias|day|days)([^a-z]|$)/i.test(text)) {
+    return "90d";
+  }
+  if (/(^|[^0-9])3\s*(mes|meses|month|months)([^a-z]|$)/i.test(text)) {
+    return "90d";
+  }
+  if (/(^|[^a-z])(?:tres|três|three)\s*(meses|months)([^a-z]|$)/i.test(text)) {
+    return "90d";
+  }
+  return null;
+}
+
+function temporaryMessagesUiScript(
+  duration: SyncTemporaryMessagesDuration,
+  keepPanelOpen = false,
+): string {
+  return `
+    (async () => {
+      const requestedDuration = ${JSON.stringify(duration)};
+      const keepPanelOpen = ${JSON.stringify(keepPanelOpen)};
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const clean = (value) => String(value || "").normalize("NFD")
+        .replace(/[\\u0300-\\u036f]/g, "")
+        .replace(/\\s+/g, " ")
+        .trim()
+        .toLowerCase();
+      const isVisible = (node) => {
+        if (!(node instanceof HTMLElement)) return false;
+        const rect = node.getBoundingClientRect();
+        const style = window.getComputedStyle(node);
+        return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+      };
+      const chatSurfaceLeft = () => {
+        const main = document.querySelector("#main");
+        if (main instanceof HTMLElement) {
+          return Math.max(0, main.getBoundingClientRect().left - 12);
+        }
+        return Math.min(430, Math.round(window.innerWidth * 0.35));
+      };
+      const isChatSurfaceNode = (node) => {
+        if (!(node instanceof HTMLElement)) return false;
+        const rect = node.getBoundingClientRect();
+        return rect.left >= chatSurfaceLeft() && rect.left <= window.innerWidth;
+      };
+      const durationFromText = (value) => {
+        const text = clean(value);
+        if (/(^|[^0-9])24\\s*(h|hora|horas|hour|hours)([^a-z]|$)/i.test(text)) return "24h";
+        if (/(^|[^0-9])7\\s*(d|dia|dias|day|days)([^a-z]|$)/i.test(text)) return "7d";
+        if (/(^|[^0-9])90\\s*(d|dia|dias|day|days)([^a-z]|$)/i.test(text)) return "90d";
+        if (/(^|[^0-9])3\\s*(mes|meses|month|months)([^a-z]|$)/i.test(text)) return "90d";
+        if (/(^|[^a-z])(?:tres|três|three)\\s*(meses|months)([^a-z]|$)/i.test(text)) return "90d";
+        return null;
+      };
+      const clickNode = (node) => {
+        const target = node && (node.closest("button") || node.closest("[role='button']") || node.closest("[role='menuitem']") || node);
+        if (!(target instanceof HTMLElement) || !isVisible(target)) return false;
+        target.focus();
+        target.click();
+        return true;
+      };
+      const visibleNodes = (selector, chatOnly = true) => Array.from(document.querySelectorAll(selector))
+        .filter((node) => isVisible(node) && (!chatOnly || isChatSurfaceNode(node)));
+      const bodyDuration = (preferredDuration = null) => {
+        const text = visibleNodes("#main, [role='dialog'], [data-animate-modal-popup], section, aside, div, span", true)
+          .map((node) => node.textContent || "")
+          .join("\\n");
+        if (preferredDuration) {
+          const durations = text.split("\\n").map(durationFromText).filter(Boolean);
+          if (durations.includes(preferredDuration)) return preferredDuration;
+        }
+        return durationFromText(text);
+      };
+      const findByText = (needles, root = document) => {
+        const normalizedNeedles = needles.map(clean);
+        return Array.from(root.querySelectorAll("button, [role='button'], [role='menuitem'], [role='radio'], [role='option'], div, span"))
+          .filter((node) => isVisible(node) && isChatSurfaceNode(node))
+          .map((node) => {
+            const text = clean(node.getAttribute("aria-label") || node.getAttribute("title") || node.textContent || "");
+            const rect = node.getBoundingClientRect();
+            const interactive = node.matches("button, [role='button'], [role='menuitem'], [role='radio'], [role='option']");
+            return { node, text, score: (interactive ? 0 : 10000) + text.length + Math.round(rect.width * rect.height / 1000) };
+          })
+          .filter((item) => normalizedNeedles.some((needle) => item.text.includes(needle)))
+          .sort((a, b) => a.score - b.score)[0]?.node || null;
+      };
+      const openChatInfo = async () => {
+        const header = document.querySelector("#main header");
+        if (!(header instanceof HTMLElement)) return false;
+        const clickable = header.querySelector("[role='button'], button") || header;
+        return clickNode(clickable);
+      };
+      const openHeaderMenu = async () => {
+        const menuLabels = [
+          "Mais opcoes", "Mais opções", "More options", "Menu", "Menú", "Mas opciones", "Más opciones"
+        ];
+        const node = visibleNodes("#main header button[aria-label], #main header [role='button'][aria-label], #main header span[data-icon='menu'], #main header span[data-icon='down']", false)
+          .reverse()
+          .find((item) => {
+            const text = clean(item.getAttribute("aria-label") || item.getAttribute("title") || item.textContent || "");
+            return !text || menuLabels.map(clean).some((label) => text.includes(label));
+          });
+        return node ? clickNode(node) : false;
+      };
+      const openTemporaryMenu = async () => {
+        const tempLabels = [
+          "Mensagens temporarias", "Mensagens temporárias", "Disappearing messages",
+          "Mensajes temporales", "Mensajes temporarios"
+        ];
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          const direct = findByText(tempLabels);
+          if (direct && clickNode(direct)) return true;
+          if (attempt === 0) {
+            await openChatInfo();
+          } else if (attempt === 1) {
+            await openHeaderMenu();
+          }
+          await sleep(700);
+        }
+        const menuItem = findByText(tempLabels);
+        return menuItem ? clickNode(menuItem) : false;
+      };
+      const clickDuration = async () => {
+        const labelsByDuration = {
+          "24h": ["24 horas", "24 hours", "24 h", "24 horas"],
+          "7d": ["7 dias", "7 days", "7 d"],
+          "90d": ["90 dias", "90 days", "90 d", "3 meses", "3 months", "tres meses", "três meses", "three months"]
+        };
+        const scrollables = () => visibleNodes("[role='dialog'], [data-animate-modal-popup], section, div", true)
+          .filter((node) => node.scrollHeight > node.clientHeight + 20);
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+          const node = findByText(labelsByDuration[requestedDuration]);
+          if (node && clickNode(node)) return true;
+          for (const scroller of scrollables()) {
+            scroller.scrollTop = attempt % 2 === 0 ? scroller.scrollHeight : Math.round(scroller.scrollHeight / 2);
+          }
+          await sleep(500);
+        }
+        return false;
+      };
+      const closePanels = async () => {
+        const ok = findByText(["OK", "Ok", "Entendi", "Got it", "De acuerdo"]);
+        if (ok) clickNode(ok);
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+        await sleep(300);
+      };
+
+      const beforeDuration = bodyDuration();
+      const menuDetected = await openTemporaryMenu();
+      if (!menuDetected) {
+        return {
+          changed: false,
+          menuDetected: false,
+          verifiedDuration: beforeDuration,
+          reason: "temporary-menu-not-found"
+        };
+      }
+      await sleep(700);
+      const clickedDuration = await clickDuration();
+      await sleep(900);
+      const verifiedDuration = bodyDuration(requestedDuration);
+      if (!keepPanelOpen) {
+        await closePanels();
+      }
+      return {
+        changed: clickedDuration && beforeDuration !== requestedDuration,
+        menuDetected: true,
+        verifiedDuration,
+        reason: clickedDuration ? "duration-clicked" : "duration-option-not-found"
+      };
+    })()
+  `;
+}
+
+function temporaryMessagesProofScript(duration: SyncTemporaryMessagesDuration): string {
+  return `
+    (async () => {
+      const requestedDuration = ${JSON.stringify(duration)};
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const clean = (value) => String(value || "").normalize("NFD")
+        .replace(/[\\u0300-\\u036f]/g, "")
+        .replace(/\\s+/g, " ")
+        .trim()
+        .toLowerCase();
+      const isVisible = (node) => {
+        if (!(node instanceof HTMLElement)) return false;
+        const rect = node.getBoundingClientRect();
+        const style = window.getComputedStyle(node);
+        return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+      };
+      const chatSurfaceLeft = () => {
+        const main = document.querySelector("#main");
+        if (main instanceof HTMLElement) return Math.max(0, main.getBoundingClientRect().left - 12);
+        return Math.min(430, Math.round(window.innerWidth * 0.35));
+      };
+      const isChatSurfaceNode = (node) => {
+        if (!(node instanceof HTMLElement)) return false;
+        const rect = node.getBoundingClientRect();
+        return rect.left >= chatSurfaceLeft() && rect.left <= window.innerWidth;
+      };
+      const durationFromText = (value) => {
+        const text = clean(value);
+        if (/(^|[^0-9])24\\s*(h|hora|horas|hour|hours)([^a-z]|$)/i.test(text)) return "24h";
+        if (/(^|[^0-9])7\\s*(d|dia|dias|day|days)([^a-z]|$)/i.test(text)) return "7d";
+        if (/(^|[^0-9])90\\s*(d|dia|dias|day|days)([^a-z]|$)/i.test(text)) return "90d";
+        if (/(^|[^0-9])3\\s*(mes|meses|month|months)([^a-z]|$)/i.test(text)) return "90d";
+        if (/(^|[^a-z])(?:tres|três|three)\\s*(meses|months)([^a-z]|$)/i.test(text)) return "90d";
+        return null;
+      };
+      const clickNode = (node) => {
+        const target = node && (node.closest("button") || node.closest("[role='button']") || node.closest("[role='menuitem']") || node);
+        if (!(target instanceof HTMLElement) || !isVisible(target) || !isChatSurfaceNode(target)) return false;
+        target.focus();
+        target.click();
+        return true;
+      };
+      const visibleNodes = (selector) => Array.from(document.querySelectorAll(selector))
+        .filter((node) => isVisible(node) && isChatSurfaceNode(node));
+      const findByText = (needles) => {
+        const normalizedNeedles = needles.map(clean);
+        return visibleNodes("button, [role='button'], [role='menuitem'], [role='radio'], [role='option'], div, span")
+          .map((node) => {
+            const text = clean(node.getAttribute("aria-label") || node.getAttribute("title") || node.textContent || "");
+            const interactive = node.matches("button, [role='button'], [role='menuitem'], [role='radio'], [role='option']");
+            return { node, text, score: (interactive ? 0 : 10000) + text.length };
+          })
+          .filter((item) => normalizedNeedles.some((needle) => item.text.includes(needle)))
+          .sort((a, b) => a.score - b.score)[0]?.node || null;
+      };
+      const openChatInfo = async () => {
+        const header = document.querySelector("#main header");
+        if (!(header instanceof HTMLElement)) return false;
+        const clickable = header.querySelector("[role='button'], button") || header;
+        return clickNode(clickable);
+      };
+      const openHeaderMenu = async () => {
+        const node = visibleNodes("#main header button[aria-label], #main header [role='button'][aria-label], #main header span[data-icon='menu'], #main header span[data-icon='down']").reverse()[0];
+        return node ? clickNode(node) : false;
+      };
+      const tempLabels = [
+        "Mensagens temporarias", "Mensagens temporárias", "Disappearing messages",
+        "Mensajes temporales", "Mensajes temporarios"
+      ];
+      const initialComposer = document.querySelector("#main footer [contenteditable='true']");
+      const initialHeader = document.querySelector("#main header");
+      if (!(initialComposer instanceof HTMLElement) || !(initialHeader instanceof HTMLElement)) {
+        return {
+          verifiedDuration: null,
+          textEvidence: "chat composer/header not visible before before-send proof",
+        };
+      }
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        const direct = findByText(tempLabels);
+        if (direct && clickNode(direct)) break;
+        if (attempt === 0) await openChatInfo();
+        if (attempt === 1) await openHeaderMenu();
+        await sleep(800);
+      }
+      await sleep(1000);
+      const proofText = visibleNodes("#main, [role='dialog'], [data-animate-modal-popup], section, aside, div, span")
+        .map((node) => node.textContent || "")
+        .join("\\n");
+      const durationEvidence = visibleNodes("button, [role='button'], [role='radio'], [role='option'], div, span")
+        .map((node) => node.textContent || node.getAttribute("aria-label") || "")
+        .find((text) => durationFromText(text) === requestedDuration) || "";
+      const durations = proofText.split("\\n").map(durationFromText).filter(Boolean);
+      return {
+        verifiedDuration: durations.includes(requestedDuration) ? requestedDuration : (durations[0] || null),
+        textEvidence: (durationEvidence + "\\n" + proofText).replace(/\\s+/g, " ").trim().slice(0, 2000),
+      };
+    })()
+  `;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -3832,12 +4358,15 @@ function isOutgoingDeliveryStatus(value: unknown): value is OutgoingDeliveryStat
   );
 }
 
-function isReadyChatState(value: unknown): boolean {
+function isReadyChatState(value: unknown): value is ReadyChatState {
   return (
     isRecord(value) &&
     value.hasMain === true &&
     value.hasSidebar === true &&
-    value.hasComposer === true
+    value.hasComposer === true &&
+    value.startingConversation !== true &&
+    typeof value.headerTitle === "string" &&
+    value.headerTitle.trim().length > 0
   );
 }
 

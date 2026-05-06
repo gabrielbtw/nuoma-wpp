@@ -43,13 +43,10 @@ async function main() {
     await campaignRow.waitFor({ state: "visible", timeout: 10_000 });
     await campaignRow.scrollIntoViewIfNeeded();
 
-    await campaignRow.getByText("24h/90d").first().waitFor({ state: "visible", timeout: 10_000 });
     await campaignRow.getByText("reuso").first().waitFor({ state: "visible", timeout: 10_000 });
     await campaignRow.getByText("batch:3/3").first().waitFor({ state: "visible", timeout: 10_000 });
-    await campaignRow.getByText("temp:after_completion_restore:90d").first().waitFor({
-      state: "visible",
-      timeout: 10_000,
-    });
+    await campaignRow.getByText("restaurado 90d").first().waitFor({ state: "visible", timeout: 10_000 });
+    await campaignRow.getByText("24h falhou").first().waitFor({ state: "visible", timeout: 10_000 });
 
     const recipientRows = await campaignRow
       .locator('[data-testid="campaign-recipient-row"]')
@@ -66,6 +63,7 @@ async function main() {
     if (!recipientRows.some((row) => row.text.includes("failure_restore"))) {
       throw new Error(`missing failure restore audit row: ${JSON.stringify(recipientRows)}`);
     }
+    assertTemporaryAuditEvents(fixture.campaignId);
 
     const campaignStepJobsDelta = countCampaignStepJobs() - campaignStepJobsBefore;
     if (campaignStepJobsDelta !== 0) {
@@ -92,6 +90,46 @@ async function main() {
     );
   } finally {
     await browser.close();
+  }
+}
+
+function assertTemporaryAuditEvents(campaignId) {
+  const db = new Database(databaseUrl, { readonly: true });
+  try {
+    const rows = db
+      .prepare(
+        `SELECT payload_json AS payload
+         FROM system_events
+         WHERE user_id = 1
+           AND type = 'sender.temporary_messages.audit'
+           AND payload_json LIKE ?`,
+      )
+      .all(`%"campaignId":${campaignId}%`)
+      .map((row) => JSON.parse(row.payload));
+    if (
+      !rows.some(
+        (payload) =>
+          payload.phase === "before_send" &&
+          payload.executionMode === "whatsapp_real" &&
+          payload.verified === true &&
+          payload.verifiedDuration === "24h",
+      )
+    ) {
+      throw new Error(`missing real verified before_send 24h event: ${JSON.stringify(rows)}`);
+    }
+    if (
+      !rows.some(
+        (payload) =>
+          payload.phase === "after_completion_restore" &&
+          payload.executionMode === "whatsapp_real" &&
+          payload.verified === true &&
+          payload.verifiedDuration === "90d",
+      )
+    ) {
+      throw new Error(`missing real verified restore event: ${JSON.stringify(rows)}`);
+    }
+  } finally {
+    db.close();
   }
 }
 
@@ -238,7 +276,12 @@ function seedFixture() {
       stepType: "text",
       phase: "before_send",
       duration: "24h",
-      executionMode: "audit_only",
+      requestedDuration: "24h",
+      verifiedDuration: "24h",
+      executionMode: "whatsapp_real",
+      verified: true,
+      menuDetected: true,
+      changed: true,
       campaignBatchId: "m30-batch-ok",
       campaignBatchIndex: 0,
       campaignBatchSize: 3,
@@ -283,7 +326,12 @@ function seedFixture() {
       stepType: "text",
       phase: "after_completion_restore",
       duration: "90d",
-      executionMode: "audit_only",
+      requestedDuration: "90d",
+      verifiedDuration: "90d",
+      executionMode: "whatsapp_real",
+      verified: true,
+      menuDetected: true,
+      changed: true,
       campaignBatchId: "m30-batch-ok",
       campaignBatchIndex: 2,
       campaignBatchSize: 3,
@@ -306,7 +354,12 @@ function seedFixture() {
       stepType: "text",
       phase: "failure_restore",
       duration: "90d",
-      executionMode: "audit_only",
+      requestedDuration: "90d",
+      verifiedDuration: null,
+      executionMode: "whatsapp_real",
+      verified: false,
+      menuDetected: false,
+      changed: false,
       error: "simulated send failure",
       campaignBatchId: "m30-batch-fail",
       campaignBatchIndex: 1,

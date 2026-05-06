@@ -973,6 +973,313 @@ describe("worker job loop", () => {
     );
   });
 
+  it("applies temporary messages on the first batch step and restores on the last", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-campaign-temp",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_ALLOWED_PHONE: "5531982066263",
+    });
+    const user = await repos.users.create({
+      email: "campaign-temp@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      title: "Gabriel Braga Nuoma",
+    });
+    const tempConfig = {
+      enabled: true,
+      beforeSendDuration: "24h",
+      afterCompletionDuration: "90d",
+      restoreOnFailure: true,
+    };
+    const firstJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        campaignId: 11,
+        recipientId: 21,
+        conversationId: conversation.id,
+        phone: "5531982066263",
+        campaignBatchId: "batch-temp",
+        campaignBatchIndex: 0,
+        campaignBatchSize: 2,
+        isLastStep: false,
+        temporaryMessages: tempConfig,
+        variables: { nome: "Gabriel" },
+        step: {
+          id: "intro",
+          label: "Intro",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Oi {{nome}}",
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    const lastJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        campaignId: 11,
+        recipientId: 21,
+        conversationId: conversation.id,
+        phone: "5531982066263",
+        campaignBatchId: "batch-temp",
+        campaignBatchIndex: 1,
+        campaignBatchSize: 2,
+        isLastStep: true,
+        temporaryMessages: tempConfig,
+        variables: { nome: "Gabriel" },
+        step: {
+          id: "close",
+          label: "Close",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Tchau {{nome}}",
+        },
+      },
+      scheduledAt: "2026-04-30T12:01:00.000Z",
+      maxAttempts: 2,
+    });
+    if (!firstJob || !lastJob) {
+      throw new Error("expected campaign_step jobs to be created");
+    }
+    const ensureCalls: unknown[] = [];
+    const sendCalls: unknown[] = [];
+    const sync = {
+      connected: true,
+      metrics: {} as never,
+      forceConversation: async () => {
+        throw new Error("unexpected force sync");
+      },
+      ensureTemporaryMessages: async (input: {
+        conversationId: number;
+        phone: string;
+        duration: "24h" | "7d" | "90d";
+        phase: "before_send" | "after_completion_restore" | "failure_restore";
+        reason?: string;
+      }) => {
+        ensureCalls.push(input);
+        return {
+          mode: "temporary-messages" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          requestedDuration: input.duration,
+          verifiedDuration: input.duration,
+          phase: input.phase,
+          reason: input.reason ?? "campaign_step",
+          navigationMode: "reused-open-chat" as const,
+          changed: true,
+          menuDetected: true,
+          targetEvidence: {
+            href: "https://web.whatsapp.com/send?phone=5531982066263",
+            hrefPhone: "5531982066263",
+            title: "Gabriel Braga Nuoma",
+            titlePhone: null,
+            overlayPhone: "5531982066263",
+            hasComposer: true,
+          },
+        };
+      },
+      sendTextMessage: async (input: { conversationId: number; phone: string; body: string; reason?: string }) => {
+        sendCalls.push(input);
+        return {
+          mode: "text-message" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "campaign_step",
+          navigationMode: "reused-open-chat" as const,
+          externalId: `external-${sendCalls.length}`,
+          visibleMessageCountBefore: sendCalls.length,
+          visibleMessageCountAfter: sendCalls.length + 1,
+          lastExternalIdBefore: "before",
+          lastExternalIdAfter: `external-${sendCalls.length}`,
+        };
+      },
+      sendVoiceMessage: async () => {
+        throw new Error("unexpected voice send");
+      },
+      sendDocumentMessage: async () => {
+        throw new Error("unexpected document send");
+      },
+      sendMediaMessage: async () => {
+        throw new Error("unexpected media send");
+      },
+      close: async () => {},
+    };
+
+    await handleJob(firstJob, { env, db, repos, logger, sync });
+    await handleJob(lastJob, { env, db, repos, logger, sync });
+
+    expect(sendCalls).toHaveLength(2);
+    expect(ensureCalls).toEqual([
+      expect.objectContaining({ phase: "before_send", duration: "24h" }),
+      expect.objectContaining({ phase: "after_completion_restore", duration: "90d" }),
+    ]);
+    const tempEvents = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.temporary_messages.audit",
+    });
+    expect(tempEvents.map((event) => event.payload)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          phase: "before_send",
+          executionMode: "whatsapp_real",
+          verified: true,
+          requestedDuration: "24h",
+          verifiedDuration: "24h",
+        }),
+        expect.objectContaining({
+          phase: "step_completed_keep_window",
+          executionMode: "whatsapp_real",
+          verified: true,
+          requestedDuration: "24h",
+          verifiedDuration: "24h",
+        }),
+        expect.objectContaining({
+          phase: "after_completion_restore",
+          executionMode: "whatsapp_real",
+          verified: true,
+          requestedDuration: "90d",
+          verifiedDuration: "90d",
+        }),
+      ]),
+    );
+  });
+
+  it("blocks campaign sends when temporary messages cannot be verified", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-campaign-temp-block",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_ALLOWED_PHONE: "5531982066263",
+    });
+    const user = await repos.users.create({
+      email: "campaign-temp-block@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      title: "Gabriel Braga Nuoma",
+    });
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        campaignId: 12,
+        recipientId: 22,
+        conversationId: conversation.id,
+        phone: "5531982066263",
+        campaignBatchId: "batch-temp-fail",
+        campaignBatchIndex: 0,
+        campaignBatchSize: 1,
+        isLastStep: true,
+        temporaryMessages: {
+          enabled: true,
+          beforeSendDuration: "24h",
+          afterCompletionDuration: "90d",
+          restoreOnFailure: true,
+        },
+        variables: { nome: "Gabriel" },
+        step: {
+          id: "intro",
+          label: "Intro",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Oi {{nome}}",
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    if (!job) {
+      throw new Error("expected campaign_step job to be created");
+    }
+    let sendCalls = 0;
+
+    await expect(
+      handleJob(job, {
+        env,
+        db,
+        repos,
+        logger,
+        sync: {
+          connected: true,
+          metrics: {} as never,
+          forceConversation: async () => {
+            throw new Error("unexpected force sync");
+          },
+          ensureTemporaryMessages: async () => {
+            throw new Error("temporary menu not found");
+          },
+          sendTextMessage: async () => {
+            sendCalls += 1;
+            throw new Error("unexpected text send");
+          },
+          sendVoiceMessage: async () => {
+            throw new Error("unexpected voice send");
+          },
+          sendDocumentMessage: async () => {
+            throw new Error("unexpected document send");
+          },
+          sendMediaMessage: async () => {
+            throw new Error("unexpected media send");
+          },
+          close: async () => {},
+        },
+      }),
+    ).rejects.toThrow("temporary menu not found");
+
+    expect(sendCalls).toBe(0);
+    const tempEvents = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.temporary_messages.audit",
+    });
+    expect(tempEvents[0]?.payload).toEqual(
+      expect.objectContaining({
+        phase: "before_send",
+        executionMode: "whatsapp_real",
+        verified: false,
+        error: "temporary menu not found",
+      }),
+    );
+    const failedEvents = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.campaign_step.failed",
+    });
+    expect(failedEvents[0]?.payload).toEqual(
+      expect.objectContaining({
+        jobId: job.id,
+        campaignId: 12,
+        recipientId: 22,
+        error: "temporary menu not found",
+      }),
+    );
+  });
+
   it("executes campaign voice steps through the guarded voice sender", async () => {
     const repos = createRepositories(db);
     const logger = pino({ level: "silent" });

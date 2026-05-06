@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { shouldAllowActiveSendTarget, type ActiveSendTargetState } from "./cdp.js";
+import {
+  parseTemporaryMessagesDuration,
+  shouldAllowActiveSendTarget,
+  type ActiveSendTargetState,
+} from "./cdp.js";
 
 const baseState: ActiveSendTargetState = {
   href: "https://web.whatsapp.com/",
@@ -112,5 +116,20 @@ describe("CDP active send target guard", () => {
         expectedTitle: "gabriel braga nuoma",
       }),
     ).toBe(false);
+  });
+});
+
+describe("temporary messages duration parser", () => {
+  it("recognizes PT/EN/ES duration labels", () => {
+    expect(parseTemporaryMessagesDuration("24 horas")).toBe("24h");
+    expect(parseTemporaryMessagesDuration("24 hours")).toBe("24h");
+    expect(parseTemporaryMessagesDuration("Mensajes temporales: 24 horas")).toBe("24h");
+    expect(parseTemporaryMessagesDuration("7 dias")).toBe("7d");
+    expect(parseTemporaryMessagesDuration("7 days")).toBe("7d");
+    expect(parseTemporaryMessagesDuration("90 dias")).toBe("90d");
+    expect(parseTemporaryMessagesDuration("90 days")).toBe("90d");
+    expect(parseTemporaryMessagesDuration("3 meses")).toBe("90d");
+    expect(parseTemporaryMessagesDuration("three months")).toBe("90d");
+    expect(parseTemporaryMessagesDuration("Desativadas")).toBeNull();
   });
 });
