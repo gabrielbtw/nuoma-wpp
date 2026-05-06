@@ -51,11 +51,18 @@ aba unica nos steps seguintes e restaura 90d apos conclusao segura.
 - Print fonte de verdade da restauracao salvo em
   `data/m303-neferpeel-after-restore-90d-proof.png`, mostrando o mesmo chat
   com o radio `90 dias` marcado.
+- Prova visual completa do fluxo valido salva em
+  `data/m303-full-wpp-proof-2026-05-06T21-36-58-297Z/`: `04` mostra
+  `24 horas` marcado, `05` mostra o popup 24h apos sair do painel, `09`
+  mostra a mensagem enviada as 18:37, `11` mostra `90 dias` marcado e `12`
+  mostra o popup novo de 90 dias apos sair do painel.
 - Eventos reais `sender.temporary_messages.audit`:
   `before_send 24h verified=true` e `after_completion_restore 90d verified=true`.
 - O verificador CDP agora aceita `verifiedDuration` somente quando consegue
   associar a opcao marcada (`aria-checked=true` / `checked`) ao label de
   duracao; texto solto no painel nao prova mais restauracao.
+- O clique de duracao tambem prioriza o `input`/radio associado ao label; clicar
+  apenas no texto da opcao nao e mais considerado suficiente.
 - Zero jobs ativos ao final e nenhum completed fora da allowlist.
 
 ## Proximos Itens Condicionais

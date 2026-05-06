@@ -1,0 +1,112 @@
+{
+  "phone": "5531982066263",
+  "outDir": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-full-wpp-proof-2026-05-06T21-36-58-297Z",
+  "evidence": [
+    {
+      "idx": 1,
+      "label": "estado-inicial",
+      "file": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-full-wpp-proof-2026-05-06T21-36-58-297Z/01-estado-inicial.png",
+      "at": "2026-05-06T21:36:59.101Z",
+      "extra": ""
+    },
+    {
+      "idx": 2,
+      "label": "chat-correto-aberto",
+      "file": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-full-wpp-proof-2026-05-06T21-36-58-297Z/02-chat-correto-aberto.png",
+      "at": "2026-05-06T21:37:06.351Z",
+      "extra": "phone=5531982066263"
+    },
+    {
+      "idx": 3,
+      "label": "painel-aberto-antes-de-24h",
+      "file": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-full-wpp-proof-2026-05-06T21-36-58-297Z/03-painel-aberto-antes-de-24h.png",
+      "at": "2026-05-06T21:37:09.240Z",
+      "extra": "opened=true; state={\"selected\":\"90d\",\"options\":[{\"duration\":\"24h\",\"ariaChecked\":\"false\",\"checked\":false},{\"duration\":\"7d\",\"ariaChecked\":\"false\",\"checked\":false},{\"duration\":\"90d\",\"ariaChecked\":\"true\",\"checked\":true},{\"duration\":null,\"ariaChecked\":\"false\",\"checked\":false}],\"notice90\":true,\"notice24\":true,\"header\":\"wds-ic-disappearing-messagesdefault-contact-refreshedGabriel Braga Nuomalabel-outlineEtiquetar conversaic-arrow-drop-downic-videocamic-arrow-drop-downic-searchic-more-vert\",\"composer\":true}"
+    },
+    {
+      "idx": 4,
+      "label": "radio-24h-marcado",
+      "file": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-full-wpp-proof-2026-05-06T21-36-58-297Z/04-radio-24h-marcado.png",
+      "at": "2026-05-06T21:37:09.690Z",
+      "extra": "click={\"ok\":true,\"target\":\"INPUT\",\"text\":\"\"}; state={\"selected\":\"24h\",\"options\":[{\"duration\":\"24h\",\"ariaChecked\":\"true\",\"checked\":true},{\"duration\":\"7d\",\"ariaChecked\":\"false\",\"checked\":false},{\"duration\":\"90d\",\"ariaChecked\":\"false\",\"checked\":false},{\"duration\":null,\"ariaChecked\":\"false\",\"checked\":false}],\"notice90\":true,\"notice24\":true,\"header\":\"wds-ic-disappearing-messagesdefault-contact-refreshedGabriel Braga Nuomalabel-outlineEtiquetar conversaic-arrow-drop-downic-videocamic-arrow-drop-downic-searchic-more-vert\",\"composer\":true}"
+    },
+    {
+      "idx": 5,
+      "label": "saiu-do-painel-popup-24h-visivel",
+      "file": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-full-wpp-proof-2026-05-06T21-36-58-297Z/05-saiu-do-painel-popup-24h-visivel.png",
+      "at": "2026-05-06T21:37:12.009Z",
+      "extra": "aviso 24 horas visivel no chat"
+    },
+    {
+      "idx": 8,
+      "label": "mensagem-digitada-antes-do-envio",
+      "file": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-full-wpp-proof-2026-05-06T21-36-58-297Z/08-mensagem-digitada-antes-do-envio.png",
+      "at": "2026-05-06T21:37:12.701Z",
+      "extra": "M30.3 prova real 06/05/2026, 18:37:12 - envio com temporarias 24h; restaurar para 90d em seguida."
+    },
+    {
+      "idx": 9,
+      "label": "mensagem-enviada-com-24h",
+      "file": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-full-wpp-proof-2026-05-06T21-36-58-297Z/09-mensagem-enviada-com-24h.png",
+      "at": "2026-05-06T21:37:15.646Z",
+      "extra": "M30.3 prova real 06/05/2026, 18:37:12 - envio com temporarias 24h; restaurar para 90d em seguida."
+    },
+    {
+      "idx": 10,
+      "label": "painel-aberto-antes-restaurar-90d",
+      "file": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-full-wpp-proof-2026-05-06T21-36-58-297Z/10-painel-aberto-antes-restaurar-90d.png",
+      "at": "2026-05-06T21:37:18.522Z",
+      "extra": "opened=true; state={\"selected\":\"24h\",\"options\":[{\"duration\":\"24h\",\"ariaChecked\":\"true\",\"checked\":true},{\"duration\":\"7d\",\"ariaChecked\":\"false\",\"checked\":false},{\"duration\":\"90d\",\"ariaChecked\":\"false\",\"checked\":false},{\"duration\":null,\"ariaChecked\":\"false\",\"checked\":false}],\"notice90\":true,\"notice24\":true,\"header\":\"wds-ic-disappearing-messagesdefault-contact-refreshedGabriel Braga Nuomalabel-outlineEtiquetar conversaic-arrow-drop-downic-videocamic-arrow-drop-downic-searchic-more-vert\",\"composer\":true}"
+    },
+    {
+      "idx": 11,
+      "label": "radio-90d-marcado",
+      "file": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-full-wpp-proof-2026-05-06T21-36-58-297Z/11-radio-90d-marcado.png",
+      "at": "2026-05-06T21:37:18.964Z",
+      "extra": "click={\"ok\":true,\"target\":\"INPUT\",\"text\":\"\"}; state={\"selected\":\"90d\",\"options\":[{\"duration\":\"24h\",\"ariaChecked\":\"false\",\"checked\":false},{\"duration\":\"7d\",\"ariaChecked\":\"false\",\"checked\":false},{\"duration\":\"90d\",\"ariaChecked\":\"true\",\"checked\":true},{\"duration\":null,\"ariaChecked\":\"false\",\"checked\":false}],\"notice90\":true,\"notice24\":true,\"header\":\"wds-ic-disappearing-messagesdefault-contact-refreshedGabriel Braga Nuomalabel-outlineEtiquetar conversaic-arrow-drop-downic-videocamic-arrow-drop-downic-searchic-more-vert\",\"composer\":true}"
+    },
+    {
+      "idx": 12,
+      "label": "saiu-do-painel-popup-90d-visivel",
+      "file": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-full-wpp-proof-2026-05-06T21-36-58-297Z/12-saiu-do-painel-popup-90d-visivel.png",
+      "at": "2026-05-06T21:37:20.931Z",
+      "extra": "aviso 90 dias visivel no chat apos envio"
+    },
+    {
+      "idx": 13,
+      "label": "painel-reaberto-final-90d-marcado",
+      "file": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-full-wpp-proof-2026-05-06T21-36-58-297Z/13-painel-reaberto-final-90d-marcado.png",
+      "at": "2026-05-06T21:37:23.805Z",
+      "extra": "opened=true; state={\"selected\":\"90d\",\"options\":[{\"duration\":\"24h\",\"ariaChecked\":\"false\",\"checked\":false},{\"duration\":\"7d\",\"ariaChecked\":\"false\",\"checked\":false},{\"duration\":\"90d\",\"ariaChecked\":\"true\",\"checked\":true},{\"duration\":null,\"ariaChecked\":\"false\",\"checked\":false}],\"notice90\":true,\"notice24\":true,\"header\":\"wds-ic-disappearing-messagesdefault-contact-refreshedGabriel Braga Nuomalabel-outlineEtiquetar conversaic-arrow-drop-downic-videocamic-arrow-drop-downic-searchic-more-vert\",\"composer\":true}"
+    }
+  ],
+  "finalState": {
+    "selected": "90d",
+    "options": [
+      {
+        "duration": "24h",
+        "ariaChecked": "false",
+        "checked": false
+      },
+      {
+        "duration": "7d",
+        "ariaChecked": "false",
+        "checked": false
+      },
+      {
+        "duration": "90d",
+        "ariaChecked": "true",
+        "checked": true
+      },
+      {
+        "duration": null,
+        "ariaChecked": "false",
+        "checked": false
+      }
+    ],
+    "notice90": true,
+    "notice24": true,
+    "header": "wds-ic-disappearing-messagesdefault-contact-refreshedGabriel Braga Nuomalabel-outlineEtiquetar conversaic-arrow-drop-downic-videocamic-arrow-drop-downic-searchic-more-vert",
+    "composer": true
+  }
+}

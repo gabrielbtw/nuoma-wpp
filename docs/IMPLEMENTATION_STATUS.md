@@ -91,7 +91,11 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
   depois restaurou `90d` com `after_completion_restore verified=true` e print
   visual em `data/m303-neferpeel-after-restore-90d-proof.png` mostrando o radio
   `90 dias` marcado. O verificador CDP passou a exigir a opcao marcada
-  (`aria-checked=true` / `checked`) em vez de aceitar texto solto no painel.
+  (`aria-checked=true` / `checked`) em vez de aceitar texto solto no painel, e
+  o clique da duracao passou a priorizar o input/radio real associado ao label.
+  Prova completa em `data/m303-full-wpp-proof-2026-05-06T21-36-58-297Z/`:
+  `04` radio 24h, `05` popup 24h, `09` envio as 18:37, `11` radio 90d,
+  `12` popup 90 dias apos sair do painel.
   Smoke M30.3: `completed=5`, `failed=0`, `activeJobs=0`,
   `outsideAllowlist=0`, `IG nao_aplicavel`.
 - **2026-05-06 / Remarketing seguro:** validado com typecheck dos workspaces

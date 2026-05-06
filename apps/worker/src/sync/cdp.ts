@@ -4209,10 +4209,41 @@ function temporaryMessagesUiScript(
           "7d": ["7 dias", "7 days", "7 d"],
           "90d": ["90 dias", "90 days", "90 d", "3 meses", "3 months", "tres meses", "três meses", "three months"]
         };
+        const durationOptionTarget = () => {
+          const labels = labelsByDuration[requestedDuration].map(clean);
+          const candidates = visibleNodes("label, div, span", true)
+            .map((node) => {
+              const text = clean(node.textContent || "");
+              const exact = labels.some((label) => text === label);
+              const includes = labels.some((label) => text.includes(label));
+              return {
+                node,
+                text,
+                score: (exact ? 0 : 1000) + text.length,
+                match: exact || includes,
+              };
+            })
+            .filter((item) => item.match)
+            .sort((a, b) => a.score - b.score);
+          for (const item of candidates) {
+            const row = item.node.closest("label") || item.node.parentElement;
+            const input = row?.querySelector("input[aria-checked], input[type='radio'], [role='radio'], [aria-checked]");
+            if (input instanceof HTMLElement && isVisible(input) && isChatSurfaceNode(input)) {
+              return input;
+            }
+            if (row instanceof HTMLElement && isVisible(row) && isChatSurfaceNode(row)) {
+              return row;
+            }
+            if (item.node instanceof HTMLElement) {
+              return item.node;
+            }
+          }
+          return null;
+        };
         const scrollables = () => visibleNodes("[role='dialog'], [data-animate-modal-popup], section, div", true)
           .filter((node) => node.scrollHeight > node.clientHeight + 20);
         for (let attempt = 0; attempt < 12; attempt += 1) {
-          const node = findByText(labelsByDuration[requestedDuration]);
+          const node = durationOptionTarget() || findByText(labelsByDuration[requestedDuration]);
           if (node && clickNode(node)) return true;
           for (const scroller of scrollables()) {
             scroller.scrollTop = attempt % 2 === 0 ? scroller.scrollHeight : Math.round(scroller.scrollHeight / 2);
