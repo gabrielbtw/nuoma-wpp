@@ -1,0 +1,122 @@
+{
+  "phone": "5531982066263",
+  "outDir": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-wpp-24-send-90-proof-2026-05-07T03-44-55-491Z",
+  "message": "M30.3 prova oficial 07/05/2026, 00:45:08 - envio com temporarias 24h; restaurar para 90d em seguida.",
+  "notice24": {
+    "text": "wds-ic-disappearing-messagesVocê atualizou a duração das mensagens temporárias. Todas as novas mensagens desaparecerão desta conversa 24 horas após o envio, exceto se salvas na conversa. Clique para mudar.",
+    "duration": "24h",
+    "top": 475,
+    "left": 526
+  },
+  "notice90": {
+    "text": "wds-ic-disappearing-messagesVocê atualizou a duração das mensagens temporárias. Todas as novas mensagens desaparecerão desta conversa 90 dias após o envio, exceto se salvas na conversa. Clique para mudar.",
+    "duration": "90d",
+    "top": 475,
+    "left": 523
+  },
+  "finalState": {
+    "selected": "90d",
+    "options": [
+      {
+        "duration": "24h",
+        "ariaChecked": "false",
+        "checked": false
+      },
+      {
+        "duration": "7d",
+        "ariaChecked": "false",
+        "checked": false
+      },
+      {
+        "duration": "90d",
+        "ariaChecked": "true",
+        "checked": true
+      },
+      {
+        "duration": null,
+        "ariaChecked": "false",
+        "checked": false
+      }
+    ],
+    "latestNotice": {
+      "text": "wds-ic-disappearing-messagesVocê atualizou a duração das mensagens temporárias. Todas as novas mensagens desaparecerão desta conversa 90 dias após o envio, exceto se salvas na conversa. Clique para mudar.",
+      "duration": "90d",
+      "top": 475,
+      "left": 523
+    },
+    "header": "wds-ic-disappearing-messagesdefault-contact-refreshedGabriel Braga Nuomalabel-outlineEtiquetar conversaic-arrow-drop-downic-videocamic-arrow-drop-downic-searchic-more-vert",
+    "composer": true
+  },
+  "evidence": [
+    {
+      "index": 1,
+      "label": "estado-inicial",
+      "file": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-wpp-24-send-90-proof-2026-05-07T03-44-55-491Z/01-estado-inicial.png",
+      "at": "2026-05-07T03:44:56.011Z",
+      "extra": ""
+    },
+    {
+      "index": 2,
+      "label": "chat-correto-aberto",
+      "file": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-wpp-24-send-90-proof-2026-05-07T03-44-55-491Z/02-chat-correto-aberto.png",
+      "at": "2026-05-07T03:45:03.090Z",
+      "extra": "phone=5531982066263"
+    },
+    {
+      "index": 3,
+      "label": "painel-aberto-antes-de-24h",
+      "file": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-wpp-24-send-90-proof-2026-05-07T03-44-55-491Z/03-painel-aberto-antes-de-24h.png",
+      "at": "2026-05-07T03:45:06.012Z",
+      "extra": "opened=true; state={\"selected\":\"90d\",\"options\":[{\"duration\":\"24h\",\"ariaChecked\":\"false\",\"checked\":false},{\"duration\":\"7d\",\"ariaChecked\":\"false\",\"checked\":false},{\"duration\":\"90d\",\"ariaChecked\":\"true\",\"checked\":true},{\"duration\":null,\"ariaChecked\":\"false\",\"checked\":false}],\"latestNotice\":{\"text\":\"wds-ic-disappearing-messagesVocê atualizou a duração das mensagens temporárias. Todas as novas mensagens desaparecerão desta conversa 90 dias após o envio, exceto se salvas na conversa. Clique para mudar.\",\"duration\":\"90d\",\"top\":615,\"left\":523},\"header\":\"wds-ic-disappearing-messagesdefault-contact-refreshedGabriel Braga Nuomalabel-outlineEtiquetar conversaic-arrow-drop-downic-videocamic-arrow-drop-downic-searchic-more-vert\",\"composer\":true}"
+    },
+    {
+      "index": 4,
+      "label": "radio-24h-marcado",
+      "file": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-wpp-24-send-90-proof-2026-05-07T03-44-55-491Z/04-radio-24h-marcado.png",
+      "at": "2026-05-07T03:45:06.454Z",
+      "extra": "click={\"ok\":true,\"target\":\"INPUT\",\"text\":\"\"}; state={\"selected\":\"24h\",\"options\":[{\"duration\":\"24h\",\"ariaChecked\":\"true\",\"checked\":true},{\"duration\":\"7d\",\"ariaChecked\":\"false\",\"checked\":false},{\"duration\":\"90d\",\"ariaChecked\":\"false\",\"checked\":false},{\"duration\":null,\"ariaChecked\":\"false\",\"checked\":false}],\"latestNotice\":{\"text\":\"wds-ic-disappearing-messagesVocê atualizou a duração das mensagens temporárias. Todas as novas mensagens desaparecerão desta conversa 90 dias após o envio, exceto se salvas na conversa. Clique para mudar.\",\"duration\":\"90d\",\"top\":615,\"left\":523},\"header\":\"wds-ic-disappearing-messagesdefault-contact-refreshedGabriel Braga Nuomalabel-outlineEtiquetar conversaic-arrow-drop-downic-videocamic-arrow-drop-downic-searchic-more-vert\",\"composer\":true}"
+    },
+    {
+      "index": 5,
+      "label": "saiu-do-painel-popup-24h-visivel",
+      "file": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-wpp-24-send-90-proof-2026-05-07T03-44-55-491Z/05-saiu-do-painel-popup-24h-visivel.png",
+      "at": "2026-05-07T03:45:08.832Z",
+      "extra": "notice={\"text\":\"wds-ic-disappearing-messagesVocê atualizou a duração das mensagens temporárias. Todas as novas mensagens desaparecerão desta conversa 24 horas após o envio, exceto se salvas na conversa. Clique para mudar.\",\"duration\":\"24h\",\"top\":475,\"left\":526}"
+    },
+    {
+      "index": 6,
+      "label": "mensagem-enviada-com-24h",
+      "file": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-wpp-24-send-90-proof-2026-05-07T03-44-55-491Z/06-mensagem-enviada-com-24h.png",
+      "at": "2026-05-07T03:45:11.971Z",
+      "extra": "M30.3 prova oficial 07/05/2026, 00:45:08 - envio com temporarias 24h; restaurar para 90d em seguida."
+    },
+    {
+      "index": 7,
+      "label": "painel-aberto-antes-restaurar-90d",
+      "file": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-wpp-24-send-90-proof-2026-05-07T03-44-55-491Z/07-painel-aberto-antes-restaurar-90d.png",
+      "at": "2026-05-07T03:45:14.859Z",
+      "extra": "opened=true; state={\"selected\":\"24h\",\"options\":[{\"duration\":\"24h\",\"ariaChecked\":\"true\",\"checked\":true},{\"duration\":\"7d\",\"ariaChecked\":\"false\",\"checked\":false},{\"duration\":\"90d\",\"ariaChecked\":\"false\",\"checked\":false},{\"duration\":null,\"ariaChecked\":\"false\",\"checked\":false}],\"latestNotice\":{\"text\":\"wds-ic-disappearing-messagesVocê atualizou a duração das mensagens temporárias. Todas as novas mensagens desaparecerão desta conversa 24 horas após o envio, exceto se salvas na conversa. Clique para mudar.\",\"duration\":\"24h\",\"top\":369,\"left\":526},\"header\":\"wds-ic-disappearing-messagesdefault-contact-refreshedGabriel Braga Nuomalabel-outlineEtiquetar conversaic-arrow-drop-downic-videocamic-arrow-drop-downic-searchic-more-vert\",\"composer\":true}"
+    },
+    {
+      "index": 8,
+      "label": "radio-90d-marcado",
+      "file": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-wpp-24-send-90-proof-2026-05-07T03-44-55-491Z/08-radio-90d-marcado.png",
+      "at": "2026-05-07T03:45:15.303Z",
+      "extra": "click={\"ok\":true,\"target\":\"INPUT\",\"text\":\"\"}; state={\"selected\":\"90d\",\"options\":[{\"duration\":\"24h\",\"ariaChecked\":\"false\",\"checked\":false},{\"duration\":\"7d\",\"ariaChecked\":\"false\",\"checked\":false},{\"duration\":\"90d\",\"ariaChecked\":\"true\",\"checked\":true},{\"duration\":null,\"ariaChecked\":\"false\",\"checked\":false}],\"latestNotice\":{\"text\":\"wds-ic-disappearing-messagesVocê atualizou a duração das mensagens temporárias. Todas as novas mensagens desaparecerão desta conversa 24 horas após o envio, exceto se salvas na conversa. Clique para mudar.\",\"duration\":\"24h\",\"top\":369,\"left\":526},\"header\":\"wds-ic-disappearing-messagesdefault-contact-refreshedGabriel Braga Nuomalabel-outlineEtiquetar conversaic-arrow-drop-downic-videocamic-arrow-drop-downic-searchic-more-vert\",\"composer\":true}"
+    },
+    {
+      "index": 9,
+      "label": "saiu-do-painel-popup-90d-visivel",
+      "file": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-wpp-24-send-90-proof-2026-05-07T03-44-55-491Z/09-saiu-do-painel-popup-90d-visivel.png",
+      "at": "2026-05-07T03:45:17.276Z",
+      "extra": "notice={\"text\":\"wds-ic-disappearing-messagesVocê atualizou a duração das mensagens temporárias. Todas as novas mensagens desaparecerão desta conversa 90 dias após o envio, exceto se salvas na conversa. Clique para mudar.\",\"duration\":\"90d\",\"top\":475,\"left\":523}"
+    },
+    {
+      "index": 10,
+      "label": "painel-reaberto-final-90d-marcado",
+      "file": "/Users/gabrielbraga/Projetos/nuoma-wpp-v2/data/m303-wpp-24-send-90-proof-2026-05-07T03-44-55-491Z/10-painel-reaberto-final-90d-marcado.png",
+      "at": "2026-05-07T03:45:20.171Z",
+      "extra": "opened=true; state={\"selected\":\"90d\",\"options\":[{\"duration\":\"24h\",\"ariaChecked\":\"false\",\"checked\":false},{\"duration\":\"7d\",\"ariaChecked\":\"false\",\"checked\":false},{\"duration\":\"90d\",\"ariaChecked\":\"true\",\"checked\":true},{\"duration\":null,\"ariaChecked\":\"false\",\"checked\":false}],\"latestNotice\":{\"text\":\"wds-ic-disappearing-messagesVocê atualizou a duração das mensagens temporárias. Todas as novas mensagens desaparecerão desta conversa 90 dias após o envio, exceto se salvas na conversa. Clique para mudar.\",\"duration\":\"90d\",\"top\":475,\"left\":523},\"header\":\"wds-ic-disappearing-messagesdefault-contact-refreshedGabriel Braga Nuomalabel-outlineEtiquetar conversaic-arrow-drop-downic-videocamic-arrow-drop-downic-searchic-more-vert\",\"composer\":true}"
+    }
+  ]
+}

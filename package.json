@@ -57,6 +57,7 @@
     "test:v211-message-send-receive": "node tests/v211-message-send-receive-smoke.mjs",
     "test:v211-real-round-complete": "node tests/v211-real-round-complete-smoke.mjs",
     "test:m303-neferpeel-temporary-context": "node tests/m303-neferpeel-temporary-context-smoke.mjs",
+    "test:m303-wpp-24-send-90-proof": "node tests/m303-wpp-24-send-90-proof.mjs",
     "test:sync-top5": "node tests/sync-top5-conversations-smoke.mjs",
     "worker:start": "node scripts/local-worker.mjs start",
     "worker:stop": "node scripts/local-worker.mjs stop",

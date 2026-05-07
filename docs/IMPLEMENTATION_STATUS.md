@@ -96,6 +96,13 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
   Prova completa em `data/m303-full-wpp-proof-2026-05-06T21-36-58-297Z/`:
   `04` radio 24h, `05` popup 24h, `09` envio as 18:37, `11` radio 90d,
   `12` popup 90 dias apos sair do painel.
+- **2026-05-07 / M30.3 smoke oficial:** criado
+  `npm run test:m303-wpp-24-send-90-proof`, protegido por
+  `M303_CONFIRM_WPP_REAL=SIM`. Rodada real com
+  `M303_WPP_PHONE=5531982066263` gerou
+  `data/m303-wpp-24-send-90-proof-2026-05-07T03-44-55-491Z/`: `04` radio
+  24h, `05` popup 24h mais recente, `06` envio as 00:45, `08` radio 90d,
+  `09` popup 90d mais recente e `10` painel reaberto com 90d marcado.
   Smoke M30.3: `completed=5`, `failed=0`, `activeJobs=0`,
   `outsideAllowlist=0`, `IG nao_aplicavel`.
 - **2026-05-06 / Remarketing seguro:** validado com typecheck dos workspaces

@@ -56,6 +56,12 @@ aba unica nos steps seguintes e restaura 90d apos conclusao segura.
   `24 horas` marcado, `05` mostra o popup 24h apos sair do painel, `09`
   mostra a mensagem enviada as 18:37, `11` mostra `90 dias` marcado e `12`
   mostra o popup novo de 90 dias apos sair do painel.
+- Smoke oficial reproduzivel:
+  `M303_CONFIRM_WPP_REAL=SIM M303_WPP_PHONE=5531982066263 npm run test:m303-wpp-24-send-90-proof`.
+  A rodada oficial versionada em
+  `data/m303-wpp-24-send-90-proof-2026-05-07T03-44-55-491Z/` mostra `04`
+  radio 24h, `05` popup 24h, `06` envio as 00:45, `08` radio 90d, `09`
+  popup 90d e `10` painel reaberto com 90d marcado.
 - Eventos reais `sender.temporary_messages.audit`:
   `before_send 24h verified=true` e `after_completion_restore 90d verified=true`.
 - O verificador CDP agora aceita `verifiedDuration` somente quando consegue
