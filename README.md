@@ -25,7 +25,8 @@ WhatsApp-only flow. `M30.3` is closed with real WhatsApp 24h temporary-message
 proof, remarketing in real batch is closed, and cutover tooling is implemented
 behind explicit confirmation. `M38` adds an optional Chrome extension companion
 for the WhatsApp overlay without replacing the worker/CDP runtime, and `M40`
-adds explicit blocking UX to campaign dispatch screens.
+adds explicit blocking UX to campaign dispatch screens. `V2.14a` closes the
+optional cartographic/R3F visual layer behind a user preference.
 
 ## Versioning
 
@@ -80,6 +81,7 @@ nuoma-wpp-v2/
 | DB             | better-sqlite3 + Drizzle ORM               | Type-safe schema, migrations as code                                  |
 | Validation     | Zod                                        | Shared runtime validation                                             |
 | Frontend       | React 19 + Vite + Tailwind 3 + Radix       | Product UI with fast local feedback                                   |
+| Optional visual | React Three Fiber + Three.js             | Opt-in cartographic dashboard hero without changing operational flows |
 | State (web)    | TanStack Query + React Router 7            | Client cache and typed routing                                        |
 | Logger         | Pino                                       | Structured logs                                                       |
 | Worker browser | Playwright + chrome-remote-interface       | Hybrid: Playwright drives navigation, CDP drives observers/screencast |

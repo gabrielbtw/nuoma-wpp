@@ -8,6 +8,7 @@ import {
   CardTitle,
   RadioGroup,
   RadioItem,
+  Switch,
   Tabs,
   TabsContent,
   TabsList,
@@ -29,6 +30,7 @@ import {
   type BrowserPushSubscription,
 } from "../lib/push-subscription.js";
 import { trpc } from "../lib/trpc.js";
+import { useOptionalVisualMode } from "../visuals/optional-visual-mode.js";
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_WEB_PUSH_VAPID_PUBLIC_KEY as string | undefined;
 
@@ -36,6 +38,7 @@ export function SettingsPage() {
   const auth = useAuth();
   const theme = useTheme();
   const toast = useToast();
+  const optionalVisual = useOptionalVisualMode();
   const [pushSubscription, setPushSubscription] = useState<BrowserPushSubscription | null>(null);
   const [pushLoading, setPushLoading] = useState(false);
   const pushSubscribe = trpc.push.subscribe.useMutation();
@@ -161,47 +164,74 @@ export function SettingsPage() {
           </TabsContent>
 
           <TabsContent value="appearance">
-            <Card>
-              <CardHeader>
-                <CardTitle>Tema</CardTitle>
-                <CardDescription>Escolha a pele visual do cockpit.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <RadioGroup
-                  value={theme.preference}
-                  onValueChange={(value) => theme.setPreference(value as ThemePreference)}
-                  className="grid gap-3 md:grid-cols-3"
-                >
-                  {THEME_OPTIONS.map((option) => (
-                    <label
-                      key={option.value}
-                      className="botforge-readable group relative flex min-h-32 cursor-pointer flex-col justify-between rounded-xl p-4 transition-transform hover:-translate-y-0.5 hover:shadow-raised-sm"
-                    >
-                      <span
-                        data-theme={option.value}
-                        className="absolute inset-x-3 top-3 h-10 rounded-lg bg-bg-canvas shadow-pressed-sm"
-                        aria-hidden="true"
+            <div className="grid gap-5">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Tema</CardTitle>
+                  <CardDescription>Escolha a pele visual do cockpit.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <RadioGroup
+                    value={theme.preference}
+                    onValueChange={(value) => theme.setPreference(value as ThemePreference)}
+                    className="grid gap-3 md:grid-cols-3"
+                  >
+                    {THEME_OPTIONS.map((option) => (
+                      <label
+                        key={option.value}
+                        className="botforge-readable group relative flex min-h-32 cursor-pointer flex-col justify-between rounded-xl p-4 transition-transform hover:-translate-y-0.5 hover:shadow-raised-sm"
                       >
-                        <span className="absolute left-3 top-3 h-4 w-14 rounded-full bg-brand-cyan/70" />
-                        <span className="absolute right-3 top-3 h-4 w-8 rounded-full bg-brand-violet/55" />
-                        <span className="absolute bottom-2 left-3 right-3 h-px bg-contour-line/80" />
-                      </span>
-                      <span className="relative mt-14 flex items-start gap-3">
-                        <RadioItem value={option.value} />
-                        <span>
-                          <span className="block text-sm font-medium text-fg-primary">
-                            {option.label}
-                          </span>
-                          <span className="mt-1 block text-xs leading-5 text-fg-muted">
-                            {option.description}
+                        <span
+                          data-theme={option.value}
+                          className="absolute inset-x-3 top-3 h-10 rounded-lg bg-bg-canvas shadow-pressed-sm"
+                          aria-hidden="true"
+                        >
+                          <span className="absolute left-3 top-3 h-4 w-14 rounded-full bg-brand-cyan/70" />
+                          <span className="absolute right-3 top-3 h-4 w-8 rounded-full bg-brand-violet/55" />
+                          <span className="absolute bottom-2 left-3 right-3 h-px bg-contour-line/80" />
+                        </span>
+                        <span className="relative mt-14 flex items-start gap-3">
+                          <RadioItem value={option.value} />
+                          <span>
+                            <span className="block text-sm font-medium text-fg-primary">
+                              {option.label}
+                            </span>
+                            <span className="mt-1 block text-xs leading-5 text-fg-muted">
+                              {option.description}
+                            </span>
                           </span>
                         </span>
-                      </span>
-                    </label>
-                  ))}
-                </RadioGroup>
-              </CardContent>
-            </Card>
+                      </label>
+                    ))}
+                  </RadioGroup>
+                </CardContent>
+              </Card>
+
+              <Card data-testid="v214a-visual-settings-card">
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <CardTitle>Visual opcional</CardTitle>
+                      <CardDescription>Hero cartográfico 3D no dashboard.</CardDescription>
+                    </div>
+                    <Switch
+                      checked={optionalVisual.enabled}
+                      aria-label="Ativar visual opcional V2.14a"
+                      data-testid="v214a-visual-toggle"
+                      onCheckedChange={optionalVisual.setEnabled}
+                    />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div
+                    className="rounded-lg bg-bg-base px-3 py-2 font-mono text-[0.7rem] uppercase tracking-[0.16em] text-fg-dim shadow-pressed-sm"
+                    data-testid="v214a-visual-state"
+                  >
+                    V2.14a = {optionalVisual.enabled ? "enabled" : "disabled"}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="notifications">

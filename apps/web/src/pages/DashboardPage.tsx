@@ -1,7 +1,7 @@
 import type { AppRouter } from "@nuoma/api";
 import type { inferRouterOutputs } from "@trpc/server";
 import { Activity, AlertTriangle, Clock3, HardDrive, Radio, Send, ServerCog } from "lucide-react";
-import type { ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 
 import {
   Animate,
@@ -19,11 +19,15 @@ import {
 } from "@nuoma/ui";
 
 import { trpc } from "../lib/trpc.js";
+import { useOptionalVisualMode } from "../visuals/optional-visual-mode.js";
 
 type SystemMetrics = inferRouterOutputs<AppRouter>["system"]["metrics"];
 type WorkerItem = SystemMetrics["workers"]["items"][number];
 
+const OptionalCartographicHero = lazy(() => import("../visuals/OptionalCartographicHero.js"));
+
 export function DashboardPage() {
+  const optionalVisual = useOptionalVisualMode();
   const metrics = trpc.system.metrics.useQuery(undefined, {
     refetchInterval: 10_000,
   });
@@ -49,6 +53,24 @@ export function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-7 max-w-7xl mx-auto pt-2">
+      {optionalVisual.enabled && (
+        <Animate preset="rise-in">
+          <Suspense fallback={<OptionalHeroFallback />}>
+            <OptionalCartographicHero
+              healthLabel={health.label}
+              healthSignal={health.signal}
+              cdpConnected={data.whatsapp.cdpConnected}
+              workersOnline={data.workers.online}
+              workersTotal={data.workers.total}
+              queueDepth={data.jobs.queued + data.jobs.active}
+              dlqCount={data.jobs.dead}
+              throughputPerHour={data.operations.throughputPerHour}
+              failureRatePct={data.operations.failureRatePct}
+            />
+          </Suspense>
+        </Animate>
+      )}
+
       <Animate preset="rise-in">
         <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -300,6 +322,15 @@ export function DashboardPage() {
   );
 }
 
+function OptionalHeroFallback() {
+  return (
+    <section
+      className="min-h-[18rem] rounded-xl bg-bg-sunken shadow-flat"
+      data-testid="v214a-cartographic-hero-loading"
+    />
+  );
+}
+
 function OperationalMetric({
   label,
   value,
@@ -341,7 +372,7 @@ function MetricTile({
         </span>
         <SignalDot status={signal} size="sm" />
       </div>
-      <div className="mt-4 text-[0.65rem] uppercase tracking-[0.2em] text-fg-dim font-mono">
+      <div className="mt-4 text-[0.65rem] uppercase tracking-[0.2em] text-fg-muted font-mono">
         {label}
       </div>
       <div className="mt-1 min-h-9 text-2xl font-semibold tracking-tight tabular-nums">{value}</div>

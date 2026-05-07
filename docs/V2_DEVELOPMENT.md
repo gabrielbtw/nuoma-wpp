@@ -6,7 +6,9 @@ V2.1-V2.15 is implemented through the local-first path: foundations, contracts,
 SQLite persistence, auth, local login shell, durable job queue, safe worker loop,
 CDP-native sync observer, sender runtime, campaigns, automations, chatbots,
 WhatsApp overlay, authenticated stream endpoints, backup/restore operations and
-guarded V1 -> V2 cutover tooling.
+guarded V1 -> V2 cutover tooling. `V2.14a` adds an opt-in cartographic/R3F
+dashboard visual that is disabled until the local appearance preference enables
+it.
 
 The worker can send real WhatsApp messages only through the connected browser
 runtime and current guardrails: allowlist, destination checks, chat reuse,
@@ -35,6 +37,7 @@ Current directed milestone smokes:
 - `npm run test:m38-chrome-extension`
 - `npm run test:m40-campaign-blocking-ux`
 - `npm run test:v212-streaming-cdp`
+- `npm run test:v214a-visual`
 - `npm run test:v213-v215-suite`
 - `npm run test:v24-api-auth`
 - `npm run test:v25-sender-runtime`

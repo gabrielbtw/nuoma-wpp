@@ -69,6 +69,7 @@
     "test:v213-global-events": "npm run test --workspace @nuoma/api -- src/app.test.ts -t \"streams V2.13 global events by channel with cursor support\"",
     "test:v213-global-events-strong": "node tests/v213-global-events-inbox-strong-smoke.mjs",
     "test:v214-backup-restore": "tsx tests/v214-backup-restore-smoke.ts",
+    "test:v214a-visual": "node tests/v214a-visual-smoke.mjs",
     "test:v215-cutover-preflight": "tsx tests/v215-cutover-preflight-smoke.ts",
     "test:v215-cutover-apply": "tsx tests/v215-cutover-apply-smoke.ts",
     "test:v213-v215-suite": "npm run test:v213-global-events && npm run test:v214-backup-restore && npm run test:v215-cutover-preflight && npm run test:v215-cutover-apply",

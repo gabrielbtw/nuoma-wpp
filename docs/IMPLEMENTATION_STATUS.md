@@ -10,7 +10,8 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 - **M principais:** 40 marcadores, de `M0` ate `M38`, mais `M40`.
 - **M/sub-M conhecidos:** 109 IDs quando contamos `M0.1`, `M35.2`, etc.
 - **Pendencia aberta:** nenhuma hotfix corretiva aberta apos o fechamento de
-  `M30.3`; V2.13-V2.15 e remarketing em lote real estao implementados.
+  `M30.3`; V2.13-V2.15, V2.14a visual opcional e remarketing em lote real
+  estao implementados.
 - **Politica de smoke real:** todo envio real deve confirmar destino/canal e
   anexar evidencia visual. Quando for WhatsApp-only, registrar `IG nao_aplicavel`.
 
@@ -62,6 +63,9 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
   profile Chromium, verificacao de backup, ensaio de restore e restore aplicado
   com confirmacao forte em `scripts/v214-backup-restore.mjs`, coberto por
   `test:v214-backup-restore`.
+- [x] **V2.14a Visual opcional** — Toggle em Aparência ativa o hero
+  cartografico/R3F lazy no dashboard, com estado persistido localmente e smoke
+  desktop/mobile validando screenshot, a11y e canvas WebGL nonblank/movimento.
 - [x] **V2.15 Migracao/cutover V1 -> V2** — Preflight nao destrutivo e cutover
   operacional idempotente em `scripts/v215-cutover-preflight.mjs` e
   `scripts/v215-cutover-apply.mjs`. O apply faz backup pre-cutover, bloqueia
@@ -133,6 +137,11 @@ surface de conversa unificada ja lista e busca conversas Instagram.
   ganhou paineis `safe-dispatch-blocking-ux` e `safe-batch-blocking-ux`, com
   guidance por codigo de bloqueio e agrupamento de rejeitados. Evidencia:
   `npm run test:m40-campaign-blocking-ux`.
+- **2026-05-07 / V2.14a Visual opcional fechado:** adicionado toggle
+  `v214a-visual-toggle` em `/settings`, hero `v214a-cartographic-hero` no
+  dashboard carregado por lazy import, dependencias R3F/Three e smoke
+  desktop/mobile com pixel-check WebGL. Evidencia:
+  `npm run test:v214a-visual`, report em `data/v214a-visual-*/REPORT.md`.
 - **2026-05-07 / V2.10 hardening fechado 100%:** corrigido falso positivo do
   checkpoint: recipients de campanha agora mantem `metadata.auditTrail`
   materializado por scheduler/job/worker/temporary-message audit, a listagem de

@@ -26,6 +26,9 @@ Escopo: este checkpoint considera somente o repo `nuoma-wpp-v2`.
 - `V2.12`: remote rendering CDP minimo fechado com screenshot e input relay.
 - `V2.13`: stream global por canais fechado com `/api/events`.
 - `V2.14`: backup/verify/restore local-first fechado com smoke.
+- `V2.14a`: visual opcional fechado com toggle de aparencia, hero
+  cartografico/R3F lazy no dashboard e smoke desktop/mobile com pixel-check de
+  canvas.
 - `V2.15`: preflight e cutover apply idempotente fechados, com apply real
   protegido por `V215_CONFIRM_CUTOVER=SIM`.
 - `M37`: Evidence Center fechado com rota `/evidence`, leitura autenticada de
@@ -51,11 +54,10 @@ Escopo: este checkpoint considera somente o repo `nuoma-wpp-v2`.
 
 - `V2.12` canvas/editor completo alem do minimo CDP. **Screencast CDP minimo com input relay fechado e revalidado em 2026-05-07**.
 - `V2.13` stream global por canais. **Feito e revalidado em 2026-05-07**.
-- `V2.14` S3/custos/local-first completo. **Leitura CRM S3 com cache local fechada em 2026-05-06 via M22.2; backup/restore fechado em 2026-05-07**.
+- `V2.14` S3/custos/local-first completo. **Leitura CRM S3 com cache local fechada em 2026-05-06 via M22.2; backup/restore fechado em 2026-05-07; V2.14a visual opcional fechado em 2026-05-07**.
 - `V2.15` aplicacao operacional do cutover V1 -> V2. **Implementacao fechada em 2026-05-07; apply real exige confirmacao forte**.
 
 ## Não mexer ainda
 
-- `V2.14a` hero cartográfico/R3F opcional.
 - Instagram, Data Lake e AI, salvo iniciativa explícita.
 - Refactor grande de contrato ou schema sem necessidade direta do hardening atual.

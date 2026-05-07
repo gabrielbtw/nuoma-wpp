@@ -219,6 +219,27 @@ tela `/implementation` consome.
 - Evidencia:
   `v214-backup-restore-smoke|backup=ok|verify=ok|restore=ok|status=closed`.
 
+## V2.14a Visual Opcional Fechado
+
+**Resultado:** fechado em 2026-05-07.
+
+**Escopo consolidado:**
+
+- Toggle persistido em `Settings > Aparência` para ligar/desligar o visual
+  opcional.
+- Dashboard carrega o hero cartografico R3F por `React.lazy` somente quando o
+  toggle esta ativo.
+- Cena Three.js mostra API/CDP, workers, fila, throughput e DLQ como relevo
+  operacional, sem alterar guardrails de envio.
+- Smoke valida desktop e mobile, screenshot, a11y e pixel-check WebGL
+  nonblank/movimento.
+
+**Criterio de aceite cumprido:**
+
+- `npm run test:v214a-visual`.
+- `npm run typecheck --workspace @nuoma/web`.
+- `npm run lint --workspace @nuoma/web`.
+
 ## V2.15 Migracao/Cutover Fechado
 
 **Resultado:** implementacao fechada 100% em 2026-05-07; a execucao real do
