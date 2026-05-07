@@ -38,6 +38,23 @@ tela `/implementation` consome.
 - `npm run typecheck`.
 - `npm run lint`.
 
+## V2.7 API Surface/Storage Fechado
+
+**Resultado:** fechado 100% em 2026-05-07.
+
+**Escopo consolidado:**
+
+- Routers principais, CRUDs seguros, importacao/busca de contatos, upload de
+  midia/CRM, push, embed, streaming seguro, metrics/eventos e cache S3 local.
+- `conversations.listUnified` fecha a surface unificada de Inbox:
+  WhatsApp/Instagram/System em uma resposta, filtro por canal, busca por
+  titulo/thread/contato/telefone/@IG, alvo normalizado e resumo por canal.
+
+**Criterio de aceite cumprido:**
+
+- `npm run test:v27-ig-unified`.
+- `npm run test --workspace @nuoma/api -- src/app.test.ts`.
+
 ## V2.10 Hardening Campanhas/Chatbots Fechado
 
 **Resultado:** fechado 100% em 2026-05-07.

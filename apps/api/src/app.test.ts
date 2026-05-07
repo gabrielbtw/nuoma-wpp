@@ -2194,6 +2194,139 @@ describe("api health", () => {
     }
   });
 
+  it("unifies WhatsApp and Instagram conversations in V2.7 listUnified", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "nuoma-v2-api-v27-ig-"));
+    const db = openDb(path.join(tempDir, "api.db"));
+    await runMigrations(db);
+    const repos = createRepositories(db);
+    const passwordHash = await argon2.hash("initial-password-123", { type: argon2.argon2id });
+    const user = await repos.users.create({
+      email: "admin@nuoma.local",
+      passwordHash,
+      role: "admin",
+      displayName: "Admin",
+    });
+    const whatsappContact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel WhatsApp",
+      phone: "5531982066263",
+      primaryChannel: "whatsapp",
+      status: "active",
+    });
+    const instagramContact = await repos.contacts.create({
+      userId: user.id,
+      name: "Neferpeel Instagram",
+      phone: null,
+      primaryChannel: "instagram",
+      instagramHandle: "neferpeel.bh",
+      status: "lead",
+    });
+    await repos.conversations.create({
+      userId: user.id,
+      contactId: whatsappContact.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      title: "Gabriel WhatsApp",
+      lastMessageAt: "2026-05-07T10:00:00.000Z",
+      lastPreview: "WA recente",
+    });
+    await repos.conversations.create({
+      userId: user.id,
+      contactId: instagramContact.id,
+      channel: "instagram",
+      externalThreadId: "ig:neferpeel.bh",
+      title: "@neferpeel.bh",
+      lastMessageAt: "2026-05-07T10:05:00.000Z",
+      lastPreview: "DM recente",
+    });
+
+    const app = await buildApiApp({
+      env: loadApiEnv({
+        API_LOG_LEVEL: "silent",
+        NODE_ENV: "test",
+        API_JWT_SECRET: "test-secret-with-more-than-16-chars",
+        DATABASE_URL: path.join(tempDir, "api.db"),
+      }),
+      db,
+      migrate: false,
+    });
+
+    try {
+      const login = await trpcCall(app, "POST", "auth.login", {
+        email: "admin@nuoma.local",
+        password: "initial-password-123",
+      });
+      const cookies = cookieHeader(login.setCookie);
+
+      const unified = await trpcCall<{
+        conversations: Array<{
+          channel: string;
+          title: string;
+          contact: { instagramHandle: string | null; phone: string | null } | null;
+          target: { kind: string; identity: string; label: string };
+        }>;
+        summary: {
+          total: number;
+          returned: number;
+          channels: { instagram: number; system: number; whatsapp: number };
+          filters: { channel: string; search: string | null };
+        };
+      }>(
+        app,
+        "GET",
+        "conversations.listUnified",
+        { channel: "all", limit: 10 },
+        { cookie: cookies },
+      );
+      expect(unified.statusCode, JSON.stringify(unified.error)).toBe(200);
+      expect(unified.data?.summary).toMatchObject({
+        total: 2,
+        returned: 2,
+        channels: { instagram: 1, system: 0, whatsapp: 1 },
+        filters: { channel: "all", search: null },
+      });
+      expect(unified.data?.conversations.map((conversation) => conversation.channel)).toEqual([
+        "instagram",
+        "whatsapp",
+      ]);
+      expect(unified.data?.conversations[0]).toMatchObject({
+        channel: "instagram",
+        contact: { instagramHandle: "neferpeel.bh", phone: null },
+        target: {
+          kind: "instagram",
+          identity: "@neferpeel.bh",
+          label: "Neferpeel Instagram",
+        },
+      });
+
+      const byIgHandle = await trpcCall<{
+        conversations: Array<{ channel: string; target: { identity: string } }>;
+        summary: { total: number; channels: { instagram: number; whatsapp: number } };
+      }>(
+        app,
+        "GET",
+        "conversations.listUnified",
+        { channel: "instagram", search: "@neferpeel", limit: 10 },
+        { cookie: cookies },
+      );
+      expect(byIgHandle.statusCode, JSON.stringify(byIgHandle.error)).toBe(200);
+      expect(byIgHandle.data?.summary).toMatchObject({
+        total: 1,
+        channels: { instagram: 1, whatsapp: 0 },
+      });
+      expect(byIgHandle.data?.conversations).toEqual([
+        expect.objectContaining({
+          channel: "instagram",
+          target: expect.objectContaining({ identity: "@neferpeel.bh" }),
+        }),
+      ]);
+    } finally {
+      await app.close();
+      db.close();
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it("persists V2.10 chatbot execution history per source message", async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "nuoma-v2-api-chatbot-history-"));
     const db = openDb(path.join(tempDir, "api.db"));

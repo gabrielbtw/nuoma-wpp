@@ -12,6 +12,9 @@ Escopo: este checkpoint considera somente o repo `nuoma-wpp-v2`.
 ## Verde operacional
 
 - `V2.1` a `V2.6`: base, domínio, persistência, auth, fila/worker e sync engine.
+- `V2.7`: API surface/storage fechada, incluindo
+  `conversations.listUnified` para WhatsApp/Instagram/System com filtro de
+  canal, busca por contato/telefone/@IG e resumo por canal.
 - `V2.8`: design system e shell web.
 - `V2.9`: Inbox principal.
 - `V2.10`: campanhas, automações e chatbots fechados com auditoria
@@ -28,7 +31,6 @@ Escopo: este checkpoint considera somente o repo `nuoma-wpp-v2`.
 
 ## Parcial, mas utilizável
 
-- `V2.7`: API principal pronta, com IG unificada fora do fluxo cotidiano.
 - Web Push continua como complemento, fora do bloqueio de V2.13.
 
 ## Fazer agora

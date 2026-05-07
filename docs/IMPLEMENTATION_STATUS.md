@@ -40,7 +40,7 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
   para conversa errada.
 - [x] **V2.7 API surface/storage** — Routers principais, CRUDs seguros, upload
   de midia/CRM, push, embed, streaming seguro, busca FTS5 e `M22.2` de cache S3
-  autenticado.
+  autenticado e `conversations.listUnified` com WhatsApp/Instagram/System.
 - [x] **V2.8 Base visual** — Design system Cartographic Operations, shell mobile,
   push settings, command palette, motion com reduced-motion e smoke a11y.
 - [x] **V2.9 Inbox** — Timeline glass, realtime, virtualizacao, media cards,
@@ -82,13 +82,13 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 
 ## Parcial
 
-- [~] **V2.7 API surface IG** — `conversations.listUnified` fica parcial porque
-  Instagram segue fora do fluxo cotidiano ate iniciativa explicita.
+Nenhum item `V2.*` parcial neste checkpoint.
 
 ## Falta
 
-Nenhuma pendencia operacional `V2.*` aberta neste checkpoint. Instagram/DM
-segue fora do fluxo cotidiano ate iniciativa explicita.
+Nenhuma pendencia operacional `V2.*` aberta neste checkpoint. Envio real de
+Instagram/DM segue fora do fluxo cotidiano ate iniciativa explicita, mas a
+surface de conversa unificada ja lista e busca conversas Instagram.
 
 ## Evidencias Recentes
 
@@ -104,6 +104,10 @@ segue fora do fluxo cotidiano ate iniciativa explicita.
   registra auditoria, alvo fora da allowlist vai para DLQ e nenhum envio ocorre
   no bloqueio. Evidencia:
   `v25-sender-runtime|claim_guard=ok|send=ok|allowlist_block=ok|dlq=ok|status=closed`.
+- **2026-05-07 / V2.7 IG unificado fechado:** criado
+  `conversations.listUnified` para retornar WhatsApp/Instagram/System em uma
+  surface, com filtro por canal, busca por titulo/thread/contato/telefone/@IG,
+  alvo normalizado e resumo por canal. Evidencia: `npm run test:v27-ig-unified`.
 - **2026-05-07 / V2.10 hardening fechado 100%:** corrigido falso positivo do
   checkpoint: recipients de campanha agora mantem `metadata.auditTrail`
   materializado por scheduler/job/worker/temporary-message audit, a listagem de

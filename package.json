@@ -25,6 +25,7 @@
     "test:v25-metrics": "node tests/v25-operational-metrics-smoke.mjs",
     "test:v26-attachments": "node tests/v26-attachment-candidates-smoke.mjs",
     "test:v26-profile-photo": "node tests/v26-profile-photo-smoke.mjs",
+    "test:v27-ig-unified": "npm run test --workspace @nuoma/api -- src/app.test.ts -t \"unifies WhatsApp and Instagram conversations\"",
     "test:v28-visual": "node tests/v28-visual-smoke.mjs",
     "test:v29-inbox": "node tests/v29-inbox-smoke.mjs",
     "test:v29-inbox-e2e": "node tests/v29-inbox-e2e-smoke.mjs",

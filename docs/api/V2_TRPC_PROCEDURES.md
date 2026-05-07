@@ -7,7 +7,7 @@ Status: V2.7 API surface auditada em 2026-05-04.
 - `auth`: login, sessão, refresh, troca/reset de senha.
 - `users`: listagem, detalhe, criação, update e desativação admin.
 - `contacts`: listagem, busca, detalhe, criação, importação, update e soft delete.
-- `conversations`: listagem, detalhe, criação, update, arquivamento, force sync e histórico.
+- `conversations`: listagem, listagem unificada WhatsApp/Instagram/System, detalhe, criação, update, arquivamento, force sync e histórico.
 - `messages`: CRUD base, timeline por conversa e enqueue de envio.
 - `quickReplies`: respostas rápidas salvas, busca, criação, update, soft delete e contador de uso.
 - `campaigns`: listagem com métricas/timeline, detalhe, criação, update, arquivamento, elegibilidade por conversa, execute seguro e tick scheduler.
@@ -51,7 +51,7 @@ Status: V2.7 API surface auditada em 2026-05-04.
 | V2.7.10 jobs.list                       | Feito           | `jobs.list` admin                                                                                                                                             |
 | V2.7.11 contacts.import                 | Feito           | Importa `csv` ou `rows`, suporta `dryRun`, dedupe e update opcional                                                                                           |
 | V2.7.12 contacts.search                 | Feito           | Busca usa FTS5 físico `contacts_fts` com triggers de sync e fallback LIKE se a migration ainda não existir                                                    |
-| V2.7.13 conversations.listUnified       | Parcial         | `conversations.list` já retorna Inbox operacional WA; IG unificada fica para trilha Instagram                                                                 |
+| V2.7.13 conversations.listUnified       | Feito           | Retorna WhatsApp/Instagram/System em uma surface, filtra por canal, busca por titulo/thread/contato/telefone/@IG e devolve resumo por canal                   |
 | V2.7.14 messages.send                   | Feito           | Enfileira `send_message`/`send_instagram_message`                                                                                                             |
 | V2.7.15 campaigns.execute               | Feito           | `dryRun=true` por padrão; aceita `phones`, `contactIds` ou `conversationId`; execução real usa `API_SEND_POLICY_MODE`/`API_SEND_ALLOWED_PHONES` antes de criar recipients |
 | V2.10.36 campaigns.remarketingBatchReady/Dispatch | Feito | Valida lote real inteiro antes de criar recipients/jobs, exige confirmacao `DISPARAR LOTE <n>`, allowlist, sem jobs/recipients ativos e `temporaryMessages` M30.3 `24h/90d`; registra `campaign.remarketing_batch.dispatched` |

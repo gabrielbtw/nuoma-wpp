@@ -1,7 +1,14 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
-import { createConversationInputSchema, updateConversationInputSchema } from "@nuoma/contracts";
+import {
+  channelTypeSchema,
+  createConversationInputSchema,
+  updateConversationInputSchema,
+  type ChannelType,
+  type Contact,
+  type Conversation,
+} from "@nuoma/contracts";
 
 import {
   adminCsrfProcedure,
@@ -13,6 +20,22 @@ import {
 
 const createConversationBodySchema = createConversationInputSchema.omit({ userId: true });
 const updateConversationBodySchema = updateConversationInputSchema.omit({ userId: true });
+const listUnifiedInputSchema = z
+  .object({
+    limit: z.number().int().min(1).max(500).default(100),
+    channel: z.union([channelTypeSchema, z.literal("all")]).default("all"),
+    search: z.string().trim().min(1).max(120).optional(),
+  })
+  .optional();
+
+type UnifiedConversation = Conversation & {
+  contact: Pick<Contact, "id" | "instagramHandle" | "name" | "phone" | "primaryChannel" | "status"> | null;
+  target: {
+    kind: "instagram" | "phone" | "system" | "thread";
+    identity: string;
+    label: string;
+  };
+};
 
 export const conversationsRouter = router({
   list: adminProcedure
@@ -26,6 +49,53 @@ export const conversationsRouter = router({
       );
       return { conversations };
     }),
+
+  listUnified: protectedProcedure.input(listUnifiedInputSchema).query(async ({ ctx, input }) => {
+    const limit = input?.limit ?? 100;
+    const channel = input?.channel ?? "all";
+    const search = input?.search?.trim() ?? null;
+    const [conversations, contacts] = await Promise.all([
+      ctx.repos.conversations.list(ctx.user.id, 500),
+      ctx.repos.contacts.list({ userId: ctx.user.id, limit: 2_000 }),
+    ]);
+    const contactsById = new Map(contacts.map((contact) => [contact.id, contact]));
+
+    const filtered = conversations
+      .filter((conversation) => channel === "all" || conversation.channel === channel)
+      .map<UnifiedConversation>((conversation) => {
+        const contact =
+          conversation.contactId == null ? null : contactsById.get(conversation.contactId) ?? null;
+        return {
+          ...conversation,
+          contact: contact
+            ? {
+                id: contact.id,
+                instagramHandle: contact.instagramHandle,
+                name: contact.name,
+                phone: contact.phone,
+                primaryChannel: contact.primaryChannel,
+                status: contact.status,
+              }
+            : null,
+          target: buildUnifiedTarget(conversation, contact),
+        };
+      })
+      .filter((conversation) => !search || matchesUnifiedSearch(conversation, search));
+
+    const channels = countChannels(filtered);
+    return {
+      conversations: filtered.slice(0, limit),
+      summary: {
+        total: filtered.length,
+        returned: Math.min(filtered.length, limit),
+        channels,
+        filters: {
+          channel,
+          search,
+        },
+      },
+    };
+  }),
 
   get: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
@@ -175,3 +245,85 @@ export const conversationsRouter = router({
       return { job, conversation };
     }),
 });
+
+function buildUnifiedTarget(
+  conversation: Conversation,
+  contact: Contact | null | undefined,
+): UnifiedConversation["target"] {
+  if (conversation.channel === "instagram") {
+    const handle = contact?.instagramHandle ?? stripInstagramPrefix(conversation.externalThreadId);
+    return {
+      kind: "instagram",
+      identity: handle ? `@${handle}` : conversation.externalThreadId,
+      label: contact?.name ?? conversation.title,
+    };
+  }
+  if (conversation.channel === "whatsapp") {
+    return {
+      kind: "phone",
+      identity: contact?.phone ?? conversation.externalThreadId,
+      label: contact?.name ?? conversation.title,
+    };
+  }
+  if (conversation.channel === "system") {
+    return {
+      kind: "system",
+      identity: conversation.externalThreadId,
+      label: conversation.title,
+    };
+  }
+  return {
+    kind: "thread",
+    identity: conversation.externalThreadId,
+    label: conversation.title,
+  };
+}
+
+function matchesUnifiedSearch(conversation: UnifiedConversation, search: string): boolean {
+  const normalizedSearch = normalizeSearch(search);
+  const digitSearch = search.replace(/\D/g, "");
+  const fields = [
+    conversation.title,
+    conversation.externalThreadId,
+    conversation.channel,
+    conversation.lastPreview ?? "",
+    conversation.target.identity,
+    conversation.target.label,
+    conversation.contact?.name ?? "",
+    conversation.contact?.phone ?? "",
+    conversation.contact?.instagramHandle ? `@${conversation.contact.instagramHandle}` : "",
+    conversation.contact?.instagramHandle ?? "",
+    conversation.contact?.primaryChannel ?? "",
+    conversation.contact?.status ?? "",
+  ];
+  return fields.some((field) => {
+    const normalizedField = normalizeSearch(field);
+    if (normalizedField.includes(normalizedSearch)) return true;
+    return digitSearch.length > 0 && field.replace(/\D/g, "").includes(digitSearch);
+  });
+}
+
+function countChannels(conversations: UnifiedConversation[]): Record<ChannelType, number> {
+  const channels: Record<ChannelType, number> = {
+    instagram: 0,
+    system: 0,
+    whatsapp: 0,
+  };
+  for (const conversation of conversations) {
+    channels[conversation.channel] += 1;
+  }
+  return channels;
+}
+
+function normalizeSearch(value: string): string {
+  return value
+    .trim()
+    .replace(/^@/, "")
+    .toLocaleLowerCase("pt-BR")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "");
+}
+
+function stripInstagramPrefix(value: string): string {
+  return value.trim().replace(/^ig:/i, "").replace(/^@/, "");
+}
