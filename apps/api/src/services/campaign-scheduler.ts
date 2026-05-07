@@ -320,10 +320,15 @@ async function enqueueRecipientNextStep(input: {
         id: input.recipient.id,
         status: "completed",
         lastError: null,
-        metadata: {
-          ...input.recipient.metadata,
-          completedAt: input.now.toISOString(),
-        },
+      metadata: {
+        ...withRecipientAudit(input.recipient.metadata, {
+          event: "campaign_recipient.completed",
+          source: "campaign_scheduler",
+          at: input.now.toISOString(),
+          status: "completed",
+        }),
+        completedAt: input.now.toISOString(),
+      },
       });
       input.result.recipientsCompleted += 1;
       return;
@@ -419,11 +424,29 @@ async function enqueueRecipientNextStep(input: {
       status: "running",
       lastError: null,
       metadata: {
-        ...campaignAbAssignmentMetadata({
-          metadata: input.recipient.metadata,
-          variant: abVariant,
-          now: input.now,
-        }),
+        ...withRecipientAudit(
+          campaignAbAssignmentMetadata({
+            metadata: input.recipient.metadata,
+            variant: abVariant,
+            now: input.now,
+          }),
+          {
+            event: "campaign_step.enqueued",
+            source: "campaign_scheduler",
+            at: input.now.toISOString(),
+            status: "running",
+            jobId: createdJobs[0]?.job.id ?? null,
+            jobIds: createdJobs.map((item) => item.job.id),
+            stepId: createdJobs[0]?.step.id ?? null,
+            stepIds: createdJobs.map((item) => item.step.id),
+            stepTypes: createdJobs.map((item) => item.step.type),
+            batchId,
+            batchSize: createdJobs.length,
+            variantId: abVariant?.id ?? null,
+            variantLabel: abVariant?.label ?? null,
+            temporaryMessages: temporaryMessages ? true : false,
+          },
+        ),
         awaitingJobId: createdJobs[0]?.job.id ?? null,
         awaitingStepId: createdJobs[0]?.step.id ?? null,
         awaitingJobIds: createdJobs.map((item) => item.job.id),
@@ -446,7 +469,13 @@ async function enqueueRecipientNextStep(input: {
       status: "failed",
       lastError: message,
       metadata: {
-        ...input.recipient.metadata,
+        ...withRecipientAudit(input.recipient.metadata, {
+          event: "campaign_scheduler.error",
+          source: "campaign_scheduler",
+          at: input.now.toISOString(),
+          status: "failed",
+          error: message,
+        }),
         failedAt: input.now.toISOString(),
       },
     });
@@ -474,7 +503,13 @@ async function markRecipientSkipped(
     status: "skipped",
     lastError: reason,
     metadata: {
-      ...input.recipient.metadata,
+      ...withRecipientAudit(input.recipient.metadata, {
+        event: "campaign_recipient.skipped",
+        source: "campaign_scheduler",
+        at: input.now.toISOString(),
+        status: "skipped",
+        error: reason,
+      }),
       skippedAt: input.now.toISOString(),
     },
   });
@@ -592,6 +627,23 @@ function objectRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+function withRecipientAudit(
+  metadata: Record<string, unknown>,
+  entry: Record<string, unknown>,
+): Record<string, unknown> {
+  const auditTrail = Array.isArray(metadata.auditTrail)
+    ? metadata.auditTrail.filter(isRecord)
+    : [];
+  return {
+    ...metadata,
+    auditTrail: [...auditTrail.slice(-24), entry],
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function numberFromUnknown(value: unknown): number | null {

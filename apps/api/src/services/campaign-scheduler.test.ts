@@ -134,6 +134,17 @@ describe("campaign scheduler tick", () => {
         awaitingStepId: "step-1",
       }),
     );
+    expect(updated?.metadata.auditTrail).toEqual([
+      expect.objectContaining({
+        event: "campaign_step.enqueued",
+        source: "campaign_scheduler",
+        jobId: jobs[0]?.id,
+        jobIds: [jobs[0]?.id],
+        stepId: "step-1",
+        stepIds: ["step-1"],
+        status: "running",
+      }),
+    ]);
     expect(conversation?.title).toBe("Gabriel Braga Nuoma");
   });
 

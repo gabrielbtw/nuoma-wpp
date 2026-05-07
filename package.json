@@ -51,6 +51,7 @@
     "test:v210-recipient-audit-ic2": "node tests/v210-recipient-audit-ic2-smoke.mjs",
     "test:v210-flow-builders": "node tests/v210-flow-builders-smoke.mjs",
     "test:v210-step-stats": "node tests/v210-step-stats-smoke.mjs",
+    "test:v210-hardening": "npm run test --workspace @nuoma/api -- src/services/campaign-scheduler.test.ts -t \"enqueues the next campaign step\" && npm run test --workspace @nuoma/api -- src/app.test.ts -t \"persists V2.10 chatbot execution history\" && npm run test --workspace @nuoma/worker -- src/job-loop.test.ts -t \"records started and failed evidence\"",
     "test:v211-overlay-unit": "npm run test --workspace @nuoma/worker -- src/features/overlay/inject.test.ts src/sync/cdp.test.ts",
     "test:v211-overlay-fab": "tsx tests/v211-overlay-fab-smoke.ts",
     "test:v211-overlay-panel": "tsx tests/v211-overlay-panel-smoke.ts",

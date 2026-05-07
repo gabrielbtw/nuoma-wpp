@@ -11,6 +11,7 @@ import {
   type ChatbotRuleAbTestVariant,
   type ChatbotRule,
 } from "@nuoma/contracts";
+import type { Repositories } from "@nuoma/db";
 
 import { protectedCsrfProcedure, protectedProcedure, router } from "../init.js";
 
@@ -39,6 +40,23 @@ const listVariantEventsBodySchema = z.object({
   eventType: z.enum(["exposure", "conversion"]).optional(),
   cursor: z.number().int().positive().optional(),
   limit: z.number().int().min(1).max(200).default(100),
+});
+const chatbotMessageEvaluationBodySchema = z.object({
+  chatbotId: z.number().int().positive().optional(),
+  channel: z.enum(["whatsapp", "instagram", "system"]).default("whatsapp"),
+  phone: z.string().min(3).optional(),
+  body: z.string().min(1),
+  contactId: z.number().int().positive().nullable().optional(),
+  conversationId: z.number().int().positive().nullable().optional(),
+  messageId: z.number().int().positive().nullable().optional(),
+  sourceEventId: z.string().min(1).max(160).nullable().optional(),
+});
+const chatbotExecutionHistoryBodySchema = z.object({
+  chatbotId: z.number().int().positive().optional(),
+  ruleId: z.number().int().positive().optional(),
+  conversationId: z.number().int().positive().optional(),
+  messageId: z.number().int().positive().optional(),
+  limit: z.number().int().min(1).max(200).default(50),
 });
 
 function bodyMatchesRule(rule: ChatbotRule, body: string): boolean {
@@ -329,55 +347,237 @@ export const chatbotsRouter = router({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const candidates = input.chatbotId
-        ? [
-            await ctx.repos.chatbots.findById({
-              id: input.chatbotId,
-              userId: ctx.user.id,
-            }),
-          ].filter((chatbot) => chatbot !== null)
-        : await ctx.repos.chatbots.list({
-            userId: ctx.user.id,
-            channel: input.channel,
-            status: "active",
-          });
+      return evaluateChatbotMessage({
+        repos: ctx.repos,
+        userId: ctx.user.id,
+        channel: input.channel,
+        phone: input.phone,
+        body: input.body,
+        chatbotId: input.chatbotId,
+        persistExecution: false,
+      });
+    }),
 
-      for (const chatbot of candidates) {
-        if (chatbot.channel !== input.channel) continue;
-        if (chatbot.status === "archived") continue;
+  evaluateMessage: protectedCsrfProcedure
+    .input(chatbotMessageEvaluationBodySchema)
+    .mutation(async ({ ctx, input }) =>
+      evaluateChatbotMessage({
+        repos: ctx.repos,
+        userId: ctx.user.id,
+        channel: input.channel,
+        phone: input.phone,
+        body: input.body,
+        chatbotId: input.chatbotId,
+        contactId: input.contactId ?? null,
+        conversationId: input.conversationId ?? null,
+        messageId: input.messageId ?? null,
+        sourceEventId: input.sourceEventId ?? null,
+        persistExecution: true,
+      }),
+    ),
 
-        const rules = await ctx.repos.chatbots.listRules({
-          userId: ctx.user.id,
-          chatbotId: chatbot.id,
-          isActive: true,
-        });
-        const directMatch = rules.find((rule) => bodyMatchesRule(rule, input.body));
-        const fallback = directMatch ?? rules.find((rule) => rule.match.type === "fallback");
-        if (fallback) {
-          return {
-            matched: true,
-            chatbot,
-            rule: fallback,
-            fallbackUsed: fallback.match.type === "fallback",
-            actions: resolveRuleActions(fallback, input),
-            abTest: summarizeAbTest(fallback, input),
-            phone: input.phone ?? null,
-            wouldEnqueueJobs: false as const,
-            reasons: [],
-          };
-        }
-      }
-
+  executionHistory: protectedProcedure
+    .input(chatbotExecutionHistoryBodySchema.optional())
+    .query(async ({ ctx, input }) => {
+      const events = await ctx.repos.systemEvents.list({
+        userId: ctx.user.id,
+        type: "chatbot.execution.evaluated",
+        limit: Math.max(input?.limit ?? 50, 200),
+      });
       return {
-        matched: false,
-        chatbot: null,
-        rule: null,
-        fallbackUsed: false,
-        actions: [],
-        abTest: null,
-        phone: input.phone ?? null,
-        wouldEnqueueJobs: false as const,
-        reasons: candidates.length === 0 ? ["no_chatbot"] : ["no_rule_match"],
+        events: events
+          .filter((event) => {
+            if (input?.chatbotId && payloadNumber(event.payload, "chatbotId") !== input.chatbotId) {
+              return false;
+            }
+            if (input?.ruleId && payloadNumber(event.payload, "ruleId") !== input.ruleId) {
+              return false;
+            }
+            if (
+              input?.conversationId &&
+              payloadNumber(event.payload, "conversationId") !== input.conversationId
+            ) {
+              return false;
+            }
+            if (input?.messageId && payloadNumber(event.payload, "messageId") !== input.messageId) {
+              return false;
+            }
+            return true;
+          })
+          .slice(0, input?.limit ?? 50),
       };
     }),
 });
+
+async function evaluateChatbotMessage(input: {
+  repos: Repositories;
+  userId: number;
+  chatbotId?: number;
+  channel: "whatsapp" | "instagram" | "system";
+  phone?: string;
+  body: string;
+  contactId?: number | null;
+  conversationId?: number | null;
+  messageId?: number | null;
+  sourceEventId?: string | null;
+  persistExecution: boolean;
+}) {
+  const candidates = input.chatbotId
+    ? [
+        await input.repos.chatbots.findById({
+          id: input.chatbotId,
+          userId: input.userId,
+        }),
+      ].filter((chatbot) => chatbot !== null)
+    : await input.repos.chatbots.list({
+        userId: input.userId,
+        channel: input.channel,
+        status: "active",
+      });
+
+  for (const chatbot of candidates) {
+    if (chatbot.channel !== input.channel) continue;
+    if (chatbot.status === "archived") continue;
+
+    const rules = await input.repos.chatbots.listRules({
+      userId: input.userId,
+      chatbotId: chatbot.id,
+      isActive: true,
+    });
+    const directMatch = rules.find((rule) => bodyMatchesRule(rule, input.body));
+    const fallback = directMatch ?? rules.find((rule) => rule.match.type === "fallback");
+    if (fallback) {
+      const actions = resolveRuleActions(fallback, input);
+      const abTest = summarizeAbTest(fallback, input);
+      if (input.persistExecution) {
+        await persistChatbotExecution(input, {
+          matched: true,
+          chatbot,
+          rule: fallback,
+          fallbackUsed: fallback.match.type === "fallback",
+          abTest,
+          actionsCount: actions.length,
+        });
+      }
+      return {
+        matched: true,
+        chatbot,
+        rule: fallback,
+        fallbackUsed: fallback.match.type === "fallback",
+        actions,
+        abTest,
+        phone: input.phone ?? null,
+        wouldEnqueueJobs: false as const,
+        persisted: input.persistExecution,
+        reasons: [],
+      };
+    }
+  }
+
+  if (input.persistExecution) {
+    await persistChatbotExecution(input, {
+      matched: false,
+      chatbot: null,
+      rule: null,
+      fallbackUsed: false,
+      abTest: null,
+      actionsCount: 0,
+    });
+  }
+  return {
+    matched: false,
+    chatbot: null,
+    rule: null,
+    fallbackUsed: false,
+    actions: [],
+    abTest: null,
+    phone: input.phone ?? null,
+    wouldEnqueueJobs: false as const,
+    persisted: input.persistExecution,
+    reasons: candidates.length === 0 ? ["no_chatbot"] : ["no_rule_match"],
+  };
+}
+
+async function persistChatbotExecution(
+  input: {
+    repos: Repositories;
+    userId: number;
+    channel: "whatsapp" | "instagram" | "system";
+    phone?: string;
+    body: string;
+    contactId?: number | null;
+    conversationId?: number | null;
+    messageId?: number | null;
+    sourceEventId?: string | null;
+  },
+  result: {
+    matched: boolean;
+    chatbot: { id: number; name: string } | null;
+    rule: ChatbotRule | null;
+    fallbackUsed: boolean;
+    abTest: ReturnType<typeof summarizeAbTest>;
+    actionsCount: number;
+  },
+) {
+  const selectedVariantId = result.abTest?.selectedVariantId ?? null;
+  const selectedVariantLabel = result.abTest?.selectedVariantLabel ?? null;
+  const sourceEventId =
+    input.sourceEventId ??
+    (input.messageId && result.chatbot && result.rule
+      ? `message:${input.messageId}:chatbot:${result.chatbot.id}:rule:${result.rule.id}`
+      : null);
+  await input.repos.systemEvents.create({
+    userId: input.userId,
+    type: "chatbot.execution.evaluated",
+    severity: result.matched ? "info" : "warn",
+    payload: JSON.stringify({
+      chatbotId: result.chatbot?.id ?? null,
+      chatbotName: result.chatbot?.name ?? null,
+      ruleId: result.rule?.id ?? null,
+      ruleName: result.rule?.name ?? null,
+      matched: result.matched,
+      fallbackUsed: result.fallbackUsed,
+      channel: input.channel,
+      phone: input.phone ?? null,
+      contactId: input.contactId ?? null,
+      conversationId: input.conversationId ?? null,
+      messageId: input.messageId ?? null,
+      sourceEventId,
+      bodyPreview: input.body.slice(0, 240),
+      actionsCount: result.actionsCount,
+      selectedVariantId,
+      selectedVariantLabel,
+      executionMode: "dry_run",
+      wouldEnqueueJobs: false,
+    }),
+  });
+  if (result.chatbot && result.rule && selectedVariantId) {
+    await input.repos.chatbots.recordVariantEvent({
+      userId: input.userId,
+      chatbotId: result.chatbot.id,
+      ruleId: result.rule.id,
+      variantId: selectedVariantId,
+      variantLabel: selectedVariantLabel,
+      eventType: "exposure",
+      channel: input.channel,
+      contactId: input.contactId ?? null,
+      conversationId: input.conversationId ?? null,
+      messageId: input.messageId ?? null,
+      exposureId: null,
+      sourceEventId,
+      metadata: {
+        source: "chatbot.execution.evaluated",
+        bodyPreview: input.body.slice(0, 120),
+      },
+    });
+  }
+}
+
+function payloadNumber(payload: unknown, key: string): number | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+  const value = (payload as Record<string, unknown>)[key];
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isInteger(number) && number > 0 ? number : null;
+}

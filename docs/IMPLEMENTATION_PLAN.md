@@ -38,6 +38,28 @@ tela `/implementation` consome.
 - `npm run typecheck`.
 - `npm run lint`.
 
+## V2.10 Hardening Campanhas/Chatbots Fechado
+
+**Resultado:** fechado 100% em 2026-05-07.
+
+**Escopo consolidado:**
+
+- Auditoria materializada em `campaign_recipients.metadata.auditTrail` para
+  enfileiramento, inicio, conclusao, falha, skip e eventos de mensagens
+  temporarias.
+- `campaigns.list` mescla `system_events` com `auditTrail`, preservando
+  timeline auditavel mesmo quando o evento operacional antigo saiu da janela de
+  consulta.
+- `chatbots.evaluateMessage` persiste execucao por mensagem em
+  `system_events` sem criar job e registra exposicao A/B quando houver variante.
+- `chatbots.executionHistory` permite consultar historico por chatbot, regra,
+  conversa ou mensagem.
+
+**Criterio de aceite cumprido:**
+
+- `npm run test:v210-hardening`.
+- `npm run typecheck`.
+
 ## V2.11 Overlay WhatsApp Fechado
 
 **Resultado:** fechado 100% em 2026-05-07.

@@ -2193,4 +2193,213 @@ describe("api health", () => {
       await fs.rm(tempDir, { recursive: true, force: true });
     }
   });
+
+  it("persists V2.10 chatbot execution history per source message", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "nuoma-v2-api-chatbot-history-"));
+    const db = openDb(path.join(tempDir, "api.db"));
+    await runMigrations(db);
+    const repos = createRepositories(db);
+    const passwordHash = await argon2.hash("initial-password-123", { type: argon2.argon2id });
+    const user = await repos.users.create({
+      email: "admin@nuoma.local",
+      passwordHash,
+      role: "admin",
+      displayName: "Admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Lead Chatbot",
+      phone: "5531982066263",
+      primaryChannel: "whatsapp",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      title: "Lead Chatbot",
+    });
+    const message = await repos.messages.insertOrIgnore({
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: contact.id,
+      externalId: "CHATBOT-MSG-1",
+      direction: "inbound",
+      contentType: "text",
+      status: "received",
+      body: "qual o preco?",
+      observedAtUtc: "2026-05-07T12:00:00.000Z",
+    });
+    if (!message) {
+      throw new Error("expected chatbot source message to be created");
+    }
+    const chatbot = await repos.chatbots.create({
+      userId: user.id,
+      name: "V2.10 History",
+      channel: "whatsapp",
+      status: "active",
+      fallbackMessage: null,
+      metadata: {},
+    });
+    const rule = await repos.chatbots.createRule({
+      userId: user.id,
+      chatbotId: chatbot.id,
+      name: "Preco",
+      priority: 1,
+      match: { type: "contains", value: "preco" },
+      segment: null,
+      actions: [
+        {
+          type: "send_step",
+          step: {
+            id: "reply-price",
+            label: "Preço",
+            type: "text",
+            delaySeconds: 0,
+            conditions: [],
+            template: "Segue preço.",
+          },
+        },
+      ],
+      metadata: {
+        abTest: {
+          enabled: true,
+          assignment: "deterministic",
+          variants: [
+            {
+              id: "controle",
+              label: "Controle",
+              weight: 1,
+              actions: [
+                {
+                  type: "send_step",
+                  step: {
+                    id: "reply-price",
+                    label: "Preço",
+                    type: "text",
+                    delaySeconds: 0,
+                    conditions: [],
+                    template: "Segue preço.",
+                  },
+                },
+              ],
+            },
+            {
+              id: "direta",
+              label: "Direta",
+              weight: 1,
+              actions: [
+                {
+                  type: "send_step",
+                  step: {
+                    id: "reply-price",
+                    label: "Preço",
+                    type: "text",
+                    delaySeconds: 0,
+                    conditions: [],
+                    template: "Preço direto.",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+    const app = await buildApiApp({
+      env: loadApiEnv({
+        API_LOG_LEVEL: "silent",
+        NODE_ENV: "test",
+        API_JWT_SECRET: "test-secret-with-more-than-16-chars",
+        DATABASE_URL: path.join(tempDir, "api.db"),
+      }),
+      db,
+      migrate: false,
+    });
+
+    try {
+      const login = await trpcCall<{ csrfToken: string }>(app, "POST", "auth.login", {
+        email: "admin@nuoma.local",
+        password: "initial-password-123",
+      });
+      const cookies = cookieHeader(login.setCookie);
+      const csrfToken = login.data!.csrfToken;
+
+      const evaluation = await trpcCall<{
+        matched: boolean;
+        persisted: boolean;
+        rule: { id: number } | null;
+        abTest: { selectedVariantId: string | null } | null;
+      }>(
+        app,
+        "POST",
+        "chatbots.evaluateMessage",
+        {
+          chatbotId: chatbot.id,
+          channel: "whatsapp",
+          phone: "5531982066263",
+          body: "qual o preco?",
+          contactId: contact.id,
+          conversationId: conversation.id,
+          messageId: message.id,
+          sourceEventId: "chatbot-history-msg-1",
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(evaluation.statusCode, JSON.stringify(evaluation.error)).toBe(200);
+      expect(evaluation.data).toEqual(
+        expect.objectContaining({
+          matched: true,
+          persisted: true,
+          rule: expect.objectContaining({ id: rule.id }),
+          abTest: expect.objectContaining({ selectedVariantId: expect.any(String) }),
+        }),
+      );
+
+      const history = await trpcCall<{
+        events: Array<{ type: string; severity: string; payload: Record<string, unknown> }>;
+      }>(
+        app,
+        "GET",
+        "chatbots.executionHistory",
+        { chatbotId: chatbot.id, messageId: message.id },
+        { cookie: cookies },
+      );
+      expect(history.statusCode, JSON.stringify(history.error)).toBe(200);
+      expect(history.data?.events).toEqual([
+        expect.objectContaining({
+          type: "chatbot.execution.evaluated",
+          severity: "info",
+          payload: expect.objectContaining({
+            chatbotId: chatbot.id,
+            ruleId: rule.id,
+            conversationId: conversation.id,
+            messageId: message.id,
+            matched: true,
+            sourceEventId: "chatbot-history-msg-1",
+            executionMode: "dry_run",
+            wouldEnqueueJobs: false,
+          }),
+        }),
+      ]);
+      const variantEvents = await repos.chatbots.listVariantEvents({
+        userId: user.id,
+        chatbotId: chatbot.id,
+        ruleId: rule.id,
+      });
+      expect(variantEvents).toHaveLength(1);
+      expect(variantEvents[0]).toEqual(
+        expect.objectContaining({
+          eventType: "exposure",
+          conversationId: conversation.id,
+          messageId: message.id,
+          sourceEventId: "chatbot-history-msg-1",
+        }),
+      );
+    } finally {
+      await app.close();
+      db.close();
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
 });

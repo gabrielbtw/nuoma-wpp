@@ -49,7 +49,8 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
   filtros, busca, tags/notas/lembretes e smokes E2E.
 - [x] **V2.10 Campanhas, automacoes e chatbots** — Builder visual, dry-run,
   scheduler interno opt-in, stats por step, A/B, evergreen, pause/resume,
-  audit timeline, automations/chatbots builders e historico A/B `M28.1`.
+  audit timeline materializada por recipient/job, historico de chatbot por
+  mensagem, automations/chatbots builders e historico A/B `M28.1`.
 - [x] **V2.11 Overlay WhatsApp + smokes reais** — Overlay Shadow DOM/FAB/painel,
   telefone, ponte `window.__nuomaApi`, auditoria, guardas de mutacao, inbound
   real, midia real, reuse de aba unica e `M29`, `M32`-`M36`, `M35.1`, `M35.2`.
@@ -100,6 +101,13 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
   registra auditoria, alvo fora da allowlist vai para DLQ e nenhum envio ocorre
   no bloqueio. Evidencia:
   `v25-sender-runtime|claim_guard=ok|send=ok|allowlist_block=ok|dlq=ok|status=closed`.
+- **2026-05-07 / V2.10 hardening fechado 100%:** corrigido falso positivo do
+  checkpoint: recipients de campanha agora mantem `metadata.auditTrail`
+  materializado por scheduler/job/worker/temporary-message audit, a listagem de
+  campanhas mescla essa trilha com `system_events`, e chatbots ganharam
+  `chatbots.evaluateMessage` + `chatbots.executionHistory` para persistir
+  historico por mensagem sem criar job. Evidencia:
+  `npm run test:v210-hardening`.
 - **2026-05-07 / V2.11 fechado 100%:** `npm run test:v211-overlay-suite`
   passou unit/FAB/painel/telefone/API no WhatsApp real. Evidencias principais:
   `v211-overlay-phone|wppPhone=5531982066263|wppSource=title-conversation|sendJobsDelta=0|m=34`

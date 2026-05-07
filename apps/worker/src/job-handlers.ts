@@ -511,6 +511,32 @@ async function recordCampaignTemporaryMessagesEvent(
     originalError?: string;
   },
 ): Promise<void> {
+  await appendCampaignRecipientAudit(job, context, input.recipientId, {
+    event: "temporary_messages.audit",
+    source: "worker_campaign_step",
+    at: new Date().toISOString(),
+    status: input.verified === false ? "warn" : "info",
+    jobId: job.id,
+    campaignId: input.campaignId,
+    conversationId: input.conversationId,
+    phone: input.phone,
+    stepId: input.step.id,
+    stepType: input.step.type,
+    phase: input.phase,
+    duration: input.duration,
+    requestedDuration: input.ensureResult?.requestedDuration ?? input.duration,
+    verifiedDuration: input.ensureResult?.verifiedDuration ?? null,
+    executionMode: input.executionMode ?? "audit_only",
+    verified: input.verified ?? false,
+    navigationMode: input.ensureResult?.navigationMode,
+    menuDetected: input.ensureResult?.menuDetected,
+    changed: input.ensureResult?.changed,
+    error: input.error,
+    originalError: input.originalError,
+    campaignBatchId: stringFromPayload(job.payload.campaignBatchId),
+    campaignBatchIndex: numberFromPayloadAllowZero(job.payload.campaignBatchIndex),
+    campaignBatchSize: numberFromPayload(job.payload.campaignBatchSize),
+  });
   await context.repos.systemEvents.create({
     userId: job.userId,
     type: "sender.temporary_messages.audit",
@@ -927,6 +953,22 @@ async function recordCampaignStepStarted(
     step: CampaignStep;
   },
 ): Promise<void> {
+  await appendCampaignRecipientAudit(job, context, input.recipientId, {
+    event: "campaign_step.started",
+    source: "worker_campaign_step",
+    at: new Date().toISOString(),
+    status: "running",
+    jobId: job.id,
+    campaignId: input.campaignId,
+    conversationId: input.conversationId,
+    phone: input.phone,
+    stepId: input.step.id,
+    stepType: input.step.type,
+    attempt: job.attempts,
+    campaignBatchId: stringFromPayload(job.payload.campaignBatchId),
+    campaignBatchIndex: numberFromPayloadAllowZero(job.payload.campaignBatchIndex),
+    campaignBatchSize: numberFromPayload(job.payload.campaignBatchSize),
+  });
   await context.repos.systemEvents.create({
     userId: job.userId,
     type: "sender.campaign_step.started",
@@ -985,7 +1027,22 @@ async function recordCampaignStepCompleted(
         currentStepId: input.step.id,
         lastError: null,
         metadata: {
-          ...recipient.metadata,
+          ...withRecipientAudit(recipient.metadata, {
+            event: "campaign_step.completed",
+            source: "worker_campaign_step",
+            at: new Date().toISOString(),
+            status: job.payload.isLastStep ? "completed" : "running",
+            jobId: job.id,
+            campaignId: input.campaignId,
+            stepId: input.step.id,
+            stepType: input.step.type,
+            variantId,
+            variantLabel,
+            campaignBatchId: stringFromPayload(job.payload.campaignBatchId),
+            campaignBatchIndex: numberFromPayloadAllowZero(job.payload.campaignBatchIndex),
+            campaignBatchSize: numberFromPayload(job.payload.campaignBatchSize),
+            result: input.result,
+          }),
           awaitingJobId: remainingJobIds[0] ?? null,
           awaitingStepId: remainingStepIds[0] ?? null,
           awaitingJobIds: remainingJobIds,
@@ -1046,7 +1103,25 @@ async function recordCampaignStepFailed(
         status: isTerminal ? "failed" : recipient.status,
         lastError: message,
         metadata: {
-          ...recipient.metadata,
+          ...withRecipientAudit(recipient.metadata, {
+            event: "campaign_step.failed",
+            source: "worker_campaign_step",
+            at: new Date().toISOString(),
+            status: isTerminal ? "failed" : recipient.status,
+            jobId: job.id,
+            campaignId: input.campaignId,
+            conversationId: input.conversationId,
+            phone: input.phone,
+            stepId: input.step.id,
+            stepType: input.step.type,
+            attempt: job.attempts,
+            maxAttempts: job.maxAttempts,
+            terminal: isTerminal,
+            error: message,
+            campaignBatchId: stringFromPayload(job.payload.campaignBatchId),
+            campaignBatchIndex: numberFromPayloadAllowZero(job.payload.campaignBatchIndex),
+            campaignBatchSize: numberFromPayload(job.payload.campaignBatchSize),
+          }),
           lastFailedStepId: input.step.id,
           lastFailedJobId: job.id,
           lastFailedAt: new Date().toISOString(),
@@ -1313,6 +1388,46 @@ function stringPayloadArray(value: unknown): string[] {
     return [];
   }
   return value.filter((entry): entry is string => typeof entry === "string" && entry.trim() !== "");
+}
+
+async function appendCampaignRecipientAudit(
+  job: Job,
+  context: JobHandlerContext,
+  recipientId: number | null,
+  entry: Record<string, unknown>,
+): Promise<void> {
+  if (!recipientId) {
+    return;
+  }
+  const recipient = await context.repos.campaignRecipients.findById({
+    userId: job.userId,
+    id: recipientId,
+  });
+  if (!recipient) {
+    return;
+  }
+  await context.repos.campaignRecipients.updateState({
+    userId: job.userId,
+    id: recipient.id,
+    metadata: withRecipientAudit(recipient.metadata, entry),
+  });
+}
+
+function withRecipientAudit(
+  metadata: Record<string, unknown>,
+  entry: Record<string, unknown>,
+): Record<string, unknown> {
+  const auditTrail = Array.isArray(metadata.auditTrail)
+    ? metadata.auditTrail.filter(isRecord)
+    : [];
+  return {
+    ...metadata,
+    auditTrail: [...auditTrail.slice(-24), entry],
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function temporaryMessagesConfigFromPayload(

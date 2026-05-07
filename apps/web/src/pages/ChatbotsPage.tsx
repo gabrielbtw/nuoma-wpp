@@ -81,17 +81,23 @@ export function ChatbotsPage() {
   const [variantA, setVariantA] = useState("Vou te mandar as opções por aqui.");
   const [variantB, setVariantB] = useState("Tenho duas opções para você comparar.");
   const selectedChatbotIdNumber = Number.parseInt(selectedChatbotId, 10);
-  const dryRun = trpc.chatbots.testRule.useQuery(
+  const executionHistory = trpc.chatbots.executionHistory.useQuery(
     {
       ...(Number.isInteger(selectedChatbotIdNumber) && selectedChatbotIdNumber > 0
         ? { chatbotId: selectedChatbotIdNumber }
         : {}),
-      channel: "whatsapp",
-      phone: phone.replace(/\D/g, ""),
-      body,
+      limit: 5,
     },
-    { enabled: false },
+    { enabled: Number.isInteger(selectedChatbotIdNumber) && selectedChatbotIdNumber > 0 },
   );
+  const dryRun = trpc.chatbots.evaluateMessage.useMutation({
+    async onSuccess() {
+      await Promise.all([
+        utils.chatbots.executionHistory.invalidate(),
+        utils.chatbots.summarizeVariantEvents.invalidate(),
+      ]);
+    },
+  });
   const selectedVariant = dryRun.data?.abTest?.selectedVariantLabel ?? "sem A/B";
   const createRule = trpc.chatbots.createRule.useMutation({
     async onSuccess() {
@@ -213,10 +219,19 @@ export function ChatbotsPage() {
             />
             <Button
               variant="accent"
-              loading={dryRun.isFetching}
+              loading={dryRun.isPending}
               leftIcon={<FlaskConical className="h-4 w-4" />}
               data-testid="chatbot-ab-dry-run-button"
-              onClick={() => void dryRun.refetch()}
+              onClick={() =>
+                dryRun.mutate({
+                  ...(Number.isInteger(selectedChatbotIdNumber) && selectedChatbotIdNumber > 0
+                    ? { chatbotId: selectedChatbotIdNumber }
+                    : {}),
+                  channel: "whatsapp",
+                  phone: phone.replace(/\D/g, ""),
+                  body,
+                })
+              }
             >
               Testar
             </Button>
@@ -237,6 +252,34 @@ export function ChatbotsPage() {
                     {dryRun.data.actions.length} ação(ões) prevista(s)
                   </span>
                 </div>
+              </div>
+            )}
+            {executionHistory.data && executionHistory.data.events.length > 0 && (
+              <div
+                className="lg:col-span-4 grid gap-2 rounded-lg border border-border-muted bg-bg-base/50 px-4 py-3"
+                data-testid="chatbot-execution-history"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-mono text-[0.65rem] uppercase tracking-widest text-fg-dim">
+                    Histórico por mensagem
+                  </span>
+                  <Badge variant="cyan">{executionHistory.data.events.length}</Badge>
+                </div>
+                <ol className="grid gap-1.5">
+                  {executionHistory.data.events.slice(0, 3).map((event) => (
+                    <li
+                      key={event.id}
+                      className="grid gap-2 rounded-md bg-bg-sunken/60 px-3 py-2 text-xs md:grid-cols-[8rem_1fr_auto]"
+                      data-testid="chatbot-execution-history-row"
+                    >
+                      <time className="font-mono text-fg-dim">{formatShortTime(event.createdAt)}</time>
+                      <span className="truncate text-fg-primary">{chatbotExecutionMeta(event.payload)}</span>
+                      <Badge variant={event.severity === "warn" ? "warning" : "neutral"}>
+                        {event.severity}
+                      </Badge>
+                    </li>
+                  ))}
+                </ol>
               </div>
             )}
           </CardContent>
@@ -722,6 +765,37 @@ function testRegex(matchType: ChatbotRuleMatch["type"], pattern: string, probe: 
       message: error instanceof Error ? error.message : "Regex inválida.",
     };
   }
+}
+
+function chatbotExecutionMeta(payload: unknown) {
+  if (!isRecord(payload)) {
+    return "execução sem payload";
+  }
+  const parts = [
+    stringPart("msg", payload.messageId),
+    stringPart("regra", payload.ruleId),
+    stringPart("var", payload.selectedVariantId),
+    stringPart("ações", payload.actionsCount),
+    payload.fallbackUsed === true ? "fallback" : null,
+    payload.matched === false ? "sem match" : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : "execução registrada";
+}
+
+function stringPart(label: string, value: unknown) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  return `${label}:${String(value)}`;
+}
+
+function formatShortTime(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
 }
 
 function readAbTest(metadata: unknown): AbTestSummary | null {

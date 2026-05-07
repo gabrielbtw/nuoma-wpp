@@ -14,7 +14,9 @@ Escopo: este checkpoint considera somente o repo `nuoma-wpp-v2`.
 - `V2.1` a `V2.6`: base, domínio, persistência, auth, fila/worker e sync engine.
 - `V2.8`: design system e shell web.
 - `V2.9`: Inbox principal.
-- `V2.10`: campanhas, automações e chatbots estão funcionais como base de produto.
+- `V2.10`: campanhas, automações e chatbots fechados com auditoria
+  materializada por recipient/job, historico de chatbot por mensagem e
+  historico A/B.
 - `V2.11.1` a `V2.11.7`: overlay WhatsApp fechado com FAB, painel,
   telefone por contato salvo/titulo, ponte `window.__nuomaApi` e smokes reais.
 - `V2.12`: remote rendering CDP minimo fechado com screenshot e input relay.
@@ -26,17 +28,11 @@ Escopo: este checkpoint considera somente o repo `nuoma-wpp-v2`.
 ## Parcial, mas utilizável
 
 - `V2.7`: API principal pronta, com IG unificada fora do fluxo cotidiano.
-- `V2.10`: faltam complementos de operação longa, auditoria materializada e edição visual mais avançada.
 - Web Push continua como complemento, fora do bloqueio de V2.13.
 
 ## Fazer agora
 
-1. Fechar hardening curto de `V2.10` que reduz risco operacional real:
-   - materializar auditoria por recipient/job;
-   - registrar histórico de execução de chatbot por mensagem;
-   - persistir exposição/conversão de variante de chatbot. **Feito em 2026-05-06 via M28.1**.
-
-2. Proximo foco operacional:
+1. Proximo foco operacional:
    - remarketing em lote real com os guardas M30.3;
    - execucao real de cutover apenas quando houver comando explicito.
 

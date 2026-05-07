@@ -530,6 +530,24 @@ describe("worker job loop", () => {
         lastFailedJobId: job.id,
         lastFailedStepId: "step-fail",
         lastFailureTerminal: true,
+        auditTrail: [
+          expect.objectContaining({
+            event: "campaign_step.started",
+            source: "worker_campaign_step",
+            jobId: job.id,
+            stepId: "step-fail",
+            status: "running",
+          }),
+          expect.objectContaining({
+            event: "campaign_step.failed",
+            source: "worker_campaign_step",
+            jobId: job.id,
+            stepId: "step-fail",
+            status: "failed",
+            terminal: true,
+            error: expect.stringContaining("nome"),
+          }),
+        ],
       }),
     );
   });

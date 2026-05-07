@@ -92,21 +92,31 @@ export const campaignsRouter = router({
             recipients,
             events: campaignEvents,
           }),
-          recipients: recipients.map((recipient) => ({
-            ...recipient,
-            timeline: events
+          recipients: recipients.map((recipient) => {
+            const eventTimeline = events
               .filter((event) =>
                 campaignRecipientEventMatches(event.payload, campaign.id, recipient.id),
               )
-              .slice(0, 8)
               .map((event) => ({
                 id: event.id,
                 type: event.type,
                 severity: event.severity,
                 payload: event.payload,
                 createdAt: event.createdAt,
-              })),
-          })),
+              }));
+            const materializedAudit = materializedRecipientAuditTimeline(
+              recipient.metadata,
+              recipient.id,
+              campaign.id,
+            );
+            return {
+              ...recipient,
+              materializedAudit,
+              timeline: [...eventTimeline, ...materializedAudit]
+                .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+                .slice(0, 8),
+            };
+          }),
         };
       }),
     );
@@ -1073,6 +1083,46 @@ function campaignRecipientEventMatches(
     campaignEventMatches(payload, campaignId) &&
     payloadField(payload, "recipientId") === recipientId
   );
+}
+
+function materializedRecipientAuditTimeline(
+  metadata: Record<string, unknown>,
+  recipientId: number,
+  campaignId: number,
+) {
+  const auditTrail = Array.isArray(metadata.auditTrail) ? metadata.auditTrail : [];
+  return auditTrail.flatMap((entry, index) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      return [];
+    }
+    const payload = entry as Record<string, unknown>;
+    const createdAt =
+      typeof payload.at === "string" && payload.at.trim()
+        ? payload.at
+        : typeof payload.createdAt === "string" && payload.createdAt.trim()
+          ? payload.createdAt
+          : new Date(0).toISOString();
+    const severity =
+      payload.status === "failed" || payload.terminal === true
+        ? "error"
+        : payload.status === "skipped" || payload.status === "warn" || payload.verified === false
+          ? "warn"
+          : "info";
+    return [
+      {
+        id: -(recipientId * 10_000 + index + 1),
+        type: `campaign.recipient.${String(payload.event ?? "audit")}`,
+        severity,
+        payload: {
+          campaignId,
+          recipientId,
+          materialized: true,
+          ...payload,
+        },
+        createdAt,
+      },
+    ];
+  });
 }
 
 function payloadField(payload: unknown, key: string): unknown {
