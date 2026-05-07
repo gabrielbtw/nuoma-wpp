@@ -30,8 +30,8 @@ que o estado do produto fique espalhado sem dono claro.
 - Melhorias futuras devem ficar no `IMPLEMENTATION_PLAN.md` quando forem a
   proxima acao, nao espalhadas em docs de arquitetura.
 - A numeracao `V2.15` fica reservada para migracao/cutover V1 -> V2. O
-  preflight automatizado esta implementado; a aplicacao operacional do cutover
-  continua condicionada a comando explicito e evidencias reais.
+  preflight e o apply operacional estao implementados; o apply real exige
+  `V215_CONFIRM_CUTOVER=SIM` e evidencia operacional antes/depois.
 
 ## O Que Nao Deve Ser Unificado Agora
 

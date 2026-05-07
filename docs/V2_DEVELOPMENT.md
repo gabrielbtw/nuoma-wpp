@@ -2,10 +2,11 @@
 
 ## Status
 
-V2.1-V2.13 is implemented through the local-first path: foundations, contracts,
+V2.1-V2.15 is implemented through the local-first path: foundations, contracts,
 SQLite persistence, auth, local login shell, durable job queue, safe worker loop,
 CDP-native sync observer, sender runtime, campaigns, automations, chatbots,
-WhatsApp overlay and authenticated stream endpoints.
+WhatsApp overlay, authenticated stream endpoints, backup/restore operations and
+guarded V1 -> V2 cutover tooling.
 
 The worker can send real WhatsApp messages only through the connected browser
 runtime and current guardrails: allowlist, destination checks, chat reuse,
@@ -32,9 +33,19 @@ Current directed milestone smokes:
 
 - `npm run test:v211-overlay-suite`
 - `npm run test:v212-streaming-cdp`
+- `npm run test:v213-v215-suite`
 - `npm run test:v24-api-auth`
 - `npm run test:v25-sender-runtime`
-- `npm run test:v215-cutover-preflight`
+- `V215_ALLOW_BLOCKERS=1 node scripts/v215-cutover-preflight.mjs`
+
+Operational commands:
+
+- `node scripts/v214-backup-restore.mjs --mode=backup`
+- `node scripts/v214-backup-restore.mjs --mode=verify`
+- `node scripts/v214-backup-restore.mjs --mode=restore-dry-run`
+- `V214_CONFIRM_RESTORE=SIM V214_RESTORE_SOURCE=/abs/path/backup.db node scripts/v214-backup-restore.mjs --mode=restore`
+- `node scripts/v215-cutover-apply.mjs --mode=dry-run`
+- `V215_CONFIRM_CUTOVER=SIM node scripts/v215-cutover-apply.mjs --mode=apply`
 
 ## Commands
 

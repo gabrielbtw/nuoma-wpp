@@ -18,14 +18,16 @@ Escopo: este checkpoint considera somente o repo `nuoma-wpp-v2`.
 - `V2.11.1` a `V2.11.7`: overlay WhatsApp fechado com FAB, painel,
   telefone por contato salvo/titulo, ponte `window.__nuomaApi` e smokes reais.
 - `V2.12`: remote rendering CDP minimo fechado com screenshot e input relay.
+- `V2.13`: stream global por canais fechado com `/api/events`.
+- `V2.14`: backup/verify/restore local-first fechado com smoke.
+- `V2.15`: preflight e cutover apply idempotente fechados, com apply real
+  protegido por `V215_CONFIRM_CUTOVER=SIM`.
 
 ## Parcial, mas utilizável
 
 - `V2.7`: API principal pronta, com IG unificada fora do fluxo cotidiano.
 - `V2.10`: faltam complementos de operação longa, auditoria materializada e edição visual mais avançada.
-- `V2.13`: stream global por canais fechado no mínimo operacional; Web Push continua como complemento.
-- `V2.14`: Docker/base de deploy existem, mas operação de host, backup, rollback e hardening HTTP ainda estão incompletos.
-- `V2.15`: preflight de migracao/cutover V1 -> V2 pronto; cutover real segue condicionado a comando explicito e smoke/lote real.
+- Web Push continua como complemento, fora do bloqueio de V2.13.
 
 ## Fazer agora
 
@@ -34,17 +36,16 @@ Escopo: este checkpoint considera somente o repo `nuoma-wpp-v2`.
    - registrar histórico de execução de chatbot por mensagem;
    - persistir exposição/conversão de variante de chatbot. **Feito em 2026-05-06 via M28.1**.
 
-2. Fechar infra mínima de `V2.14` antes de qualquer cutover:
-   - rollback automatizado ou procedimento de rollback com release anterior;
-   - backup automatizado validado;
-   - restore interativo.
+2. Proximo foco operacional:
+   - remarketing em lote real com os guardas M30.3;
+   - execucao real de cutover apenas quando houver comando explicito.
 
 ## Deixar para depois
 
 - `V2.12` canvas/editor completo alem do minimo CDP. **Screencast CDP minimo com input relay fechado e revalidado em 2026-05-07**.
-- `V2.13` stream global por canais. **Feito em 2026-05-06 com `/api/events` SSE autenticado para `inbox` e `system`**.
-- `V2.14` S3/custos/local-first completo. **Leitura CRM S3 com cache local fechada em 2026-05-06 via M22.2**.
-- `V2.15` aplicacao operacional do cutover V1 -> V2; preflight ja esta `ready`.
+- `V2.13` stream global por canais. **Feito e revalidado em 2026-05-07**.
+- `V2.14` S3/custos/local-first completo. **Leitura CRM S3 com cache local fechada em 2026-05-06 via M22.2; backup/restore fechado em 2026-05-07**.
+- `V2.15` aplicacao operacional do cutover V1 -> V2. **Implementacao fechada em 2026-05-07; apply real exige confirmacao forte**.
 
 ## Não mexer ainda
 

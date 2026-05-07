@@ -74,6 +74,67 @@ tela `/implementation` consome.
 - Evidencia:
   `v212-streaming-cdp-strong|target=https://web.whatsapp.com/|click=accepted|keydown=accepted|status=passed`.
 
+## V2.13 Stream Global Fechado
+
+**Resultado:** fechado 100% em 2026-05-07.
+
+**Escopo consolidado:**
+
+- `/api/events` entrega canais `system` e `inbox` em SSE unico.
+- Suporte a cursor `sinceSystemEventId`, heartbeat e evento `events-ready`.
+- Inbox consome o canal global e invalida/reordena a conversa afetada.
+
+**Criterio de aceite cumprido:**
+
+- `npm run test:v213-global-events`.
+- Smoke forte existente para ambiente local completo:
+  `npm run test:v213-global-events-strong`.
+
+## V2.14 Operacao Local-First Fechado
+
+**Resultado:** fechado 100% em 2026-05-07.
+
+**Escopo consolidado:**
+
+- `scripts/v214-backup-restore.mjs` com modos `backup`, `verify`,
+  `restore-dry-run` e `restore`.
+- Backup SQLite via API nativa do `better-sqlite3`.
+- Backup opcional do profile Chromium via tarball.
+- Validacao `PRAGMA quick_check`, tabelas obrigatorias e ensaio de restore em
+  diretorio temporario.
+- Restore real exige `V214_CONFIRM_RESTORE=SIM` e cria backup pre-restore.
+
+**Criterio de aceite cumprido:**
+
+- `npm run test:v214-backup-restore`.
+- Evidencia:
+  `v214-backup-restore-smoke|backup=ok|verify=ok|restore=ok|status=closed`.
+
+## V2.15 Migracao/Cutover Fechado
+
+**Resultado:** implementacao fechada 100% em 2026-05-07; a execucao real do
+cutover continua sendo uma acao operacional explicitamente confirmada.
+
+**Escopo consolidado:**
+
+- `scripts/v215-cutover-preflight.mjs` valida DBs V1/V2, schemas minimos,
+  target user, jobs ativos, backup V2 e prova M30.3.
+- `scripts/v215-cutover-apply.mjs` roda `dry-run` por padrao.
+- `apply` exige `V215_CONFIRM_CUTOVER=SIM`, bloqueia V2 com jobs ativos, cria
+  backup pre-cutover e importa de forma idempotente tags, contatos,
+  contact_tags, midias, conversas, mensagens, campanhas e recipients.
+- O apply nao apaga dados V2 existentes e registra `system_events` do cutover.
+
+**Criterio de aceite cumprido:**
+
+- `npm run test:v215-cutover-preflight`.
+- `npm run test:v215-cutover-apply`.
+- `npm run test:v213-v215-suite`.
+- Preflight real local:
+  `v215-cutover-preflight|v1Contacts=12958|v1Conversations=1803|v1Messages=3826|v2Contacts=124|v2ActiveJobs=0|blockers=0|warnings=2|status=ready`.
+- Dry-run real local:
+  `v215-cutover-apply|mode=dry-run|contacts=12958|conversations=1803|messages=3826|campaigns=10|recipients=10|blockers=0|status=ready`.
+
 ## M30.3 Hotfix Fechado
 
 **Problema:** a rodada real da automacao Neferpeel BH confirmou inbound recente
@@ -131,9 +192,8 @@ aba unica nos steps seguintes e restaura 90d apos conclusao segura.
 
 | Ordem | Tema | Condicao para abrir |
 | --- | --- | --- |
-| 2 | Remarketing em lote real | Somente depois do M30.3 passar em smoke forte. |
-| 3 | Instagram/DM | Somente com iniciativa explicita; fora do fluxo cotidiano. |
-| 4 | Cutover operacional | Somente depois de campanha real passar lisa e com evidencias completas. |
+| 1 | Remarketing em lote real | Somente depois do M30.3 passar em smoke forte. |
+| 2 | Instagram/DM | Somente com iniciativa explicita; fora do fluxo cotidiano. |
 
 ## Regras De Manutencao
 

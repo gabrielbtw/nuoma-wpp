@@ -283,7 +283,7 @@ export function SettingsPage() {
                 <CardDescription>SQLite local, worker pid, browser status.</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-fg-muted">Painel completo chega em V2.13.</p>
+                <p className="text-sm text-fg-muted">Diagnostico operacional ativo para stream, worker e backups.</p>
               </CardContent>
             </Card>
           </TabsContent>

@@ -10,8 +10,8 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 - **M principais:** 37 marcadores, de `M0` ate `M36`.
 - **M/sub-M conhecidos:** 106 IDs quando contamos `M0.1`, `M35.2`, etc.
 - **Pendencia aberta:** nenhuma hotfix corretiva aberta apos o fechamento de
-  `M30.3`; V2.15 preflight de cutover esta pronto/ready, mas remarketing em
-  lote real e aplicacao operacional do cutover seguem condicionais.
+  `M30.3`; V2.13-V2.15 estao implementados. Remarketing em lote real segue
+  como proximo item condicional.
 - **Politica de smoke real:** todo envio real deve confirmar destino/canal e
   anexar evidencia visual. Quando for WhatsApp-only, registrar `IG nao_aplicavel`.
 
@@ -56,7 +56,17 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 - [x] **V2.12 Remote rendering CDP minimo** — Screenshot via CDP, sessao curta e
   dispatch de click/keydown/text quando habilitado.
 - [x] **V2.13 Stream global** — `/api/events` com canais `inbox` e `system`,
-  cursor/heartbeat e consumo pela Inbox.
+  cursor/heartbeat, consumo pela Inbox e smoke direcionado
+  `test:v213-global-events`.
+- [x] **V2.14 Operacao local-first** — Backup SQLite, backup opcional do
+  profile Chromium, verificacao de backup, ensaio de restore e restore aplicado
+  com confirmacao forte em `scripts/v214-backup-restore.mjs`, coberto por
+  `test:v214-backup-restore`.
+- [x] **V2.15 Migracao/cutover V1 -> V2** — Preflight nao destrutivo e cutover
+  operacional idempotente em `scripts/v215-cutover-preflight.mjs` e
+  `scripts/v215-cutover-apply.mjs`. O apply faz backup pre-cutover, bloqueia
+  jobs ativos, exige `V215_CONFIRM_CUTOVER=SIM` e importa tags, contatos,
+  conversas, mensagens, midias, campanhas e recipients sem apagar dados V2.
 - [x] **Remarketing seguro** — Console de disparo com dry-run forte, confirmacao
   textual, guardrails por telefone/status/canal/allowlist/supressao/duplicidade,
   fila serial por telefone e eventos `sender.campaign_step.started|failed|completed`.
@@ -70,17 +80,11 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 
 - [~] **V2.7 API surface IG** — `conversations.listUnified` fica parcial porque
   Instagram segue fora do fluxo cotidiano ate iniciativa explicita.
-- [~] **V2.15 Migracao/cutover V1 -> V2** — Preflight automatizado implementado
-  em `scripts/v215-cutover-preflight.mjs`: valida DB V1/V2, schemas minimos,
-  target user, jobs ativos, backup V2, prova M30.3 e plano dry-run. A aplicacao
-  real do cutover continua bloqueada ate comando explicito e rodada em lote real.
 
 ## Falta
 
 - [ ] **Remarketing em lote real** — Proximo item condicional apos M30.3; deve
   reutilizar os guardas reais de contexto temporario, allowlist e auditoria.
-- [ ] **Cutover operacional** — Preflight V2.15 esta `ready`; aplicacao real
-  segue condicionada a uma rodada em lote real lisa e com evidencias completas.
 
 ## Evidencias Recentes
 
@@ -106,11 +110,18 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 - **2026-05-07 / V2.12 fechado 100%:** `npm run test:v212-streaming-cdp`
   passou unit + smoke forte CDP com screenshot e input relay:
   `v212-streaming-cdp-strong|target=https://web.whatsapp.com/|bytes=977390|click=accepted|keydown=accepted|status=passed`.
-- **2026-05-07 / V2.15 preflight implementado:** criado
-  `npm run test:v215-cutover-preflight` e o script real
-  `node scripts/v215-cutover-preflight.mjs`. Rodada real nao destrutiva nos DBs
-  locais retornou
-  `v215-cutover-preflight|v1Contacts=12958|v1Conversations=1803|v1Messages=3826|v2Contacts=124|v2ActiveJobs=0|blockers=0|warnings=2|status=ready`.
+- **2026-05-07 / V2.13-V2.15 fechado 100%:** criado
+  `npm run test:v213-v215-suite`, cobrindo stream global, backup/restore,
+  preflight de cutover e apply idempotente. Evidencias:
+  `v214-backup-restore-smoke|backup=ok|verify=ok|restore=ok|status=closed`,
+  `v215-cutover-preflight-smoke|ready=ok|blocker=ok|status=closed` e
+  `v215-cutover-apply-smoke|dryRun=ok|apply=ok|idempotent=ok|status=closed`.
+  Rodada real de backup DB V2 local retornou
+  `v214-backup-restore|mode=backup|verified=ok|profileBackup=skipped|status=closed`.
+  Rodadas reais nao destrutivas nos DBs locais retornaram
+  `v215-cutover-preflight|v1Contacts=12958|v1Conversations=1803|v1Messages=3826|v2Contacts=124|v2ActiveJobs=0|blockers=0|warnings=2|status=ready`
+  e
+  `v215-cutover-apply|mode=dry-run|contacts=12958|conversations=1803|messages=3826|campaigns=10|recipients=10|blockers=0|backup=not_created|status=ready`.
 - **2026-05-06 / M30.3 aberto:** batch
   `campaign:40:recipient:298:24h:1778093175183`, jobs `267..271`, completou com
   `navigationMode=reused-open-chat`, audio nativo `37s`, album `4/4`,
