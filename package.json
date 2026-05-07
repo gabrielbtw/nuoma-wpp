@@ -18,6 +18,7 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "test:v21-foundations": "node tests/v21-foundations-smoke.mjs",
     "test:v25-media": "node tests/v25-media-smoke.mjs",
     "test:v25-metrics": "node tests/v25-operational-metrics-smoke.mjs",
     "test:v26-attachments": "node tests/v26-attachment-candidates-smoke.mjs",

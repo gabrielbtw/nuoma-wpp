@@ -5,10 +5,10 @@ active source of truth for V2 code, docs, smokes and operational planning.
 
 ## What's here today
 
-V2.1-V2.6 base: directory layout, config files, package skeletons, API health
-check, domain contracts, Drizzle/SQLite persistence, auth/login shell, durable
-job queue, DLQ admin endpoints, safe worker loop and CDP-native sync observer
-base.
+V2.1-V2.6 base: Turborepo/npm workspaces, directory layout, config files,
+package skeletons, API health check, domain contracts, Drizzle/SQLite
+persistence, auth/login shell, durable job queue, DLQ admin endpoints, safe
+worker loop and CDP-native sync observer base.
 
 The worker is intentionally safe by default: `WORKER_BROWSER_ENABLED=false` and
 `WORKER_SYNC_ENABLED=false`. Real WhatsApp text/voice sending is only enabled
@@ -21,9 +21,9 @@ CDP browser and leave Chromium open on shutdown so a smoke restart does not ask
 for QR again.
 
 Current gate: all core V2 tracks are implemented for the local/hosted
-WhatsApp-only flow, with one open hotfix before treating automation/remarketing
-as definitive: `M30.3` must prove real WhatsApp 24h temporary-message context
-before the first automated step.
+WhatsApp-only flow. `M30.3` is closed with real WhatsApp 24h temporary-message
+proof; the remaining operational gates are remarketing in real batch and
+cutover.
 
 ## Versioning
 
@@ -38,7 +38,7 @@ Current counts from [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS
 
 - `37` main M markers: `M0` through `M36`.
 - `106` total M/sub-M IDs when `M0.1`, `M35.2`, etc. are included.
-- `1` open hotfix: `M30.3`.
+- `0` open corrective hotfixes after `M30.3` closure.
 
 ## Current Plan
 
@@ -72,6 +72,7 @@ nuoma-wpp-v2/
 | Layer          | Tool                                       | Reason                                                                |
 | -------------- | ------------------------------------------ | --------------------------------------------------------------------- |
 | Runtime        | Node 22                                    | Stable local/hosted runtime                                           |
+| Monorepo       | Turborepo + npm workspaces                 | Shared scripts and package graph for apps/packages                    |
 | HTTP           | Fastify 5                                  | Small, fast API surface                                               |
 | DB             | better-sqlite3 + Drizzle ORM               | Type-safe schema, migrations as code                                  |
 | Validation     | Zod                                        | Shared runtime validation                                             |

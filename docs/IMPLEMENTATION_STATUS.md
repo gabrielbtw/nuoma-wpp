@@ -26,8 +26,11 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 
 ## Feito
 
-- [x] **V2.1-V2.4 Foundations** — Monorepo, API, web, auth, contratos,
-  SQLite/Drizzle e shell autenticado.
+- [x] **V2.1 Foundations** — Monorepo Turborepo/npm workspaces, TypeScript
+  strict compartilhado, apps `api/web/worker`, packages `config/contracts/db/ui`,
+  ADRs base e smoke `test:v21-foundations`.
+- [x] **V2.2-V2.4 Domain/API/Auth** — Contratos, API health, SQLite/Drizzle,
+  auth local e shell autenticado.
 - [x] **V2.5 Sender runtime** — Fila duravel, DLQ, envio real WhatsApp de texto,
   voz nativa, documento, imagem, video, album e `campaign_step`, com allowlist,
   auditoria, external id e guardas contra destino errado.
@@ -75,6 +78,10 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 
 ## Evidencias Recentes
 
+- **2026-05-07 / V2.1 fechado 100%:** criado `npm run test:v21-foundations`
+  para validar workspaces, scripts raiz, Turbo tasks, aliases TS, ADRs e
+  arquivos-base dos apps/packages. Evidencia esperada:
+  `v21-foundations|workspaces=7|rootFiles=10|aliases=8|status=closed`.
 - **2026-05-06 / M30.3 aberto:** batch
   `campaign:40:recipient:298:24h:1778093175183`, jobs `267..271`, completou com
   `navigationMode=reused-open-chat`, audio nativo `37s`, album `4/4`,

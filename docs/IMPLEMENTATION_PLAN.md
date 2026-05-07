@@ -18,6 +18,26 @@ tela `/implementation` consome.
 | --- | --- | --- | --- | --- |
 | 1 | Remarketing em lote real | proximo condicional | liberado apos M30.3 | Rodada em lote com os mesmos guardas de contexto real e allowlist/cutover. |
 
+## V2.1 Foundations Fechado
+
+**Resultado:** fechado 100% em 2026-05-07.
+
+**Escopo consolidado:**
+
+- Monorepo Turborepo com npm workspaces `apps/*` e `packages/*`.
+- Apps base: `api`, `web`, `worker`.
+- Packages base: `config`, `contracts`, `db`, `ui`.
+- TypeScript strict compartilhado em `tsconfig.base.json`.
+- Aliases `@nuoma/*` para apps/packages fundamentais.
+- ADRs de stack, estrutura, feature folders e SQLite/Drizzle.
+- Smoke oficial: `npm run test:v21-foundations`.
+
+**Criterio de aceite cumprido:**
+
+- `npm run test:v21-foundations`.
+- `npm run typecheck`.
+- `npm run lint`.
+
 ## M30.3 Hotfix Fechado
 
 **Problema:** a rodada real da automacao Neferpeel BH confirmou inbound recente
