@@ -21,6 +21,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Textarea,
   useToast,
 } from "@nuoma/ui";
 
@@ -29,6 +30,10 @@ import { CampaignFlowBuilder } from "../flow-builder/FlowBuilder.js";
 
 type CampaignTickResult = inferRouterOutputs<AppRouter>["campaigns"]["tick"];
 type CampaignReadyReport = inferRouterOutputs<AppRouter>["campaigns"]["ready"];
+type RemarketingBatchReadyReport =
+  inferRouterOutputs<AppRouter>["campaigns"]["remarketingBatchReady"];
+type RemarketingBatchDispatchResult =
+  inferRouterOutputs<AppRouter>["campaigns"]["remarketingBatchDispatch"];
 type CampaignListItem = inferRouterOutputs<AppRouter>["campaigns"]["list"]["campaigns"][number];
 type CampaignRecipientItem = CampaignListItem["recipients"][number];
 
@@ -36,8 +41,12 @@ export function CampaignsPage() {
   const campaigns = trpc.campaigns.list.useQuery();
   const utils = trpc.useUtils();
   const [lastTick, setLastTick] = useState<CampaignTickResult | null>(null);
-  const [safeCampaignId, setSafeCampaignId] = useState<string>("");
+  const [lastBatchDispatch, setLastBatchDispatch] =
+    useState<RemarketingBatchDispatchResult | null>(null);
+  const [safeCampaignId, setSafeCampaignId] = useState<string>(() => initialCampaignIdFromUrl());
   const [safeConfirm, setSafeConfirm] = useState("");
+  const [safeBatchPhones, setSafeBatchPhones] = useState("");
+  const [safeBatchConfirm, setSafeBatchConfirm] = useState("");
   const toast = useToast();
   const intent = usePageIntent();
   const selectedSafeCampaignId = useMemo(() => {
@@ -52,6 +61,36 @@ export function CampaignsPage() {
       retry: false,
     },
   );
+  const batchReady = trpc.campaigns.remarketingBatchReady.useMutation({
+    onSuccess(result) {
+      setSafeBatchConfirm("");
+      toast.push({
+        title: result.canDispatch ? "Lote pronto" : "Lote bloqueado",
+        description: result.canDispatch
+          ? `${result.summary.acceptedRecipients} recipient(s), ${result.summary.plannedJobs} job(s) previstos.`
+          : `${result.issues.filter((issue) => issue.severity === "error").length} bloqueio(s) no lote.`,
+        variant: result.canDispatch ? "success" : "warning",
+      });
+    },
+    onError(error) {
+      toast.push({ title: "Falha ao validar lote", description: error.message, variant: "danger" });
+    },
+  });
+  const batchDispatch = trpc.campaigns.remarketingBatchDispatch.useMutation({
+    async onSuccess(result) {
+      setLastBatchDispatch(result);
+      setSafeBatchConfirm("");
+      await utils.campaigns.list.invalidate();
+      toast.push({
+        title: "Lote enfileirado",
+        description: `${result.recipientsCreated} recipient(s), ${result.scheduler.jobsCreated} job(s) criados.`,
+        variant: "success",
+      });
+    },
+    onError(error) {
+      toast.push({ title: "Falha no lote real", description: error.message, variant: "danger" });
+    },
+  });
   const tick = trpc.campaigns.tick.useMutation({
     onSuccess(result) {
       setLastTick(result);
@@ -126,6 +165,23 @@ export function CampaignsPage() {
     tick.mutate({ dryRun: false, campaignId: selectedSafeCampaignId });
     setSafeConfirm("");
   };
+  const runBatchReady = () => {
+    if (!selectedSafeCampaignId) return;
+    batchReady.mutate({
+      campaignId: selectedSafeCampaignId,
+      rawPhones: safeBatchPhones,
+      allowedPhone: "5531982066263",
+    });
+  };
+  const runBatchDispatch = () => {
+    if (!selectedSafeCampaignId || !batchReady.data?.canDispatch) return;
+    batchDispatch.mutate({
+      campaignId: selectedSafeCampaignId,
+      rawPhones: safeBatchPhones,
+      allowedPhone: "5531982066263",
+      confirmText: safeBatchConfirm,
+    });
+  };
 
   return (
     <div className="flex flex-col gap-7 max-w-5xl mx-auto pt-2">
@@ -173,11 +229,22 @@ export function CampaignsPage() {
         readiness={readiness.data ?? null}
         loadingReady={readiness.isFetching}
         readyError={readiness.error?.message ?? null}
+        batchPhones={safeBatchPhones}
+        onBatchPhonesChange={setSafeBatchPhones}
+        batchConfirmation={safeBatchConfirm}
+        onBatchConfirmationChange={setSafeBatchConfirm}
+        batchReady={batchReady.data ?? null}
+        batchReadyPending={batchReady.isPending}
+        batchReadyError={batchReady.error?.message ?? null}
+        batchDispatchPending={batchDispatch.isPending}
+        lastBatchDispatch={lastBatchDispatch}
         enqueuePending={
           selectedSafeCampaignId ? isCampaignTickPending(selectedSafeCampaignId, false) : false
         }
         onReady={runSafeReady}
         onEnqueue={runSafeEnqueue}
+        onBatchReady={runBatchReady}
+        onBatchDispatch={runBatchDispatch}
       />
 
       {intent === "enqueue" && (
@@ -447,9 +514,20 @@ function SafeRemarketingConsole({
   readiness,
   loadingReady,
   readyError,
+  batchPhones,
+  onBatchPhonesChange,
+  batchConfirmation,
+  onBatchConfirmationChange,
+  batchReady,
+  batchReadyPending,
+  batchReadyError,
+  batchDispatchPending,
+  lastBatchDispatch,
   enqueuePending,
   onReady,
   onEnqueue,
+  onBatchReady,
+  onBatchDispatch,
 }: {
   campaigns: CampaignListItem[];
   selectedCampaignId: number | null;
@@ -460,11 +538,25 @@ function SafeRemarketingConsole({
   readiness: CampaignReadyReport | null;
   loadingReady: boolean;
   readyError: string | null;
+  batchPhones: string;
+  onBatchPhonesChange: (value: string) => void;
+  batchConfirmation: string;
+  onBatchConfirmationChange: (value: string) => void;
+  batchReady: RemarketingBatchReadyReport | null;
+  batchReadyPending: boolean;
+  batchReadyError: string | null;
+  batchDispatchPending: boolean;
+  lastBatchDispatch: RemarketingBatchDispatchResult | null;
   enqueuePending: boolean;
   onReady: () => void;
   onEnqueue: () => void;
+  onBatchReady: () => void;
+  onBatchDispatch: () => void;
 }) {
   const canConfirm = Boolean(readiness?.canEnqueue && confirmation === readiness.confirmText);
+  const canConfirmBatch = Boolean(
+    batchReady?.canDispatch && batchConfirmation === batchReady.confirmText,
+  );
   const selected =
     campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? campaigns[0] ?? null;
   return (
@@ -585,6 +677,142 @@ function SafeRemarketingConsole({
               </div>
             </div>
           )}
+
+          <div
+            className="grid gap-3 rounded-lg bg-bg-deep p-3 shadow-pressed-sm"
+            data-testid="safe-batch-dispatch-panel"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="font-mono text-[0.62rem] uppercase tracking-widest text-fg-dim">
+                  Lote real
+                </div>
+                <div className="mt-0.5 text-xs text-fg-muted">
+                  Valida allowlist, lote inteiro e temporaryMessages 24h/90d antes de criar jobs.
+                </div>
+              </div>
+              <Badge variant={batchReady?.canDispatch ? "success" : "warning"}>
+                {batchReady?.canDispatch ? "lote pronto" : "V2.10.36"}
+              </Badge>
+            </div>
+            <Textarea
+              rows={4}
+              monospace
+              value={batchPhones}
+              placeholder="5531982066263"
+              data-testid="safe-batch-phones-input"
+              onChange={(event) => onBatchPhonesChange(event.target.value)}
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="accent"
+                size="sm"
+                loading={batchReadyPending}
+                disabled={!selectedCampaignId || batchPhones.trim().length === 0}
+                data-testid="safe-batch-ready-button"
+                onClick={onBatchReady}
+              >
+                Validar lote
+              </Button>
+              <Button
+                variant="soft"
+                size="sm"
+                loading={batchDispatchPending}
+                disabled={!canConfirmBatch}
+                data-testid="safe-batch-dispatch-button"
+                onClick={onBatchDispatch}
+              >
+                Disparar lote real
+              </Button>
+            </div>
+            {batchReadyError && <div className="text-xs text-semantic-danger">{batchReadyError}</div>}
+            {batchReady && (
+              <div
+                className="grid gap-3"
+                data-testid="safe-batch-report"
+                data-can-dispatch={batchReady.canDispatch}
+                data-accepted={batchReady.summary.acceptedRecipients}
+                data-planned-jobs={batchReady.summary.plannedJobs}
+              >
+                <div className="grid gap-2 sm:grid-cols-6">
+                  <CampaignMetric label="cand." value={batchReady.summary.candidates} />
+                  <CampaignMetric label="aceitos" value={batchReady.summary.acceptedRecipients} />
+                  <CampaignMetric label="rejeit." value={batchReady.summary.rejectedRecipients} />
+                  <CampaignMetric label="jobs" value={batchReady.summary.plannedJobs} />
+                  <CampaignMetric label="policy" value={batchReady.summary.policyMode} />
+                  <CampaignMetric
+                    label="temp"
+                    value={
+                      batchReady.temporaryMessages.enabled
+                        ? `${batchReady.temporaryMessages.beforeSendDuration}/${batchReady.temporaryMessages.afterCompletionDuration}`
+                        : "off"
+                    }
+                  />
+                </div>
+                <ul className="grid max-h-40 gap-1 overflow-y-auto rounded-lg bg-bg-base p-2 shadow-pressed-sm">
+                  {batchReady.issues.map((issue) => (
+                    <li
+                      key={`${issue.severity}-${issue.code}-${issue.count ?? 0}`}
+                      className="grid gap-1 rounded-md bg-bg-deep px-3 py-2 text-xs shadow-flat sm:grid-cols-[6rem_1fr_auto]"
+                    >
+                      <Badge
+                        variant={
+                          issue.severity === "error"
+                            ? "danger"
+                            : issue.severity === "warning"
+                              ? "warning"
+                              : "neutral"
+                        }
+                      >
+                        {issue.severity}
+                      </Badge>
+                      <span className="text-fg-muted">{issue.message}</span>
+                      <span className="font-mono text-fg-dim">{issue.count ?? issue.code}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="grid gap-2 rounded-lg bg-bg-base p-2 shadow-pressed-sm md:grid-cols-[minmax(0,1fr)_16rem]">
+                  <div className="grid gap-1">
+                    {batchReady.rejected.slice(0, 4).map((item) => (
+                      <div
+                        key={`${item.source}-${item.value}-${item.reason}`}
+                        className="truncate rounded-md bg-bg-deep px-3 py-2 font-mono text-[0.7rem] text-fg-dim"
+                      >
+                        {item.source}:{item.value} · {item.reason}
+                      </div>
+                    ))}
+                    {batchReady.rejected.length === 0 && (
+                      <div className="rounded-md bg-bg-deep px-3 py-2 text-xs text-fg-muted">
+                        Nenhum rejeitado no lote.
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid content-start gap-2">
+                    <Input
+                      monospace
+                      value={batchConfirmation}
+                      placeholder={batchReady.confirmText}
+                      disabled={!batchReady.canDispatch}
+                      data-testid="safe-batch-confirm-input"
+                      onChange={(event) => onBatchConfirmationChange(event.target.value)}
+                    />
+                    <div className="px-1 text-xs text-fg-muted">
+                      Digite {batchReady.confirmText} para liberar o lote real.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            {lastBatchDispatch && (
+              <div
+                className="rounded-lg bg-bg-base px-3 py-2 text-xs text-fg-muted shadow-flat"
+                data-testid="safe-batch-last-dispatch"
+              >
+                lote {lastBatchDispatch.batchDispatchId} · recipients{" "}
+                {lastBatchDispatch.recipientsCreated} · jobs {lastBatchDispatch.scheduler.jobsCreated}
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
     </Animate>
@@ -596,6 +824,13 @@ function usePageIntent() {
     if (typeof window === "undefined") return null;
     return new URLSearchParams(window.location.search).get("intent");
   }, []);
+}
+
+function initialCampaignIdFromUrl() {
+  if (typeof window === "undefined") return "";
+  const value = new URLSearchParams(window.location.search).get("campaignId");
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? String(parsed) : "";
 }
 
 function Metric({ label, value }: { label: string; value: number }) {

@@ -10,8 +10,7 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 - **M principais:** 37 marcadores, de `M0` ate `M36`.
 - **M/sub-M conhecidos:** 106 IDs quando contamos `M0.1`, `M35.2`, etc.
 - **Pendencia aberta:** nenhuma hotfix corretiva aberta apos o fechamento de
-  `M30.3`; V2.13-V2.15 estao implementados. Remarketing em lote real segue
-  como proximo item condicional.
+  `M30.3`; V2.13-V2.15 e remarketing em lote real estao implementados.
 - **Politica de smoke real:** todo envio real deve confirmar destino/canal e
   anexar evidencia visual. Quando for WhatsApp-only, registrar `IG nao_aplicavel`.
 
@@ -71,6 +70,10 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 - [x] **Remarketing seguro** — Console de disparo com dry-run forte, confirmacao
   textual, guardrails por telefone/status/canal/allowlist/supressao/duplicidade,
   fila serial por telefone e eventos `sender.campaign_step.started|failed|completed`.
+- [x] **Remarketing em lote real** — Console aceita lote de telefones, valida
+  lote inteiro antes de criar recipients/jobs, bloqueia lote parcial, exige
+  allowlist e `temporaryMessages` M30.3 `24h/90d`, e registra evento
+  `campaign.remarketing_batch.dispatched` com `executionMode=whatsapp_real`.
 - [x] **M30.3 Contexto real 24h no WhatsApp** — Worker CDP abre/reusa o chat
   correto, aplica/verifica mensagens temporarias 24h antes do primeiro step,
   bloqueia envio quando nao consegue provar o estado, mantem a janela nos steps
@@ -84,8 +87,8 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 
 ## Falta
 
-- [ ] **Remarketing em lote real** — Proximo item condicional apos M30.3; deve
-  reutilizar os guardas reais de contexto temporario, allowlist e auditoria.
+Nenhuma pendencia operacional `V2.*` aberta neste checkpoint. Instagram/DM
+segue fora do fluxo cotidiano ate iniciativa explicita.
 
 ## Evidencias Recentes
 
@@ -108,6 +111,14 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
   `chatbots.evaluateMessage` + `chatbots.executionHistory` para persistir
   historico por mensagem sem criar job. Evidencia:
   `npm run test:v210-hardening`.
+- **2026-05-07 / Remarketing em lote real fechado:** adicionados
+  `campaigns.remarketingBatchReady` e `campaigns.remarketingBatchDispatch`,
+  painel `V2.10.36` na tela de campanhas, confirmacao `DISPARAR LOTE <n>`,
+  bloqueio de telefone rejeitado/duplicado/fora da allowlist e exigencia de
+  `temporaryMessages` `24h/90d`. Evidencias:
+  `npm run test:v210-remarketing-batch-real`, `npm run test:v2-screen-smoke`
+  e prints em
+  `data/v2-screen-smoke-2026-05-07T05-29-30-647Z/REPORT.md`.
 - **2026-05-07 / V2.11 fechado 100%:** `npm run test:v211-overlay-suite`
   passou unit/FAB/painel/telefone/API no WhatsApp real. Evidencias principais:
   `v211-overlay-phone|wppPhone=5531982066263|wppSource=title-conversation|sendJobsDelta=0|m=34`

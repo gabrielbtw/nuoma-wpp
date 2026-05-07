@@ -2402,4 +2402,201 @@ describe("api health", () => {
       await fs.rm(tempDir, { recursive: true, force: true });
     }
   });
+
+  it("guards and dispatches V2.10 real remarketing batches", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "nuoma-v2-api-remarketing-batch-"));
+    const db = openDb(path.join(tempDir, "api.db"));
+    await runMigrations(db);
+    const repos = createRepositories(db);
+    const passwordHash = await argon2.hash("initial-password-123", { type: argon2.argon2id });
+    const user = await repos.users.create({
+      email: "admin@nuoma.local",
+      passwordHash,
+      role: "admin",
+      displayName: "Admin",
+    });
+    const campaign = await repos.campaigns.create({
+      userId: user.id,
+      name: "V2.10 Remarketing Lote Real",
+      channel: "whatsapp",
+      status: "draft",
+      evergreen: false,
+      startsAt: null,
+      segment: null,
+      steps: [
+        {
+          id: "intro",
+          label: "Intro",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Intro {{telefone}}",
+        },
+        {
+          id: "close",
+          label: "Fechamento",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Fechamento {{telefone}}",
+        },
+      ],
+      metadata: {
+        temporaryMessages: {
+          enabled: true,
+          beforeSendDuration: "24h",
+          afterCompletionDuration: "90d",
+          restoreOnFailure: true,
+        },
+      },
+    });
+    const app = await buildApiApp({
+      env: loadApiEnv({
+        API_LOG_LEVEL: "silent",
+        NODE_ENV: "test",
+        API_JWT_SECRET: "test-secret-with-more-than-16-chars",
+        DATABASE_URL: path.join(tempDir, "api.db"),
+      }),
+      db,
+      migrate: false,
+    });
+
+    try {
+      const login = await trpcCall<{ csrfToken: string }>(app, "POST", "auth.login", {
+        email: "admin@nuoma.local",
+        password: "initial-password-123",
+      });
+      const cookies = cookieHeader(login.setCookie);
+      const csrfToken = login.data!.csrfToken;
+
+      const blocked = await trpcCall<{
+        canDispatch: boolean;
+        rejected: Array<{ reason: string }>;
+        issues: Array<{ code: string; severity: string; count?: number }>;
+      }>(
+        app,
+        "POST",
+        "campaigns.remarketingBatchReady",
+        {
+          campaignId: campaign.id,
+          rawPhones: "5531982066263\n5531999999999",
+          allowedPhone: "5531982066263",
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(blocked.statusCode, JSON.stringify(blocked.error)).toBe(200);
+      expect(blocked.data?.canDispatch).toBe(false);
+      expect(blocked.data?.rejected).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ reason: "not_allowlisted_for_test_execution" }),
+        ]),
+      );
+      expect(blocked.data?.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: "batch_has_rejections", severity: "error" }),
+        ]),
+      );
+
+      const ready = await trpcCall<{
+        canDispatch: boolean;
+        confirmText: string;
+        summary: {
+          acceptedRecipients: number;
+          plannedJobs: number;
+          activeCampaignStepJobs: number;
+          activeRecipients: number;
+        };
+        temporaryMessages: {
+          enabled: boolean;
+          beforeSendDuration: string | null;
+          afterCompletionDuration: string | null;
+        };
+      }>(
+        app,
+        "POST",
+        "campaigns.remarketingBatchReady",
+        {
+          campaignId: campaign.id,
+          rawPhones: "5531982066263",
+          allowedPhone: "5531982066263",
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(ready.statusCode, JSON.stringify(ready.error)).toBe(200);
+      expect(ready.data).toMatchObject({
+        canDispatch: true,
+        confirmText: "DISPARAR LOTE 1",
+        summary: {
+          acceptedRecipients: 1,
+          plannedJobs: 2,
+          activeCampaignStepJobs: 0,
+          activeRecipients: 0,
+        },
+        temporaryMessages: {
+          enabled: true,
+          beforeSendDuration: "24h",
+          afterCompletionDuration: "90d",
+        },
+      });
+
+      const dispatch = await trpcCall<{
+        batchDispatchId: string;
+        recipientsCreated: number;
+        scheduler: { jobsCreated: number; plannedJobs: Array<{ phone: string }> };
+      }>(
+        app,
+        "POST",
+        "campaigns.remarketingBatchDispatch",
+        {
+          campaignId: campaign.id,
+          rawPhones: "5531982066263",
+          allowedPhone: "5531982066263",
+          confirmText: ready.data!.confirmText,
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(dispatch.statusCode, JSON.stringify(dispatch.error)).toBe(200);
+      expect(dispatch.data).toMatchObject({
+        batchDispatchId: expect.stringContaining(`remarketing:${campaign.id}:`),
+        recipientsCreated: 1,
+        scheduler: {
+          jobsCreated: 2,
+          plannedJobs: expect.arrayContaining([
+            expect.objectContaining({ phone: "5531982066263" }),
+          ]),
+        },
+      });
+
+      const jobs = await repos.jobs.list(user.id, "queued");
+      expect(jobs).toHaveLength(2);
+      expect(jobs.map((job) => job.payload.temporaryMessages)).toEqual([
+        expect.objectContaining({ beforeSendDuration: "24h", afterCompletionDuration: "90d" }),
+        expect.objectContaining({ beforeSendDuration: "24h", afterCompletionDuration: "90d" }),
+      ]);
+      const events = await repos.systemEvents.list({ userId: user.id, limit: 10 });
+      expect(events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: "campaign.remarketing_batch.dispatched",
+            severity: "info",
+            payload: expect.objectContaining({
+              campaignId: campaign.id,
+              executionMode: "whatsapp_real",
+              recipientsCreated: 1,
+              jobsCreated: 2,
+              guardrails: expect.objectContaining({
+                allowlist: true,
+                temporaryMessagesM303: true,
+                partialBatchBlocked: true,
+              }),
+            }),
+          }),
+        ]),
+      );
+    } finally {
+      await app.close();
+      db.close();
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
 });

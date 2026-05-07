@@ -1,10 +1,12 @@
 import {
+  campaignTemporaryMessagesConfigSchema,
   createCampaignInputSchema,
   updateCampaignInputSchema,
   type Campaign,
   type ChannelType,
   type Contact,
 } from "@nuoma/contracts";
+import type { Repositories } from "@nuoma/db";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
@@ -53,6 +55,17 @@ const readyCampaignBodySchema = z.object({
   campaignId: z.number().int().positive(),
   maxRecipients: z.number().int().min(1).max(500).default(250),
 });
+const remarketingBatchBaseBodySchema = z.object({
+  campaignId: z.number().int().positive(),
+  rawPhones: z.string().max(20_000).default(""),
+  phones: z.array(z.string().min(8)).default([]),
+  contactIds: z.array(z.number().int().positive()).default([]),
+  allowedPhone: z.string().min(8).optional(),
+  maxRecipients: z.number().int().min(1).max(500).default(100),
+});
+const remarketingBatchDispatchBodySchema = remarketingBatchBaseBodySchema.extend({
+  confirmText: z.string().trim().min(1),
+});
 
 interface CampaignExecuteCandidate {
   contactId: number | null;
@@ -61,6 +74,49 @@ interface CampaignExecuteCandidate {
 }
 
 type ReadinessSeverity = "info" | "warning" | "error";
+type RemarketingBatchIssue = {
+  code: string;
+  severity: ReadinessSeverity;
+  message: string;
+  count?: number;
+};
+type RemarketingBatchCandidate = {
+  contactId: number | null;
+  phone: string;
+  source: "contact" | "phone";
+  value: string | number;
+};
+type RemarketingBatchRejected = {
+  source: "contact" | "phone";
+  value: string | number;
+  reason: string;
+};
+type RemarketingBatchPlan = {
+  campaign: Campaign;
+  generatedAt: string;
+  canDispatch: boolean;
+  confirmText: string;
+  temporaryMessages: {
+    enabled: boolean;
+    beforeSendDuration: string | null;
+    afterCompletionDuration: string | null;
+    restoreOnFailure: boolean | null;
+  };
+  summary: {
+    candidates: number;
+    acceptedRecipients: number;
+    rejectedRecipients: number;
+    plannedJobs: number;
+    steps: number;
+    policyMode: string;
+    allowedPhones: number;
+    activeCampaignStepJobs: number;
+    activeRecipients: number;
+  };
+  accepted: RemarketingBatchCandidate[];
+  rejected: RemarketingBatchRejected[];
+  issues: RemarketingBatchIssue[];
+};
 
 export const campaignsRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -180,6 +236,147 @@ export const campaignsRouter = router({
 
     return report;
   }),
+
+  remarketingBatchReady: protectedCsrfProcedure
+    .input(remarketingBatchBaseBodySchema)
+    .mutation(async ({ ctx, input }) => {
+      return buildRemarketingBatchPlan({
+        repos: ctx.repos,
+        env: ctx.env,
+        userId: ctx.user.id,
+        input,
+      });
+    }),
+
+  remarketingBatchDispatch: protectedCsrfProcedure
+    .input(remarketingBatchDispatchBodySchema)
+    .mutation(async ({ ctx, input }) => {
+      const plan = await buildRemarketingBatchPlan({
+        repos: ctx.repos,
+        env: ctx.env,
+        userId: ctx.user.id,
+        input,
+      });
+      if (input.confirmText !== plan.confirmText) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Confirmação inválida. Digite ${plan.confirmText}.`,
+        });
+      }
+      if (!plan.canDispatch) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Lote bloqueado: ${plan.issues
+            .filter((issue) => issue.severity === "error")
+            .map((issue) => issue.code)
+            .join(", ")}`,
+        });
+      }
+
+      const now = new Date();
+      const nowIso = now.toISOString();
+      const batchDispatchId = `remarketing:${plan.campaign.id}:${now.getTime()}`;
+      const updatedCampaign = await ctx.repos.campaigns.update({
+        id: plan.campaign.id,
+        userId: ctx.user.id,
+        status: "running",
+        startsAt: plan.campaign.startsAt ?? nowIso,
+        metadata: {
+          ...plan.campaign.metadata,
+          lastRemarketingBatch: {
+            id: batchDispatchId,
+            at: nowIso,
+            byUserId: ctx.user.id,
+            recipientsAccepted: plan.accepted.length,
+            rejectedRecipients: plan.rejected.length,
+            temporaryMessages: plan.temporaryMessages,
+          },
+        },
+      });
+      if (!updatedCampaign) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Campaign update failed" });
+      }
+
+      let recipientsCreated = 0;
+      for (const candidate of plan.accepted) {
+        await ctx.repos.campaignRecipients.create({
+          userId: ctx.user.id,
+          campaignId: plan.campaign.id,
+          contactId: candidate.contactId,
+          phone: candidate.phone,
+          channel: plan.campaign.channel,
+          status: "queued",
+          currentStepId: null,
+          lastError: null,
+          metadata: {
+            source: "campaigns.remarketing_batch",
+            batchDispatchId,
+            candidateSource: candidate.source,
+            variables: {
+              telefone: candidate.phone,
+              phone: candidate.phone,
+            },
+          },
+        });
+        recipientsCreated += 1;
+      }
+
+      const scheduler = await runCampaignSchedulerTick({
+        repos: ctx.repos,
+        userId: ctx.user.id,
+        ownerId: `api:${ctx.user.id}:campaigns.remarketing_batch`,
+        campaignId: plan.campaign.id,
+        limit: plan.accepted.length,
+        dryRun: false,
+      });
+
+      await ctx.repos.systemEvents.create({
+        userId: ctx.user.id,
+        type: "campaign.remarketing_batch.dispatched",
+        severity: "info",
+        payload: JSON.stringify({
+          campaignId: plan.campaign.id,
+          batchDispatchId,
+          recipientsCreated,
+          rejectedRecipients: plan.rejected.length,
+          jobsCreated: scheduler.jobsCreated,
+          plannedJobs: scheduler.plannedJobs.length,
+          temporaryMessages: plan.temporaryMessages,
+          executionMode: "whatsapp_real",
+          guardrails: {
+            allowlist: true,
+            temporaryMessagesM303: true,
+            activeJobsBlocked: true,
+            partialBatchBlocked: true,
+          },
+        }),
+      });
+      await ctx.repos.auditLogs.create({
+        userId: ctx.user.id,
+        actorUserId: ctx.user.id,
+        action: "campaigns.remarketing_batch.dispatch",
+        targetTable: "campaigns",
+        targetId: plan.campaign.id,
+        after: JSON.stringify({
+          batchDispatchId,
+          recipientsCreated,
+          rejected: plan.rejected,
+          scheduler,
+        }),
+        ipAddress: ctx.req.ip,
+        userAgent: ctx.req.headers["user-agent"] ?? null,
+      });
+
+      return {
+        dryRun: false,
+        campaign: updatedCampaign,
+        batchDispatchId,
+        recipientsCreated,
+        rejected: plan.rejected,
+        scheduler,
+        guardrails: plan.summary,
+      };
+    }),
 
   listForConversation: protectedProcedure
     .input(listForConversationInputSchema)
@@ -808,6 +1005,262 @@ function buildCampaignReadinessReport(input: {
     },
     issues,
     scheduler: input.scheduler,
+  };
+}
+
+async function buildRemarketingBatchPlan(input: {
+  repos: Repositories;
+  env: Parameters<typeof resolveApiSendPolicy>[0];
+  userId: number;
+  input: z.infer<typeof remarketingBatchBaseBodySchema>;
+}): Promise<RemarketingBatchPlan> {
+  const campaign = await input.repos.campaigns.findById({
+    userId: input.userId,
+    id: input.input.campaignId,
+  });
+  if (!campaign) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found" });
+  }
+
+  const sendPolicy = resolveApiSendPolicy(input.env, [
+    normalizeClientAllowedPhoneOverride(input.input.allowedPhone),
+  ]);
+  const existingRecipients = await input.repos.campaignRecipients.listByCampaign({
+    userId: input.userId,
+    campaignId: campaign.id,
+    limit: 10_000,
+  });
+  const activeRecipients = existingRecipients.filter(
+    (recipient) => recipient.status === "queued" || recipient.status === "running",
+  );
+  const activeCampaignStepJobs = (await input.repos.jobs.list(input.userId)).filter(
+    (job) =>
+      job.type === "campaign_step" &&
+      (job.status === "queued" || job.status === "claimed" || job.status === "running"),
+  ).length;
+  const { accepted, candidates, rejected } = await collectRemarketingBatchCandidates({
+    repos: input.repos,
+    userId: input.userId,
+    batch: input.input,
+    existingRecipients,
+    sendPolicy,
+  });
+  const issues = remarketingBatchIssues({
+    campaign,
+    sendPolicy,
+    activeCampaignStepJobs,
+    activeRecipients: activeRecipients.length,
+    candidates: candidates.length,
+    accepted: accepted.length,
+    rejected,
+  });
+  const errors = issues.filter((issue) => issue.severity === "error").length;
+  const temporaryMessages = temporaryMessagesSummary(campaign);
+
+  return {
+    campaign,
+    generatedAt: new Date().toISOString(),
+    canDispatch: errors === 0,
+    confirmText: `DISPARAR LOTE ${accepted.length}`,
+    temporaryMessages,
+    summary: {
+      candidates: candidates.length,
+      acceptedRecipients: accepted.length,
+      rejectedRecipients: rejected.length,
+      plannedJobs: accepted.length * campaign.steps.length,
+      steps: campaign.steps.length,
+      policyMode: sendPolicy.mode,
+      allowedPhones: sendPolicy.allowedPhones.length,
+      activeCampaignStepJobs,
+      activeRecipients: activeRecipients.length,
+    },
+    accepted,
+    rejected,
+    issues,
+  };
+}
+
+async function collectRemarketingBatchCandidates(input: {
+  repos: Repositories;
+  userId: number;
+  batch: z.infer<typeof remarketingBatchBaseBodySchema>;
+  existingRecipients: Array<{ contactId: number | null; phone: string | null }>;
+  sendPolicy: ReturnType<typeof resolveApiSendPolicy>;
+}): Promise<{
+  candidates: RemarketingBatchCandidate[];
+  accepted: RemarketingBatchCandidate[];
+  rejected: RemarketingBatchRejected[];
+}> {
+  const candidates: RemarketingBatchCandidate[] = [];
+  const rejected: RemarketingBatchRejected[] = [];
+  for (const contactId of input.batch.contactIds.slice(0, input.batch.maxRecipients)) {
+    const contact = await input.repos.contacts.findById(contactId);
+    if (!contact || contact.userId !== input.userId) {
+      rejected.push({ source: "contact", value: contactId, reason: "not_found" });
+      continue;
+    }
+    if (!isContactRemarketingAllowed(contact)) {
+      rejected.push({
+        source: "contact",
+        value: contactId,
+        reason: `contact_${contact.status}_suppressed`,
+      });
+      continue;
+    }
+    const phone = normalizePhone(contact.phone);
+    if (!phone) {
+      rejected.push({ source: "contact", value: contactId, reason: "missing_phone" });
+      continue;
+    }
+    candidates.push({ contactId: contact.id, phone, source: "contact", value: contact.id });
+  }
+
+  for (const rawPhone of [
+    ...splitRemarketingPhones(input.batch.rawPhones),
+    ...input.batch.phones,
+  ].slice(0, input.batch.maxRecipients)) {
+    const phone = normalizePhone(rawPhone);
+    if (!phone) {
+      rejected.push({ source: "phone", value: rawPhone, reason: "invalid_phone" });
+      continue;
+    }
+    candidates.push({ contactId: null, phone, source: "phone", value: rawPhone });
+  }
+
+  const existingKeys = new Set(
+    input.existingRecipients.map((recipient) =>
+      recipient.contactId
+        ? `contact:${recipient.contactId}`
+        : `phone:${normalizePhone(recipient.phone)}`,
+    ),
+  );
+  const seen = new Set<string>();
+  const accepted: RemarketingBatchCandidate[] = [];
+  for (const candidate of candidates) {
+    const key = candidate.contactId ? `contact:${candidate.contactId}` : `phone:${candidate.phone}`;
+    if (seen.has(key)) {
+      rejected.push({ source: candidate.source, value: candidate.value, reason: "duplicate_candidate" });
+      continue;
+    }
+    seen.add(key);
+    if (existingKeys.has(key)) {
+      rejected.push({ source: candidate.source, value: candidate.value, reason: "duplicate_recipient" });
+      continue;
+    }
+    const decision = evaluateApiRealSendTarget(input.sendPolicy, candidate.phone);
+    if (!decision.allowed) {
+      rejected.push({ source: candidate.source, value: candidate.value, reason: decision.reason });
+      continue;
+    }
+    accepted.push(candidate);
+  }
+  return { accepted, candidates, rejected };
+}
+
+function remarketingBatchIssues(input: {
+  campaign: Campaign;
+  sendPolicy: ReturnType<typeof resolveApiSendPolicy>;
+  activeCampaignStepJobs: number;
+  activeRecipients: number;
+  candidates: number;
+  accepted: number;
+  rejected: RemarketingBatchRejected[];
+}): RemarketingBatchIssue[] {
+  const issues: RemarketingBatchIssue[] = [];
+  const error = (code: string, message: string, count?: number) =>
+    issues.push({ code, severity: "error", message, ...(count !== undefined ? { count } : {}) });
+  const info = (code: string, message: string, count?: number) =>
+    issues.push({ code, severity: "info", message, ...(count !== undefined ? { count } : {}) });
+
+  if (!isCampaignRunnableForManualDispatch(input.campaign)) {
+    error(
+      "campaign_status_not_runnable",
+      `Campanha está em ${input.campaign.status}; lote real não dispara archived/completed.`,
+    );
+  }
+  if (input.campaign.channel !== "whatsapp") {
+    error("channel_not_supported", "Remarketing em lote real está liberado apenas para WhatsApp.");
+  }
+  if (input.campaign.steps.length === 0) {
+    error("campaign_without_steps", "Campanha não tem steps configurados.");
+  }
+  const emptyTextSteps = input.campaign.steps.filter(
+    (step) =>
+      (step.type === "text" && !step.template.trim()) ||
+      (step.type === "link" && !step.text.trim()),
+  );
+  if (emptyTextSteps.length > 0) {
+    error("empty_message_step", "Há step de texto/link sem mensagem útil.", emptyTextSteps.length);
+  }
+
+  const temporaryMessages = temporaryMessagesSummary(input.campaign);
+  if (
+    !temporaryMessages.enabled ||
+    temporaryMessages.beforeSendDuration !== "24h" ||
+    temporaryMessages.afterCompletionDuration !== "90d"
+  ) {
+    error(
+      "temporary_messages_m303_required",
+      "Lote real exige temporaryMessages 24h antes e restauração 90d após conclusão.",
+    );
+  }
+  if (input.sendPolicy.allowedPhones.length === 0) {
+    error("send_policy_allowlist_required", "Lote real exige allowlist explícita de telefone.");
+  }
+  if (input.sendPolicy.mode === "production" && input.sendPolicy.allowedPhones.length === 0) {
+    error("production_without_canary_allowlist", "Produção sem allowlist canária bloqueia lote real.");
+  }
+  if (input.activeCampaignStepJobs > 0) {
+    error(
+      "active_campaign_step_jobs",
+      "Há campaign_step queued/claimed/running; finalize ou limpe a fila antes do lote.",
+      input.activeCampaignStepJobs,
+    );
+  }
+  if (input.activeRecipients > 0) {
+    error(
+      "active_campaign_recipients",
+      "A campanha já tem recipients queued/running; use o enfileiramento seguro existente antes de novo lote.",
+      input.activeRecipients,
+    );
+  }
+  if (input.candidates === 0) {
+    error("empty_batch", "Informe ao menos um telefone ou contato para o lote.");
+  }
+  if (input.rejected.length > 0) {
+    error("batch_has_rejections", "Lote parcial bloqueado; corrija todos os rejeitados.", input.rejected.length);
+  }
+  if (input.accepted === 0) {
+    error("no_accepted_recipients", "Nenhum recipient aceito pelos guardrails.");
+  }
+  if (input.accepted > 0) {
+    info("accepted_recipients", "Recipients aceitos para enfileiramento real.", input.accepted);
+  }
+  return issues;
+}
+
+function splitRemarketingPhones(rawPhones: string): string[] {
+  return rawPhones
+    .split(/[\s,;]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function temporaryMessagesSummary(campaign: Campaign): RemarketingBatchPlan["temporaryMessages"] {
+  const parsed = campaignTemporaryMessagesConfigSchema.safeParse(campaign.metadata.temporaryMessages);
+  if (!parsed.success || !parsed.data.enabled) {
+    return {
+      enabled: false,
+      beforeSendDuration: null,
+      afterCompletionDuration: null,
+      restoreOnFailure: null,
+    };
+  }
+  return {
+    enabled: true,
+    beforeSendDuration: parsed.data.beforeSendDuration,
+    afterCompletionDuration: parsed.data.afterCompletionDuration,
+    restoreOnFailure: parsed.data.restoreOnFailure,
   };
 }
 

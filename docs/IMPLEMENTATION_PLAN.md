@@ -16,7 +16,7 @@ tela `/implementation` consome.
 
 | Ordem | ID | Tipo | Status | Entrega esperada |
 | --- | --- | --- | --- | --- |
-| 1 | Remarketing em lote real | proximo condicional | liberado apos M30.3 | Rodada em lote com os mesmos guardas de contexto real e allowlist/cutover. |
+| 1 | Nenhum V2.* operacional aberto | checkpoint | fechado | Manter smokes e abrir novo M/V2.x.y somente se surgir gap real. |
 
 ## V2.1 Foundations Fechado
 
@@ -54,10 +54,16 @@ tela `/implementation` consome.
   `system_events` sem criar job e registra exposicao A/B quando houver variante.
 - `chatbots.executionHistory` permite consultar historico por chatbot, regra,
   conversa ou mensagem.
+- `campaigns.remarketingBatchReady` e `campaigns.remarketingBatchDispatch`
+  fecham remarketing em lote real com validacao integral do lote, confirmacao
+  `DISPARAR LOTE <n>`, allowlist, bloqueio de jobs/recipients ativos e
+  `temporaryMessages` M30.3 `24h/90d`.
 
 **Criterio de aceite cumprido:**
 
 - `npm run test:v210-hardening`.
+- `npm run test:v210-remarketing-batch-real`.
+- `npm run test:v2-screen-smoke`.
 - `npm run typecheck`.
 
 ## V2.11 Overlay WhatsApp Fechado
@@ -214,8 +220,8 @@ aba unica nos steps seguintes e restaura 90d apos conclusao segura.
 
 | Ordem | Tema | Condicao para abrir |
 | --- | --- | --- |
-| 1 | Remarketing em lote real | Somente depois do M30.3 passar em smoke forte. |
-| 2 | Instagram/DM | Somente com iniciativa explicita; fora do fluxo cotidiano. |
+| 1 | Instagram/DM | Somente com iniciativa explicita; fora do fluxo cotidiano. |
+| 2 | Cutover real | Somente com comando operacional explicito e confirmacao forte. |
 
 ## Regras De Manutencao
 

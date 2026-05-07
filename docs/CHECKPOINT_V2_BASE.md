@@ -16,7 +16,8 @@ Escopo: este checkpoint considera somente o repo `nuoma-wpp-v2`.
 - `V2.9`: Inbox principal.
 - `V2.10`: campanhas, automações e chatbots fechados com auditoria
   materializada por recipient/job, historico de chatbot por mensagem e
-  historico A/B.
+  historico A/B. Remarketing em lote real fechado com allowlist, lote integral
+  sem envio parcial e `temporaryMessages` M30.3 `24h/90d`.
 - `V2.11.1` a `V2.11.7`: overlay WhatsApp fechado com FAB, painel,
   telefone por contato salvo/titulo, ponte `window.__nuomaApi` e smokes reais.
 - `V2.12`: remote rendering CDP minimo fechado com screenshot e input relay.
@@ -33,7 +34,7 @@ Escopo: este checkpoint considera somente o repo `nuoma-wpp-v2`.
 ## Fazer agora
 
 1. Proximo foco operacional:
-   - remarketing em lote real com os guardas M30.3;
+   - nenhum `V2.*` aberto neste checkpoint;
    - execucao real de cutover apenas quando houver comando explicito.
 
 ## Deixar para depois
