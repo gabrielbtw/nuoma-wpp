@@ -32,6 +32,7 @@ The web operations shell includes the first sync controls:
 Current directed milestone smokes:
 
 - `npm run test:v211-overlay-suite`
+- `npm run test:m38-chrome-extension`
 - `npm run test:v212-streaming-cdp`
 - `npm run test:v213-v215-suite`
 - `npm run test:v24-api-auth`
@@ -87,6 +88,7 @@ Worker defaults:
 - `apps/api`: HTTP runtime and API composition.
 - `apps/web`: React UI only.
 - `apps/worker`: WhatsApp Web browser runtime only.
+- `apps/chrome-extension`: MV3 companion local para overlay no Chrome do usuario.
 - `packages/contracts`: Zod contracts shared by apps.
 - `packages/db`: Drizzle schema, repositories and migrations.
 - `packages/config`: env parsing and constants.

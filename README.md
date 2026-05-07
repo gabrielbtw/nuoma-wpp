@@ -23,7 +23,8 @@ for QR again.
 Current gate: all core V2 tracks are implemented for the local/hosted
 WhatsApp-only flow. `M30.3` is closed with real WhatsApp 24h temporary-message
 proof, remarketing in real batch is closed, and cutover tooling is implemented
-behind explicit confirmation.
+behind explicit confirmation. `M38` adds an optional Chrome extension companion
+for the WhatsApp overlay without replacing the worker/CDP runtime.
 
 ## Versioning
 
@@ -36,8 +37,8 @@ behind explicit confirmation.
 
 Current counts from [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md):
 
-- `38` main M markers: `M0` through `M37`.
-- `107` total M/sub-M IDs when `M0.1`, `M35.2`, etc. are included.
+- `39` main M markers: `M0` through `M38`.
+- `108` total M/sub-M IDs when `M0.1`, `M35.2`, etc. are included.
 - `0` open corrective hotfixes after `M30.3` closure.
 
 ## Current Plan
@@ -54,7 +55,8 @@ nuoma-wpp-v2/
 ├── apps/
 │   ├── api/        # Fastify HTTP + REST + Drizzle
 │   ├── web/        # React 19 + Vite + Tailwind + Radix
-│   └── worker/     # Playwright + chrome-remote-interface (CDP observer)
+│   ├── worker/     # Playwright + chrome-remote-interface (CDP observer)
+│   └── chrome-extension/ # MV3 companion for WhatsApp Web overlay
 ├── packages/
 │   ├── contracts/  # Zod schemas shared between api ↔ web
 │   ├── db/         # Drizzle schema + repositories + migrations
@@ -80,6 +82,7 @@ nuoma-wpp-v2/
 | State (web)    | TanStack Query + React Router 7            | Client cache and typed routing                                        |
 | Logger         | Pino                                       | Structured logs                                                       |
 | Worker browser | Playwright + chrome-remote-interface       | Hybrid: Playwright drives navigation, CDP drives observers/screencast |
+| Chrome extension | Manifest V3 companion                    | Optional user Chrome overlay with local API bridge                    |
 | Auth           | Argon2id + JWT (httpOnly cookie) + refresh | Local auth with httpOnly sessions                                     |
 | Tests          | Vitest + Playwright E2E                    | Unit/integration plus browser smokes                                  |
 | Container      | Docker + docker-compose                    | Hosted target parity                                                  |

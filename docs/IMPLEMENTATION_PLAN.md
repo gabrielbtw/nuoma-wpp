@@ -18,6 +18,29 @@ tela `/implementation` consome.
 | --- | --- | --- | --- | --- |
 | 1 | Nenhum V2.* operacional aberto | checkpoint | fechado | Manter smokes e abrir novo M/V2.x.y somente se surgir gap real. |
 
+## M38 Chrome Extension Companion Fechado
+
+**Resultado:** fechado em 2026-05-07.
+
+**Escopo consolidado:**
+
+- Novo workspace `apps/chrome-extension` com Manifest V3, popup, background
+  service worker, content script e `page-bridge.js` gerado.
+- Content script injeta o overlay V2.11 no WhatsApp Web por recurso externo da
+  extensao, sem depender do Chromium controlado pelo worker.
+- Background usa `chrome.cookies` para ler `nuoma_access` local e chama
+  `/api/extension/overlay` com `Authorization: Bearer`.
+- API nova aceita `ping` e `contactSummary`, registra
+  `extension.overlay_api.request` e bloqueia metodos sensiveis para manter
+  mutacoes reais no worker/CDP.
+
+**Criterio de aceite cumprido:**
+
+- `npm run build:chrome-extension`.
+- `npm run test:m38-chrome-extension`.
+- `npm run typecheck`.
+- `npm run lint`.
+
 ## M37 Evidence Center Fechado
 
 **Resultado:** fechado em 2026-05-07.

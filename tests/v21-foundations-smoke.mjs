@@ -20,6 +20,11 @@ const requiredWorkspaces = [
   { dir: "apps/api", name: "@nuoma/api", files: ["src/app.ts", "src/index.ts", "src/router.ts"] },
   { dir: "apps/web", name: "@nuoma/web", files: ["src/main.tsx", "index.html", "vite.config.ts"] },
   { dir: "apps/worker", name: "@nuoma/worker", files: ["src/index.ts", "src/job-loop.ts"] },
+  {
+    dir: "apps/chrome-extension",
+    name: "@nuoma/chrome-extension",
+    files: ["src/manifest.ts", "src/content.ts", "src/background.ts"],
+  },
   { dir: "packages/config", name: "@nuoma/config", files: ["src/index.ts"] },
   { dir: "packages/contracts", name: "@nuoma/contracts", files: ["src/index.ts", "src/health.ts"] },
   { dir: "packages/db", name: "@nuoma/db", files: ["src/index.ts", "src/schema.ts", "src/migrate.ts", "drizzle.config.ts"] },

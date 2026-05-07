@@ -2305,6 +2305,165 @@ describe("api health", () => {
     }
   });
 
+  it("serves the M38 Chrome extension overlay bridge with bearer cookie auth", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "nuoma-v2-api-m38-extension-"));
+    const db = openDb(path.join(tempDir, "api.db"));
+    await runMigrations(db);
+    const repos = createRepositories(db);
+    const passwordHash = await argon2.hash("initial-password-123", { type: argon2.argon2id });
+    const user = await repos.users.create({
+      email: "admin@nuoma.local",
+      passwordHash,
+      role: "admin",
+      displayName: "Admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Neferpeel",
+      phone: "5531982066263",
+      primaryChannel: "whatsapp",
+      notes: "Cliente do aceite M30.3.",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "whatsapp",
+      externalThreadId: "opaque-neferpeel-thread",
+      title: "Neferpeel",
+      lastMessageAt: "2026-05-07T10:00:00.000Z",
+      lastPreview: "Resumo do contato",
+    });
+    await repos.messages.insertOrIgnore({
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: contact.id,
+      externalId: "M38-MSG1",
+      direction: "inbound",
+      contentType: "text",
+      status: "received",
+      body: "Oi pelo Chrome Extension",
+      observedAtUtc: "2026-05-07T10:00:00.000Z",
+    });
+
+    const app = await buildApiApp({
+      env: loadApiEnv({
+        API_LOG_LEVEL: "silent",
+        NODE_ENV: "test",
+        API_JWT_SECRET: "test-secret-with-more-than-16-chars",
+        DATABASE_URL: path.join(tempDir, "api.db"),
+      }),
+      db,
+      migrate: false,
+    });
+
+    try {
+      const unauthenticated = await app.inject({
+        method: "POST",
+        url: "/api/extension/overlay",
+        headers: { "content-type": "application/json" },
+        payload: { id: "m38-unauth", method: "ping", params: {} },
+      });
+      expect(unauthenticated.statusCode).toBe(401);
+
+      const login = await trpcCall(app, "POST", "auth.login", {
+        email: "admin@nuoma.local",
+        password: "initial-password-123",
+      });
+      const cookies = cookieHeader(login.setCookie);
+      const accessToken = cookies
+        .split("; ")
+        .find((cookie) => cookie.startsWith("nuoma_access="))
+        ?.slice("nuoma_access=".length);
+      expect(accessToken).toBeTruthy();
+
+      const ping = await app.inject({
+        method: "POST",
+        url: "/api/extension/overlay",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${accessToken}`,
+        },
+        payload: {
+          id: "m38-ping",
+          method: "ping",
+          params: {},
+          version: "v2.11.7-m35-m38-extension",
+        },
+      });
+      expect(ping.statusCode).toBe(200);
+      expect(ping.json()).toMatchObject({
+        ok: true,
+        data: { source: "chrome-extension-api" },
+      });
+
+      const summary = await app.inject({
+        method: "POST",
+        url: "/api/extension/overlay",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${accessToken}`,
+        },
+        payload: {
+          id: "m38-summary",
+          method: "contactSummary",
+          params: {
+            title: "Neferpeel",
+            phoneSource: "unresolved",
+            reason: "m38-api-test",
+          },
+          version: "v2.11.7-m35-m38-extension",
+        },
+      });
+      expect(summary.statusCode).toBe(200);
+      expect(summary.json()).toMatchObject({
+        ok: true,
+        data: {
+          phone: "5531982066263",
+          phoneSource: "title-conversation",
+          contact: { name: "Neferpeel", primaryChannel: "whatsapp" },
+          source: "nuoma-api",
+          apiStatus: "online",
+          apiLastMethod: "contactSummary",
+        },
+      });
+      expect(summary.json().data.latestMessages[0]).toMatchObject({
+        body: "Oi pelo Chrome Extension",
+      });
+
+      const mutation = await app.inject({
+        method: "POST",
+        url: "/api/extension/overlay",
+        headers: {
+          "content-type": "application/json",
+          cookie: cookies,
+        },
+        payload: {
+          id: "m38-mutation",
+          method: "forceConversationSync",
+          params: { phone: "5531982066263" },
+          mutation: { nonce: "n", idempotencyKey: "i", confirmed: true },
+        },
+      });
+      expect(mutation.statusCode).toBe(200);
+      expect(mutation.json()).toMatchObject({
+        ok: false,
+        error: { code: "unsupported_method" },
+      });
+
+      const events = await repos.systemEvents.list({
+        userId: user.id,
+        type: "extension.overlay_api.request",
+        limit: 10,
+      });
+      expect(events.length).toBeGreaterThanOrEqual(3);
+      expect(events.map((event) => event.severity)).toContain("warn");
+    } finally {
+      await app.close();
+      db.close();
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it("unifies WhatsApp and Instagram conversations in V2.7 listUnified", async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "nuoma-v2-api-v27-ig-"));
     const db = openDb(path.join(tempDir, "api.db"));

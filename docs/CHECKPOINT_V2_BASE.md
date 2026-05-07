@@ -30,6 +30,9 @@ Escopo: este checkpoint considera somente o repo `nuoma-wpp-v2`.
   protegido por `V215_CONFIRM_CUTOVER=SIM`.
 - `M37`: Evidence Center fechado com rota `/evidence`, leitura autenticada de
   reports/prints/evidence.json sob `data/` e smoke visual.
+- `M38`: Chrome Extension Companion fechado com workspace MV3, overlay V2.11
+  injetavel em `web.whatsapp.com`, ponte local `/api/extension/overlay` e
+  leitura do cookie `nuoma_access` via `chrome.cookies`.
 
 ## Parcial, mas utilizável
 

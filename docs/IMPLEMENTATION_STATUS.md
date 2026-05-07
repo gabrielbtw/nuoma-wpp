@@ -7,8 +7,8 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 ## Snapshot
 
 - **Linha atual:** V2 standalone em `/Users/gabrielbraga/Projetos/nuoma-wpp-v2`.
-- **M principais:** 38 marcadores, de `M0` ate `M37`.
-- **M/sub-M conhecidos:** 107 IDs quando contamos `M0.1`, `M35.2`, etc.
+- **M principais:** 39 marcadores, de `M0` ate `M38`.
+- **M/sub-M conhecidos:** 108 IDs quando contamos `M0.1`, `M35.2`, etc.
 - **Pendencia aberta:** nenhuma hotfix corretiva aberta apos o fechamento de
   `M30.3`; V2.13-V2.15 e remarketing em lote real estao implementados.
 - **Politica de smoke real:** todo envio real deve confirmar destino/canal e
@@ -82,6 +82,12 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 - [x] **M37 Evidence Center** — Nova tela `/evidence` lista reports, prints e
   `evidence.json` do diretorio `data/`, com thumbnails autenticados, filtro por
   categoria, resumo de assets e links diretos para cada prova.
+- [x] **M38 Chrome Extension Companion** — Novo workspace
+  `apps/chrome-extension` gera extensao MV3 local para `web.whatsapp.com`,
+  injeta o overlay V2.11 via `page-bridge.js`, usa `chrome.cookies` para ler
+  `nuoma_access` e hidrata `contactSummary` por `/api/extension/overlay` com
+  `Authorization: Bearer`; mutacoes seguem bloqueadas no companion e continuam
+  no worker/CDP.
 
 ## Parcial
 
@@ -115,6 +121,10 @@ surface de conversa unificada ja lista e busca conversas Instagram.
   `evidence.list`, `/api/evidence/file` e tela `/evidence` para navegar as
   provas locais sem abrir o filesystem manualmente. Evidencias:
   `npm run test:m37-evidence-center` e `npm run test:v2-screen-smoke`.
+- **2026-05-07 / M38 Chrome Extension Companion fechado:** criado
+  `apps/chrome-extension`, build MV3, popup local, content script, page bridge
+  e `/api/extension/overlay`. Evidencia: `npm run test:m38-chrome-extension`
+  gera report/prints em `data/m38-chrome-extension-smoke-*`.
 - **2026-05-07 / V2.10 hardening fechado 100%:** corrigido falso positivo do
   checkpoint: recipients de campanha agora mantem `metadata.auditTrail`
   materializado por scheduler/job/worker/temporary-message audit, a listagem de
