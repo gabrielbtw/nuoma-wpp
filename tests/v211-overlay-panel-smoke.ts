@@ -271,12 +271,43 @@ async function readPanelState(page: Page) {
       const panel = host?.shadowRoot?.querySelector(`[data-testid="${panelTestId}"]`);
       const text = panel?.textContent ?? "";
       const rect = panel?.getBoundingClientRect();
+      const sectionTexts: string[] = [];
+      for (const section of Array.from(panel?.querySelectorAll(".nuoma-section") ?? [])) {
+        sectionTexts.push(section.textContent ?? "");
+      }
+      let summaryText = "";
+      let automationText = "";
+      let messagesText = "";
+      let notesText = "";
+      for (const sectionText of sectionTexts) {
+        if (!summaryText && sectionText.includes("Resumo")) {
+          summaryText = sectionText;
+        }
+        if (!automationText && sectionText.includes("Automacoes")) {
+          automationText = sectionText;
+        }
+        if (!messagesText && sectionText.includes("Ultimas mensagens")) {
+          messagesText = sectionText;
+        }
+        if (!notesText && sectionText.includes("Notas")) {
+          notesText = sectionText;
+        }
+      }
       return {
         panelVisible: Boolean(panel && rect && rect.width > 300 && rect.height > 300),
-        sections: panel?.querySelectorAll(".nuoma-section").length ?? 0,
-        hasSummary: text.includes("Resumo") && text.includes("V2.11.5 Painel Smoke"),
-        hasAutomations: text.includes("Automacoes") && text.includes("Boas-vindas"),
-        hasNotes: text.includes("Notas") && text.includes("Nota M33"),
+        sections: sectionTexts.length,
+        hasSummary:
+          summaryText.includes("Canal") &&
+          summaryText.includes("Conversas") &&
+          summaryText.includes("Detector") &&
+          summaryText.includes("Ponte API"),
+        hasAutomations: Boolean(automationText),
+        hasMessages: Boolean(messagesText),
+        hasNotes: Boolean(notesText),
+        hasFixtureSummary: text.includes("Resumo") && text.includes("V2.11.5 Painel Smoke"),
+        hasFixtureAutomations: text.includes("Automacoes") && text.includes("Boas-vindas"),
+        hasFixtureNotes: text.includes("Notas") && text.includes("Nota M33"),
+        sectionTexts,
         text,
       };
     },
@@ -291,7 +322,10 @@ function assertPanel(
   if (!panel.panelVisible || panel.sections < 4) {
     throw new Error(`${label} overlay panel did not render expected sections: ${JSON.stringify(panel)}`);
   }
-  if (!panel.hasSummary || !panel.hasAutomations || !panel.hasNotes) {
+  if (label === "fixture" && (!panel.hasFixtureSummary || !panel.hasFixtureAutomations || !panel.hasFixtureNotes)) {
+    throw new Error(`${label} overlay panel missing fixture content: ${JSON.stringify(panel)}`);
+  }
+  if (!panel.hasSummary || !panel.hasAutomations || !panel.hasMessages || !panel.hasNotes) {
     throw new Error(`${label} overlay panel missing required content: ${JSON.stringify(panel)}`);
   }
 }
