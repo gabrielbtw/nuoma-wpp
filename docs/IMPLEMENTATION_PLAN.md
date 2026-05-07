@@ -18,6 +18,27 @@ tela `/implementation` consome.
 | --- | --- | --- | --- | --- |
 | 1 | Nenhum V2.* operacional aberto | checkpoint | fechado | Manter smokes e abrir novo M/V2.x.y somente se surgir gap real. |
 
+## M37 Evidence Center Fechado
+
+**Resultado:** fechado em 2026-05-07.
+
+**Escopo consolidado:**
+
+- `evidence.list` varre o diretorio local `data/` com limite de profundidade e
+  extensoes permitidas.
+- `/api/evidence/file` serve somente arquivos autenticados sob `data/`, sem path
+  absoluto ou `..`.
+- Tela `/evidence` mostra grupos de prova, thumbnails, reports, `evidence.json`,
+  filtros por categoria e resumo de assets.
+- `test:v2-screen-smoke` inclui a rota M37 no smoke visual.
+
+**Criterio de aceite cumprido:**
+
+- `npm run test:m37-evidence-center`.
+- `npm run test:v2-screen-smoke`.
+- `npm run typecheck`.
+- `npm run lint`.
+
 ## V2.1 Foundations Fechado
 
 **Resultado:** fechado 100% em 2026-05-07.

@@ -73,6 +73,7 @@
     "test:v215-cutover-apply": "tsx tests/v215-cutover-apply-smoke.ts",
     "test:v213-v215-suite": "npm run test:v213-global-events && npm run test:v214-backup-restore && npm run test:v215-cutover-preflight && npm run test:v215-cutover-apply",
     "test:v2-screen-smoke": "node tests/v2-screen-smoke-matrix.mjs",
+    "test:m37-evidence-center": "npm run test --workspace @nuoma/api -- src/app.test.ts -t \"lists M37 evidence center\"",
     "test:m303-neferpeel-temporary-context": "node tests/m303-neferpeel-temporary-context-smoke.mjs",
     "test:m303-wpp-24-send-90-proof": "node tests/m303-wpp-24-send-90-proof.mjs",
     "test:sync-top5": "node tests/sync-top5-conversations-smoke.mjs",

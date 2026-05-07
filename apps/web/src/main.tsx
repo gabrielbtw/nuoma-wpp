@@ -23,6 +23,7 @@ import { ChatbotsPage } from "./pages/ChatbotsPage.js";
 import { ContactsPage } from "./pages/ContactsPage.js";
 import { JobsPage } from "./pages/JobsPage.js";
 import { ImplementationPage } from "./pages/ImplementationPage.js";
+import { EvidencePage } from "./pages/EvidencePage.js";
 import { SettingsPage } from "./pages/SettingsPage.js";
 import { DevComponentsPage } from "./pages/DevComponentsPage.js";
 
@@ -96,6 +97,12 @@ const implementationRoute = createRoute({
   component: ImplementationPage,
 });
 
+const evidenceRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/evidence",
+  component: EvidencePage,
+});
+
 const settingsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/settings",
@@ -119,6 +126,7 @@ const routeTree = rootRoute.addChildren([
     chatbotsRoute,
     jobsRoute,
     implementationRoute,
+    evidenceRoute,
     settingsRoute,
     devComponentsRoute,
   ]),

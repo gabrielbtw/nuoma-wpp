@@ -22,8 +22,8 @@ for QR again.
 
 Current gate: all core V2 tracks are implemented for the local/hosted
 WhatsApp-only flow. `M30.3` is closed with real WhatsApp 24h temporary-message
-proof; the remaining operational gates are remarketing in real batch and
-cutover.
+proof, remarketing in real batch is closed, and cutover tooling is implemented
+behind explicit confirmation.
 
 ## Versioning
 
@@ -36,8 +36,8 @@ cutover.
 
 Current counts from [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md):
 
-- `37` main M markers: `M0` through `M36`.
-- `106` total M/sub-M IDs when `M0.1`, `M35.2`, etc. are included.
+- `38` main M markers: `M0` through `M37`.
+- `107` total M/sub-M IDs when `M0.1`, `M35.2`, etc. are included.
 - `0` open corrective hotfixes after `M30.3` closure.
 
 ## Current Plan

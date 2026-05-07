@@ -7,8 +7,8 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 ## Snapshot
 
 - **Linha atual:** V2 standalone em `/Users/gabrielbraga/Projetos/nuoma-wpp-v2`.
-- **M principais:** 37 marcadores, de `M0` ate `M36`.
-- **M/sub-M conhecidos:** 106 IDs quando contamos `M0.1`, `M35.2`, etc.
+- **M principais:** 38 marcadores, de `M0` ate `M37`.
+- **M/sub-M conhecidos:** 107 IDs quando contamos `M0.1`, `M35.2`, etc.
 - **Pendencia aberta:** nenhuma hotfix corretiva aberta apos o fechamento de
   `M30.3`; V2.13-V2.15 e remarketing em lote real estao implementados.
 - **Politica de smoke real:** todo envio real deve confirmar destino/canal e
@@ -79,6 +79,9 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
   bloqueia envio quando nao consegue provar o estado, mantem a janela nos steps
   intermediarios e restaura 90d apos conclusao segura com eventos
   `sender.temporary_messages.audit` em `executionMode=whatsapp_real`.
+- [x] **M37 Evidence Center** — Nova tela `/evidence` lista reports, prints e
+  `evidence.json` do diretorio `data/`, com thumbnails autenticados, filtro por
+  categoria, resumo de assets e links diretos para cada prova.
 
 ## Parcial
 
@@ -108,6 +111,10 @@ surface de conversa unificada ja lista e busca conversas Instagram.
   `conversations.listUnified` para retornar WhatsApp/Instagram/System em uma
   surface, com filtro por canal, busca por titulo/thread/contato/telefone/@IG,
   alvo normalizado e resumo por canal. Evidencia: `npm run test:v27-ig-unified`.
+- **2026-05-07 / M37 Evidence Center fechado:** criado
+  `evidence.list`, `/api/evidence/file` e tela `/evidence` para navegar as
+  provas locais sem abrir o filesystem manualmente. Evidencias:
+  `npm run test:m37-evidence-center` e `npm run test:v2-screen-smoke`.
 - **2026-05-07 / V2.10 hardening fechado 100%:** corrigido falso positivo do
   checkpoint: recipients de campanha agora mantem `metadata.auditTrail`
   materializado por scheduler/job/worker/temporary-message audit, a listagem de

@@ -79,11 +79,19 @@ const routes = [
     details: "Painel parseado de IMPLEMENTATION_STATUS.md para feito/parcial/falta.",
   },
   {
+    version: "M37",
+    name: "Evidence Center",
+    path: "/evidence",
+    waitTestId: "evidence-center-grid",
+    file: "10-m37-evidence-center.png",
+    details: "Reports, prints e evidence.json navegáveis a partir do diretório data.",
+  },
+  {
     version: "V2.8",
     name: "Settings e push",
     path: "/settings",
     waitText: "Sessão",
-    file: "10-v28-settings.png",
+    file: "11-v28-settings.png",
     details: "Sessao, tema, push, integracoes e diagnostico local-first.",
   },
   {
@@ -91,7 +99,7 @@ const routes = [
     name: "Componentes visuais",
     path: "/dev/components",
     waitText: "Componentes",
-    file: "11-v28-components.png",
+    file: "12-v28-components.png",
     details: "Inventario visual do design system Cartographic Operations.",
   },
 ];

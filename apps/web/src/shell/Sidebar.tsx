@@ -4,6 +4,7 @@ import {
   Activity,
   Bot,
   ClipboardList,
+  FolderSearch,
   Inbox,
   LayoutDashboard,
   ListChecks,
@@ -39,6 +40,7 @@ export const SHELL_NAV_ITEMS: NavItem[] = [
   { to: "/chatbots", label: "Chatbots", icon: Bot, shortcut: "6" },
   { to: "/jobs", label: "Jobs", icon: ListChecks, shortcut: "7" },
   { to: "/implementation", label: "Implementação", icon: ClipboardList, shortcut: "8" },
+  { to: "/evidence", label: "Evidências", icon: FolderSearch, shortcut: "e" },
 ];
 
 export const SHELL_FOOTER_NAV_ITEMS: NavItem[] = [

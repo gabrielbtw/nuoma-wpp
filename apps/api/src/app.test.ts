@@ -911,6 +911,117 @@ describe("api health", () => {
     }
   });
 
+  it("lists M37 evidence center and serves authenticated evidence files", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "nuoma-v2-api-m37-evidence-"));
+    const evidenceRoot = path.join(tempDir, "data");
+    const proofDir = path.join(evidenceRoot, "m303-wpp-24-send-90-proof-smoke");
+    await fs.mkdir(proofDir, { recursive: true });
+    await fs.writeFile(
+      path.join(proofDir, "REPORT.md"),
+      "# M37 Evidence\n\n| item | status |\n| --- | --- |\n| print | ok |\n",
+      "utf8",
+    );
+    await fs.writeFile(
+      path.join(proofDir, "evidence.json"),
+      JSON.stringify({ completed: 5, failed: 0, activeJobs: 0 }),
+      "utf8",
+    );
+    await fs.writeFile(
+      path.join(proofDir, "01-radio-24h-marcado.png"),
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    );
+
+    const previousEvidenceRoot = process.env.NUOMA_EVIDENCE_DATA_ROOT;
+    process.env.NUOMA_EVIDENCE_DATA_ROOT = evidenceRoot;
+
+    const db = openDb(path.join(tempDir, "api.db"));
+    await runMigrations(db);
+    const repos = createRepositories(db);
+    const passwordHash = await argon2.hash("initial-password-123", { type: argon2.argon2id });
+    await repos.users.create({
+      email: "admin@nuoma.local",
+      passwordHash,
+      role: "admin",
+      displayName: "Admin",
+    });
+
+    const app = await buildApiApp({
+      env: loadApiEnv({
+        API_LOG_LEVEL: "silent",
+        NODE_ENV: "test",
+        API_JWT_SECRET: "test-secret-with-more-than-16-chars",
+        DATABASE_URL: path.join(tempDir, "api.db"),
+      }),
+      db,
+      migrate: false,
+    });
+
+    try {
+      const login = await trpcCall(app, "POST", "auth.login", {
+        email: "admin@nuoma.local",
+        password: "initial-password-123",
+      });
+      const cookies = cookieHeader(login.setCookie);
+
+      const evidence = await trpcCall<{
+        dataRoot: string;
+        groups: Array<{
+          category: string;
+          version: string | null;
+          report: { routePath: string } | null;
+          cover: { routePath: string; type: string } | null;
+          evidenceJson: { routePath: string } | null;
+          summary: { images: number; reports: number; json: number };
+        }>;
+        summary: { groups: number; images: number; reports: number; json: number };
+      }>(
+        app,
+        "GET",
+        "evidence.list",
+        { limit: 10 },
+        { cookie: cookies },
+      );
+      expect(evidence.statusCode, JSON.stringify(evidence.error)).toBe(200);
+      expect(evidence.data).toMatchObject({
+        dataRoot: evidenceRoot,
+        summary: { groups: 1, images: 1, reports: 1, json: 1 },
+      });
+      expect(evidence.data?.groups[0]).toMatchObject({
+        category: "m303-proof",
+        version: "M30.3",
+        summary: { images: 1, reports: 1, json: 1 },
+        cover: { type: "image" },
+      });
+
+      const unauthenticatedFile = await app.inject({
+        method: "GET",
+        url: evidence.data!.groups[0]!.cover!.routePath,
+      });
+      expect(unauthenticatedFile.statusCode).toBe(401);
+
+      const authenticatedFile = await app.inject({
+        method: "GET",
+        url: evidence.data!.groups[0]!.cover!.routePath,
+        headers: { cookie: cookies },
+      });
+      expect(authenticatedFile.statusCode).toBe(200);
+      expect(authenticatedFile.headers["content-type"]).toContain("image/png");
+      expect(authenticatedFile.body.length).toBeGreaterThan(0);
+    } finally {
+      if (previousEvidenceRoot === undefined) {
+        delete process.env.NUOMA_EVIDENCE_DATA_ROOT;
+      } else {
+        process.env.NUOMA_EVIDENCE_DATA_ROOT = previousEvidenceRoot;
+      }
+      await app.close();
+      db.close();
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it("exposes V2.7 media, push, embed and streaming procedures safely", async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "nuoma-v2-api-v27-"));
     const db = openDb(path.join(tempDir, "api.db"));

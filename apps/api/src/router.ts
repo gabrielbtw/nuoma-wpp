@@ -12,6 +12,7 @@ import { chatbotsRouter } from "./trpc/routers/chatbots.js";
 import { contactsRouter } from "./trpc/routers/contacts.js";
 import { conversationsRouter } from "./trpc/routers/conversations.js";
 import { embedRouter } from "./trpc/routers/embed.js";
+import { evidenceRouter } from "./trpc/routers/evidence.js";
 import { implementationRouter } from "./trpc/routers/implementation.js";
 import { jobsRouter } from "./trpc/routers/jobs.js";
 import { mediaRouter } from "./trpc/routers/media.js";
@@ -33,6 +34,7 @@ export const appRouter = router({
   contacts: contactsRouter,
   conversations: conversationsRouter,
   embed: embedRouter,
+  evidence: evidenceRouter,
   implementation: implementationRouter,
   jobs: jobsRouter,
   media: mediaRouter,

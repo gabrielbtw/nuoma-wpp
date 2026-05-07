@@ -28,6 +28,8 @@ Escopo: este checkpoint considera somente o repo `nuoma-wpp-v2`.
 - `V2.14`: backup/verify/restore local-first fechado com smoke.
 - `V2.15`: preflight e cutover apply idempotente fechados, com apply real
   protegido por `V215_CONFIRM_CUTOVER=SIM`.
+- `M37`: Evidence Center fechado com rota `/evidence`, leitura autenticada de
+  reports/prints/evidence.json sob `data/` e smoke visual.
 
 ## Parcial, mas utilizável
 

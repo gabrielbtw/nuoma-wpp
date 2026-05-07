@@ -9,6 +9,7 @@ import { healthResponseSchema, type HealthResponse } from "@nuoma/contracts";
 import { createRepositories, openDb, runMigrations, type DbHandle } from "@nuoma/db";
 
 import { appRouter } from "./router.js";
+import { registerEvidenceFileRoutes } from "./routes/evidence-files.js";
 import { registerGlobalEventsRoutes } from "./routes/global-events.js";
 import { registerInboxEventsRoutes } from "./routes/inbox-events.js";
 import { registerMediaUploadRoutes } from "./routes/media-upload.js";
@@ -59,6 +60,7 @@ export async function buildApiApp(options: ApiAppOptions): Promise<FastifyInstan
 
   const repos = createRepositories(dbHandle);
   const streaming = createStreamingCdpService({ env: options.env });
+  await registerEvidenceFileRoutes(app, { env: options.env });
   await registerGlobalEventsRoutes(app, { env: options.env, repos });
   await registerInboxEventsRoutes(app, { env: options.env, repos });
   await registerMediaUploadRoutes(app, { env: options.env, repos });

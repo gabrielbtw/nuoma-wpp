@@ -49,6 +49,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       { id: "go.chatbots", label: "Chatbots", group: "Navegação", run: () => navigate({ to: "/chatbots" }) },
       { id: "go.jobs", label: "Jobs", group: "Navegação", run: () => navigate({ to: "/jobs" }) },
       { id: "go.implementation", label: "Implementação", group: "Navegação", run: () => navigate({ to: "/implementation" }) },
+      { id: "go.evidence", label: "Evidências", hint: "M37", group: "Navegação", run: () => navigate({ to: "/evidence" }) },
       { id: "go.settings", label: "Configurações", group: "Navegação", run: () => navigate({ to: "/settings" }) },
       { id: "go.dev", label: "Dev / Componentes", group: "Ação", run: () => navigate({ to: "/dev/components" }) },
       {
