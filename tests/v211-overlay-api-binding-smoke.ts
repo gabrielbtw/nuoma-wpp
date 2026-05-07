@@ -102,35 +102,29 @@ async function validateWhatsAppWeb() {
       await page.goto(whatsappUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
     }
 
-	    let bridge = await installApiBinding(page, "WhatsApp Web API M35", {
-	      reloadWhenNativeMissing: true,
-	    });
-    let state = await injectAndReadState(page);
-    if (!state.mounted || state.phone !== canaryPhone) {
+    let state = await resetInjectAndReadState(page);
+    if (!state.mounted || (state.phone && state.phone !== canaryPhone)) {
       const targetUrl = `${whatsappUrl.replace(/\/$/, "")}/send?phone=${encodeURIComponent(canaryPhone)}`;
       await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
       await page.waitForTimeout(7_000);
-	      bridge = await installApiBinding(page, "WhatsApp Web API M35", {
-	        reloadWhenNativeMissing: true,
-	      });
-      state = await injectAndReadState(page);
+      state = await resetInjectAndReadState(page);
     }
-    if (!state.mounted || state.phone !== canaryPhone) {
+    if (!state.mounted || (state.phone && state.phone !== canaryPhone)) {
       throw new Error(`wpp overlay did not detect canary phone: ${JSON.stringify(state)}`);
     }
     await openAndWaitForApi(page);
+    state = await readOverlayState(page);
+    if (state.phone !== canaryPhone) {
+      throw new Error(`wpp overlay API did not hydrate canary phone: ${JSON.stringify(state)}`);
+    }
     const panel = await readPanelState(page);
     assertPanel(panel, "wpp");
-    if (!bridge.requests.some((request) => request.method === "contactSummary")) {
-      throw new Error(`wpp bridge did not receive contactSummary: ${JSON.stringify(bridge.requests)}`);
-    }
     await page.screenshot({ path: wppScreenshotPath, fullPage: false, timeout: 15_000 });
-    await bridge.cdp.detach().catch(() => undefined);
     return {
       ...panel,
       phone: state.phone,
-      method: bridge.requests.find((request) => request.method === "contactSummary")?.method ?? "missing",
-      mode: "cdp-binding",
+      method: panel.apiMethod || "missing",
+      mode: "worker-cdp-binding",
     };
   } finally {
     await browser.close();
@@ -272,6 +266,23 @@ async function mountOpenAndWaitForApi(page: Page) {
 async function injectAndReadState(page: Page) {
   await page.evaluate(createNuomaOverlayScript());
   await page.waitForTimeout(700);
+  return readOverlayState(page);
+}
+
+async function resetInjectAndReadState(page: Page) {
+  await page.evaluate((rootId) => {
+    document.getElementById(rootId)?.remove();
+    delete (window as unknown as { __nuomaOverlayState?: unknown }).__nuomaOverlayState;
+    delete (window as unknown as { __nuomaOverlayInstalled?: unknown }).__nuomaOverlayInstalled;
+    delete (window as unknown as { __nuomaOverlayRefresh?: unknown }).__nuomaOverlayRefresh;
+    delete (window as unknown as { __nuomaOverlaySetData?: unknown }).__nuomaOverlaySetData;
+    delete (window as unknown as { __nuomaOverlayRefreshFromApi?: unknown }).__nuomaOverlayRefreshFromApi;
+    delete (window as unknown as { __nuomaApiResolve?: unknown }).__nuomaApiResolve;
+  }, NUOMA_OVERLAY_ROOT_ID);
+  return injectAndReadState(page);
+}
+
+async function readOverlayState(page: Page) {
   return page.evaluate(
     ({ rootId }) => {
       const state = (
@@ -340,6 +351,7 @@ async function readPanelState(page: Page) {
       return {
         panelVisible: Boolean(panel && rect && rect.width > 300 && rect.height > 300),
         apiStatus: host?.getAttribute("data-nuoma-api-status") ?? "",
+        apiMethod: host?.getAttribute("data-nuoma-api-method") ?? "",
         hasApi: text.includes("Ponte API") && text.includes("online / contactSummary"),
         hasSummary: text.includes("Overlay API binding"),
         hasPhone: text.includes("+5531982066263"),
@@ -351,15 +363,23 @@ async function readPanelState(page: Page) {
 }
 
 function assertPanel(panel: Awaited<ReturnType<typeof readPanelState>>, label: string) {
-  if (!panel.panelVisible || !panel.hasApi || !panel.hasSummary || !panel.hasPhone) {
+  const requiresFixtureSummary = label === "fixture";
+  if (!panel.panelVisible || !panel.hasApi || !panel.hasPhone || (requiresFixtureSummary && !panel.hasSummary)) {
     throw new Error(`${label} overlay api panel invalid: ${JSON.stringify(panel)}`);
   }
 }
 
 function overlayData(label: string, params: Record<string, unknown>): NuomaOverlayData {
+  const requestedPhone = typeof params.phone === "string" && params.phone ? params.phone : canaryPhone;
+  const requestedPhoneSource =
+    typeof params.phone === "string" && params.phone
+      ? typeof params.phoneSource === "string" && params.phoneSource
+        ? params.phoneSource
+        : "smoke-binding"
+      : "title-conversation";
   return {
-    phone: typeof params.phone === "string" ? params.phone : canaryPhone,
-    phoneSource: typeof params.phoneSource === "string" ? params.phoneSource : "smoke-binding",
+    phone: requestedPhone,
+    phoneSource: requestedPhoneSource,
     title: typeof params.title === "string" ? params.title : canaryPhone,
     contact: {
       name: label,

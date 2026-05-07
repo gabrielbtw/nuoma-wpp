@@ -229,6 +229,156 @@ describe("Nuoma WhatsApp overlay injection", () => {
     }
   }, 30_000);
 
+  it("ignores WhatsApp header control titles before reading the chat title", async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+
+    try {
+      await page.setContent(`
+        <!doctype html>
+        <html lang="pt-BR">
+          <body>
+            <section id="pane-side" role="list" aria-label="Conversas">
+              <div role="listitem" aria-selected="true" data-testid="cell-frame-container">
+                <span title="Gabriel Braga Nuoma">Gabriel Braga Nuoma</span>
+                <span title="+55 31 98206-6263">+55 31 98206-6263</span>
+              </div>
+            </section>
+            <section id="main">
+              <header style="position: relative; min-height: 64px">
+                <div role="button" title="Dados do perfil">default-contact-refreshed</div>
+                <div role="button" data-testid="conversation-info-header">
+                  <span data-testid="conversation-info-header-chat-title">Gabriel Braga Nuoma</span>
+                </div>
+              </header>
+              <div data-id="false_5531982066263@c.us_M34">
+                <span class="selectable-text">Mensagem salva no contato.</span>
+              </div>
+            </section>
+          </body>
+        </html>
+      `);
+      await page.evaluate(createNuomaOverlayScript());
+
+      const state = await page.evaluate(
+        ({ rootId }) => {
+          const refreshState = (
+            window as unknown as {
+              __nuomaOverlayRefresh: () => {
+                mounted: boolean;
+                phone: string;
+                phoneSource: string;
+                title: string;
+              };
+            }
+          ).__nuomaOverlayRefresh();
+          const host = document.getElementById(rootId);
+          return {
+            ...refreshState,
+            hostPhone: host?.getAttribute("data-nuoma-thread-phone"),
+            hostTitle: host?.getAttribute("data-nuoma-thread-title"),
+          };
+        },
+        { rootId: NUOMA_OVERLAY_ROOT_ID },
+      );
+
+      expect(state).toMatchObject({
+        mounted: true,
+        phone: "5531982066263",
+        phoneSource: "message-data-id",
+        title: "Gabriel Braga Nuoma",
+        hostPhone: "5531982066263",
+        hostTitle: "Gabriel Braga Nuoma",
+      });
+    } finally {
+      await browser.close();
+    }
+  }, 30_000);
+
+  it("keeps an API-hydrated phone when WhatsApp only exposes the saved contact title", async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+
+    try {
+      await page.setContent(`
+        <!doctype html>
+        <html lang="pt-BR">
+          <body>
+            <section id="pane-side" role="list" aria-label="Conversas">
+              <div role="listitem" aria-selected="true" data-testid="cell-frame-container">
+                <span title="Gabriel Braga Nuoma">Gabriel Braga Nuoma</span>
+              </div>
+            </section>
+            <section id="main">
+              <header style="position: relative; min-height: 64px">
+                <div role="button" title="Dados do perfil">default-contact-refreshed</div>
+                <div role="button" data-testid="conversation-info-header">
+                  <span data-testid="conversation-info-header-chat-title">Gabriel Braga Nuoma</span>
+                </div>
+              </header>
+              <div data-id="false_3EB0OPAQUE_M34">
+                <span class="selectable-text">Mensagem sem telefone no data-id atual do WhatsApp.</span>
+              </div>
+            </section>
+          </body>
+        </html>
+      `);
+      await page.evaluate(createNuomaOverlayScript());
+
+      const state = await page.evaluate(
+        ({ rootId }) => {
+          const api = window as unknown as {
+            __nuomaOverlaySetData: (data: unknown) => unknown;
+            __nuomaOverlayRefresh: () => {
+              mounted: boolean;
+              phone: string;
+              phoneSource: string;
+              title: string;
+            };
+          };
+          const before = api.__nuomaOverlayRefresh();
+          api.__nuomaOverlaySetData({
+            phone: "5531982066263",
+            phoneSource: "title-conversation",
+            title: "Gabriel Braga Nuoma",
+            contact: { name: "Gabriel Braga Nuoma", status: "active", primaryChannel: "whatsapp" },
+            source: "nuoma-api",
+          });
+          const after = api.__nuomaOverlayRefresh();
+          const host = document.getElementById(rootId);
+          return {
+            before,
+            after,
+            hostPhone: host?.getAttribute("data-nuoma-thread-phone"),
+            hostPhoneSource: host?.getAttribute("data-nuoma-phone-source"),
+            hostTitle: host?.getAttribute("data-nuoma-thread-title"),
+          };
+        },
+        { rootId: NUOMA_OVERLAY_ROOT_ID },
+      );
+
+      expect(state.before).toMatchObject({
+        mounted: true,
+        phone: "",
+        phoneSource: "unresolved",
+        title: "Gabriel Braga Nuoma",
+      });
+      expect(state.after).toMatchObject({
+        mounted: true,
+        phone: "5531982066263",
+        phoneSource: "title-conversation",
+        title: "Gabriel Braga Nuoma",
+      });
+      expect(state).toMatchObject({
+        hostPhone: "5531982066263",
+        hostPhoneSource: "title-conversation",
+        hostTitle: "Gabriel Braga Nuoma",
+      });
+    } finally {
+      await browser.close();
+    }
+  }, 30_000);
+
   it("renders real loading, error, and no-contact states in the panel", async () => {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });

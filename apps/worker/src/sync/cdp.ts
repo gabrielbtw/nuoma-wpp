@@ -370,6 +370,27 @@ export async function startSyncEngine(input: {
 
     await client.Runtime.enable();
     await client.Page.enable();
+    await client.Runtime.removeBinding({ name: NUOMA_OVERLAY_API_BINDING_NAME }).catch(() => undefined);
+    await client.Runtime.evaluate({
+      expression: `
+        (() => {
+          delete window.${NUOMA_OVERLAY_API_BINDING_NAME};
+          delete window.__nuomaApiResolve;
+          if (window.__nuomaOverlayState && typeof window.__nuomaOverlayState === "object") {
+            window.__nuomaOverlayState.apiBridge = null;
+            window.__nuomaOverlayState.apiPending = {};
+            window.__nuomaOverlayState.apiInFlight = false;
+            window.__nuomaOverlayState.apiStatus = "offline";
+            window.__nuomaOverlayState.apiLastMethod = "";
+            window.__nuomaOverlayState.apiLastError = "";
+          }
+          return true;
+        })()
+      `,
+      awaitPromise: false,
+      returnByValue: true,
+      includeCommandLineAPI: false,
+    }).catch(() => undefined);
     await client.Runtime.addBinding({ name: SYNC_BINDING_NAME });
     await client.Runtime.addBinding({ name: NUOMA_OVERLAY_API_BINDING_NAME });
 
@@ -900,14 +921,38 @@ export async function startSyncEngine(input: {
     title: string | null;
     reason: string;
   }) {
-    const phone = inputSnapshot.phone;
-    const contact = phone
+    let phone = inputSnapshot.phone;
+    const title = stringValue(inputSnapshot.title);
+    const titleConversation =
+      !phone && title
+        ? await input.repos.conversations.findActiveByTitle({
+            userId: inputSnapshot.userId,
+            channel: "whatsapp",
+            title,
+          })
+        : null;
+    let contact = phone
       ? await input.repos.contacts.findByPhone({ userId: inputSnapshot.userId, phone })
       : null;
+    if (!contact && titleConversation?.contactId) {
+      contact = await input.repos.contacts.findById(titleConversation.contactId);
+    }
+    phone =
+      phone ??
+      normalizePhone(contact?.phone) ??
+      normalizePhone(titleConversation?.externalThreadId) ??
+      normalizePhone(titleConversation?.title);
+    const phoneSource =
+      phone && titleConversation && (!inputSnapshot.phoneSource || inputSnapshot.phoneSource === "unresolved")
+        ? "title-conversation"
+        : inputSnapshot.phoneSource;
     const allConversations = await input.repos.conversations.list(inputSnapshot.userId, 100);
     const conversations = allConversations
       .filter((conversation) => {
         if (contact && conversation.contactId === contact.id) {
+          return true;
+        }
+        if (titleConversation && conversation.id === titleConversation.id) {
           return true;
         }
         if (!phone) {
@@ -945,8 +990,8 @@ export async function startSyncEngine(input: {
 
     return {
       phone,
-      phoneSource: inputSnapshot.phoneSource,
-      title: inputSnapshot.title,
+      phoneSource,
+      title,
       contact: contact
         ? {
             name: contact.name,

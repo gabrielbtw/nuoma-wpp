@@ -518,6 +518,18 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     if (state.apiBridge) {
       return state.apiBridge;
     }
+    const existingManagedBridge =
+      window.__nuomaApi &&
+      typeof window.__nuomaApi === "object" &&
+      window.__nuomaApi.__nuomaManaged === true &&
+      typeof window.__nuomaApi.__nuomaBridge === "function"
+        ? window.__nuomaApi.__nuomaBridge
+        : null;
+    if (existingManagedBridge) {
+      state.apiBridge = existingManagedBridge;
+      setApiStatus("ready", "", "");
+      return state.apiBridge;
+    }
     if (typeof window[config.apiBindingName] === "function") {
       state.apiBridge = window[config.apiBindingName].bind(window);
       setApiStatus("ready", "", "");
@@ -666,13 +678,16 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       window.__nuomaApi.__nuomaManaged === true;
     if (existingManaged) {
       window.__nuomaApiResolve = resolveApiRequest;
-      captureApiBridge();
-      return;
+      const bridge = captureApiBridge();
+      if (bridge) {
+        window.__nuomaApi.__nuomaBridge = bridge;
+      }
     }
     captureApiBridge();
     window.__nuomaApiResolve = resolveApiRequest;
     window.__nuomaApi = {
       __nuomaManaged: true,
+      __nuomaBridge: state.apiBridge,
       version: config.version,
       request: requestNuomaApi,
       ping: () => requestNuomaApi("ping", {}),
@@ -918,6 +933,67 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     return "";
   }
 
+  function elementTitleValue(element) {
+    if (!element) {
+      return "";
+    }
+    return (
+      text(element.getAttribute && element.getAttribute("title")) ||
+      text(element.getAttribute && element.getAttribute("aria-label")) ||
+      text(element.textContent)
+    );
+  }
+
+  function isHeaderControlText(value) {
+    const normalized = text(value).toLowerCase();
+    if (!normalized) {
+      return true;
+    }
+    return (
+      normalized === "dados do perfil" ||
+      normalized === "profile details" ||
+      normalized === "informacion del perfil" ||
+      normalized === "información del perfil" ||
+      normalized === "default-contact-refreshed" ||
+      normalized.startsWith("ic-") ||
+      normalized.startsWith("wds-") ||
+      normalized.includes("etiquetar conversa") ||
+      normalized.includes("ligação de vídeo") ||
+      normalized.includes("video call") ||
+      normalized.includes("pesquisar") ||
+      normalized.includes("search") ||
+      normalized.includes("mais opções") ||
+      normalized.includes("more options")
+    );
+  }
+
+  function conversationTitleFromHeader(header) {
+    const explicit =
+      header.querySelector('[data-testid="conversation-info-header-chat-title"]') ||
+      header.querySelector('[data-testid="conversation-info-header"] span');
+    const explicitValue = elementTitleValue(explicit);
+    if (explicitValue && !isHeaderControlText(explicitValue)) {
+      return explicitValue;
+    }
+
+    const candidates = Array.from(header.querySelectorAll("[title], [aria-label], span, div"));
+    for (const candidate of candidates) {
+      if (candidate.closest && candidate.closest("[data-nuoma-overlay-root]")) {
+        continue;
+      }
+      if (candidate.getAttribute && candidate.getAttribute("role") === "button") {
+        continue;
+      }
+      const value = elementTitleValue(candidate);
+      if (value && !isHeaderControlText(value)) {
+        return value;
+      }
+    }
+
+    const fallback = text(header.getAttribute("aria-label")) || text(header.textContent);
+    return isHeaderControlText(fallback) ? "" : fallback;
+  }
+
   function findHeader() {
     return (
       document.querySelector("#main header") ||
@@ -931,15 +1007,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       return { title: "", phone: "", phoneSource: "missing-header" };
     }
 
-    const titleCandidate =
-      header.querySelector("[title]") ||
-      header.querySelector('[data-testid="conversation-info-header-chat-title"]') ||
-      header.querySelector("span");
-    const title =
-      text(titleCandidate && titleCandidate.getAttribute && titleCandidate.getAttribute("title")) ||
-      text(titleCandidate && titleCandidate.textContent) ||
-      text(header.getAttribute("aria-label")) ||
-      text(header.textContent);
+    const title = conversationTitleFromHeader(header);
 
     const headerPhone = directPhoneFromText(title);
     if (headerPhone) {
@@ -1073,17 +1141,19 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       return Promise.resolve(null);
     }
     const phone = host.getAttribute("data-nuoma-thread-phone") || "";
-    if (!phone) {
+    const title = host.getAttribute("data-nuoma-thread-title") || "";
+    const hydrateKey = phone || title;
+    if (!hydrateKey) {
       return Promise.resolve(null);
     }
-    state.apiHydratedPhone = phone;
+    state.apiHydratedPhone = hydrateKey;
     state.apiInFlight = true;
     renderPanel(host);
     return window.__nuomaApi
       .refreshContact({
         phone,
         phoneSource: host.getAttribute("data-nuoma-phone-source") || "",
-        title: host.getAttribute("data-nuoma-thread-title") || "",
+        title,
         reason,
       })
       .then((response) => {
@@ -1388,14 +1458,6 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     const thread = detectCurrentThread(header);
     const host = ensureHost(header);
     const button = ensureShadow(host);
-    host.setAttribute("data-nuoma-version", config.version);
-    host.setAttribute("data-nuoma-thread-title", thread.title);
-    host.setAttribute("data-nuoma-thread-phone", thread.phone);
-    host.setAttribute("data-nuoma-phone-source", thread.phoneSource);
-    host.setAttribute("data-nuoma-api-status", state.apiStatus || "offline");
-    button.setAttribute("data-nuoma-thread-phone", thread.phone);
-    button.setAttribute("data-nuoma-thread-title", thread.title);
-    button.setAttribute("data-nuoma-phone-source", thread.phoneSource);
     const dataPhone = text(state.data && state.data.phone);
     const dataTitle = text(state.data && state.data.title);
     const threadChanged =
@@ -1416,20 +1478,37 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         updatedAt: new Date().toISOString(),
       };
     }
+    const hydratedPhone = text(state.data && state.data.phone);
+    const hydratedPhoneSource = text(state.data && state.data.phoneSource);
+    const displayPhone = thread.phone || hydratedPhone;
+    const displayPhoneSource = thread.phone
+      ? thread.phoneSource
+      : hydratedPhone
+        ? hydratedPhoneSource || "hydrated"
+        : thread.phoneSource;
+    const displayTitle = thread.title || text(state.data && state.data.title);
+    host.setAttribute("data-nuoma-version", config.version);
+    host.setAttribute("data-nuoma-thread-title", displayTitle);
+    host.setAttribute("data-nuoma-thread-phone", displayPhone);
+    host.setAttribute("data-nuoma-phone-source", displayPhoneSource);
+    host.setAttribute("data-nuoma-api-status", state.apiStatus || "offline");
+    button.setAttribute("data-nuoma-thread-phone", displayPhone);
+    button.setAttribute("data-nuoma-thread-title", displayTitle);
+    button.setAttribute("data-nuoma-phone-source", displayPhoneSource);
     renderPanel(host);
     if (
       host.getAttribute("data-nuoma-state") === "open" &&
-      thread.phone &&
-      state.apiHydratedPhone !== thread.phone
+      (thread.phone || thread.title) &&
+      state.apiHydratedPhone !== (thread.phone || thread.title)
     ) {
       void refreshContactFromApi(host, "open-refresh");
     }
 
     return {
       mounted: true,
-      phone: thread.phone,
-      phoneSource: thread.phoneSource,
-      title: thread.title,
+      phone: displayPhone,
+      phoneSource: displayPhoneSource,
+      title: displayTitle,
       apiStatus: state.apiStatus || "offline",
       apiLastMethod: state.apiLastMethod || "",
       apiLastError: state.apiLastError || "",

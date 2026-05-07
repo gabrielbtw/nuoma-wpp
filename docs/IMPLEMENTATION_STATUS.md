@@ -10,8 +10,8 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 - **M principais:** 37 marcadores, de `M0` ate `M36`.
 - **M/sub-M conhecidos:** 106 IDs quando contamos `M0.1`, `M35.2`, etc.
 - **Pendencia aberta:** nenhuma hotfix corretiva aberta apos o fechamento de
-  `M30.3`; remarketing em lote real e cutover seguem como proximos itens
-  condicionais.
+  `M30.3`; V2.15 preflight de cutover esta pronto/ready, mas remarketing em
+  lote real e aplicacao operacional do cutover seguem condicionais.
 - **Politica de smoke real:** todo envio real deve confirmar destino/canal e
   anexar evidencia visual. Quando for WhatsApp-only, registrar `IG nao_aplicavel`.
 
@@ -30,10 +30,12 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
   strict compartilhado, apps `api/web/worker`, packages `config/contracts/db/ui`,
   ADRs base e smoke `test:v21-foundations`.
 - [x] **V2.2-V2.4 Domain/API/Auth** — Contratos, API health, SQLite/Drizzle,
-  auth local e shell autenticado.
+  auth local, cookies httpOnly/CSRF, refresh e shell autenticado, com smoke
+  `test:v24-api-auth`.
 - [x] **V2.5 Sender runtime** — Fila duravel, DLQ, envio real WhatsApp de texto,
   voz nativa, documento, imagem, video, album e `campaign_step`, com allowlist,
-  auditoria, external id e guardas contra destino errado.
+  auditoria, external id, claim guard sem runtime e smoke
+  `test:v25-sender-runtime`.
 - [x] **V2.6 Sync engine** — Observer CDP, reconcile forçado, historico bounded,
   captura de foto de perfil, candidatos de anexos e protecoes contra roteamento
   para conversa errada.
@@ -68,13 +70,17 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 
 - [~] **V2.7 API surface IG** — `conversations.listUnified` fica parcial porque
   Instagram segue fora do fluxo cotidiano ate iniciativa explicita.
+- [~] **V2.15 Migracao/cutover V1 -> V2** — Preflight automatizado implementado
+  em `scripts/v215-cutover-preflight.mjs`: valida DB V1/V2, schemas minimos,
+  target user, jobs ativos, backup V2, prova M30.3 e plano dry-run. A aplicacao
+  real do cutover continua bloqueada ate comando explicito e rodada em lote real.
 
 ## Falta
 
 - [ ] **Remarketing em lote real** — Proximo item condicional apos M30.3; deve
   reutilizar os guardas reais de contexto temporario, allowlist e auditoria.
-- [ ] **Cutover operacional** — Segue condicionado a uma rodada em lote real
-  lisa e com evidencias completas.
+- [ ] **Cutover operacional** — Preflight V2.15 esta `ready`; aplicacao real
+  segue condicionada a uma rodada em lote real lisa e com evidencias completas.
 
 ## Evidencias Recentes
 
@@ -82,6 +88,29 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
   para validar workspaces, scripts raiz, Turbo tasks, aliases TS, ADRs e
   arquivos-base dos apps/packages. Evidencia esperada:
   `v21-foundations|workspaces=7|rootFiles=10|aliases=8|status=closed`.
+- **2026-05-07 / V2.4 fechado 100%:** criado `npm run test:v24-api-auth` para
+  validar `/health`, login tRPC, cookies, `auth.me`, refresh e bloqueio CSRF.
+  Evidencia: `v24-api-auth|health=ok|login=ok|refresh=ok|csrf=ok|status=closed`.
+- **2026-05-07 / V2.5 fechado 100%:** criado `npm run test:v25-sender-runtime`
+  para validar que jobs de envio nao sao claimados sem runtime, envio permitido
+  registra auditoria, alvo fora da allowlist vai para DLQ e nenhum envio ocorre
+  no bloqueio. Evidencia:
+  `v25-sender-runtime|claim_guard=ok|send=ok|allowlist_block=ok|dlq=ok|status=closed`.
+- **2026-05-07 / V2.11 fechado 100%:** `npm run test:v211-overlay-suite`
+  passou unit/FAB/painel/telefone/API no WhatsApp real. Evidencias principais:
+  `v211-overlay-phone|wppPhone=5531982066263|wppSource=title-conversation|sendJobsDelta=0|m=34`
+  e
+  `v211-overlay-api|wppApi=online|wppMethod=contactSummary|wppPhone=5531982066263|wppMode=worker-cdp-binding|m=35`.
+  O overlay agora ignora controles do header como `Dados do perfil`, hidrata
+  contato salvo por titulo/conversa e preserva o bridge CDP em reinjecoes.
+- **2026-05-07 / V2.12 fechado 100%:** `npm run test:v212-streaming-cdp`
+  passou unit + smoke forte CDP com screenshot e input relay:
+  `v212-streaming-cdp-strong|target=https://web.whatsapp.com/|bytes=977390|click=accepted|keydown=accepted|status=passed`.
+- **2026-05-07 / V2.15 preflight implementado:** criado
+  `npm run test:v215-cutover-preflight` e o script real
+  `node scripts/v215-cutover-preflight.mjs`. Rodada real nao destrutiva nos DBs
+  locais retornou
+  `v215-cutover-preflight|v1Contacts=12958|v1Conversations=1803|v1Messages=3826|v2Contacts=124|v2ActiveJobs=0|blockers=0|warnings=2|status=ready`.
 - **2026-05-06 / M30.3 aberto:** batch
   `campaign:40:recipient:298:24h:1778093175183`, jobs `267..271`, completou com
   `navigationMode=reused-open-chat`, audio nativo `37s`, album `4/4`,

@@ -2,16 +2,20 @@
 
 ## Status
 
-V2.1-V2.6 is implemented: foundations, contracts, SQLite persistence,
-auth, local login shell, durable job queue, safe worker loop and CDP-native sync
-observer.
+V2.1-V2.13 is implemented through the local-first path: foundations, contracts,
+SQLite persistence, auth, local login shell, durable job queue, safe worker loop,
+CDP-native sync observer, sender runtime, campaigns, automations, chatbots,
+WhatsApp overlay and authenticated stream endpoints.
 
-The worker does not send WhatsApp messages. Send-like jobs are moved to DLQ
-until the real sender phases land.
+The worker can send real WhatsApp messages only through the connected browser
+runtime and current guardrails: allowlist, destination checks, chat reuse,
+audit events, DLQ on blocked targets and the M30.3 temporary-message proof path
+when campaign payloads require it.
 
-V2.6 sync jobs are receive-only. `sync_conversation`, `sync_history` and
-`sync_inbox_force` may navigate/reconcile chats, but they do not touch the
-WhatsApp composer.
+Sync jobs still require the connected runtime. `sync_conversation`,
+`sync_history` and `sync_inbox_force` navigate/reconcile chats; send jobs use
+the sender runtime and must not be claimed by a worker without browser/CDP
+capability.
 
 Only a worker with connected sync runtime can claim sync jobs. Generic local
 workers skip `sync_conversation`, `sync_history` and `sync_inbox_force` so the
@@ -23,6 +27,14 @@ The web operations shell includes the first sync controls:
 - "Ressincronizar" action backed by
   `POST /api/admin/sync/conversations/:id/force`
 - recent operational events from `GET /api/admin/system/events`
+
+Current directed milestone smokes:
+
+- `npm run test:v211-overlay-suite`
+- `npm run test:v212-streaming-cdp`
+- `npm run test:v24-api-auth`
+- `npm run test:v25-sender-runtime`
+- `npm run test:v215-cutover-preflight`
 
 ## Commands
 

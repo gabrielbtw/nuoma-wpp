@@ -38,6 +38,42 @@ tela `/implementation` consome.
 - `npm run typecheck`.
 - `npm run lint`.
 
+## V2.11 Overlay WhatsApp Fechado
+
+**Resultado:** fechado 100% em 2026-05-07.
+
+**Escopo consolidado:**
+
+- Overlay Shadow DOM no WhatsApp com FAB, painel e estados reais.
+- Detector de conversa resiliente a contato salvo: ignora controles do header
+  como `Dados do perfil`, usa titulo real do chat e hidrata telefone por
+  conversa/titulo quando o `data-id` do WhatsApp esta opaco.
+- Ponte `window.__nuomaApi` via Runtime.addBinding com guardas de mutacao,
+  auditoria e reuso seguro em reinjecoes/restarts CDP.
+- Smokes reais WhatsApp-only registrando `IG nao_aplicavel` e `sendJobsDelta=0`.
+
+**Criterio de aceite cumprido:**
+
+- `npm run test:v211-overlay-suite`.
+- Evidencias: `v211-overlay-phone|wppSource=title-conversation|m=34` e
+  `v211-overlay-api|wppMode=worker-cdp-binding|m=35`.
+
+## V2.12 Remote Rendering CDP Fechado
+
+**Resultado:** fechado 100% em 2026-05-07.
+
+**Escopo consolidado:**
+
+- Streaming/screenshot CDP autenticado com sessao curta.
+- Dispatch seguro de `click`, `keydown` e texto quando habilitado.
+- Smoke forte contra WhatsApp Web real com screenshot local.
+
+**Criterio de aceite cumprido:**
+
+- `npm run test:v212-streaming-cdp`.
+- Evidencia:
+  `v212-streaming-cdp-strong|target=https://web.whatsapp.com/|click=accepted|keydown=accepted|status=passed`.
+
 ## M30.3 Hotfix Fechado
 
 **Problema:** a rodada real da automacao Neferpeel BH confirmou inbound recente

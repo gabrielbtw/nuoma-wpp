@@ -29,8 +29,9 @@ que o estado do produto fique espalhado sem dono claro.
   correcao pontual; versao nova `V2.x.y` fica para entrega de produto.
 - Melhorias futuras devem ficar no `IMPLEMENTATION_PLAN.md` quando forem a
   proxima acao, nao espalhadas em docs de arquitetura.
-- O conflito de planejamento deve ser resolvido antes do proximo marco: a
-  numeracao `V2.15` nao deve ser reutilizada para dois objetivos diferentes.
+- A numeracao `V2.15` fica reservada para migracao/cutover V1 -> V2. O
+  preflight automatizado esta implementado; a aplicacao operacional do cutover
+  continua condicionada a comando explicito e evidencias reais.
 
 ## O Que Nao Deve Ser Unificado Agora
 

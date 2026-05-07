@@ -246,7 +246,6 @@ async function mountAndOpenPanel(page: Page) {
     delete (window as unknown as { __nuomaOverlayRefresh?: unknown }).__nuomaOverlayRefresh;
     delete (window as unknown as { __nuomaOverlaySetData?: unknown }).__nuomaOverlaySetData;
     delete (window as unknown as { __nuomaOverlayRefreshFromApi?: unknown }).__nuomaOverlayRefreshFromApi;
-    delete (window as unknown as { __nuomaApi?: unknown }).__nuomaApi;
     delete (window as unknown as { __nuomaApiResolve?: unknown }).__nuomaApiResolve;
   }, NUOMA_OVERLAY_ROOT_ID);
   await page.evaluate(createNuomaOverlayScript());

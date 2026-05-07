@@ -125,7 +125,6 @@ async function injectAndReadWhatsAppOverlay(page: Page) {
     delete (window as unknown as { __nuomaOverlayRefresh?: unknown }).__nuomaOverlayRefresh;
     delete (window as unknown as { __nuomaOverlaySetData?: unknown }).__nuomaOverlaySetData;
     delete (window as unknown as { __nuomaOverlayRefreshFromApi?: unknown }).__nuomaOverlayRefreshFromApi;
-    delete (window as unknown as { __nuomaApi?: unknown }).__nuomaApi;
     delete (window as unknown as { __nuomaApiResolve?: unknown }).__nuomaApiResolve;
   }, NUOMA_OVERLAY_ROOT_ID);
   await page.evaluate(createNuomaOverlayScript());
@@ -184,7 +183,7 @@ async function hydrateAndOpenPanel(page: Page, state: OverlayState, label: strin
 
 async function readOverlayState(page: Page): Promise<OverlayState> {
   return page.evaluate(
-    ({ rootId }) => {
+    async ({ rootId }) => {
       const refreshState =
         typeof (
           window as unknown as {
@@ -193,13 +192,47 @@ async function readOverlayState(page: Page): Promise<OverlayState> {
         ).__nuomaOverlayRefresh === "function"
           ? (window as unknown as { __nuomaOverlayRefresh: () => unknown }).__nuomaOverlayRefresh()
           : {};
-      const state = refreshState as {
+      let state = refreshState as {
         mounted?: unknown;
         reason?: unknown;
         phone?: unknown;
         phoneSource?: unknown;
         title?: unknown;
       };
+      if (
+        state.mounted &&
+        typeof state.title === "string" &&
+        state.title &&
+        typeof state.phone === "string" &&
+        !state.phone &&
+        typeof (
+          window as unknown as {
+            __nuomaApi?: {
+              refreshContact?: (input: unknown) => Promise<unknown>;
+            };
+          }
+        ).__nuomaApi?.refreshContact === "function"
+      ) {
+        await (
+          window as unknown as {
+            __nuomaApi: {
+              refreshContact: (input: unknown) => Promise<unknown>;
+            };
+          }
+        ).__nuomaApi.refreshContact({
+          phone: "",
+          phoneSource: state.phoneSource,
+          title: state.title,
+          reason: "v211-phone-title-fallback",
+        });
+        state = (window as unknown as { __nuomaOverlayRefresh: () => unknown }).__nuomaOverlayRefresh() as {
+          mounted?: unknown;
+          reason?: unknown;
+          phone?: unknown;
+          phoneSource?: unknown;
+          title?: unknown;
+        };
+      }
       const host = document.getElementById(rootId);
       return {
         mounted: Boolean(state.mounted),
@@ -241,7 +274,11 @@ function assertDetectedPhone(state: OverlayState, label: string) {
   if (state.phone !== canaryPhone || state.hostPhone !== canaryPhone) {
     throw new Error(`${label} overlay phone mismatch: ${JSON.stringify(state)}`);
   }
-  if (!["message-data-id", "url-phone", "sidebar-active", "header-title"].includes(state.phoneSource)) {
+  if (
+    !["message-data-id", "url-phone", "sidebar-active", "header-title", "title-conversation"].includes(
+      state.phoneSource,
+    )
+  ) {
     throw new Error(`${label} overlay phone source mismatch: ${JSON.stringify(state)}`);
   }
 }
