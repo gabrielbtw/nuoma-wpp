@@ -36,6 +36,8 @@ type RemarketingBatchDispatchResult =
   inferRouterOutputs<AppRouter>["campaigns"]["remarketingBatchDispatch"];
 type CampaignListItem = inferRouterOutputs<AppRouter>["campaigns"]["list"]["campaigns"][number];
 type CampaignRecipientItem = CampaignListItem["recipients"][number];
+type CampaignBlockIssue = CampaignReadyReport["issues"][number];
+type RemarketingBatchRejected = RemarketingBatchReadyReport["rejected"][number];
 
 export function CampaignsPage() {
   const campaigns = trpc.campaigns.list.useQuery();
@@ -606,6 +608,13 @@ function SafeRemarketingConsole({
               variant="soft"
               loading={enqueuePending}
               disabled={!canConfirm}
+              title={
+                readiness && !canConfirm
+                  ? readiness.canEnqueue
+                    ? `Digite ${readiness.confirmText} para liberar.`
+                    : "Corrija os bloqueios críticos antes de disparar."
+                  : undefined
+              }
               data-testid="safe-dispatch-enqueue-button"
               onClick={onEnqueue}
             >
@@ -630,6 +639,20 @@ function SafeRemarketingConsole({
                 <CampaignMetric label="política" value={readiness.summary.policyMode} />
                 <CampaignMetric label="allowlist" value={readiness.summary.allowedPhones} />
               </div>
+              <CampaignBlockingUxPanel
+                title="Bloqueios do disparo"
+                label="M40 campanhas"
+                canProceed={readiness.canEnqueue}
+                issues={readiness.issues}
+                generatedAt={readiness.generatedAt}
+                emptyMessage="Campanha pronta para enfileirar: nenhum bloqueio crítico encontrado."
+                nextAction={
+                  readiness.canEnqueue
+                    ? `Digite ${readiness.confirmText} para liberar o disparo.`
+                    : "Resolva os bloqueios críticos abaixo e rode Campanha pronta novamente."
+                }
+                data-testid="safe-dispatch-blocking-ux"
+              />
               <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_17rem]">
                 <ul className="grid max-h-44 gap-1 overflow-y-auto rounded-lg bg-bg-deep p-2 shadow-pressed-sm">
                   {readiness.issues.map((issue) => (
@@ -673,6 +696,15 @@ function SafeRemarketingConsole({
                   <div className="px-1 text-xs text-fg-muted">
                     Digite {readiness.confirmText} para liberar o botão de disparo.
                   </div>
+                  {!readiness.canEnqueue && (
+                    <div
+                      className="rounded-md bg-bg-base px-3 py-2 text-xs text-semantic-warning shadow-flat"
+                      data-testid="safe-dispatch-disabled-reason"
+                    >
+                      Disparo real bloqueado por {countIssues(readiness.issues, "error")}{" "}
+                      bloqueio(s) crítico(s).
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -719,6 +751,13 @@ function SafeRemarketingConsole({
                 size="sm"
                 loading={batchDispatchPending}
                 disabled={!canConfirmBatch}
+                title={
+                  batchReady && !canConfirmBatch
+                    ? batchReady.canDispatch
+                      ? `Digite ${batchReady.confirmText} para liberar o lote.`
+                      : "Corrija o lote inteiro antes de disparar."
+                    : undefined
+                }
                 data-testid="safe-batch-dispatch-button"
                 onClick={onBatchDispatch}
               >
@@ -749,6 +788,21 @@ function SafeRemarketingConsole({
                     }
                   />
                 </div>
+                <CampaignBlockingUxPanel
+                  title="Bloqueios do lote real"
+                  label="M40 lote"
+                  canProceed={batchReady.canDispatch}
+                  issues={batchReady.issues}
+                  rejected={batchReady.rejected}
+                  generatedAt={batchReady.generatedAt}
+                  emptyMessage="Lote íntegro: nenhum telefone rejeitado e guardrails aprovados."
+                  nextAction={
+                    batchReady.canDispatch
+                      ? `Digite ${batchReady.confirmText} para liberar o lote real.`
+                      : "Corrija todos os rejeitados; lote parcial continua bloqueado."
+                  }
+                  data-testid="safe-batch-blocking-ux"
+                />
                 <ul className="grid max-h-40 gap-1 overflow-y-auto rounded-lg bg-bg-base p-2 shadow-pressed-sm">
                   {batchReady.issues.map((issue) => (
                     <li
@@ -799,6 +853,15 @@ function SafeRemarketingConsole({
                     <div className="px-1 text-xs text-fg-muted">
                       Digite {batchReady.confirmText} para liberar o lote real.
                     </div>
+                    {!batchReady.canDispatch && (
+                      <div
+                        className="rounded-md bg-bg-deep px-3 py-2 text-xs text-semantic-warning shadow-flat"
+                        data-testid="safe-batch-disabled-reason"
+                      >
+                        Lote travado por {countIssues(batchReady.issues, "error")} bloqueio(s) e{" "}
+                        {batchReady.rejected.length} rejeitado(s).
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -819,6 +882,119 @@ function SafeRemarketingConsole({
   );
 }
 
+function CampaignBlockingUxPanel({
+  title,
+  label,
+  canProceed,
+  issues,
+  rejected = [],
+  generatedAt,
+  emptyMessage,
+  nextAction,
+  "data-testid": testId,
+}: {
+  title: string;
+  label: string;
+  canProceed: boolean;
+  issues: CampaignBlockIssue[];
+  rejected?: RemarketingBatchRejected[];
+  generatedAt: string;
+  emptyMessage: string;
+  nextAction: string;
+  "data-testid": string;
+}) {
+  const errors = issues.filter((issue) => issue.severity === "error");
+  const warnings = issues.filter((issue) => issue.severity === "warning");
+  const infos = issues.filter((issue) => issue.severity === "info");
+  const primaryIssue = errors[0] ?? warnings[0] ?? infos[0] ?? null;
+  const rejectedGroups = groupRejected(rejected);
+
+  return (
+    <section
+      className="rounded-lg bg-bg-base p-3 shadow-flat"
+      data-testid={testId}
+      data-status={canProceed ? "ready" : "blocked"}
+      data-errors={errors.length}
+      data-warnings={warnings.length}
+      data-infos={infos.length}
+      data-rejected={rejected.length}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="font-mono text-[0.62rem] uppercase tracking-widest text-fg-dim">
+            {label}
+          </div>
+          <div className="mt-1 text-sm font-semibold text-fg-primary">{title}</div>
+          <div className="mt-1 text-xs text-fg-muted">
+            Gerado {formatTime(generatedAt)} · {nextAction}
+          </div>
+        </div>
+        <Badge variant={canProceed ? "success" : "danger"}>
+          {canProceed ? "liberado" : "bloqueado"}
+        </Badge>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-4">
+        <CampaignMetric label="críticos" value={errors.length} />
+        <CampaignMetric label="atenções" value={warnings.length} />
+        <CampaignMetric label="infos" value={infos.length} />
+        <CampaignMetric label="rejeitados" value={rejected.length} />
+      </div>
+
+      <div className="mt-3 rounded-md bg-bg-deep px-3 py-2 shadow-pressed-sm">
+        <div className="font-mono text-[0.6rem] uppercase tracking-widest text-fg-dim">
+          Próximo passo
+        </div>
+        <div className="mt-1 text-xs text-fg-primary">
+          {primaryIssue ? issueResolution(primaryIssue) : emptyMessage}
+        </div>
+      </div>
+
+      {issues.length > 0 && (
+        <div className="mt-3 grid gap-2 lg:grid-cols-2">
+          {issues.slice(0, 4).map((issue) => (
+            <div
+              key={`${issue.severity}-${issue.code}-${issue.count ?? 0}`}
+              className="rounded-md bg-bg-deep px-3 py-2 shadow-pressed-sm"
+              data-testid="campaign-blocking-issue"
+              data-code={issue.code}
+              data-severity={issue.severity}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Badge variant={issueVariant(issue.severity)}>{issue.severity}</Badge>
+                <span className="font-mono text-[0.65rem] text-fg-dim">
+                  {issue.count ?? issue.code}
+                </span>
+              </div>
+              <div className="mt-2 text-xs text-fg-primary">{issue.message}</div>
+              <div className="mt-1 text-xs text-fg-muted">{issueResolution(issue)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {rejectedGroups.length > 0 && (
+        <div className="mt-3 grid gap-1.5" data-testid="campaign-rejected-reasons">
+          {rejectedGroups.slice(0, 5).map((group) => (
+            <div
+              key={group.reason}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-bg-deep px-3 py-2 text-xs shadow-pressed-sm"
+              data-testid="campaign-rejected-reason"
+              data-reason={group.reason}
+              data-count={group.count}
+            >
+              <span className="text-fg-primary">{rejectedReasonLabel(group.reason)}</span>
+              <span className="font-mono text-fg-dim">
+                {group.count} · {group.sample}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function usePageIntent() {
   return useMemo(() => {
     if (typeof window === "undefined") return null;
@@ -831,6 +1007,108 @@ function initialCampaignIdFromUrl() {
   const value = new URLSearchParams(window.location.search).get("campaignId");
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? String(parsed) : "";
+}
+
+function countIssues(issues: CampaignBlockIssue[], severity: CampaignBlockIssue["severity"]) {
+  return issues.filter((issue) => issue.severity === severity).length;
+}
+
+function issueVariant(severity: CampaignBlockIssue["severity"]) {
+  if (severity === "error") return "danger";
+  if (severity === "warning") return "warning";
+  return "info";
+}
+
+function issueResolution(issue: CampaignBlockIssue) {
+  switch (issue.code) {
+    case "campaign_status_not_runnable":
+      return "Retome a campanha ou altere o status para running/scheduled antes de disparar.";
+    case "channel_not_supported":
+      return "Use uma campanha WhatsApp para este fluxo seguro.";
+    case "campaign_without_steps":
+      return "Adicione pelo menos um step com conteúdo antes de validar novamente.";
+    case "empty_message_step":
+      return "Preencha os steps de texto/link sem mensagem útil.";
+    case "no_active_recipients":
+      return "Inclua recipients queued/running ou use o lote real para criar novos alvos.";
+    case "invalid_recipient_phone":
+      return "Corrija os telefones dos recipients para números WhatsApp válidos.";
+    case "suppressed_contact":
+      return "Remova contatos blocked/archived do disparo ou regularize o status do contato.";
+    case "duplicate_recipient_phone":
+      return "Mantenha apenas um recipient ativo por telefone.";
+    case "recipient_already_waiting":
+      return "Aguarde os jobs anteriores finalizarem antes de reenfileirar.";
+    case "send_policy_blocks_recipients":
+      return "Ajuste a allowlist ou retire os telefones fora da política atual.";
+    case "production_without_canary_allowlist":
+      return "Defina uma allowlist canária explícita antes do envio real.";
+    case "dry_run_without_jobs":
+      return "Confira status, steps, delays e recipients: a prévia não encontrou job pronto.";
+    case "scheduler_preview_error":
+      return "Resolva o erro retornado pela prévia do scheduler e rode a validação novamente.";
+    case "temporary_messages_m303_required":
+      return "Configure temporaryMessages com 24h antes do envio e restauração 90d.";
+    case "send_policy_allowlist_required":
+      return "Informe allowlist explícita para lote real.";
+    case "active_campaign_step_jobs":
+      return "Finalize ou limpe campaign_step ativos antes de abrir outro lote real.";
+    case "active_campaign_recipients":
+      return "Conclua recipients ativos antes de criar um novo lote para a campanha.";
+    case "empty_batch":
+      return "Informe ao menos um telefone ou contato no lote.";
+    case "batch_has_rejections":
+      return "Corrija todos os rejeitados; o sistema bloqueia lote parcial.";
+    case "no_accepted_recipients":
+      return "Nenhum alvo passou nos guardrails; revise telefones, contatos e allowlist.";
+    case "accepted_recipients":
+      return "Alvos aceitos para a próxima etapa de confirmação.";
+    default:
+      return issue.severity === "error"
+        ? "Resolva este bloqueio antes de tentar o envio real."
+        : "Revise esta condição antes de executar.";
+  }
+}
+
+function groupRejected(rejected: RemarketingBatchRejected[]) {
+  const groups = new Map<string, { reason: string; count: number; sample: string }>();
+  for (const item of rejected) {
+    const existing = groups.get(item.reason);
+    if (existing) {
+      existing.count += 1;
+      continue;
+    }
+    groups.set(item.reason, {
+      reason: item.reason,
+      count: 1,
+      sample: `${item.source}:${item.value}`,
+    });
+  }
+  return [...groups.values()].sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason));
+}
+
+function rejectedReasonLabel(reason: string) {
+  switch (reason) {
+    case "not_found":
+      return "Contato não encontrado";
+    case "missing_phone":
+      return "Contato sem telefone";
+    case "invalid_phone":
+      return "Telefone inválido";
+    case "duplicate_candidate":
+      return "Telefone duplicado no lote";
+    case "duplicate_recipient":
+      return "Já existe recipient para este alvo";
+    case "not_allowlisted_for_test_execution":
+      return "Fora da allowlist de teste";
+    case "not_in_production_canary_allowlist":
+      return "Fora da allowlist canária";
+    default:
+      if (reason.startsWith("contact_") && reason.endsWith("_suppressed")) {
+        return "Contato suprimido por status";
+      }
+      return reason.replaceAll("_", " ");
+  }
 }
 
 function Metric({ label, value }: { label: string; value: number }) {

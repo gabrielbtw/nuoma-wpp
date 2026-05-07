@@ -18,6 +18,26 @@ tela `/implementation` consome.
 | --- | --- | --- | --- | --- |
 | 1 | Nenhum V2.* operacional aberto | checkpoint | fechado | Manter smokes e abrir novo M/V2.x.y somente se surgir gap real. |
 
+## M40 Campanhas: UX De Bloqueios Fechado
+
+**Resultado:** fechado em 2026-05-07.
+
+**Escopo consolidado:**
+
+- Console seguro de campanha mostra painel M40 com estado `liberado`/`bloqueado`.
+- Bloqueios aparecem por severidade (`críticos`, `atenções`, `infos`) e com
+  proxima ação explicita por codigo de issue.
+- Lote real agrupa rejeitados por motivo (`invalid_phone`,
+  `not_allowlisted_for_test_execution`, duplicidade, contato suprimido etc.).
+- Botões de disparo bloqueados agora exibem motivo operacional visivel e title
+  explicando a confirmação ou correção necessária.
+
+**Criterio de aceite cumprido:**
+
+- `npm run test:m40-campaign-blocking-ux`.
+- `npm run typecheck`.
+- `npm run lint`.
+
 ## M38 Chrome Extension Companion Fechado
 
 **Resultado:** fechado em 2026-05-07.

@@ -1,5 +1,6 @@
 node_modules/
 .turbo/
+.playwright-mcp/
 dist/
 build/
 coverage/

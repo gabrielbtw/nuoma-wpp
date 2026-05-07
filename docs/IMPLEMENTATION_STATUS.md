@@ -7,8 +7,8 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 ## Snapshot
 
 - **Linha atual:** V2 standalone em `/Users/gabrielbraga/Projetos/nuoma-wpp-v2`.
-- **M principais:** 39 marcadores, de `M0` ate `M38`.
-- **M/sub-M conhecidos:** 108 IDs quando contamos `M0.1`, `M35.2`, etc.
+- **M principais:** 40 marcadores, de `M0` ate `M38`, mais `M40`.
+- **M/sub-M conhecidos:** 109 IDs quando contamos `M0.1`, `M35.2`, etc.
 - **Pendencia aberta:** nenhuma hotfix corretiva aberta apos o fechamento de
   `M30.3`; V2.13-V2.15 e remarketing em lote real estao implementados.
 - **Politica de smoke real:** todo envio real deve confirmar destino/canal e
@@ -88,6 +88,10 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
   `nuoma_access` e hidrata `contactSummary` por `/api/extension/overlay` com
   `Authorization: Bearer`; mutacoes seguem bloqueadas no companion e continuam
   no worker/CDP.
+- [x] **M40 Campanhas: UX de bloqueios** — Console seguro de campanhas e lote
+  real agora mostra resumo de bloqueios por severidade, proximo passo
+  acionavel, motivos de rejeicao agrupados, contadores visiveis e explicacao
+  do botao real desabilitado antes de qualquer envio.
 
 ## Parcial
 
@@ -125,6 +129,10 @@ surface de conversa unificada ja lista e busca conversas Instagram.
   `apps/chrome-extension`, build MV3, popup local, content script, page bridge
   e `/api/extension/overlay`. Evidencia: `npm run test:m38-chrome-extension`
   gera report/prints em `data/m38-chrome-extension-smoke-*`.
+- **2026-05-07 / M40 Campanhas UX de bloqueios fechado:** tela `/campaigns`
+  ganhou paineis `safe-dispatch-blocking-ux` e `safe-batch-blocking-ux`, com
+  guidance por codigo de bloqueio e agrupamento de rejeitados. Evidencia:
+  `npm run test:m40-campaign-blocking-ux`.
 - **2026-05-07 / V2.10 hardening fechado 100%:** corrigido falso positivo do
   checkpoint: recipients de campanha agora mantem `metadata.auditTrail`
   materializado por scheduler/job/worker/temporary-message audit, a listagem de

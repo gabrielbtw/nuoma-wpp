@@ -33,6 +33,7 @@ Current directed milestone smokes:
 
 - `npm run test:v211-overlay-suite`
 - `npm run test:m38-chrome-extension`
+- `npm run test:m40-campaign-blocking-ux`
 - `npm run test:v212-streaming-cdp`
 - `npm run test:v213-v215-suite`
 - `npm run test:v24-api-auth`

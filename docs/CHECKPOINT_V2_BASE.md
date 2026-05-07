@@ -33,6 +33,9 @@ Escopo: este checkpoint considera somente o repo `nuoma-wpp-v2`.
 - `M38`: Chrome Extension Companion fechado com workspace MV3, overlay V2.11
   injetavel em `web.whatsapp.com`, ponte local `/api/extension/overlay` e
   leitura do cookie `nuoma_access` via `chrome.cookies`.
+- `M40`: UX de bloqueios em campanhas fechada com resumo por severidade,
+  orientação acionavel, rejeitados agrupados e motivo visivel para botões de
+  disparo desabilitados.
 
 ## Parcial, mas utilizável
 

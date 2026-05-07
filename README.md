@@ -24,7 +24,8 @@ Current gate: all core V2 tracks are implemented for the local/hosted
 WhatsApp-only flow. `M30.3` is closed with real WhatsApp 24h temporary-message
 proof, remarketing in real batch is closed, and cutover tooling is implemented
 behind explicit confirmation. `M38` adds an optional Chrome extension companion
-for the WhatsApp overlay without replacing the worker/CDP runtime.
+for the WhatsApp overlay without replacing the worker/CDP runtime, and `M40`
+adds explicit blocking UX to campaign dispatch screens.
 
 ## Versioning
 
@@ -37,8 +38,8 @@ for the WhatsApp overlay without replacing the worker/CDP runtime.
 
 Current counts from [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md):
 
-- `39` main M markers: `M0` through `M38`.
-- `108` total M/sub-M IDs when `M0.1`, `M35.2`, etc. are included.
+- `40` main M markers: `M0` through `M38`, plus `M40`.
+- `109` total M/sub-M IDs when `M0.1`, `M35.2`, etc. are included.
 - `0` open corrective hotfixes after `M30.3` closure.
 
 ## Current Plan
