@@ -2305,7 +2305,7 @@ describe("api health", () => {
     }
   });
 
-  it("serves the M38 Chrome extension overlay bridge with bearer cookie auth", async () => {
+  it("serves the M38 Chrome extension and M39 Safari extension overlay bridge with bearer cookie auth", async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "nuoma-v2-api-m38-extension-"));
     const db = openDb(path.join(tempDir, "api.db"));
     await runMigrations(db);

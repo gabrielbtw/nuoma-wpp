@@ -22,8 +22,8 @@ Status: V2.7 API surface auditada em 2026-05-04.
 - `push`: subscribe, unsubscribe e teste com entrega web-push quando VAPID estiver configurado.
 - `embed`: resumo de contato, automações elegíveis, dispatch seguro e nota por telefone.
 - `evidence`: centro M37 de reports/prints/evidence.json locais.
-- HTTP `/api/extension/overlay`: bridge M38 da extensao Chrome para `ping` e
-  `contactSummary` autenticados por cookie/bearer local.
+- HTTP `/api/extension/overlay`: bridge M38/M39 dos companions Chrome/Safari
+  para `ping` e `contactSummary` autenticados por cookie/bearer local.
 - `streaming`: screencast CDP opt-in com captura PNG e relay seguro de input por sessão curta.
 - `/api/events`: SSE global autenticado por cookie com canais `inbox` e `system`, envelopes `nuoma-event`, replay de `system_events` por cursor e heartbeat único.
 

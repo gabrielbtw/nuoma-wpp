@@ -8,7 +8,8 @@ CDP-native sync observer, sender runtime, campaigns, automations, chatbots,
 WhatsApp overlay, authenticated stream endpoints, backup/restore operations and
 guarded V1 -> V2 cutover tooling. `V2.14a` adds an opt-in cartographic/R3F
 dashboard visual that is disabled until the local appearance preference enables
-it.
+it. M39 adds a Safari extension wrapper pipeline from the Chrome companion; real
+Safari acceptance still needs the local Xcode web extension converter.
 
 The worker can send real WhatsApp messages only through the connected browser
 runtime and current guardrails: allowlist, destination checks, chat reuse,
@@ -35,6 +36,7 @@ Current directed milestone smokes:
 
 - `npm run test:v211-overlay-suite`
 - `npm run test:m38-chrome-extension`
+- `npm run test:m39-safari-extension`
 - `npm run test:m40-campaign-blocking-ux`
 - `npm run test:v212-streaming-cdp`
 - `npm run test:v214a-visual`
@@ -93,6 +95,7 @@ Worker defaults:
 - `apps/web`: React UI only.
 - `apps/worker`: WhatsApp Web browser runtime only.
 - `apps/chrome-extension`: MV3 companion local para overlay no Chrome do usuario.
+- `apps/safari-extension`: wrapper Safari gerado a partir do build Chrome M38/M39.
 - `packages/contracts`: Zod contracts shared by apps.
 - `packages/db`: Drizzle schema, repositories and migrations.
 - `packages/config`: env parsing and constants.

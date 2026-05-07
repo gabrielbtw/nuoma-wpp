@@ -7,11 +7,13 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 ## Snapshot
 
 - **Linha atual:** V2 standalone em `/Users/gabrielbraga/Projetos/nuoma-wpp-v2`.
-- **M principais:** 40 marcadores, de `M0` ate `M38`, mais `M40`.
-- **M/sub-M conhecidos:** 109 IDs quando contamos `M0.1`, `M35.2`, etc.
+- **M principais:** 41 marcadores, de `M0` ate `M40`.
+- **M/sub-M conhecidos:** 110 IDs quando contamos `M0.1`, `M35.2`, etc.
 - **Pendencia aberta:** nenhuma hotfix corretiva aberta apos o fechamento de
-  `M30.3`; V2.13-V2.15, V2.14a visual opcional e remarketing em lote real
-  estao implementados.
+  `M30.3`; `M39` tem aceite real no Safari pendente porque
+  `xcrun safari-web-extension-converter` nao esta disponivel nesta maquina.
+  V2.13-V2.15, V2.14a visual opcional e remarketing em lote real estao
+  implementados.
 - **Politica de smoke real:** todo envio real deve confirmar destino/canal e
   anexar evidencia visual. Quando for WhatsApp-only, registrar `IG nao_aplicavel`.
 
@@ -92,6 +94,12 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
   `nuoma_access` e hidrata `contactSummary` por `/api/extension/overlay` com
   `Authorization: Bearer`; mutacoes seguem bloqueadas no companion e continuam
   no worker/CDP.
+- [ ] **M39 Safari Extension Companion** — Novo workspace
+  `apps/safari-extension` reaproveita `apps/chrome-extension/dist`, copia o web
+  extension para `dist/web-extension`, gera plano do
+  `safari-web-extension-converter` e cobre build/manifest/content script/overlay
+  em smoke WebKit com converter fake. Falta o aceite real: converter Xcode
+  disponivel, wrapper Safari gerado de verdade e print do overlay no Safari.
 - [x] **M40 Campanhas: UX de bloqueios** — Console seguro de campanhas e lote
   real agora mostra resumo de bloqueios por severidade, proximo passo
   acionavel, motivos de rejeicao agrupados, contadores visiveis e explicacao
@@ -99,13 +107,16 @@ pendencias, versoes fechadas e evidencias que ainda importam para decisao.
 
 ## Parcial
 
-Nenhum item `V2.*` parcial neste checkpoint.
+- **M39 Safari Extension Companion** — Implementacao local e smoke automatizado
+  feitos; aceite real no Safari bloqueado por ausencia local de
+  `xcrun safari-web-extension-converter`.
 
 ## Falta
 
-Nenhuma pendencia operacional `V2.*` aberta neste checkpoint. Envio real de
-Instagram/DM segue fora do fluxo cotidiano ate iniciativa explicita, mas a
-surface de conversa unificada ja lista e busca conversas Instagram.
+Nenhuma pendencia operacional `V2.*` aberta neste checkpoint. `M39` precisa de
+Xcode/converter local para o print real no Safari. Envio real de Instagram/DM
+segue fora do fluxo cotidiano ate iniciativa explicita, mas a surface de
+conversa unificada ja lista e busca conversas Instagram.
 
 ## Evidencias Recentes
 
@@ -133,6 +144,12 @@ surface de conversa unificada ja lista e busca conversas Instagram.
   `apps/chrome-extension`, build MV3, popup local, content script, page bridge
   e `/api/extension/overlay`. Evidencia: `npm run test:m38-chrome-extension`
   gera report/prints em `data/m38-chrome-extension-smoke-*`.
+- **2026-05-07 / M39 Safari Extension Companion parcial:** criado
+  `apps/safari-extension`, `npm run build:safari-extension` e
+  `npm run test:m39-safari-extension`. O smoke usa converter fake e browser
+  Playwright para provar wrapper, manifest, content script, overlay e API;
+  print real no Safari fica pendente ate
+  `xcrun --find safari-web-extension-converter` passar.
 - **2026-05-07 / M40 Campanhas UX de bloqueios fechado:** tela `/campaigns`
   ganhou paineis `safe-dispatch-blocking-ux` e `safe-batch-blocking-ux`, com
   guidance por codigo de bloqueio e agrupamento de rejeitados. Evidencia:

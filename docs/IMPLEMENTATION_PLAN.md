@@ -16,7 +16,37 @@ tela `/implementation` consome.
 
 | Ordem | ID | Tipo | Status | Entrega esperada |
 | --- | --- | --- | --- | --- |
-| 1 | Nenhum V2.* operacional aberto | checkpoint | fechado | Manter smokes e abrir novo M/V2.x.y somente se surgir gap real. |
+| 1 | M39 Safari aceite real | milestone | bloqueado por ferramenta local | Instalar/ativar `safari-web-extension-converter`, gerar wrapper real e capturar print do overlay no Safari. |
+
+## M39 Safari Extension Companion Parcial
+
+**Resultado:** implementacao local concluida em 2026-05-07; aceite real Safari
+pendente porque `xcrun safari-web-extension-converter` nao existe nesta maquina.
+
+**Escopo consolidado:**
+
+- Novo workspace `apps/safari-extension` com build proprio.
+- Build reaproveita `apps/chrome-extension/dist`, copia o web extension para
+  `apps/safari-extension/dist/web-extension` e chama
+  `safari-web-extension-converter`.
+- `SAFARI_WEB_EXTENSION_CONVERTER_BIN` permite smoke controlado sem depender do
+  Xcode local.
+- `README.md` do workspace documenta instalacao local no Safari, assinatura no
+  Xcode e habilitacao da extensao.
+- Smoke M39 valida projeto `.xcodeproj` com converter fake, manifest MV3,
+  content script em `web.whatsapp.com`, overlay montado em browser Playwright
+  e rota `/api/extension/overlay` coberta pela suite API.
+
+**Criterio de aceite local cumprido:**
+
+- `npm run test:m39-safari-extension`.
+
+**Criterio de aceite real pendente:**
+
+- `xcrun --find safari-web-extension-converter`.
+- `npm run build:safari-extension` sem `SAFARI_WEB_EXTENSION_CONVERTER_BIN`.
+- Abrir `.xcodeproj`, habilitar a extensao no Safari e capturar print do
+  overlay em `https://web.whatsapp.com/`.
 
 ## M40 Campanhas: UX De Bloqueios Fechado
 

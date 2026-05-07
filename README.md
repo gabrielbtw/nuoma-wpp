@@ -24,9 +24,12 @@ Current gate: all core V2 tracks are implemented for the local/hosted
 WhatsApp-only flow. `M30.3` is closed with real WhatsApp 24h temporary-message
 proof, remarketing in real batch is closed, and cutover tooling is implemented
 behind explicit confirmation. `M38` adds an optional Chrome extension companion
-for the WhatsApp overlay without replacing the worker/CDP runtime, and `M40`
-adds explicit blocking UX to campaign dispatch screens. `V2.14a` closes the
-optional cartographic/R3F visual layer behind a user preference.
+for the WhatsApp overlay without replacing the worker/CDP runtime. `M39` adds
+the Safari companion wrapper pipeline from the same extension build, with real
+Safari print acceptance still blocked until `safari-web-extension-converter` is
+available locally. `M40` adds explicit blocking UX to campaign dispatch
+screens. `V2.14a` closes the optional cartographic/R3F visual layer behind a
+user preference.
 
 ## Versioning
 
@@ -39,9 +42,10 @@ optional cartographic/R3F visual layer behind a user preference.
 
 Current counts from [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md):
 
-- `40` main M markers: `M0` through `M38`, plus `M40`.
-- `109` total M/sub-M IDs when `M0.1`, `M35.2`, etc. are included.
-- `0` open corrective hotfixes after `M30.3` closure.
+- `41` main M markers: `M0` through `M40`.
+- `110` total M/sub-M IDs when `M0.1`, `M35.2`, etc. are included.
+- `0` open corrective hotfixes after `M30.3` closure; `M39` has real Safari
+  acceptance pending on the local Xcode converter.
 
 ## Current Plan
 
@@ -58,7 +62,8 @@ nuoma-wpp-v2/
 │   ├── api/        # Fastify HTTP + REST + Drizzle
 │   ├── web/        # React 19 + Vite + Tailwind + Radix
 │   ├── worker/     # Playwright + chrome-remote-interface (CDP observer)
-│   └── chrome-extension/ # MV3 companion for WhatsApp Web overlay
+│   ├── chrome-extension/ # MV3 companion for WhatsApp Web overlay
+│   └── safari-extension/ # Safari wrapper pipeline reusing Chrome companion
 ├── packages/
 │   ├── contracts/  # Zod schemas shared between api ↔ web
 │   ├── db/         # Drizzle schema + repositories + migrations
@@ -86,6 +91,7 @@ nuoma-wpp-v2/
 | Logger         | Pino                                       | Structured logs                                                       |
 | Worker browser | Playwright + chrome-remote-interface       | Hybrid: Playwright drives navigation, CDP drives observers/screencast |
 | Chrome extension | Manifest V3 companion                    | Optional user Chrome overlay with local API bridge                    |
+| Safari extension | Xcode Safari Web Extension wrapper       | Optional Safari companion generated from the Chrome extension build   |
 | Auth           | Argon2id + JWT (httpOnly cookie) + refresh | Local auth with httpOnly sessions                                     |
 | Tests          | Vitest + Playwright E2E                    | Unit/integration plus browser smokes                                  |
 | Container      | Docker + docker-compose                    | Hosted target parity                                                  |

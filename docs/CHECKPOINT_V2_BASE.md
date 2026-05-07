@@ -43,11 +43,15 @@ Escopo: este checkpoint considera somente o repo `nuoma-wpp-v2`.
 ## Parcial, mas utilizável
 
 - Web Push continua como complemento, fora do bloqueio de V2.13.
+- `M39`: Safari Extension Companion tem workspace, build pipeline, docs e smoke
+  com converter fake/browser Playwright; aceite real com print no Safari depende do
+  `safari-web-extension-converter` local.
 
 ## Fazer agora
 
 1. Proximo foco operacional:
    - nenhum `V2.*` aberto neste checkpoint;
+   - M39 real Safari somente apos instalar/ativar o converter Xcode;
    - execucao real de cutover apenas quando houver comando explicito.
 
 ## Deixar para depois

@@ -118,14 +118,14 @@ export async function registerExtensionBridgeRoutes(
         phone,
         phoneSource,
         errorCode: "unsupported_method",
-        errorMessage: `Unsupported Chrome extension overlay method: ${overlayRequest.method}`,
+        errorMessage: `Unsupported extension companion overlay method: ${overlayRequest.method}`,
       });
       return reply.send({
         ok: false,
         error: {
           code: "unsupported_method",
           message:
-            "A extensao Chrome M38 aceita apenas metodos de leitura. Mutacoes continuam no worker/CDP.",
+            "O companion de extensao M38/M39 aceita apenas metodos de leitura. Mutacoes continuam no worker/CDP.",
         },
       });
     } catch (error) {
