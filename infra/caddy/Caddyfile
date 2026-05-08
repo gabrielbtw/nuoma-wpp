@@ -13,7 +13,7 @@
 
 	handle {
 		reverse_proxy web:3002 {
-			header_up Host web:3002
+			header_up Host 127.0.0.1
 		}
 	}
 }
