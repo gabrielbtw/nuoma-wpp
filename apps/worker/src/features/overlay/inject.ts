@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 export const NUOMA_OVERLAY_VERSION = "v2.11.7-m35";
 export const NUOMA_OVERLAY_ROOT_ID = "nuoma-wpp-overlay-root";
 export const NUOMA_OVERLAY_FAB_TEST_ID = "nuoma-overlay-fab";
@@ -6,6 +8,8 @@ export const NUOMA_OVERLAY_API_BINDING_NAME = "__nuomaApi";
 
 export interface NuomaOverlayScriptOptions {
   version?: string;
+  octoImageUrl?: string;
+  octoSpriteUrl?: string;
 }
 
 export interface NuomaOverlayData {
@@ -74,17 +78,21 @@ const overlayTokens = {
     '"Geist Variable", "Geist", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
 } as const;
 
+const defaultOctoSpriteDataUri = `data:image/webp;base64,${readFileSync(
+  new URL("./assets/octo-overlay-spritesheet.webp", import.meta.url),
+).toString("base64")}`;
+
 function createNuomaOverlayCss(): string {
   return `
 :host {
   all: initial;
   position: absolute;
-  inset-block-start: calc(50% - 22px);
-  inset-inline-end: 132px;
+  inset-block-start: calc(50% - 32px);
+  inset-inline-end: 124px;
   z-index: 2147483646;
   display: block;
-  inline-size: 44px;
-  block-size: 44px;
+  inline-size: 64px;
+  block-size: 64px;
   pointer-events: none;
   color-scheme: dark;
   font-family: ${overlayTokens.fontFamily};
@@ -98,17 +106,18 @@ function createNuomaOverlayCss(): string {
 .nuoma-fab {
   all: unset;
   box-sizing: border-box;
-  inline-size: 42px;
-  block-size: 42px;
+  inline-size: 62px;
+  block-size: 62px;
   display: inline-grid;
   place-items: center;
   border-radius: 999px;
   color: ${overlayTokens.fg};
   background:
-    radial-gradient(circle at 32% 24%, oklch(0.74 0.12 202 / 0.30), transparent 42%),
-    linear-gradient(145deg, ${overlayTokens.bgHover}, ${overlayTokens.bg});
-  box-shadow: ${overlayTokens.shadow};
+    radial-gradient(circle at 50% 48%, oklch(0.74 0.12 202 / 0.14), transparent 62%),
+    radial-gradient(circle at 50% 54%, ${overlayTokens.bg}, transparent 66%);
+  box-shadow: 0 10px 30px oklch(0.05 0.020 205 / 0.28);
   cursor: pointer;
+  overflow: visible;
   pointer-events: auto;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -121,7 +130,7 @@ function createNuomaOverlayCss(): string {
 .nuoma-fab:hover,
 .nuoma-fab:focus-visible {
   transform: translateY(-1px);
-  box-shadow: ${overlayTokens.glow};
+  box-shadow: 0 0 0 1px oklch(0.74 0.12 202 / 0.40), 0 14px 34px oklch(0.05 0.020 205 / 0.34);
   outline: none;
 }
 
@@ -129,35 +138,85 @@ function createNuomaOverlayCss(): string {
   transform: translateY(1px) scale(0.98);
 }
 
-.nuoma-mark {
+.nuoma-octo {
   position: relative;
   display: inline-grid;
   place-items: center;
-  inline-size: 24px;
-  block-size: 24px;
-  border-radius: 999px;
-  border: 1px solid ${overlayTokens.contour};
-  color: ${overlayTokens.fg};
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: 0;
+  inline-size: 62px;
+  block-size: 62px;
+  transform-origin: 50% 74%;
+  animation: nuoma-octo-float 2200ms ease-in-out infinite;
 }
 
-.nuoma-mark::after {
-  content: "";
+.nuoma-octo-art {
+  display: block;
+  inline-size: 72px;
+  block-size: 78px;
+  background-image: var(--nuoma-octo-sprite);
+  background-position: 0 0;
+  background-repeat: no-repeat;
+  background-size: 576px 702px;
+  user-select: none;
+  filter:
+    drop-shadow(0 9px 10px oklch(0.04 0.020 205 / 0.52))
+    drop-shadow(0 0 12px oklch(0.74 0.12 202 / 0.14));
+}
+
+.nuoma-octo-status {
   position: absolute;
-  inset-block-end: -2px;
-  inset-inline-end: -2px;
-  inline-size: 8px;
-  block-size: 8px;
+  inset-block-end: 7px;
+  inset-inline-end: 3px;
+  inline-size: 10px;
+  block-size: 10px;
   border-radius: 999px;
   background: ${overlayTokens.lime};
+  border: 2px solid oklch(0.15 0.024 205);
   box-shadow: 0 0 12px oklch(0.80 0.15 146 / 0.48);
+}
+
+:host([data-nuoma-api-status="offline"]) .nuoma-octo-status {
+  background: ${overlayTokens.fgDim};
+  box-shadow: none;
+}
+
+:host([data-nuoma-api-status="loading"]) .nuoma-octo-status {
+  background: ${overlayTokens.cyan};
+  animation: nuoma-octo-pulse 900ms ease-in-out infinite;
+}
+
+:host([data-nuoma-api-status="error"]) .nuoma-octo-status {
+  background: ${overlayTokens.warning};
+  box-shadow: 0 0 12px oklch(0.78 0.15 74 / 0.48);
 }
 
 :host([data-nuoma-state="open"]) .nuoma-fab {
   box-shadow: ${overlayTokens.glow};
+}
+
+:host([data-nuoma-state="open"]) .nuoma-octo {
+  animation-duration: 1500ms;
+}
+
+@keyframes nuoma-octo-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1deg);
+  }
+  50% {
+    transform: translateY(-2px) rotate(1deg);
+  }
+}
+
+@keyframes nuoma-octo-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.72);
+    opacity: 0.72;
+  }
 }
 
 .nuoma-backdrop {
@@ -438,13 +497,18 @@ function createNuomaOverlayCss(): string {
 @media (max-width: 780px) {
   :host {
     inset-inline-end: 98px;
-    inline-size: 40px;
-    block-size: 40px;
+    inline-size: 58px;
+    block-size: 58px;
   }
 
   .nuoma-fab {
-    inline-size: 38px;
-    block-size: 38px;
+    inline-size: 56px;
+    block-size: 56px;
+  }
+
+  .nuoma-octo {
+    inline-size: 56px;
+    block-size: 56px;
   }
 
   .nuoma-panel {
@@ -452,6 +516,13 @@ function createNuomaOverlayCss(): string {
     inset-block-end: 12px;
     inset-inline: 12px;
     inline-size: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nuoma-octo,
+  .nuoma-octo-status {
+    animation: none;
   }
 }
 `.trim();
@@ -464,6 +535,20 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     fabTestId: NUOMA_OVERLAY_FAB_TEST_ID,
     panelTestId: NUOMA_OVERLAY_PANEL_TEST_ID,
     apiBindingName: NUOMA_OVERLAY_API_BINDING_NAME,
+    octoSpriteUrl: options.octoSpriteUrl ?? options.octoImageUrl ?? defaultOctoSpriteDataUri,
+    octoSprite: {
+      cellWidth: 72,
+      cellHeight: 78,
+      states: {
+        idle: { row: 0, durations: [280, 110, 110, 140, 140, 320] },
+        waving: { row: 3, durations: [140, 140, 140, 280] },
+        jumping: { row: 4, durations: [140, 140, 140, 140, 280] },
+        failed: { row: 5, durations: [140, 140, 140, 140, 140, 140, 140, 240] },
+        waiting: { row: 6, durations: [150, 150, 150, 150, 150, 260] },
+        running: { row: 7, durations: [120, 120, 120, 120, 120, 220] },
+        review: { row: 8, durations: [150, 150, 150, 150, 150, 280] },
+      },
+    },
     css: createNuomaOverlayCss(),
   };
 
@@ -484,6 +569,9 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     apiStatus: "offline",
     apiLastMethod: "",
     apiLastError: "",
+    animationRaf: 0,
+    animationStartedAt: 0,
+    animationState: "idle",
   };
 
   const readOnlyApiMethods = new Set(["ping", "contactSummary"]);
@@ -765,6 +853,93 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     element.textContent = value;
     parent.appendChild(element);
     return element;
+  }
+
+  function cssUrlValue(value) {
+    return 'url("' + String(value || "").replace(/"/g, "%22").replace(/\\n/g, "") + '")';
+  }
+
+  function shouldReduceMotion() {
+    return Boolean(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }
+
+  function octoVisualStateForHost(host) {
+    const data = state.data || {};
+    const apiStatus = text(data.apiStatus) || text(state.apiStatus) || host.getAttribute("data-nuoma-api-status") || "offline";
+    const syncStatus = text(data.syncStatus);
+    const hasError = apiStatus === "error";
+    if (hasError || syncStatus === "error") {
+      return "failed";
+    }
+    if (apiStatus === "loading" || syncStatus === "running" || state.apiInFlight) {
+      return "running";
+    }
+    if (syncStatus === "done") {
+      return "jumping";
+    }
+    if (!host.getAttribute("data-nuoma-thread-phone") && host.getAttribute("data-nuoma-state") !== "open") {
+      return "waiting";
+    }
+    if (host.getAttribute("data-nuoma-state") === "open") {
+      return "review";
+    }
+    return "idle";
+  }
+
+  function octoFrameIndex(elapsedMs, durations) {
+    const total = durations.reduce((sum, duration) => sum + duration, 0);
+    if (total <= 0) {
+      return 0;
+    }
+    const normalized = ((elapsedMs % total) + total) % total;
+    let cursor = 0;
+    for (let index = 0; index < durations.length; index += 1) {
+      cursor += durations[index] || 0;
+      if (normalized < cursor) {
+        return index;
+      }
+    }
+    return Math.max(0, durations.length - 1);
+  }
+
+  function animateOcto(timestamp) {
+    const host = document.getElementById(config.rootId);
+    const art = host?.shadowRoot?.querySelector(".nuoma-octo-art");
+    if (!host || !art) {
+      state.animationRaf = 0;
+      return;
+    }
+
+    const visualState = octoVisualStateForHost(host);
+    const animation = config.octoSprite.states[visualState] || config.octoSprite.states.idle;
+    if (state.animationState !== visualState || !state.animationStartedAt) {
+      state.animationState = visualState;
+      state.animationStartedAt = timestamp || performance.now();
+      host.setAttribute("data-nuoma-octo-state", visualState);
+    }
+
+    const elapsed = shouldReduceMotion() ? 0 : (timestamp || performance.now()) - state.animationStartedAt;
+    const frame = shouldReduceMotion() ? 0 : octoFrameIndex(elapsed, animation.durations || [1000]);
+    const x = frame === 0 ? 0 : -frame * config.octoSprite.cellWidth;
+    const y = animation.row === 0 ? 0 : -animation.row * config.octoSprite.cellHeight;
+    art.style.backgroundPosition = x + "px " + y + "px";
+
+    state.animationRaf = requestAnimationFrame(animateOcto);
+  }
+
+  function ensureOctoAnimation() {
+    if (!state.animationRaf) {
+      animateOcto(performance.now());
+    }
+  }
+
+  function restartOctoAnimation() {
+    if (state.animationRaf) {
+      cancelAnimationFrame(state.animationRaf);
+      state.animationRaf = 0;
+    }
+    state.animationStartedAt = 0;
+    animateOcto(performance.now());
   }
 
   function normalizePhone(value) {
@@ -1063,6 +1238,13 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     }
     style.textContent = config.css;
 
+    const octoSpriteUrl = String(config.octoSpriteUrl || "");
+    const octoMarkup =
+      '<span class="nuoma-octo" aria-hidden="true">' +
+      '<span class="nuoma-octo-art"></span>' +
+      '<span class="nuoma-octo-status"></span>' +
+      '</span>';
+
     let button = shadow.querySelector("[data-nuoma-fab]");
     if (!button) {
       button = document.createElement("button");
@@ -1070,14 +1252,12 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       button.className = "nuoma-fab";
       button.setAttribute("data-nuoma-fab", "");
       button.setAttribute("data-testid", config.fabTestId);
-      button.setAttribute("aria-label", "Abrir Nuoma CRM");
-      button.setAttribute("title", "Abrir Nuoma CRM");
-      button.innerHTML = '<span class="nuoma-mark" aria-hidden="true">N</span>';
       button.addEventListener("click", () => {
         const nextState = host.getAttribute("data-nuoma-state") === "open" ? "closed" : "open";
         host.setAttribute("data-nuoma-state", nextState);
         button.setAttribute("aria-expanded", String(nextState === "open"));
         renderPanel(host);
+        restartOctoAnimation();
         if (nextState === "open") {
           void refreshContactFromApi(host, "fab-open");
         }
@@ -1095,8 +1275,15 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       });
       shadow.appendChild(button);
     }
+    button.setAttribute("aria-label", "Abrir Octo no Nuoma CRM");
+    button.setAttribute("title", "Abrir Octo no Nuoma CRM");
+    button.style.setProperty("--nuoma-octo-sprite", cssUrlValue(octoSpriteUrl));
+    if (!button.querySelector(".nuoma-octo-art") || button.querySelector(".nuoma-mark")) {
+      button.innerHTML = octoMarkup;
+    }
     button.setAttribute("aria-controls", config.panelTestId);
     button.setAttribute("aria-expanded", String(host.getAttribute("data-nuoma-state") === "open"));
+    ensureOctoAnimation();
 
     let backdrop = shadow.querySelector("[data-nuoma-backdrop]");
     if (!backdrop) {
@@ -1130,6 +1317,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       button.setAttribute("aria-expanded", String(open));
     }
     renderPanel(host);
+    restartOctoAnimation();
     if (open) {
       void refreshContactFromApi(host, "panel-open");
     }
@@ -1577,6 +1765,10 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     }
     if (state.raf) {
       cancelAnimationFrame(state.raf);
+    }
+    if (state.animationRaf) {
+      cancelAnimationFrame(state.animationRaf);
+      state.animationRaf = 0;
     }
     document.getElementById(config.rootId)?.remove();
     window.__nuomaOverlayInstalled = false;

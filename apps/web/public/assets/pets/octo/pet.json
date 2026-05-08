@@ -1,0 +1,6 @@
+{
+  "id": "octo",
+  "displayName": "Octo",
+  "description": "Friendly teal octopus operator pet for Nuoma WPP.",
+  "spritesheetPath": "spritesheet.webp"
+}

@@ -110,7 +110,13 @@ async function validateWhatsAppWeb() {
     if (!state.mounted) {
       throw new Error(`WhatsApp overlay did not mount: ${state.reason ?? "header-not-found"}`);
     }
-    if (state.rootCount !== 1 || !state.shadowIsolated || state.buttonLabel !== "Abrir Nuoma CRM") {
+    if (
+      state.rootCount !== 1 ||
+      !state.shadowIsolated ||
+      state.buttonLabel !== "Abrir Octo no Nuoma CRM" ||
+      !state.hasOcto ||
+      !state.hasOctoArt
+    ) {
       throw new Error(`WhatsApp overlay invalid state: ${JSON.stringify(state)}`);
     }
     await page.screenshot({ path: wppScreenshotPath, fullPage: false, timeout: 15_000 });
@@ -146,6 +152,8 @@ async function readOverlayState(page: Page) {
         parentIsHeader: host?.parentElement === header,
         shadowIsolated: Boolean(host?.shadowRoot),
         buttonLabel: button?.getAttribute("aria-label") ?? "",
+        hasOcto: Boolean(button?.querySelector(".nuoma-octo")),
+        hasOctoArt: Boolean(button?.querySelector(".nuoma-octo-art")),
         phone: host?.getAttribute("data-nuoma-thread-phone") ?? "",
         title: host?.getAttribute("data-nuoma-thread-title") ?? "",
         buttonWidth: buttonRect?.width ?? 0,

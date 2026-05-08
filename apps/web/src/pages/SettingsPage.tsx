@@ -30,6 +30,14 @@ import {
   type BrowserPushSubscription,
 } from "../lib/push-subscription.js";
 import { trpc } from "../lib/trpc.js";
+import {
+  OCTO_EVENT_MESSAGES,
+  OCTO_EVENTS,
+  OCTO_STATE_LABELS,
+  OCTO_VISUAL_STATES,
+  useOctoPet,
+  type OctoEvent,
+} from "../pet-overlay/index.js";
 import { useOptionalVisualMode } from "../visuals/optional-visual-mode.js";
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_WEB_PUSH_VAPID_PUBLIC_KEY as string | undefined;
@@ -39,6 +47,7 @@ export function SettingsPage() {
   const theme = useTheme();
   const toast = useToast();
   const optionalVisual = useOptionalVisualMode();
+  const octo = useOctoPet();
   const [pushSubscription, setPushSubscription] = useState<BrowserPushSubscription | null>(null);
   const [pushLoading, setPushLoading] = useState(false);
   const pushSubscribe = trpc.push.subscribe.useMutation();
@@ -127,9 +136,7 @@ export function SettingsPage() {
     <div className="flex flex-col gap-7 max-w-3xl mx-auto pt-2">
       <Animate preset="rise-in">
         <header>
-          <p className="botforge-kicker">
-            Configurações
-          </p>
+          <p className="botforge-kicker">Configurações</p>
           <h1 className="botforge-title mt-2 text-5xl md:text-6xl">
             Suas <span className="text-brand-cyan">preferências</span>.
           </h1>
@@ -231,6 +238,80 @@ export function SettingsPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              <Card data-testid="octo-pet-settings-card">
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <CardTitle>Octo</CardTitle>
+                      <CardDescription>Pet overlay do Nuoma no desktop.</CardDescription>
+                    </div>
+                    <Switch
+                      checked={octo.preferences.enabled}
+                      aria-label="Ativar Octo"
+                      data-testid="octo-pet-enabled-toggle"
+                      onCheckedChange={octo.setEnabled}
+                    />
+                  </div>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <PreferenceSwitch
+                      label="Painel aberto"
+                      checked={octo.preferences.expanded}
+                      onCheckedChange={octo.setExpanded}
+                    />
+                    <PreferenceSwitch
+                      label="Mutado"
+                      checked={octo.preferences.muted}
+                      onCheckedChange={octo.setMuted}
+                    />
+                    <div
+                      className="rounded-lg bg-bg-base px-3 py-2 font-mono text-[0.7rem] uppercase tracking-[0.16em] text-fg-dim shadow-pressed-sm"
+                      data-testid="octo-pet-state"
+                    >
+                      {OCTO_STATE_LABELS[octo.visualState]}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3">
+                    <div>
+                      <div className="text-xs font-medium text-fg-primary">Preview de estados</div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {OCTO_VISUAL_STATES.map((state) => (
+                          <Button
+                            key={state}
+                            variant={octo.visualState === state ? "accent" : "soft"}
+                            size="xs"
+                            data-testid={`octo-state-${state}`}
+                            onClick={() => octo.setState(state)}
+                          >
+                            {OCTO_STATE_LABELS[state]}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-medium text-fg-primary">Preview de eventos</div>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                        {OCTO_EVENTS.map((event) => (
+                          <Button
+                            key={event}
+                            variant="ghost"
+                            size="xs"
+                            className="justify-start"
+                            data-testid={`octo-event-${event}`}
+                            onClick={() => octo.dispatch(event)}
+                          >
+                            {eventLabel(event)}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
 
@@ -259,14 +340,17 @@ export function SettingsPage() {
                 )}
                 {!VAPID_PUBLIC_KEY && (
                   <p className="text-sm text-semantic-warning">
-                    Configure `VITE_WEB_PUSH_VAPID_PUBLIC_KEY` para permitir subscription no browser.
+                    Configure `VITE_WEB_PUSH_VAPID_PUBLIC_KEY` para permitir subscription no
+                    browser.
                   </p>
                 )}
                 <div className="flex flex-wrap gap-3">
                   <Button
                     variant="accent"
                     loading={pushLoading}
-                    disabled={!browserSupportsPush() || !VAPID_PUBLIC_KEY || Boolean(pushSubscription)}
+                    disabled={
+                      !browserSupportsPush() || !VAPID_PUBLIC_KEY || Boolean(pushSubscription)
+                    }
                     onClick={() => void enablePush()}
                   >
                     Ativar push
@@ -300,7 +384,8 @@ export function SettingsPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-fg-muted">
-                  Configuração avançada de Instagram e Data Lake entra na trilha separada de integrações.
+                  Configuração avançada de Instagram e Data Lake entra na trilha separada de
+                  integrações.
                 </p>
               </CardContent>
             </Card>
@@ -313,7 +398,9 @@ export function SettingsPage() {
                 <CardDescription>SQLite local, worker pid, browser status.</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-fg-muted">Diagnostico operacional ativo para stream, worker e backups.</p>
+                <p className="text-sm text-fg-muted">
+                  Diagnostico operacional ativo para stream, worker e backups.
+                </p>
               </CardContent>
             </Card>
           </TabsContent>
@@ -321,4 +408,25 @@ export function SettingsPage() {
       </Animate>
     </div>
   );
+}
+
+function PreferenceSwitch({
+  label,
+  checked,
+  onCheckedChange,
+}: {
+  label: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center justify-between gap-3 rounded-lg bg-bg-base px-3 py-2 text-sm shadow-flat">
+      <span className="text-fg-muted">{label}</span>
+      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+    </label>
+  );
+}
+
+function eventLabel(event: OctoEvent): string {
+  return OCTO_EVENT_MESSAGES[event];
 }

@@ -52,6 +52,13 @@ describe("Nuoma WhatsApp overlay injection", () => {
             shadowIsolated: Boolean(host?.shadowRoot),
             ariaLabel: button?.getAttribute("aria-label"),
             title: button?.getAttribute("title"),
+            hasOcto: Boolean(button?.querySelector(".nuoma-octo")),
+            hasOctoArt: Boolean(button?.querySelector(".nuoma-octo-art")),
+            hasLegacyMark: Boolean(button?.querySelector(".nuoma-mark")),
+            octoSpriteVar:
+              button instanceof HTMLElement ? button.style.getPropertyValue("--nuoma-octo-sprite") : "",
+            octoState: host?.getAttribute("data-nuoma-octo-state"),
+            octoFrame: button?.querySelector<HTMLElement>(".nuoma-octo-art")?.style.backgroundPosition ?? "",
             version: host?.getAttribute("data-nuoma-version"),
             threadPhone: host?.getAttribute("data-nuoma-thread-phone"),
             threadPhoneSource: host?.getAttribute("data-nuoma-phone-source"),
@@ -68,8 +75,11 @@ describe("Nuoma WhatsApp overlay injection", () => {
         rootCount: 1,
         parentIsHeader: true,
         shadowIsolated: true,
-        ariaLabel: "Abrir Nuoma CRM",
-        title: "Abrir Nuoma CRM",
+        ariaLabel: "Abrir Octo no Nuoma CRM",
+        title: "Abrir Octo no Nuoma CRM",
+        hasOcto: true,
+        hasOctoArt: true,
+        hasLegacyMark: false,
         version: NUOMA_OVERLAY_VERSION,
         threadPhone: "5531982066263",
         threadPhoneSource: "header-title",
@@ -78,6 +88,9 @@ describe("Nuoma WhatsApp overlay injection", () => {
       });
       expect(state.buttonWidth).toBeGreaterThanOrEqual(38);
       expect(state.buttonHeight).toBeGreaterThanOrEqual(38);
+      expect(state.octoSpriteVar).toContain("data:image/webp;base64");
+      expect(state.octoState).toBe("idle");
+      expect(state.octoFrame).toMatch(/px/);
 
       const clickState = await page.evaluate(
         ({ rootId, testId }) => {
@@ -95,6 +108,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
             ?.click();
           return {
             state: host?.getAttribute("data-nuoma-state"),
+            octoState: host?.getAttribute("data-nuoma-octo-state"),
             clickDetail,
           };
         },
@@ -103,6 +117,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
 
       expect(clickState).toMatchObject({
         state: "open",
+        octoState: "review",
         clickDetail: {
           state: "open",
           phone: "5531982066263",
@@ -150,9 +165,40 @@ describe("Nuoma WhatsApp overlay injection", () => {
       expect(panelText).toContain("Boas-vindas");
       expect(panelText).toContain("Nota fixture do painel.");
 
+      await page.evaluate(
+        ({ rootId, testId }) => {
+          const button = document
+            .getElementById(rootId)
+            ?.shadowRoot?.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`);
+          if (button) {
+            button.setAttribute("aria-label", "Abrir Nuoma CRM");
+            button.innerHTML = '<span class="nuoma-mark" aria-hidden="true">N</span>';
+          }
+        },
+        { rootId: NUOMA_OVERLAY_ROOT_ID, testId: NUOMA_OVERLAY_FAB_TEST_ID },
+      );
       await page.evaluate(createNuomaOverlayScript());
-      const rootCountAfterSecondInject = await page.locator(`#${NUOMA_OVERLAY_ROOT_ID}`).count();
-      expect(rootCountAfterSecondInject).toBe(1);
+      const upgradeState = await page.evaluate(
+        ({ rootId, testId }) => {
+          const host = document.getElementById(rootId);
+          const button = host?.shadowRoot?.querySelector(`[data-testid="${testId}"]`);
+          return {
+            rootCount: document.querySelectorAll(`#${rootId}`).length,
+            ariaLabel: button?.getAttribute("aria-label"),
+            hasOcto: Boolean(button?.querySelector(".nuoma-octo")),
+            hasOctoArt: Boolean(button?.querySelector(".nuoma-octo-art")),
+            hasLegacyMark: Boolean(button?.querySelector(".nuoma-mark")),
+          };
+        },
+        { rootId: NUOMA_OVERLAY_ROOT_ID, testId: NUOMA_OVERLAY_FAB_TEST_ID },
+      );
+      expect(upgradeState).toMatchObject({
+        rootCount: 1,
+        ariaLabel: "Abrir Octo no Nuoma CRM",
+        hasOcto: true,
+        hasOctoArt: true,
+        hasLegacyMark: false,
+      });
     } finally {
       await browser.close();
     }
