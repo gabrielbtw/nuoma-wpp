@@ -12,6 +12,8 @@
 	}
 
 	handle {
-		reverse_proxy web:3002
+		reverse_proxy web:3002 {
+			header_up Host web:3002
+		}
 	}
 }
