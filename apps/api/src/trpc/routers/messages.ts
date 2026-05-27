@@ -1,7 +1,13 @@
+import { randomUUID } from "node:crypto";
+
 import { z } from "zod";
 
 import { TRPCError } from "@trpc/server";
-import { createMessageInputSchema, updateMessageInputSchema } from "@nuoma/contracts";
+import {
+  createMessageInputSchema,
+  idempotencyKey,
+  updateMessageInputSchema,
+} from "@nuoma/contracts";
 
 import {
   evaluateApiRealSendTarget,
@@ -13,6 +19,20 @@ import { protectedCsrfProcedure, protectedProcedure, router } from "../init.js";
 const createMessageBodySchema = createMessageInputSchema.omit({ userId: true });
 const updateMessageBodySchema = updateMessageInputSchema.omit({ userId: true });
 const manualSendAllowedPhone = "5531982066263";
+const clientNonceSchema = z.string().min(8).max(128).optional();
+
+function resolveManualIdempotencyKey(input: {
+  userId: number;
+  conversationId: number;
+  clientNonce?: string | undefined;
+}): string {
+  return idempotencyKey({
+    kind: "manual",
+    userId: input.userId,
+    conversationId: input.conversationId,
+    clientNonce: input.clientNonce ?? randomUUID(),
+  });
+}
 
 export const messagesRouter = router({
   listByConversation: protectedProcedure
@@ -91,6 +111,7 @@ export const messagesRouter = router({
         conversationId: z.number().int().positive(),
         body: z.string().min(1).max(4096),
         scheduledAt: z.string().datetime({ offset: true }).optional(),
+        clientNonce: clientNonceSchema,
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -106,6 +127,12 @@ export const messagesRouter = router({
         assertApiSendAllowed(ctx.env, phone);
       }
 
+      const dispatchIdempotencyKey = resolveManualIdempotencyKey({
+        userId: ctx.user.id,
+        conversationId: conversation.id,
+        clientNonce: input.clientNonce,
+      });
+
       const job = await ctx.repos.jobs.create({
         userId: ctx.user.id,
         type:
@@ -117,6 +144,7 @@ export const messagesRouter = router({
           conversationId: conversation.id,
           phone,
           body: input.body,
+          idempotencyKey: dispatchIdempotencyKey,
         },
         priority: 5,
         scheduledAt: input.scheduledAt ?? new Date().toISOString(),
@@ -132,6 +160,7 @@ export const messagesRouter = router({
         conversationId: z.number().int().positive(),
         mediaAssetId: z.number().int().positive(),
         scheduledAt: z.string().datetime({ offset: true }).optional(),
+        clientNonce: clientNonceSchema,
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -165,6 +194,12 @@ export const messagesRouter = router({
         });
       }
 
+      const dispatchIdempotencyKey = resolveManualIdempotencyKey({
+        userId: ctx.user.id,
+        conversationId: conversation.id,
+        clientNonce: input.clientNonce,
+      });
+
       const job = await ctx.repos.jobs.create({
         userId: ctx.user.id,
         type: "send_voice",
@@ -178,6 +213,7 @@ export const messagesRouter = router({
           mimeType: mediaAsset.mimeType,
           durationMs: mediaAsset.durationMs,
           source: "inbox.voice_recorder",
+          idempotencyKey: dispatchIdempotencyKey,
         },
         priority: 4,
         scheduledAt: input.scheduledAt ?? new Date().toISOString(),
@@ -194,6 +230,7 @@ export const messagesRouter = router({
         mediaAssetId: z.number().int().positive(),
         caption: z.string().max(1024).nullable().optional(),
         scheduledAt: z.string().datetime({ offset: true }).optional(),
+        clientNonce: clientNonceSchema,
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -227,6 +264,12 @@ export const messagesRouter = router({
         });
       }
 
+      const dispatchIdempotencyKey = resolveManualIdempotencyKey({
+        userId: ctx.user.id,
+        conversationId: conversation.id,
+        clientNonce: input.clientNonce,
+      });
+
       const job = await ctx.repos.jobs.create({
         userId: ctx.user.id,
         type: mediaAsset.type === "document" ? "send_document" : "send_media",
@@ -238,6 +281,7 @@ export const messagesRouter = router({
           mediaType: mediaAsset.type,
           caption: input.caption?.trim() || null,
           source: "inbox.composer",
+          idempotencyKey: dispatchIdempotencyKey,
         },
         priority: 4,
         scheduledAt: input.scheduledAt ?? new Date().toISOString(),

@@ -14,6 +14,7 @@ export * from "./conversations.js";
 export * from "./errors.js";
 export * from "./fixtures.js";
 export * from "./health.js";
+export * from "./idempotency.js";
 export * from "./jobs.js";
 export * from "./media-assets.js";
 export * from "./messages.js";

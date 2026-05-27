@@ -1,5 +1,6 @@
 import {
   campaignTemporaryMessagesConfigSchema,
+  idempotencyKey,
   type Campaign,
   type CampaignRecipient,
   type CampaignStep,
@@ -200,6 +201,18 @@ async function evaluateEvergreenCampaign(input: {
       if (evaluation.phone) existingKeys.add(`phone:${evaluation.phone}`);
       continue;
     }
+    if (evaluation.phone) {
+      const activePipeline = await input.repos.campaignRecipients.findActiveByPhone({
+        userId: input.userId,
+        phone: evaluation.phone,
+        channel: "whatsapp",
+      });
+      if (activePipeline) {
+        skipped += 1;
+        input.result.evergreenRecipientsSkipped += 1;
+        continue;
+      }
+    }
 
     await input.repos.campaignRecipients.create({
       userId: input.userId,
@@ -385,6 +398,13 @@ async function enqueueRecipientNextStep(input: {
     const batchId = `campaign:${input.campaign.id}:recipient:${input.recipient.id}:batch:${input.now.getTime()}`;
     const createdJobs = [];
     for (const item of batch) {
+      const stepIdempotencyKey = idempotencyKey({
+        kind: "campaign_step",
+        userId: input.userId,
+        campaignId: input.campaign.id,
+        recipientId: input.recipient.id,
+        stepId: item.step.id,
+      });
       const job = await input.repos.jobs.create({
         userId: input.userId,
         type: "campaign_step",
@@ -403,6 +423,7 @@ async function enqueueRecipientNextStep(input: {
           campaignBatchIndex: item.batchIndex,
           campaignBatchSize: batch.length,
           temporaryMessages,
+          idempotencyKey: stepIdempotencyKey,
         },
         dedupeKey: `campaign_step:${input.campaign.id}:${input.recipient.id}:${item.step.id}`,
         scheduledAt: item.scheduledAt,
