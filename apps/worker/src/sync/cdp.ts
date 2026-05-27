@@ -4541,9 +4541,33 @@ function temporaryMessagesUiScript(
       };
       const visibleNodes = (selector, chatOnly = true) => Array.from(document.querySelectorAll(selector))
         .filter((node) => isVisible(node) && (!chatOnly || isChatSurfaceNode(node)));
+      const durationEvidenceText = (node) =>
+        [
+          node.textContent,
+          node.getAttribute?.("aria-label"),
+          node.getAttribute?.("title"),
+        ].filter(Boolean).join(" ");
+      const latestMainDurationEvidence = () => {
+        const main = document.querySelector("#main");
+        if (!(main instanceof HTMLElement)) return null;
+        const rows = Array.from(main.querySelectorAll("[data-testid='ephemeral_system_message'], [data-testid='msg-notification-container'], [aria-label], [title], div, span"))
+          .map((node, index) => {
+            const text = durationEvidenceText(node);
+            return {
+              index,
+              text,
+              duration: durationFromText(text),
+              relevant: /mensagens temporarias|mensagens temporárias|disappearing messages|mensajes temporales|novas mensagens desaparecerao|novas mensagens desaparecerão|new messages will disappear/i.test(text),
+            };
+          })
+          .filter((item) => item.relevant && item.duration);
+        return rows.at(-1)?.duration || null;
+      };
       const bodyDuration = (preferredDuration = null) => {
+        const latestDuration = latestMainDurationEvidence();
+        if (latestDuration) return latestDuration;
         const text = visibleNodes("#main, [role='dialog'], [data-animate-modal-popup], section, aside, div, span", true)
-          .map((node) => node.textContent || "")
+          .map((node) => durationEvidenceText(node))
           .join("\\n");
         return durationFromText(text);
       };
