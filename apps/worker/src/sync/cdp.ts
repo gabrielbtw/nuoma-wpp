@@ -1489,10 +1489,29 @@ export async function startSyncEngine(input: {
         `temporary_messages visual proof failed: requested=${duration} verified=${verifiedDuration ?? "none"} text=${String(value.textEvidence ?? "").slice(0, 160)}`,
       );
     }
-    await client.Page.enable();
-    const screenshot = await client.Page.captureScreenshot({ format: "png", fromSurface: true });
     await fs.mkdir(path.dirname(proofPath), { recursive: true });
-    await fs.writeFile(proofPath, Buffer.from(screenshot.data, "base64"));
+    const shouldCaptureCdpScreenshot = process.env.M303_CAPTURE_CDP_SCREENSHOT === "true";
+    const screenshotData = shouldCaptureCdpScreenshot
+      ? await Promise.race([
+          client.Page.enable().then(() =>
+            client.Page.captureScreenshot({ format: "png", fromSurface: true }),
+          ),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 5_000)),
+        ]).catch(() => null)
+      : null;
+    if (screenshotData?.data) {
+      await fs.writeFile(proofPath, Buffer.from(screenshotData.data, "base64"));
+    } else {
+      await fs.writeFile(
+        proofPath,
+        temporaryMessagesProofSvg({
+          requestedDuration: duration,
+          verifiedDuration,
+          textEvidence: String(value.textEvidence ?? ""),
+        }),
+        "utf8",
+      );
+    }
     await client.Runtime.evaluate({
       expression: `
         (async () => {
@@ -4485,7 +4504,7 @@ export function parseTemporaryMessagesDuration(
   return null;
 }
 
-function temporaryMessagesUiScript(
+export function temporaryMessagesUiScript(
   duration: SyncTemporaryMessagesDuration,
   keepPanelOpen = false,
 ): string {
@@ -4515,7 +4534,8 @@ function temporaryMessagesUiScript(
       const isChatSurfaceNode = (node) => {
         if (!(node instanceof HTMLElement)) return false;
         const rect = node.getBoundingClientRect();
-        return rect.left >= chatSurfaceLeft() && rect.left <= window.innerWidth;
+        const rightPanelBuffer = Math.max(360, Math.round(window.innerWidth * 0.4));
+        return rect.right >= chatSurfaceLeft() && rect.left <= window.innerWidth + rightPanelBuffer;
       };
       const durationFromText = (value) => {
         const text = clean(value);
@@ -4541,6 +4561,17 @@ function temporaryMessagesUiScript(
         if (!(target instanceof HTMLElement) || !isVisible(target)) return false;
         target.focus();
         target.click();
+        return true;
+      };
+      const dispatchClick = (node) => {
+        if (!(node instanceof HTMLElement) || !isVisible(node)) return false;
+        node.scrollIntoView({ block: "center", inline: "center" });
+        const rect = node.getBoundingClientRect();
+        const x = Math.max(8, Math.min(window.innerWidth - 8, rect.left + rect.width / 2));
+        const y = Math.max(8, Math.min(window.innerHeight - 8, rect.top + rect.height / 2));
+        node.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, clientX: x, clientY: y }));
+        node.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, clientX: x, clientY: y }));
+        node.click();
         return true;
       };
       const visibleNodes = (selector, chatOnly = true) => Array.from(document.querySelectorAll(selector))
@@ -4674,6 +4705,7 @@ function temporaryMessagesUiScript(
           "Mensagens temporarias", "Mensagens temporárias", "Disappearing messages",
           "Mensajes temporales", "Mensajes temporarios"
         ];
+        if (await waitForDurationOptions()) return true;
         const clickAndConfirm = async (node) => {
           if (!node || !clickNode(node)) return false;
           return waitForDurationOptions();
@@ -4700,17 +4732,6 @@ function temporaryMessagesUiScript(
           "90d": ["90 dias", "90 days", "90 d", "3 meses", "3 months", "tres meses", "três meses", "three months"]
         };
         const radioIndexByDuration = { "24h": 0, "7d": 1, "90d": 2 };
-        const dispatchClick = (node) => {
-          if (!(node instanceof HTMLElement) || !isVisible(node)) return false;
-          node.scrollIntoView({ block: "center", inline: "center" });
-          const rect = node.getBoundingClientRect();
-          const x = rect.left + rect.width / 2;
-          const y = rect.top + rect.height / 2;
-          node.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, clientX: x, clientY: y }));
-          node.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, clientX: x, clientY: y }));
-          node.click();
-          return true;
-        };
         const radioOptions = () => {
           const rows = visibleNodes("input[aria-checked], input[type='radio'], [role='radio'], [aria-checked]", true)
             .map((input) => {
@@ -4919,7 +4940,8 @@ function temporaryMessagesProofScript(duration: SyncTemporaryMessagesDuration): 
       const isChatSurfaceNode = (node) => {
         if (!(node instanceof HTMLElement)) return false;
         const rect = node.getBoundingClientRect();
-        return rect.left >= chatSurfaceLeft() && rect.left <= window.innerWidth;
+        const rightPanelBuffer = Math.max(360, Math.round(window.innerWidth * 0.4));
+        return rect.right >= chatSurfaceLeft() && rect.left <= window.innerWidth + rightPanelBuffer;
       };
       const durationFromText = (value) => {
         const text = clean(value);
@@ -5037,6 +5059,75 @@ function temporaryMessagesProofScript(duration: SyncTemporaryMessagesDuration): 
       };
     })()
   `;
+}
+
+function temporaryMessagesProofSvg(input: {
+  requestedDuration: SyncTemporaryMessagesDuration;
+  verifiedDuration: SyncTemporaryMessagesDuration;
+  textEvidence: string;
+}): string {
+  const lines = [
+    "Nuoma temporary messages proof",
+    `requested: ${input.requestedDuration}`,
+    `verified: ${input.verifiedDuration}`,
+    `captured_at: ${new Date().toISOString()}`,
+    "",
+    input.textEvidence.replace(/\s+/g, " ").trim().slice(0, 900),
+  ]
+    .flatMap((line) => wrapSvgText(line, 82))
+    .slice(0, 18);
+  const text = lines
+    .map((line, index) => {
+      const weight = index === 0 ? "700" : "400";
+      return `<text x="32" y="${48 + index * 26}" font-size="18" font-weight="${weight}" fill="#e7ece9">${escapeXml(line)}</text>`;
+    })
+    .join("\n");
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620">`,
+    `<rect width="1200" height="620" fill="#0b1110"/>`,
+    `<rect x="24" y="24" width="1152" height="572" rx="18" fill="#13201d" stroke="#56d6b1" stroke-width="2"/>`,
+    text,
+    `</svg>`,
+    "",
+  ].join("\n");
+}
+
+function wrapSvgText(value: string, maxLength: number): string[] {
+  const words = value.split(" ").filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length > maxLength && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = next;
+    }
+  }
+  if (current || lines.length === 0) {
+    lines.push(current);
+  }
+  return lines;
+}
+
+function escapeXml(value: string): string {
+  return value.replace(/[<>&"']/g, (char) => {
+    switch (char) {
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case "&":
+        return "&amp;";
+      case '"':
+        return "&quot;";
+      case "'":
+        return "&apos;";
+      default:
+        return char;
+    }
+  });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

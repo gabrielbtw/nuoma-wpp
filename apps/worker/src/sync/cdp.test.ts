@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseTemporaryMessagesDuration,
   shouldAllowActiveSendTarget,
+  temporaryMessagesUiScript,
   type ActiveSendTargetState,
 } from "./cdp.js";
 
@@ -252,5 +253,20 @@ describe("temporary messages duration parser", () => {
     expect(parseTemporaryMessagesDuration("3 meses")).toBe("90d");
     expect(parseTemporaryMessagesDuration("three months")).toBe("90d");
     expect(parseTemporaryMessagesDuration("Desativadas")).toBeNull();
+  });
+});
+
+describe("temporary messages UI script", () => {
+  it("keeps the low-level click helper available while closing the duration panel", () => {
+    const script = temporaryMessagesUiScript("90d", false);
+    const helperIndex = script.indexOf("const dispatchClick =");
+    const closePanelsIndex = script.indexOf("const closePanels =");
+
+    expect(helperIndex).toBeGreaterThan(0);
+    expect(closePanelsIndex).toBeGreaterThan(helperIndex);
+    expect(script).toContain("rightPanelBuffer");
+    expect(script).toContain("Math.min(window.innerWidth - 8");
+    expect(script).toContain("if (await waitForDurationOptions()) return true;");
+    expect(script).toContain("dispatchClick(target)");
   });
 });
