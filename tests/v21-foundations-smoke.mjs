@@ -10,10 +10,6 @@ const requiredRootFiles = [
   "tsconfig.json",
   "tsconfig.base.json",
   "README.md",
-  "docs/adr/0001-stack-choice.md",
-  "docs/adr/0002-monorepo-structure.md",
-  "docs/adr/0003-feature-folders.md",
-  "docs/adr/0004-sqlite-drizzle.md",
 ];
 
 const requiredWorkspaces = [
@@ -79,9 +75,9 @@ function main() {
     "V2.1-V2.6 base",
     "Turborepo",
     "better-sqlite3 + Drizzle ORM",
+    "Accepted for V2.1 foundations",
+    "Turborepo monorepo",
   ]);
-  assertTextIncludes("docs/adr/0001-stack-choice.md", ["Accepted for V2.1 foundations"]);
-  assertTextIncludes("docs/adr/0002-monorepo-structure.md", ["Turborepo monorepo"]);
 
   console.log(
     [

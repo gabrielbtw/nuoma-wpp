@@ -44,7 +44,7 @@ async function findImplementationMarkdown(): Promise<string> {
   ];
 
   for (const candidate of candidates) {
-    const markdownPath = path.join(candidate, "docs", "IMPLEMENTATION_STATUS.md");
+    const markdownPath = path.join(candidate, "README.md");
     try {
       await fs.access(markdownPath);
       return markdownPath;
@@ -53,7 +53,7 @@ async function findImplementationMarkdown(): Promise<string> {
     }
   }
 
-  return path.join(process.cwd(), "docs", "IMPLEMENTATION_STATUS.md");
+  return path.join(process.cwd(), "README.md");
 }
 
 function parseImplementationMarkdown(markdown: string): ImplementationItem[] {
