@@ -4547,22 +4547,27 @@ function temporaryMessagesUiScript(
           node.getAttribute?.("aria-label"),
           node.getAttribute?.("title"),
         ].filter(Boolean).join(" ");
-      const latestMainDurationEvidence = () => {
+      const temporaryNoticeRows = () => {
         const main = document.querySelector("#main");
-        if (!(main instanceof HTMLElement)) return null;
-        const rows = Array.from(main.querySelectorAll("[data-testid='ephemeral_system_message'], [data-testid='msg-notification-container'], [aria-label], [title], div, span"))
+        if (!(main instanceof HTMLElement)) return [];
+        return Array.from(main.querySelectorAll("[data-testid='ephemeral_system_message'], [data-testid='msg-notification-container'], [aria-label], [title], div, span"))
           .map((node, index) => {
             const text = durationEvidenceText(node);
             return {
               index,
+              node,
               text,
               duration: durationFromText(text),
               relevant: /mensagens temporarias|mensagens temporárias|disappearing messages|mensajes temporales|novas mensagens desaparecerao|novas mensagens desaparecerão|new messages will disappear/i.test(text),
             };
           })
           .filter((item) => item.relevant && item.duration);
+      };
+      const latestMainDurationEvidence = () => {
+        const rows = temporaryNoticeRows();
         return rows.at(-1)?.duration || null;
       };
+      const latestTemporaryNoticeNode = () => temporaryNoticeRows().at(-1)?.node || null;
       const bodyDuration = (preferredDuration = null) => {
         const latestDuration = latestMainDurationEvidence();
         if (latestDuration) return latestDuration;
@@ -4669,6 +4674,8 @@ function temporaryMessagesUiScript(
           if (!node || !clickNode(node)) return false;
           return waitForDurationOptions();
         };
+        const latestNotice = latestTemporaryNoticeNode();
+        if (await clickAndConfirm(latestNotice)) return true;
         for (let attempt = 0; attempt < 3; attempt += 1) {
           const direct = findByText(tempLabels);
           if (await clickAndConfirm(direct)) return true;
@@ -4839,6 +4846,14 @@ function temporaryMessagesUiScript(
       };
 
       const closedPanelDuration = bodyDuration();
+      if (closedPanelDuration === requestedDuration) {
+        return {
+          changed: false,
+          menuDetected: false,
+          verifiedDuration: closedPanelDuration,
+          reason: "duration-already-matched"
+        };
+      }
       const menuDetected = await openTemporaryMenu();
       if (!menuDetected) {
         return {
