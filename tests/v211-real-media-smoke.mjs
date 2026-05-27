@@ -539,7 +539,13 @@ async function main() {
   );
 }
 
-main().catch((error) => {
-  console.error(`v211-real-media|failed|phone=${phone}|tokenRoot=${tokenRoot}|ig=nao_aplicavel|error=${error.message}`);
-  process.exit(1);
-});
+main()
+  .then(() => {
+    db.close();
+    process.exit(0);
+  })
+  .catch((error) => {
+    db.close();
+    console.error(`v211-real-media|failed|phone=${phone}|tokenRoot=${tokenRoot}|ig=nao_aplicavel|error=${error.message}`);
+    process.exit(1);
+  });

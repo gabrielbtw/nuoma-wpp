@@ -63,6 +63,7 @@ export async function startBrowserRuntime(input: {
         `--user-data-dir=${input.env.CHROMIUM_PROFILE_DIR}`,
         `--remote-debugging-port=${input.env.CHROMIUM_CDP_PORT}`,
         `--remote-debugging-address=${input.env.CHROMIUM_CDP_BIND_HOST ?? input.env.CHROMIUM_CDP_HOST}`,
+        "--remote-allow-origins=*",
         "--window-size=1366,768",
         "--disable-dev-shm-usage",
         "--disable-background-networking",
@@ -126,6 +127,7 @@ export async function startBrowserRuntime(input: {
       args: [
         `--remote-debugging-port=${input.env.CHROMIUM_CDP_PORT}`,
         `--remote-debugging-address=${input.env.CHROMIUM_CDP_BIND_HOST ?? input.env.CHROMIUM_CDP_HOST}`,
+        "--remote-allow-origins=*",
         "--disable-dev-shm-usage",
         "--disable-background-networking",
         "--disable-background-timer-throttling",

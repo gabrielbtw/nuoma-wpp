@@ -552,7 +552,7 @@ describe("worker job loop", () => {
     );
   });
 
-  it("allows production send policy beyond the test allowlist and audits before sending", async () => {
+  it("blocks production send policy without a canary allowlist before touching WhatsApp", async () => {
     const repos = createRepositories(db);
     const logger = pino({ level: "silent" });
     const env = loadWorkerEnv({
@@ -592,60 +592,58 @@ describe("worker job loop", () => {
     }
     const calls: unknown[] = [];
 
-    await handleJob(job, {
-      env,
-      db,
-      repos,
-      logger,
-      sync: {
-        connected: true,
-        metrics: {} as never,
-        forceConversation: async () => {
-          throw new Error("unexpected force sync");
+    await expect(
+      handleJob(job, {
+        env,
+        db,
+        repos,
+        logger,
+        sync: {
+          connected: true,
+          metrics: {} as never,
+          forceConversation: async () => {
+            throw new Error("unexpected force sync");
+          },
+          sendTextMessage: async (input) => {
+            calls.push(input);
+            return {
+              mode: "text-message",
+              conversationId: input.conversationId,
+              phone: input.phone,
+              reason: input.reason ?? "send_message",
+              navigationMode: "navigated",
+              externalId: "prod-after",
+              visibleMessageCountBefore: 1,
+              visibleMessageCountAfter: 2,
+              lastExternalIdBefore: "prod-before",
+              lastExternalIdAfter: "prod-after",
+            };
+          },
+          sendVoiceMessage: async () => {
+            throw new Error("unexpected voice send");
+          },
+          sendDocumentMessage: async () => {
+            throw new Error("unexpected document send");
+          },
+          sendMediaMessage: async () => {
+            throw new Error("unexpected media send");
+          },
+          close: async () => {},
         },
-        sendTextMessage: async (input) => {
-          calls.push(input);
-          return {
-            mode: "text-message",
-            conversationId: input.conversationId,
-            phone: input.phone,
-            reason: input.reason ?? "send_message",
-            navigationMode: "navigated",
-            externalId: "prod-after",
-            visibleMessageCountBefore: 1,
-            visibleMessageCountAfter: 2,
-            lastExternalIdBefore: "prod-before",
-            lastExternalIdAfter: "prod-after",
-          };
-        },
-        sendVoiceMessage: async () => {
-          throw new Error("unexpected voice send");
-        },
-        sendDocumentMessage: async () => {
-          throw new Error("unexpected document send");
-        },
-        sendMediaMessage: async () => {
-          throw new Error("unexpected media send");
-        },
-        close: async () => {},
-      },
-    });
-
-    expect(calls).toEqual([
-      expect.objectContaining({
-        phone: "5531999999999",
-        body: "envio permitido pela politica",
       }),
-    ]);
+    ).rejects.toThrow("production_without_canary_allowlist");
+
+    expect(calls).toEqual([]);
     const events = await repos.systemEvents.list({
       userId: user.id,
-      type: "sender.send_policy.allowed",
+      type: "sender.send_policy.blocked",
     });
     expect(events[0]?.payload).toEqual(
       expect.objectContaining({
         jobId: job.id,
         phone: "5531999999999",
-        decision: "allowed",
+        decision: "blocked",
+        reason: "production_without_canary_allowlist",
         policyMode: "production",
         allowedPhonesCount: 0,
       }),
@@ -662,6 +660,7 @@ describe("worker job loop", () => {
       WORKER_BROWSER_ENABLED: "false",
       WORKER_JOB_LOOP_ENABLED: "true",
       WA_SEND_POLICY_MODE: "production",
+      WA_SEND_ALLOWED_PHONES: "5531999999999",
       WA_SEND_RATE_LIMIT_MAX: "1",
       WA_SEND_RATE_LIMIT_WINDOW_MS: "60000",
     });
@@ -991,7 +990,7 @@ describe("worker job loop", () => {
     );
   });
 
-  it("applies temporary messages on the first batch step and restores on the last", async () => {
+  it("verifies temporary messages before the first campaign step and restores on the last", async () => {
     const repos = createRepositories(db);
     const logger = pino({ level: "silent" });
     const env = loadWorkerEnv({
@@ -1088,7 +1087,7 @@ describe("worker job loop", () => {
         conversationId: number;
         phone: string;
         duration: "24h" | "7d" | "90d";
-        phase: "before_send" | "after_completion_restore" | "failure_restore";
+        phase: "before_send" | "temporary_messages_set" | "after_completion_restore" | "failure_restore";
         reason?: string;
       }) => {
         ensureCalls.push(input);
@@ -1109,7 +1108,13 @@ describe("worker job loop", () => {
             title: "Gabriel Braga Nuoma",
             titlePhone: null,
             overlayPhone: "5531982066263",
+            contactInfoPhone: null,
             hasComposer: true,
+          },
+          visualProof: {
+            screenshotPath: path.join(tempDir, `temporary-${input.phase}-${input.duration}.png`),
+            verifiedDuration: input.duration,
+            textEvidence: `Mensagens temporarias: ${input.duration}`,
           },
         };
       },
@@ -1141,7 +1146,6 @@ describe("worker job loop", () => {
     };
 
     await handleJob(firstJob, { env, db, repos, logger, sync });
-    await handleJob(lastJob, { env, db, repos, logger, sync });
 
     expect(sendCalls).toHaveLength(2);
     expect(ensureCalls).toEqual([
@@ -1160,6 +1164,10 @@ describe("worker job loop", () => {
           verified: true,
           requestedDuration: "24h",
           verifiedDuration: "24h",
+          visualProof: expect.objectContaining({
+            verifiedDuration: "24h",
+            textEvidence: expect.stringContaining("24h"),
+          }),
         }),
         expect.objectContaining({
           phase: "step_completed_keep_window",
@@ -1177,6 +1185,205 @@ describe("worker job loop", () => {
         }),
       ]),
     );
+    const jobs = await repos.jobs.list(user.id);
+    expect(jobs.find((job) => job.id === lastJob.id)?.status).toBe("completed");
+  });
+
+  it("executes temporary messages control steps without sending a message", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-campaign-temp-step",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_ALLOWED_PHONE: "5531982066263",
+    });
+    const user = await repos.users.create({
+      email: "campaign-temp-step@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      title: "Gabriel Braga Nuoma",
+    });
+    const basePayload = {
+      campaignId: 13,
+      recipientId: 23,
+      conversationId: conversation.id,
+      phone: "5531982066263",
+      campaignBatchId: "batch-temp-step",
+      campaignBatchSize: 3,
+      variables: { nome: "Gabriel" },
+    };
+    const firstJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        ...basePayload,
+        campaignBatchIndex: 0,
+        isLastStep: false,
+        step: {
+          id: "temp-24h",
+          label: "Definir 24h",
+          type: "temporary_messages",
+          delaySeconds: 0,
+          conditions: [],
+          duration: "24h",
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    const textJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        ...basePayload,
+        campaignBatchIndex: 1,
+        isLastStep: false,
+        step: {
+          id: "msg",
+          label: "Mensagem",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Oi {{nome}}",
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:01.000Z",
+      maxAttempts: 2,
+    });
+    const restoreJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        ...basePayload,
+        campaignBatchIndex: 2,
+        isLastStep: true,
+        step: {
+          id: "temp-90d",
+          label: "Restaurar 90d",
+          type: "temporary_messages",
+          delaySeconds: 0,
+          conditions: [],
+          duration: "90d",
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:02.000Z",
+      maxAttempts: 2,
+    });
+    if (!firstJob || !textJob || !restoreJob) {
+      throw new Error("expected campaign_step jobs to be created");
+    }
+
+    const ensureCalls: unknown[] = [];
+    const sendCalls: unknown[] = [];
+    const sync = {
+      connected: true,
+      metrics: {} as never,
+      forceConversation: async () => {
+        throw new Error("unexpected force sync");
+      },
+      ensureTemporaryMessages: async (input: {
+        conversationId: number;
+        phone: string;
+        duration: "24h" | "7d" | "90d";
+        phase: "before_send" | "temporary_messages_set" | "after_completion_restore" | "failure_restore";
+        reason?: string;
+      }) => {
+        ensureCalls.push(input);
+        return {
+          mode: "temporary-messages" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          requestedDuration: input.duration,
+          verifiedDuration: input.duration,
+          phase: input.phase,
+          reason: input.reason ?? "campaign_step",
+          navigationMode: "reused-open-chat" as const,
+          changed: true,
+          menuDetected: true,
+          targetEvidence: {
+            href: "https://web.whatsapp.com/send?phone=5531982066263",
+            hrefPhone: "5531982066263",
+            title: "Gabriel Braga Nuoma",
+            titlePhone: null,
+            overlayPhone: "5531982066263",
+            contactInfoPhone: null,
+            hasComposer: true,
+          },
+        };
+      },
+      sendTextMessage: async (input: { conversationId: number; phone: string; body: string; reason?: string }) => {
+        sendCalls.push(input);
+        return {
+          mode: "text-message" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "campaign_step",
+          navigationMode: "reused-open-chat" as const,
+          externalId: "external-text",
+          visibleMessageCountBefore: 1,
+          visibleMessageCountAfter: 2,
+          lastExternalIdBefore: "before",
+          lastExternalIdAfter: "external-text",
+        };
+      },
+      sendVoiceMessage: async () => {
+        throw new Error("unexpected voice send");
+      },
+      sendDocumentMessage: async () => {
+        throw new Error("unexpected document send");
+      },
+      sendMediaMessage: async () => {
+        throw new Error("unexpected media send");
+      },
+      close: async () => {},
+    };
+
+    await handleJob(firstJob, { env, db, repos, logger, sync });
+
+    expect(sendCalls).toEqual([
+      expect.objectContaining({
+        body: "Oi Gabriel",
+        phone: "5531982066263",
+      }),
+    ]);
+    expect(ensureCalls).toEqual([
+      expect.objectContaining({ phase: "temporary_messages_set", duration: "24h" }),
+      expect.objectContaining({ phase: "temporary_messages_set", duration: "90d" }),
+    ]);
+    const completedControlEvents = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.temporary_messages.set.completed",
+    });
+    expect(completedControlEvents.map((event) => event.payload)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          stepId: "temp-24h",
+          temporaryMessagesRequestedDuration: "24h",
+          temporaryMessagesConfirmedDuration: "24h",
+          temporaryMessagesProof: true,
+        }),
+        expect.objectContaining({
+          stepId: "temp-90d",
+          temporaryMessagesRequestedDuration: "90d",
+          temporaryMessagesConfirmedDuration: "90d",
+          temporaryMessagesProof: true,
+        }),
+      ]),
+    );
+    const jobs = await repos.jobs.list(user.id);
+    expect(jobs.find((job) => job.id === textJob.id)?.status).toBe("completed");
+    expect(jobs.find((job) => job.id === restoreJob.id)?.status).toBe("completed");
   });
 
   it("blocks campaign sends when temporary messages cannot be verified", async () => {
@@ -1233,7 +1440,39 @@ describe("worker job loop", () => {
       scheduledAt: "2026-04-30T12:00:00.000Z",
       maxAttempts: 2,
     });
-    if (!job) {
+    const siblingJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        campaignId: 12,
+        recipientId: 22,
+        conversationId: conversation.id,
+        phone: "5531982066263",
+        campaignBatchId: "batch-temp-fail",
+        campaignBatchIndex: 1,
+        campaignBatchSize: 2,
+        isLastStep: true,
+        temporaryMessages: {
+          enabled: true,
+          beforeSendDuration: "24h",
+          afterCompletionDuration: "90d",
+          restoreOnFailure: true,
+        },
+        variables: { nome: "Gabriel" },
+        step: {
+          id: "follow-up",
+          label: "Follow-up",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Depois {{nome}}",
+        },
+      },
+      scheduledAt: "2026-04-30T12:01:00.000Z",
+      maxAttempts: 2,
+    });
+    if (!job || !siblingJob) {
       throw new Error("expected campaign_step job to be created");
     }
     let sendCalls = 0;
@@ -1296,6 +1535,10 @@ describe("worker job loop", () => {
         error: "temporary menu not found",
       }),
     );
+    const siblingRow = db.raw.prepare("select status from jobs where id = ?").get(siblingJob.id) as
+      | { status: string }
+      | undefined;
+    expect(siblingRow?.status).toBe("cancelled");
   });
 
   it("executes campaign voice steps through the guarded voice sender", async () => {
@@ -1427,6 +1670,132 @@ describe("worker job loop", () => {
         mode: "voice-message",
         externalId: "after",
         mediaAssetId: mediaAsset.id,
+      }),
+    );
+  });
+
+  it("TODO fails until campaign voice fallback is rejected and audited instead of completed", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const audioPath = path.join(tempDir, "campaign-voice-fallback.wav");
+    await fs.writeFile(audioPath, createTestWav(1));
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-campaign-voice-fallback",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WORKER_TEMP_DIR: tempDir,
+      WA_SEND_ALLOWED_PHONE: "5531982066263",
+    });
+    const user = await repos.users.create({
+      email: "campaign-voice-fallback@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      title: "Gabriel Braga Nuoma",
+    });
+    const mediaAsset = await repos.mediaAssets.create({
+      userId: user.id,
+      type: "voice",
+      fileName: "campaign-voice-fallback.wav",
+      mimeType: "audio/wav",
+      sha256: "b".repeat(64),
+      sizeBytes: (await fs.stat(audioPath)).size,
+      durationMs: 1000,
+      storagePath: audioPath,
+    });
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        campaignId: 15,
+        recipientId: 25,
+        conversationId: conversation.id,
+        phone: "5531982066263",
+        step: {
+          id: "voice-fallback",
+          label: "Audio fallback",
+          type: "voice",
+          delaySeconds: 0,
+          conditions: [],
+          mediaAssetId: mediaAsset.id,
+          caption: null,
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 1,
+    });
+    if (!job) {
+      throw new Error("expected campaign_step voice job to be created");
+    }
+
+    let rejection: unknown = null;
+    await handleJob(job, {
+      env,
+      db,
+      repos,
+      logger,
+      sync: {
+        connected: true,
+        metrics: {} as never,
+        forceConversation: async () => {
+          throw new Error("unexpected force sync");
+        },
+        sendTextMessage: async () => {
+          throw new Error("unexpected text send");
+        },
+        sendVoiceMessage: async (input) => ({
+          mode: "voice-message",
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "campaign_step",
+          navigationMode: "reused-open-chat",
+          durationSecs: input.durationSecs,
+          recordingMs: 1250,
+          injectionConsumed: false,
+          deliveryStatus: "sent",
+          nativeVoiceEvidence: false,
+          displayDurationSecs: null,
+          externalId: "fallback-after",
+          visibleMessageCountBefore: 3,
+          visibleMessageCountAfter: 4,
+          lastExternalIdBefore: "before",
+          lastExternalIdAfter: "fallback-after",
+          sentByInternalFallback: true,
+        }),
+        sendDocumentMessage: async () => {
+          throw new Error("unexpected document send");
+        },
+        sendMediaMessage: async () => {
+          throw new Error("unexpected media send");
+        },
+        close: async () => {},
+      },
+    }).catch((error: unknown) => {
+      rejection = error;
+    });
+
+    expect(rejection).toBeInstanceOf(Error);
+    expect(rejection instanceof Error ? rejection.message : String(rejection)).toContain(
+      "native_voice_evidence_required",
+    );
+    const rejectedEvents = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.voice_message.rejected",
+    });
+    expect(rejectedEvents[0]?.payload).toEqual(
+      expect.objectContaining({
+        jobId: job.id,
+        campaignId: 15,
+        recipientId: 25,
+        stepId: "voice-fallback",
+        reason: "native_voice_evidence_required",
       }),
     );
   });

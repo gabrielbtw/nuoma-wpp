@@ -95,7 +95,7 @@ export function createJobLoop(input: {
       const message = serializeError(error);
       state.lastError = message;
 
-      if (isPermanentJobError(error) || job.attempts >= job.maxAttempts) {
+      if (isPermanentJobError(error) || isNonRetryableSendError(message) || job.attempts >= job.maxAttempts) {
         await input.repos.jobs.moveToDead({ jobId: job.id, error: message });
         state.metrics.dead += 1;
         input.logger.warn({ jobId: job.id, type: job.type, error: message }, "job moved to DLQ");
@@ -133,6 +133,10 @@ export function createJobLoop(input: {
     processOne,
     runUntilStopped,
   };
+}
+
+function isNonRetryableSendError(message: string): boolean {
+  return /^WhatsApp rejected target phone:/i.test(message);
 }
 
 function nextRetryAt(job: Job): Date {

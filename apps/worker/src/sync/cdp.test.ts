@@ -12,6 +12,7 @@ const baseState: ActiveSendTargetState = {
   title: "Gabriel Braga Nuoma",
   titlePhone: null,
   overlayPhone: null,
+  contactInfoPhone: null,
   hasComposer: true,
 };
 
@@ -65,7 +66,80 @@ describe("CDP active send target guard", () => {
     ).toBe(true);
   });
 
-  it("allows reusing a saved-contact chat when the active title matches the expected conversation", () => {
+  it("allows saved contacts when contact details prove the live target phone", () => {
+    expect(
+      shouldAllowActiveSendTarget({
+        expectedPhone: "5531982066263",
+        state: {
+          ...baseState,
+          contactInfoPhone: "5531982066263",
+        },
+        openChatPhone: "5531982066263",
+        openChatPhoneNavigatedAtMs: 995_000,
+        nowMs: 1_000_000,
+        allowedSelfChatPhones: [],
+        expectedTitle: "gabriel braga nuoma",
+      }),
+    ).toBe(true);
+  });
+
+  it("allows Brazilian mobile contacts when WhatsApp title omits the ninth digit", () => {
+    expect(
+      shouldAllowActiveSendTarget({
+        expectedPhone: "5531988962330",
+        state: {
+          ...baseState,
+          title: "+55 31 8896-2330",
+          titlePhone: "553188962330",
+          overlayPhone: "553188962330",
+        },
+        openChatPhone: null,
+        openChatPhoneNavigatedAtMs: 0,
+        nowMs: 1_000_000,
+        allowedSelfChatPhones: [],
+        expectedTitle: null,
+      }),
+    ).toBe(true);
+  });
+
+  it("allows local Brazilian phone evidence without country code", () => {
+    expect(
+      shouldAllowActiveSendTarget({
+        expectedPhone: "5531991275407",
+        state: {
+          ...baseState,
+          title: "31 9127-5407 Bh",
+          titlePhone: "3191275407",
+          overlayPhone: "3191275407",
+        },
+        openChatPhone: null,
+        openChatPhoneNavigatedAtMs: 0,
+        nowMs: 1_000_000,
+        allowedSelfChatPhones: [],
+        expectedTitle: "5407 bh",
+      }),
+    ).toBe(true);
+  });
+
+  it("allows a saved-contact title immediately after navigating when overlay confirms the live target phone", () => {
+    expect(
+      shouldAllowActiveSendTarget({
+        expectedPhone: "5531985657732",
+        state: {
+          ...baseState,
+          title: "Vitoria Da Motta Cliente Bh",
+          overlayPhone: "5531985657732",
+        },
+        openChatPhone: "5531985657732",
+        openChatPhoneNavigatedAtMs: 995_000,
+        nowMs: 1_000_000,
+        allowedSelfChatPhones: [],
+        expectedTitle: "7732 bh",
+      }),
+    ).toBe(true);
+  });
+
+  it("TODO fails until title-only reuse is blocked because live phone evidence is mandatory", () => {
     expect(
       shouldAllowActiveSendTarget({
         expectedPhone: "5531982066263",
@@ -76,7 +150,7 @@ describe("CDP active send target guard", () => {
         allowedSelfChatPhones: [],
         expectedTitle: "gabriel braga nuoma",
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("blocks when /send phone matches but the active WhatsApp header is another phone", () => {

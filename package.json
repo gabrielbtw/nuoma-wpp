@@ -2,7 +2,7 @@
   "name": "nuoma-wpp-v2",
   "version": "0.1.0",
   "private": true,
-  "description": "Nuoma WPP V2 — local-first omnichannel CRM (greenfield rebuild). See docs/architecture/V2_DECISION.md.",
+  "description": "Nuoma WPP V2 - local-first omnichannel CRM (greenfield rebuild). See README.md.",
   "packageManager": "npm@10.9.3",
   "type": "module",
   "engines": {

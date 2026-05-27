@@ -1,10 +1,12 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 
 import type { WorkerEnv } from "@nuoma/config";
 import {
   campaignStepSchema,
   campaignTemporaryMessagesConfigSchema,
+  jobSchema,
   type CampaignStep,
   type CampaignTemporaryMessagesConfig,
   type Job,
@@ -78,6 +80,12 @@ export async function handleJob(job: Job, context: JobHandlerContext): Promise<v
 }
 
 async function handleCampaignStepJob(job: Job, context: JobHandlerContext): Promise<void> {
+  await handleSingleCampaignStepJob(job, context);
+  await context.repos.jobs.markCompleted(job.id);
+  await drainCampaignStepBatch(job, context);
+}
+
+async function handleSingleCampaignStepJob(job: Job, context: JobHandlerContext): Promise<void> {
   const conversationId = numberFromPayload(job.payload.conversationId);
   if (!conversationId) {
     throw new PermanentJobError("campaign_step requires payload.conversationId");
@@ -94,6 +102,8 @@ async function handleCampaignStepJob(job: Job, context: JobHandlerContext): Prom
   const recipientId = numberFromPayload(job.payload.recipientId);
   const phoneInput = typeof job.payload.phone === "string" ? job.payload.phone : null;
 
+  await assertCampaignRecipientCanRun(job, context, recipientId);
+
   await recordCampaignStepStarted(job, context, {
     campaignId,
     recipientId,
@@ -103,6 +113,23 @@ async function handleCampaignStepJob(job: Job, context: JobHandlerContext): Prom
   });
 
   try {
+    if (step.type === "temporary_messages") {
+      const result = await handleTemporaryMessagesControlStep(job, context, {
+        campaignId,
+        recipientId,
+        conversationId,
+        phone: phoneInput,
+        step,
+      });
+      await recordCampaignStepCompleted(job, context, {
+        campaignId,
+        recipientId,
+        step,
+        result,
+      });
+      return;
+    }
+
     if (step.type === "text" || step.type === "link") {
       const body =
         step.type === "text"
@@ -270,6 +297,164 @@ async function handleCampaignStepJob(job: Job, context: JobHandlerContext): Prom
   }
 }
 
+async function drainCampaignStepBatch(job: Job, context: JobHandlerContext): Promise<void> {
+  const campaignBatchId = stringFromPayload(job.payload.campaignBatchId);
+  const campaignBatchIndex = numberFromPayloadAllowZero(job.payload.campaignBatchIndex);
+  const phone = typeof job.payload.phone === "string" ? normalizePhone(job.payload.phone) : null;
+  if (!campaignBatchId || campaignBatchIndex === null || !phone) {
+    return;
+  }
+
+  while (true) {
+    const sibling = nextQueuedCampaignBatchSibling(context, {
+      userId: job.userId,
+      campaignBatchId,
+      afterIndex: campaignBatchIndex,
+      phone,
+    });
+    if (!sibling) {
+      return;
+    }
+
+    const waitMs = Date.parse(sibling.scheduledAt) - Date.now();
+    if (Number.isFinite(waitMs) && waitMs > 0) {
+      await sleep(Math.min(waitMs, 30_000));
+    }
+
+    const claimed = claimCampaignBatchSibling(context, sibling.id, context.env.WORKER_ID);
+    if (!claimed) {
+      return;
+    }
+
+    try {
+      await handleSingleCampaignStepJob(claimed, context);
+      await context.repos.jobs.markCompleted(claimed.id);
+      context.logger.info(
+        { jobId: claimed.id, type: claimed.type, campaignBatchId },
+        "campaign_step batch sibling completed without reopening worker loop",
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const terminal =
+        error instanceof PermanentJobError ||
+        isTerminalCampaignStepError(message) ||
+        claimed.attempts >= claimed.maxAttempts;
+      if (terminal) {
+        await context.repos.jobs.moveToDead({ jobId: claimed.id, error: message });
+        await cancelCampaignBatchSiblingJobs(claimed, context, message);
+      } else {
+        await context.repos.jobs.releaseForRetry({
+          jobId: claimed.id,
+          error: message,
+          scheduledAt: nextCampaignStepRetryAt(claimed).toISOString(),
+        });
+      }
+      context.logger.warn(
+        { jobId: claimed.id, type: claimed.type, campaignBatchId, terminal, error: message },
+        "campaign_step batch stopped after sibling failure",
+      );
+      return;
+    }
+  }
+}
+
+function nextQueuedCampaignBatchSibling(
+  context: JobHandlerContext,
+  input: {
+    userId: number;
+    campaignBatchId: string;
+    afterIndex: number;
+    phone: string;
+  },
+): Job | null {
+  const row = context.db.raw
+    .prepare(`
+      select *
+      from jobs
+      where user_id = ?
+        and type = 'campaign_step'
+        and status = 'queued'
+        and json_extract(payload_json, '$.campaignBatchId') = ?
+        and cast(json_extract(payload_json, '$.campaignBatchIndex') as integer) > ?
+        and replace(replace(replace(replace(replace(coalesce(json_extract(payload_json, '$.phone'), ''), '+', ''), ' ', ''), '-', ''), '(', ''), ')', '') = ?
+      order by cast(json_extract(payload_json, '$.campaignBatchIndex') as integer) asc, scheduled_at asc, id asc
+      limit 1
+    `)
+    .get(input.userId, input.campaignBatchId, input.afterIndex, input.phone) as
+    | RawJobRow
+    | undefined;
+  return row ? mapRawJob(row) : null;
+}
+
+function claimCampaignBatchSibling(
+  context: JobHandlerContext,
+  jobId: number,
+  workerId: string,
+): Job | null {
+  const claimedAt = new Date().toISOString();
+  const result = context.db.raw
+    .prepare(`
+      update jobs
+      set status = 'claimed',
+          claimed_at = ?,
+          claimed_by = ?,
+          attempts = attempts + 1,
+          updated_at = ?
+      where id = ?
+        and status = 'queued'
+    `)
+    .run(claimedAt, workerId, claimedAt, jobId);
+  if (result.changes === 0) {
+    return null;
+  }
+  const row = context.db.raw.prepare("select * from jobs where id = ?").get(jobId) as
+    | RawJobRow
+    | undefined;
+  return row ? mapRawJob(row) : null;
+}
+
+interface RawJobRow {
+  id: number;
+  user_id: number;
+  type: JobType;
+  status: Job["status"];
+  payload_json: string;
+  dedupe_key: string | null;
+  dedupe_expires_at: string | null;
+  scheduled_at: string;
+  claimed_at: string | null;
+  claimed_by: string | null;
+  attempts: number;
+  max_attempts: number;
+  last_error: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  priority: number;
+}
+
+function mapRawJob(row: RawJobRow): Job {
+  return jobSchema.parse({
+    id: row.id,
+    userId: row.user_id,
+    type: row.type,
+    status: row.status,
+    payload: JSON.parse(row.payload_json) as Record<string, unknown>,
+    dedupeKey: row.dedupe_key,
+    dedupeExpiresAt: row.dedupe_expires_at,
+    scheduledAt: row.scheduled_at,
+    claimedAt: row.claimed_at,
+    claimedBy: row.claimed_by,
+    attempts: row.attempts,
+    maxAttempts: row.max_attempts,
+    lastError: row.last_error,
+    completedAt: row.completed_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    priority: row.priority,
+  });
+}
+
 async function withCampaignTemporaryMessagesAudit<T>(
   job: Job,
   context: JobHandlerContext,
@@ -287,10 +472,7 @@ async function withCampaignTemporaryMessagesAudit<T>(
     return run();
   }
 
-  const batchIndex = numberFromPayloadAllowZero(job.payload.campaignBatchIndex);
-  const shouldApplyBeforeSend = batchIndex === null || batchIndex === 0;
-
-  if (shouldApplyBeforeSend) {
+  if (shouldApplyTemporaryMessagesBeforeSend(job)) {
     try {
       const beforeEvidence = await ensureCampaignTemporaryMessages(job, context, input, {
         config,
@@ -307,6 +489,7 @@ async function withCampaignTemporaryMessagesAudit<T>(
         ensureResult: beforeEvidence,
       });
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       await recordCampaignTemporaryMessagesEvent(job, context, {
         ...input,
         config,
@@ -314,14 +497,19 @@ async function withCampaignTemporaryMessagesAudit<T>(
         duration: config.beforeSendDuration,
         executionMode: "whatsapp_real",
         verified: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: message,
       });
-      throw error;
+      throw new PermanentJobError(message);
     }
   }
 
   try {
-    const result = await run();
+    const sendStartedAt = Date.now();
+    const rawResult = await run();
+    const result = annotateCampaignSendResult(rawResult, {
+      sendStage: "runtime_send",
+      stageDurationMs: Date.now() - sendStartedAt,
+    });
     if (job.payload.isLastStep === true) {
       try {
         const restoreEvidence = await ensureCampaignTemporaryMessages(job, context, input, {
@@ -404,6 +592,97 @@ async function withCampaignTemporaryMessagesAudit<T>(
   }
 }
 
+async function handleTemporaryMessagesControlStep(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    campaignId: number | null;
+    recipientId: number | null;
+    conversationId: number;
+    phone: string | null;
+    step: Extract<CampaignStep, { type: "temporary_messages" }>;
+  },
+): Promise<Record<string, unknown>> {
+  const startedAt = Date.now();
+  await recordTemporaryMessagesControlEvent(job, context, input, {
+    event: "temporary_messages.set.started",
+    status: "running",
+    duration: input.step.duration,
+    stageDurationMs: 0,
+  });
+  try {
+    const ensureResult = await ensureCampaignTemporaryMessages(job, context, input, {
+      phase: "temporary_messages_set",
+      duration: input.step.duration,
+    });
+    const verified = ensureResult.verifiedDuration === input.step.duration;
+    const stageDurationMs = Date.now() - startedAt;
+    await recordTemporaryMessagesControlEvent(job, context, input, {
+      event: "temporary_messages.set.completed",
+      status: verified ? "completed" : "warn",
+      duration: input.step.duration,
+      verified,
+      ensureResult,
+      stageDurationMs,
+    });
+    return {
+      mode: "temporary_messages",
+      sendStage: "temporary_messages.set",
+      stageDurationMs,
+      temporaryMessagesRequestedDuration: input.step.duration,
+      temporaryMessagesConfirmedDuration: ensureResult.verifiedDuration,
+      temporaryMessagesProof: verified,
+      lastKnownTemporaryMessagesDuration: ensureResult.verifiedDuration,
+      targetVerification: {
+        temporaryMessagesProof: verified,
+        requestedDuration: ensureResult.requestedDuration,
+        verifiedDuration: ensureResult.verifiedDuration,
+        livePhoneRequired: true,
+        phone: ensureResult.phone,
+        navigationMode: ensureResult.navigationMode,
+      },
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await recordTemporaryMessagesControlEvent(job, context, input, {
+      event: "temporary_messages.set.failed",
+      status: "failed",
+      duration: input.step.duration,
+      verified: false,
+      error: message,
+      stageDurationMs: Date.now() - startedAt,
+    });
+    throw new PermanentJobError(message);
+  }
+}
+
+async function assertCampaignRecipientCanRun(
+  job: Job,
+  context: JobHandlerContext,
+  recipientId: number | null,
+): Promise<void> {
+  if (!recipientId) {
+    return;
+  }
+  const recipient = await context.repos.campaignRecipients.findById({
+    userId: job.userId,
+    id: recipientId,
+  });
+  if (!recipient) {
+    return;
+  }
+  if (["failed", "cancelled", "skipped", "completed"].includes(recipient.status)) {
+    throw new PermanentJobError(
+      `campaign_step blocked because recipient ${recipient.id} is ${recipient.status}`,
+    );
+  }
+}
+
+function shouldApplyTemporaryMessagesBeforeSend(job: Job): boolean {
+  const batchIndex = numberFromPayloadAllowZero(job.payload.campaignBatchIndex);
+  return batchIndex === null || batchIndex === 0;
+}
+
 async function ensureCampaignTemporaryMessages(
   job: Job,
   context: JobHandlerContext,
@@ -413,8 +692,8 @@ async function ensureCampaignTemporaryMessages(
     step: CampaignStep;
   },
   ensureInput: {
-    config: CampaignTemporaryMessagesConfig;
-    phase: "before_send" | "after_completion_restore" | "failure_restore";
+    config?: CampaignTemporaryMessagesConfig;
+    phase: "before_send" | "temporary_messages_set" | "after_completion_restore" | "failure_restore";
     duration: SyncTemporaryMessagesDuration;
   },
 ): Promise<SyncEnsureTemporaryMessagesResult> {
@@ -488,6 +767,81 @@ function temporaryKeepWindowEvidence(
   };
 }
 
+async function recordTemporaryMessagesControlEvent(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    campaignId: number | null;
+    recipientId: number | null;
+    conversationId: number;
+    phone: string | null;
+    step: Extract<CampaignStep, { type: "temporary_messages" }>;
+  },
+  eventInput: {
+    event: "temporary_messages.set.started" | "temporary_messages.set.completed" | "temporary_messages.set.failed";
+    status: "running" | "completed" | "warn" | "failed";
+    duration: SyncTemporaryMessagesDuration;
+    verified?: boolean;
+    ensureResult?: Partial<SyncEnsureTemporaryMessagesResult>;
+    error?: string;
+    stageDurationMs: number;
+  },
+): Promise<void> {
+  const payload = {
+    event: eventInput.event,
+    source: "worker_campaign_step",
+    at: new Date().toISOString(),
+    status: eventInput.status,
+    jobId: job.id,
+    campaignId: input.campaignId,
+    recipientId: input.recipientId,
+    conversationId: input.conversationId,
+    phone: input.phone,
+    stepId: input.step.id,
+    stepType: input.step.type,
+    campaignBatchId: stringFromPayload(job.payload.campaignBatchId),
+    campaignBatchIndex: numberFromPayloadAllowZero(job.payload.campaignBatchIndex),
+    campaignBatchSize: numberFromPayload(job.payload.campaignBatchSize),
+    sendStage: "temporary_messages.set",
+    stageDurationMs: eventInput.stageDurationMs,
+    temporaryMessagesRequestedDuration: eventInput.duration,
+    temporaryMessagesConfirmedDuration: eventInput.ensureResult?.verifiedDuration ?? null,
+    temporaryMessagesProof: eventInput.verified ?? false,
+    lastKnownTemporaryMessagesDuration: eventInput.ensureResult?.verifiedDuration ?? null,
+    temporaryMessagesWarning:
+      eventInput.status === "warn" || eventInput.status === "failed"
+        ? eventInput.error ?? "not_verified"
+        : null,
+    requestedDuration: eventInput.ensureResult?.requestedDuration ?? eventInput.duration,
+    verifiedDuration: eventInput.ensureResult?.verifiedDuration ?? null,
+    executionMode: "whatsapp_real",
+    verified: eventInput.verified ?? false,
+    navigationMode: eventInput.ensureResult?.navigationMode,
+    menuDetected: eventInput.ensureResult?.menuDetected,
+    changed: eventInput.ensureResult?.changed,
+    targetVerification: eventInput.ensureResult
+      ? {
+          temporaryMessagesProof: eventInput.verified ?? false,
+          requestedDuration: eventInput.ensureResult.requestedDuration ?? eventInput.duration,
+          verifiedDuration: eventInput.ensureResult.verifiedDuration ?? null,
+        }
+      : null,
+    ...(eventInput.error ? { error: eventInput.error } : {}),
+  };
+
+  await appendCampaignRecipientAudit(job, context, input.recipientId, payload);
+  await context.repos.systemEvents.create({
+    userId: job.userId,
+    type: `sender.${eventInput.event}`,
+    severity: eventInput.status === "failed" ? "error" : eventInput.status === "warn" ? "warn" : "info",
+    payload: JSON.stringify({
+      ...payload,
+      targetEvidence: eventInput.ensureResult?.targetEvidence,
+      visualProof: eventInput.ensureResult?.visualProof,
+    }),
+  });
+}
+
 async function recordCampaignTemporaryMessagesEvent(
   job: Job,
   context: JobHandlerContext,
@@ -511,6 +865,19 @@ async function recordCampaignTemporaryMessagesEvent(
     originalError?: string;
   },
 ): Promise<void> {
+  const proof =
+    input.phase === "before_send" && input.verified
+      ? {
+          sendStage: "temporary_messages.before_send",
+          verifiedAt: new Date().toISOString(),
+          requestedDuration: input.ensureResult?.requestedDuration ?? input.duration,
+          verifiedDuration: input.ensureResult?.verifiedDuration ?? null,
+          screenshotPath: input.ensureResult?.visualProof?.screenshotPath,
+          navigationMode: input.ensureResult?.navigationMode,
+          menuDetected: input.ensureResult?.menuDetected,
+          changed: input.ensureResult?.changed,
+        }
+      : null;
   await appendCampaignRecipientAudit(job, context, input.recipientId, {
     event: "temporary_messages.audit",
     source: "worker_campaign_step",
@@ -536,7 +903,33 @@ async function recordCampaignTemporaryMessagesEvent(
     campaignBatchId: stringFromPayload(job.payload.campaignBatchId),
     campaignBatchIndex: numberFromPayloadAllowZero(job.payload.campaignBatchIndex),
     campaignBatchSize: numberFromPayload(job.payload.campaignBatchSize),
-  });
+    sendStage: `temporary_messages.${input.phase}`,
+    targetVerification: input.verified
+      ? {
+          temporaryMessagesProof: true,
+          requestedDuration: input.ensureResult?.requestedDuration ?? input.duration,
+          verifiedDuration: input.ensureResult?.verifiedDuration ?? null,
+        }
+      : null,
+  }, proof ? { temporaryMessagesProof: proof } : undefined);
+  if (proof) {
+    await context.repos.systemEvents.create({
+      userId: job.userId,
+      type: "sender.temporary_messages.proof",
+      severity: "info",
+      payload: JSON.stringify({
+        jobId: job.id,
+        campaignId: input.campaignId,
+        recipientId: input.recipientId,
+        conversationId: input.conversationId,
+        phone: input.phone,
+        stepId: input.step.id,
+        stepType: input.step.type,
+        proof,
+      }),
+    });
+  }
+
   await context.repos.systemEvents.create({
     userId: job.userId,
     type: "sender.temporary_messages.audit",
@@ -732,9 +1125,7 @@ async function sendVoiceToConversation(
     audioPath: input.audioPath,
     tempDir: path.resolve(process.cwd(), context.env.WORKER_TEMP_DIR),
   });
-  const sendPath = shouldSendVoiceSourceDirectly(prepared.sourcePath)
-    ? prepared.sourcePath
-    : prepared.wavPath;
+  const sendPath = prepared.wavPath;
   const result = await context.sync.sendVoiceMessage({
     userId: job.userId,
     conversationId: input.conversationId,
@@ -743,6 +1134,7 @@ async function sendVoiceToConversation(
     durationSecs: prepared.durationSecs,
     reason: input.reason,
   });
+  await assertNativeVoiceSendResult(job, context, input, result);
   return {
     audio: {
       sourcePath: prepared.sourcePath,
@@ -760,9 +1152,44 @@ async function sendVoiceToConversation(
   };
 }
 
-function shouldSendVoiceSourceDirectly(sourcePath: string): boolean {
-  const extension = path.extname(sourcePath).toLowerCase();
-  return extension === ".ogg" || extension === ".opus";
+async function assertNativeVoiceSendResult(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    conversationId: number;
+    phoneInput: string | null;
+    reason: string;
+  },
+  result: unknown,
+): Promise<void> {
+  const record = isRecord(result) ? result : {};
+  const nativeVoiceEvidence = record.nativeVoiceEvidence === true;
+  const voiceSendMode =
+    typeof record.voiceSendMode === "string" ? record.voiceSendMode : null;
+  if (nativeVoiceEvidence && (!voiceSendMode || voiceSendMode === "native-ptt")) {
+    return;
+  }
+  const reason = "native_voice_evidence_required";
+  const step = isRecord(job.payload.step) ? job.payload.step : {};
+  const payload = {
+    jobId: job.id,
+    campaignId: numberFromPayload(job.payload.campaignId),
+    recipientId: numberFromPayload(job.payload.recipientId),
+    conversationId: input.conversationId,
+    phone: typeof record.phone === "string" ? record.phone : input.phoneInput,
+    stepId: typeof step.id === "string" ? step.id : null,
+    voiceSendMode,
+    fallbackReason: typeof record.fallbackReason === "string" ? record.fallbackReason : null,
+    nativeVoiceEvidence,
+    reason,
+  };
+  await context.repos.systemEvents.create({
+    userId: job.userId,
+    type: "sender.voice_message.rejected",
+    severity: "error",
+    payload: JSON.stringify(payload),
+  });
+  throw new PermanentJobError(reason);
 }
 
 async function sendDocumentToConversation(
@@ -982,7 +1409,7 @@ async function recordCampaignStepStarted(
       stepId: input.step.id,
       stepType: input.step.type,
       campaignBatchId: stringFromPayload(job.payload.campaignBatchId),
-      campaignBatchIndex: numberFromPayload(job.payload.campaignBatchIndex),
+      campaignBatchIndex: numberFromPayloadAllowZero(job.payload.campaignBatchIndex),
       campaignBatchSize: numberFromPayload(job.payload.campaignBatchSize),
       attempt: job.attempts,
       evidence: {
@@ -1008,12 +1435,31 @@ async function recordCampaignStepCompleted(
 ): Promise<void> {
   const variantId = stringFromPayload(job.payload.variantId);
   const variantLabel = stringFromPayload(job.payload.variantLabel);
+  let result = input.result;
   if (input.recipientId) {
     const recipient = await context.repos.campaignRecipients.findById({
       userId: job.userId,
       id: input.recipientId,
     });
     if (recipient) {
+      const lastKnownTemporaryMessagesDuration =
+        lastKnownTemporaryMessagesDurationFromMetadata(recipient.metadata);
+      if (
+        input.step.type !== "temporary_messages" &&
+        !("lastKnownTemporaryMessagesDuration" in input.result)
+      ) {
+        result = {
+          ...input.result,
+          lastKnownTemporaryMessagesDuration,
+          temporaryMessagesProof: lastKnownTemporaryMessagesDuration === "24h",
+          temporaryMessagesWarning:
+            lastKnownTemporaryMessagesDuration === "24h"
+              ? null
+              : lastKnownTemporaryMessagesDuration
+                ? "last_known_duration_not_24h"
+                : "missing_24h_proof",
+        };
+      }
       const remainingJobIds = numericPayloadArray(recipient.metadata.awaitingJobIds).filter(
         (jobId) => jobId !== job.id,
       );
@@ -1041,7 +1487,7 @@ async function recordCampaignStepCompleted(
             campaignBatchId: stringFromPayload(job.payload.campaignBatchId),
             campaignBatchIndex: numberFromPayloadAllowZero(job.payload.campaignBatchIndex),
             campaignBatchSize: numberFromPayload(job.payload.campaignBatchSize),
-            result: input.result,
+            result,
           }),
           awaitingJobId: remainingJobIds[0] ?? null,
           awaitingStepId: remainingStepIds[0] ?? null,
@@ -1070,9 +1516,9 @@ async function recordCampaignStepCompleted(
       variantId,
       variantLabel,
       campaignBatchId: stringFromPayload(job.payload.campaignBatchId),
-      campaignBatchIndex: numberFromPayload(job.payload.campaignBatchIndex),
+      campaignBatchIndex: numberFromPayloadAllowZero(job.payload.campaignBatchIndex),
       campaignBatchSize: numberFromPayload(job.payload.campaignBatchSize),
-      ...input.result,
+      ...result,
     }),
   });
 }
@@ -1090,7 +1536,13 @@ async function recordCampaignStepFailed(
   },
 ): Promise<void> {
   const message = input.error instanceof Error ? input.error.message : String(input.error);
-  const isTerminal = input.error instanceof PermanentJobError || job.attempts >= job.maxAttempts;
+      const isTerminal =
+        input.error instanceof PermanentJobError ||
+        isTerminalCampaignStepError(message) ||
+        job.attempts >= job.maxAttempts;
+  if (isTerminal) {
+    await cancelCampaignBatchSiblingJobs(job, context, message);
+  }
   if (input.recipientId) {
     const recipient = await context.repos.campaignRecipients.findById({
       userId: job.userId,
@@ -1145,7 +1597,7 @@ async function recordCampaignStepFailed(
       stepId: input.step.id,
       stepType: input.step.type,
       campaignBatchId: stringFromPayload(job.payload.campaignBatchId),
-      campaignBatchIndex: numberFromPayload(job.payload.campaignBatchIndex),
+      campaignBatchIndex: numberFromPayloadAllowZero(job.payload.campaignBatchIndex),
       campaignBatchSize: numberFromPayload(job.payload.campaignBatchSize),
       attempt: job.attempts,
       maxAttempts: job.maxAttempts,
@@ -1159,6 +1611,59 @@ async function recordCampaignStepFailed(
       },
     }),
   });
+}
+
+function isTerminalCampaignStepError(message: string): boolean {
+  return (
+    /^WhatsApp rejected target phone:/i.test(message) ||
+    /requires native WhatsApp PTT/i.test(message) ||
+    /not_allowlisted_for_test_execution/i.test(message) ||
+    /not_in_production_canary_allowlist/i.test(message) ||
+    /production_without_canary_allowlist/i.test(message)
+  );
+}
+
+function nextCampaignStepRetryAt(job: Job): Date {
+  const attemptIndex = Math.max(job.attempts - 1, 0);
+  return new Date(Date.now() + Math.min(5 * 60_000, 2 ** attemptIndex * 1000));
+}
+
+async function cancelCampaignBatchSiblingJobs(
+  job: Job,
+  context: JobHandlerContext,
+  error: string,
+): Promise<void> {
+  const campaignBatchId = stringFromPayload(job.payload.campaignBatchId);
+  if (!campaignBatchId) {
+    return;
+  }
+  const now = new Date().toISOString();
+  const result = context.db.raw
+    .prepare(`
+      update jobs
+      set status = 'cancelled',
+          last_error = coalesce(last_error, ?),
+          updated_at = ?
+      where user_id = ?
+        and type = 'campaign_step'
+        and id <> ?
+        and status in ('queued', 'claimed', 'running', 'retrying')
+        and json_extract(payload_json, '$.campaignBatchId') = ?
+    `)
+    .run(`campaign_step batch cancelled after terminal failure: ${error}`, now, job.userId, job.id, campaignBatchId);
+  if (result.changes > 0) {
+    await context.repos.systemEvents.create({
+      userId: job.userId,
+      type: "sender.campaign_step.batch_cancelled",
+      severity: "warn",
+      payload: JSON.stringify({
+        jobId: job.id,
+        campaignBatchId,
+        cancelledJobs: result.changes,
+        reason: error,
+      }),
+    });
+  }
 }
 
 async function enforceSendPolicy(
@@ -1248,6 +1753,10 @@ function evaluateWorkerSendEligibility(
 
   if (policy.allowedPhones.length > 0 && !policy.allowedPhones.includes(phone)) {
     return { allowed: false, reason: "not_in_production_canary_allowlist" };
+  }
+
+  if (policy.allowedPhones.length === 0) {
+    return { allowed: false, reason: "production_without_canary_allowlist" };
   }
 
   return { allowed: true };
@@ -1395,6 +1904,7 @@ async function appendCampaignRecipientAudit(
   context: JobHandlerContext,
   recipientId: number | null,
   entry: Record<string, unknown>,
+  metadataPatch?: Record<string, unknown>,
 ): Promise<void> {
   if (!recipientId) {
     return;
@@ -1409,8 +1919,32 @@ async function appendCampaignRecipientAudit(
   await context.repos.campaignRecipients.updateState({
     userId: job.userId,
     id: recipient.id,
-    metadata: withRecipientAudit(recipient.metadata, entry),
+    metadata: {
+      ...withRecipientAudit(recipient.metadata, entry),
+      ...(metadataPatch ?? {}),
+    },
   });
+}
+
+function annotateCampaignSendResult<T>(
+  result: T,
+  annotation: { sendStage: string; stageDurationMs: number },
+): T {
+  if (!isRecord(result)) {
+    return result;
+  }
+  return {
+    ...result,
+    sendStage: annotation.sendStage,
+    stageDurationMs: annotation.stageDurationMs,
+    targetVerification: {
+      livePhoneRequired: true,
+      phone: typeof result.phone === "string" ? result.phone : null,
+      navigationMode: typeof result.navigationMode === "string" ? result.navigationMode : null,
+    },
+    voiceSendMode: typeof result.voiceSendMode === "string" ? result.voiceSendMode : undefined,
+    fallbackReason: typeof result.fallbackReason === "string" ? result.fallbackReason : null,
+  } as T;
 }
 
 function withRecipientAudit(
@@ -1424,6 +1958,21 @@ function withRecipientAudit(
     ...metadata,
     auditTrail: [...auditTrail.slice(-24), entry],
   };
+}
+
+function lastKnownTemporaryMessagesDurationFromMetadata(
+  metadata: Record<string, unknown>,
+): SyncTemporaryMessagesDuration | null {
+  const auditTrail = Array.isArray(metadata.auditTrail)
+    ? metadata.auditTrail.filter(isRecord)
+    : [];
+  for (const entry of auditTrail.slice().reverse()) {
+    const duration = entry.lastKnownTemporaryMessagesDuration ?? entry.temporaryMessagesConfirmedDuration;
+    if (duration === "24h" || duration === "7d" || duration === "90d") {
+      return duration;
+    }
+  }
+  return null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

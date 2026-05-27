@@ -13,6 +13,10 @@ import {
   NUOMA_OVERLAY_API_BINDING_NAME,
   createNuomaOverlayScript,
 } from "../features/overlay/inject.js";
+import {
+  listOverlayCampaignOptions,
+  runOverlayCampaignNow,
+} from "../../../api/src/services/overlay-campaigns.js";
 import { SYNC_BINDING_NAME, parseSyncEventPayload, type SyncThreadRef } from "./events.js";
 import { createSyncEventHandler, type SyncHandlerMetrics } from "./handler.js";
 import { createWhatsAppObserverScript } from "./observer-script.js";
@@ -72,6 +76,7 @@ export type SyncTemporaryMessagesDuration = "24h" | "7d" | "90d";
 
 export type SyncTemporaryMessagesPhase =
   | "before_send"
+  | "temporary_messages_set"
   | "after_completion_restore"
   | "failure_restore";
 
@@ -180,6 +185,7 @@ export interface ActiveSendTargetState {
   title: string;
   titlePhone: string | null;
   overlayPhone: string | null;
+  contactInfoPhone: string | null;
   hasComposer: boolean;
 }
 
@@ -244,6 +250,9 @@ export interface SyncSendVoiceMessageResult {
   injectionConsumed: boolean;
   deliveryStatus: "delivered" | "sent" | "pending" | "unknown" | "no-message" | "error";
   nativeVoiceEvidence: boolean;
+  voiceSendMode?: "native-ptt";
+  fallbackReason?: string | null;
+  internalFallbackChatId?: string | null;
   displayDurationSecs: number | null;
   externalId: string | null;
   visibleMessageCountBefore: number;
@@ -420,6 +429,19 @@ export async function startSyncEngine(input: {
           input.logger.warn({ error }, "sync binding queue failed");
         });
     });
+    client.on("Page.javascriptDialogOpening", (params: { type?: string; message?: string }) => {
+      void client?.Page.handleJavaScriptDialog({ accept: true }).catch((error: unknown) => {
+        metrics.lastError = serializeError(error);
+        input.logger.warn({ error }, "failed to auto-accept WhatsApp browser dialog");
+      });
+      input.logger.info(
+        {
+          dialogType: params.type ?? "unknown",
+          message: params.message ?? "",
+        },
+        "WhatsApp browser dialog auto-accepted",
+      );
+    });
     client.on("disconnect", () => {
       metrics.connected = false;
       metrics.lastError = "CDP disconnected";
@@ -438,14 +460,6 @@ export async function startSyncEngine(input: {
       awaitPromise: false,
       includeCommandLineAPI: false,
     });
-    await hydrateOverlayData("startup");
-    await requestReconcile("startup", { multiChat: false });
-    if (input.env.WORKER_SYNC_RECONCILE_MS > 0) {
-      reconcileTimer = setInterval(() => {
-        enqueueReconcile("hot-window");
-      }, input.env.WORKER_SYNC_RECONCILE_MS);
-    }
-
     metrics.connected = true;
     input.logger.info(
       {
@@ -457,6 +471,20 @@ export async function startSyncEngine(input: {
       },
       "sync engine connected via CDP",
     );
+    void Promise.resolve()
+      .then(async () => {
+        await hydrateOverlayData("startup");
+        await requestReconcile("startup", { multiChat: false });
+      })
+      .catch((error: unknown) => {
+        metrics.lastError = serializeError(error);
+        input.logger.warn({ error }, "sync engine startup hydrate/reconcile failed");
+      });
+    if (input.env.WORKER_SYNC_RECONCILE_MS > 0) {
+      reconcileTimer = setInterval(() => {
+        enqueueReconcile("hot-window");
+      }, input.env.WORKER_SYNC_RECONCILE_MS);
+    }
   } catch (error) {
     metrics.connected = false;
     metrics.lastError = serializeError(error);
@@ -615,6 +643,85 @@ export async function startSyncEngine(input: {
         return;
       }
 
+      if (request.method === "runCampaignForPhone") {
+        const title = stringValue(request.params.title);
+        auditPhoneSource = stringValue(request.params.phoneSource);
+        const phone =
+          normalizePhone(stringValue(request.params.phone)) ??
+          normalizePhone(title) ??
+          normalizePhone((await readOverlayThreadState()).phone);
+        auditPhone = phone;
+        const campaignId = positiveIntegerValue(request.params.campaignId);
+        if (!campaignId) {
+          await resolveOverlayApiRequest(request.id, {
+            ok: false,
+            error: { code: "invalid_campaign", message: "Campaign id is required" },
+          });
+          await auditOverlayApiRequest({
+            request,
+            ok: false,
+            phone: auditPhone,
+            phoneSource: auditPhoneSource,
+            latencyMs: Date.now() - startedAt,
+            errorCode: "invalid_campaign",
+            errorMessage: "Campaign id is required",
+          });
+          return;
+        }
+        const result = await runOverlayCampaignNow({
+          repos: input.repos,
+          userId: CONSTANTS.defaultUserId,
+          campaignId,
+          phone,
+          sendPolicy: resolveWorkerOverlaySendPolicy(),
+          ownerId: `worker-overlay:${CONSTANTS.defaultUserId}`,
+          source: "worker.overlay",
+          idempotencyKey: request.mutation?.idempotencyKey ?? null,
+        });
+        const ok = result.rejected.length === 0 && result.recipientsCreated > 0;
+        const snapshot = await buildOverlaySnapshot({
+          userId: CONSTANTS.defaultUserId,
+          phone: result.phone ?? phone,
+          phoneSource: auditPhoneSource,
+          title,
+          reason: `overlay-api:${request.method}:after`,
+        });
+        await resolveOverlayApiRequest(request.id, {
+          ok,
+          data: {
+            result,
+            snapshot: {
+              ...snapshot,
+              source: "worker-db",
+              apiStatus: ok ? "online" : "error",
+              apiLastMethod: request.method,
+              apiLastError: ok ? null : result.rejected[0]?.reason ?? "campaign_blocked",
+              campaignRunStatus: ok ? "done" : "error",
+              campaignRunLastResult: result,
+              campaignRunLastError: ok ? null : result.rejected[0]?.reason ?? "campaign_blocked",
+            },
+          },
+          ...(ok
+            ? {}
+            : {
+                error: {
+                  code: result.rejected[0]?.reason ?? "campaign_blocked",
+                  message: "Campanha bloqueada pelos guardrails.",
+                },
+              }),
+        });
+        await auditOverlayApiRequest({
+          request,
+          ok,
+          phone: auditPhone,
+          phoneSource: auditPhoneSource,
+          latencyMs: Date.now() - startedAt,
+          errorCode: ok ? undefined : result.rejected[0]?.reason ?? "campaign_blocked",
+          errorMessage: ok ? undefined : "Overlay campaign dispatch blocked",
+        });
+        return;
+      }
+
       metrics.overlayApiErrors += 1;
       await resolveOverlayApiRequest(request.id, {
         ok: false,
@@ -723,6 +830,31 @@ export async function startSyncEngine(input: {
       };
     }
     return { ok: true };
+  }
+
+  function resolveWorkerOverlaySendPolicy(): {
+    mode: "test" | "production";
+    allowedPhones: string[];
+  } {
+    const phones = new Set<string>();
+    for (const raw of [
+      input.env.WA_SEND_ALLOWED_PHONES,
+      input.env.WA_SEND_ALLOWED_PHONE,
+    ]) {
+      for (const part of String(raw ?? "").split(",")) {
+        const phone = normalizePhone(part);
+        if (phone) {
+          phones.add(phone);
+        }
+      }
+    }
+    if (input.env.WA_SEND_POLICY_MODE === "test" && phones.size === 0) {
+      phones.add("5531982066263");
+    }
+    return {
+      mode: input.env.WA_SEND_POLICY_MODE,
+      allowedPhones: [...phones],
+    };
   }
 
   async function resolveOverlayApiRequest(
@@ -987,6 +1119,13 @@ export async function startSyncEngine(input: {
             automation.trigger.channel === contact.primaryChannel),
       )
       .slice(0, 4);
+    const campaigns = await listOverlayCampaignOptions({
+      repos: input.repos,
+      userId: inputSnapshot.userId,
+      phone,
+      sendPolicy: resolveWorkerOverlaySendPolicy(),
+      limit: 5,
+    });
 
     return {
       phone,
@@ -1018,6 +1157,7 @@ export async function startSyncEngine(input: {
         category: automation.category,
         status: automation.status,
       })),
+      campaigns,
       notes: contact?.notes ?? null,
       source: "worker-db",
       reason: inputSnapshot.reason,
@@ -1216,12 +1356,13 @@ export async function startSyncEngine(input: {
       userId: sendInput.userId,
       conversationId: sendInput.conversationId,
     });
-    await assertActiveSendTarget({
-      expectedPhone: phone,
-      operation: "send_message",
-      userId: sendInput.userId,
-      conversationId: sendInput.conversationId,
-    });
+      await assertActiveSendTarget({
+        expectedPhone: phone,
+        operation: "send_message",
+        userId: sendInput.userId,
+        conversationId: sendInput.conversationId,
+        requireLivePhoneEvidence: true,
+      });
     const before = await requestActiveReconcile(`${reason}:before-send`, {
       scope: "send-message",
       conversationId: sendInput.conversationId,
@@ -1281,10 +1422,12 @@ export async function startSyncEngine(input: {
       operation: `temporary_messages:${ensureInput.phase}`,
       userId: ensureInput.userId,
       conversationId: ensureInput.conversationId,
+      requireLivePhoneEvidence: true,
     });
     const beforeState = await readActiveSendTargetState();
     const keepPanelOpenForProof =
-      ensureInput.phase === "before_send" && Boolean(process.env.M303_BEFORE_SEND_SCREENSHOT_PATH);
+      (ensureInput.phase === "before_send" || ensureInput.phase === "temporary_messages_set") &&
+      Boolean(process.env.M303_BEFORE_SEND_SCREENSHOT_PATH);
     const result = await applyTemporaryMessagesDuration(
       ensureInput.duration,
       keepPanelOpenForProof,
@@ -1295,7 +1438,7 @@ export async function startSyncEngine(input: {
         `temporary_messages verification failed: requested=${ensureInput.duration} verified=${result.verifiedDuration ?? "none"} menuDetected=${String(result.menuDetected)} reason=${result.reason ?? "unknown"}`,
       );
     }
-    const visualProof = ensureInput.phase === "before_send"
+    const visualProof = ensureInput.phase === "before_send" || ensureInput.phase === "temporary_messages_set"
       ? await captureTemporaryMessagesVisualProof(ensureInput.duration)
       : null;
     return {
@@ -1411,6 +1554,7 @@ export async function startSyncEngine(input: {
         operation: "send_voice",
         userId: voiceInput.userId,
         conversationId: voiceInput.conversationId,
+        requireLivePhoneEvidence: true,
       });
       await client.Runtime.evaluate({
         expression: initScript,
@@ -1429,60 +1573,29 @@ export async function startSyncEngine(input: {
       await sleep(1_500);
       const recordingMs = Math.round(voiceInput.durationSecs * 1000) + 250;
       let injectionConsumed = false;
-      let sentByInternalFallback = false;
+      let fallbackReason: string | null = null;
       let deliveryStatus: SyncSendVoiceMessageResult["deliveryStatus"] = "unknown";
       const voiceMimeType = audioMimeTypeForPath(voiceInput.wavPath);
-      const voiceInternalOptions =
-        voiceMimeType.startsWith("audio/ogg") ? { isPtt: true } : { isAudio: true };
       if (voiceMimeType !== "audio/wav") {
-        await withTimeout(
-          sendMediaViaWhatsAppInternal({
-            file: {
-              filePath: voiceInput.wavPath,
-              fileName: path.basename(voiceInput.wavPath),
-              mimeType: voiceMimeType,
-            },
-            caption: "",
-            mediaType: "audio",
-            ...voiceInternalOptions,
-          }),
-          60_000,
-          "send_voice internal media send timed out",
+        fallbackReason = `voice_input_not_wav:${voiceMimeType}`;
+        throw new Error(
+          `send_voice requires native WhatsApp PTT recording; internal media fallback blocked (${fallbackReason})`,
         );
-        sentByInternalFallback = true;
       } else {
         await clickVoiceRecordButton();
         try {
           injectionConsumed = await waitForVoiceInjectionConsumed();
         } catch (error) {
-          input.logger.warn(
-            { error },
-            "send_voice recorder injection did not consume payload; sending via WhatsApp internal media API",
+          fallbackReason = "native_recorder_injection_not_consumed";
+          input.logger.warn({ error }, "send_voice native recorder injection did not consume payload");
+          throw new Error(
+            `send_voice requires native WhatsApp PTT recording; internal media fallback blocked (${fallbackReason})`,
           );
-          await withTimeout(
-            sendMediaViaWhatsAppInternal({
-              file: {
-                filePath: voiceInput.wavPath,
-                fileName: path.basename(voiceInput.wavPath),
-                mimeType: voiceMimeType,
-              },
-              caption: "",
-              mediaType: "audio",
-              ...voiceInternalOptions,
-            }),
-            60_000,
-            "send_voice internal media send timed out",
-          );
-          sentByInternalFallback = true;
         }
       }
-      if (!sentByInternalFallback) {
-        await sleep(recordingMs);
-        await clickSendButton();
-        deliveryStatus = await pollLastOutgoingDeliveryStatus(30_000);
-      } else {
-        deliveryStatus = await pollLastOutgoingDeliveryStatus(30_000).catch(() => "sent");
-      }
+      await sleep(recordingMs);
+      await clickSendButton();
+      deliveryStatus = await pollLastOutgoingDeliveryStatus(30_000);
       await sleep(1_000);
 
       const after = await requestActiveReconcile(`${reason}:after-send`, {
@@ -1524,7 +1637,10 @@ export async function startSyncEngine(input: {
         injectionConsumed,
         deliveryStatus,
         nativeVoiceEvidence: bubble.nativeVoiceEvidence,
-        displayDurationSecs: bubble.displayDurationSecs,
+        voiceSendMode: "native-ptt",
+        fallbackReason,
+        internalFallbackChatId: null,
+        displayDurationSecs: bubble.displayDurationSecs ?? voiceInput.durationSecs,
         externalId,
         visibleMessageCountBefore,
         visibleMessageCountAfter,
@@ -1561,6 +1677,7 @@ export async function startSyncEngine(input: {
       operation: "send_document",
       userId: documentInput.userId,
       conversationId: documentInput.conversationId,
+      requireLivePhoneEvidence: true,
     });
     const before = await requestActiveReconcile(`${reason}:before-send`, {
       scope: "send-document",
@@ -1658,6 +1775,7 @@ export async function startSyncEngine(input: {
       operation: `send_media ${mediaInput.mediaType}`,
       userId: mediaInput.userId,
       conversationId: mediaInput.conversationId,
+      requireLivePhoneEvidence: true,
     });
     const before = await requestActiveReconcile(`${reason}:before-send`, {
       scope: "send-media",
@@ -1674,28 +1792,33 @@ export async function startSyncEngine(input: {
     let sentByInternalFallback = false;
     let previewAttachmentCount = 0;
     const expectedMediaCount = mediaFiles.length;
-    const allowInternalFallback = expectedMediaCount === 1;
+    const allowInternalFallback = true;
     const sendInternalFallback = async () => {
       if (!allowInternalFallback) {
         throw new Error(
           `send_media ${mediaInput.mediaType} internal fallback disabled for ${expectedMediaCount} files`,
         );
       }
-      const fallbackFile = mediaFiles[0];
-      if (!fallbackFile) {
+      if (mediaFiles.length === 0) {
         throw new Error(`send_media ${mediaInput.mediaType} internal fallback requires at least one media file`);
       }
-      const fallback = await withTimeout(
-        sendMediaViaWhatsAppInternal({
-          file: fallbackFile,
-          caption,
-          mediaType: mediaInput.mediaType,
-        }),
-        90_000,
-        `send_media ${mediaInput.mediaType} internal fallback timed out`,
-      );
+      let fallback: { chatId: string | null } = { chatId: null };
+      for (const [index, fallbackFile] of mediaFiles.entries()) {
+        fallback = await withTimeout(
+          sendMediaViaWhatsAppInternal({
+            file: fallbackFile,
+            caption: index === 0 ? caption : "",
+            mediaType: mediaInput.mediaType,
+          }),
+          90_000,
+          `send_media ${mediaInput.mediaType} internal fallback timed out`,
+        );
+        if (index < mediaFiles.length - 1) {
+          await sleep(750);
+        }
+      }
       sentByInternalFallback = true;
-      previewAttachmentCount = 1;
+      previewAttachmentCount = mediaFiles.length;
       await clearDocumentPreviewAttachments().catch((error: unknown) => {
         input.logger.debug({ error }, "send_media preview cleanup after internal fallback failed");
       });
@@ -1707,7 +1830,7 @@ export async function startSyncEngine(input: {
       try {
         const fallback = await sendInternalFallback();
         input.logger.info(
-          { mediaType: mediaInput.mediaType, chatId: fallback.chatId },
+          { mediaType: mediaInput.mediaType, mediaCount: expectedMediaCount, chatId: fallback.chatId },
           "send_media sent via WhatsApp internal media API before visual attachment flow",
         );
       } catch (error) {
@@ -2935,6 +3058,47 @@ export async function startSyncEngine(input: {
     }
   }
 
+  async function dismissInvalidPhoneDialog(): Promise<string | null> {
+    if (!client) {
+      return null;
+    }
+    const result = await client.Runtime.evaluate({
+      expression: `
+        (() => {
+          const textOf = (node) => String(node?.textContent || "").replace(/\\s+/g, " ").trim();
+          const dialogs = Array.from(document.querySelectorAll("[role='dialog']"));
+          const dialog = dialogs.find((item) => /n[uú]mero .*n[aã]o est[aá] no whatsapp|phone number .*isn.?t on whatsapp|not on whatsapp/i.test(textOf(item)));
+          if (!dialog) {
+            return { found: false, text: null, dismissed: false };
+          }
+          const text = textOf(dialog);
+          const button = Array.from(dialog.querySelectorAll("button, [role='button']"))
+            .find((item) => /^(ok|entendi|got it)$/i.test(textOf(item) || String(item.getAttribute("aria-label") || "")));
+          if (button instanceof HTMLElement) {
+            button.click();
+            return { found: true, text, dismissed: true };
+          }
+          if (dialog instanceof HTMLElement) {
+            dialog.remove();
+            return { found: true, text, dismissed: true };
+          }
+          return { found: true, text, dismissed: false };
+        })()
+      `,
+      awaitPromise: false,
+      returnByValue: true,
+      includeCommandLineAPI: false,
+    });
+    const value = isRecord(result.result.value) ? result.result.value : {};
+    if (value.found !== true) {
+      return null;
+    }
+    if (value.dismissed === true) {
+      await sleep(500);
+    }
+    return typeof value.text === "string" ? value.text : "invalid WhatsApp phone";
+  }
+
   async function tryInsertAttachmentCaption(caption: string): Promise<boolean> {
     try {
       await focusAttachmentCaptionAndInsertText(caption);
@@ -3598,6 +3762,7 @@ export async function startSyncEngine(input: {
     operation: string;
     userId: number;
     conversationId: number;
+    requireLivePhoneEvidence?: boolean;
   }): Promise<void> {
     if (!client) {
       throw new Error(`${assertInput.operation} blocked: sync engine is not connected`);
@@ -3609,6 +3774,7 @@ export async function startSyncEngine(input: {
     const allowedSelfChatPhones = parseAllowedSendPhones(input.env);
     const deadline = Date.now() + 25_000;
     let state = await readActiveSendTargetState();
+    let contactInfoChecked = false;
     while (Date.now() < deadline) {
       if (shouldAllowActiveSendTarget({
         expectedPhone: assertInput.expectedPhone,
@@ -3618,8 +3784,17 @@ export async function startSyncEngine(input: {
         nowMs: Date.now(),
         allowedSelfChatPhones,
         expectedTitle,
+        requireLivePhoneEvidence: assertInput.requireLivePhoneEvidence,
       })) {
         return;
+      }
+      if ((assertInput.requireLivePhoneEvidence ?? true) && !contactInfoChecked) {
+        contactInfoChecked = true;
+        const contactInfoPhone = await readContactInfoPhoneEvidence(assertInput.expectedPhone);
+        if (contactInfoPhone) {
+          state = { ...state, contactInfoPhone };
+          continue;
+        }
       }
       await sleep(300);
       state = await readActiveSendTargetState();
@@ -3627,7 +3802,7 @@ export async function startSyncEngine(input: {
     openChatPhone = null;
     openChatPhoneNavigatedAtMs = 0;
     throw new Error(
-      `${assertInput.operation} blocked: active WhatsApp chat does not match target phone ${assertInput.expectedPhone}; hrefPhone=${state.hrefPhone ?? "none"} titlePhone=${state.titlePhone ?? "none"} overlayPhone=${state.overlayPhone ?? "none"} expectedTitle=${JSON.stringify(expectedTitle)} title=${JSON.stringify(state.title)} href=${JSON.stringify(state.href)}`,
+      `${assertInput.operation} blocked: active WhatsApp chat does not match target phone ${assertInput.expectedPhone}; hrefPhone=${state.hrefPhone ?? "none"} titlePhone=${state.titlePhone ?? "none"} overlayPhone=${state.overlayPhone ?? "none"} contactInfoPhone=${state.contactInfoPhone ?? "none"} expectedTitle=${JSON.stringify(expectedTitle)} title=${JSON.stringify(state.title)} href=${JSON.stringify(state.href)}`,
     );
   }
 
@@ -3649,6 +3824,7 @@ export async function startSyncEngine(input: {
         title: "",
         titlePhone: null,
         overlayPhone: null,
+        contactInfoPhone: null,
         hasComposer: false,
       };
     }
@@ -3658,7 +3834,7 @@ export async function startSyncEngine(input: {
           const clean = (value) => String(value || "").replace(/\\s+/g, " ").trim();
           const normalizePhone = (value) => {
             const digits = String(value || "").replace(/\\D/g, "");
-            return digits.length >= 10 ? digits : null;
+            return digits.length >= 10 && digits.length <= 13 ? digits : null;
           };
           const href = String(location.href || "");
           let hrefPhone = null;
@@ -3720,8 +3896,108 @@ export async function startSyncEngine(input: {
       title: typeof value.title === "string" ? value.title : "",
       titlePhone: typeof value.titlePhone === "string" ? value.titlePhone : null,
       overlayPhone: typeof value.overlayPhone === "string" ? value.overlayPhone : null,
+      contactInfoPhone: null,
       hasComposer: value.hasComposer === true,
     };
+  }
+
+  async function readContactInfoPhoneEvidence(expectedPhone: string): Promise<string | null> {
+    if (!client) {
+      return null;
+    }
+    const normalizedExpected = normalizePhone(expectedPhone);
+    if (!normalizedExpected) {
+      return null;
+    }
+    const result = await client.Runtime.evaluate({
+      expression: `
+        (async () => {
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          const visible = (node) => {
+            if (!node) return false;
+            const rect = node.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.right > 0;
+          };
+          const normalize = (value) => {
+            const digits = String(value || "").replace(/\\D/g, "");
+            return digits.length >= 10 ? digits : null;
+          };
+          const withoutBrazilMobileNinthDigit = (phone) => {
+            const match = /^55(\\d{2})9(\\d{8})$/.exec(phone);
+            return match ? "55" + match[1] + match[2] : phone;
+          };
+          const expected = ${JSON.stringify(normalizedExpected)};
+          const expectedWithoutNinth = withoutBrazilMobileNinthDigit(expected);
+          const header =
+            document.querySelector("#main header [role='button']") ||
+            document.querySelector("#main header");
+          if (header && visible(header)) {
+            header.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+            header.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
+            header.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+          }
+          const panelSelectors = [
+            '[data-testid*="drawer"]',
+            '[data-testid*="contact-info"]',
+            '[aria-label*="Contact"]',
+            '[aria-label*="Contato"]',
+            '[aria-label*="Dados"]',
+            'div[role="dialog"]',
+            'aside'
+          ];
+          for (let attempt = 0; attempt < 24; attempt += 1) {
+            const panels = Array.from(document.querySelectorAll(panelSelectors.join(",")))
+              .filter((node) => visible(node) && !node.closest("#main"));
+            for (const panel of panels) {
+              const textDigits = String(panel.textContent || "").replace(/\\D/g, "");
+              if (
+                textDigits.includes(expected) ||
+                (expectedWithoutNinth !== expected && textDigits.includes(expectedWithoutNinth))
+              ) {
+                const close =
+                  panel.querySelector('[aria-label*="Fechar"], [aria-label*="Close"]') ||
+                  panel.querySelector('span[data-icon="x"]')?.closest('button,[role="button"]') ||
+                  panel.querySelector('span[data-icon="x-alt"]')?.closest('button,[role="button"]');
+                if (close instanceof HTMLElement) {
+                  close.click();
+                  await sleep(250);
+                } else {
+                  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+                  await sleep(250);
+                }
+                return expected;
+              }
+            }
+            const bodyText = String(document.body?.innerText || "");
+            const bodyDigits = bodyText.replace(/\\D/g, "");
+            if (
+              /Dados do contato|Contact info|Informações do contato|Contact details/i.test(bodyText) &&
+              (bodyDigits.includes(expected) ||
+                (expectedWithoutNinth !== expected && bodyDigits.includes(expectedWithoutNinth)))
+            ) {
+              const close =
+                document.querySelector('[aria-label*="Fechar"], [aria-label*="Close"]') ||
+                document.querySelector('span[data-icon="x"]')?.closest('button,[role="button"]') ||
+                document.querySelector('span[data-icon="x-alt"]')?.closest('button,[role="button"]');
+              if (close instanceof HTMLElement) {
+                close.click();
+                await sleep(250);
+              } else {
+                document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+                await sleep(250);
+              }
+              return expected;
+            }
+            await sleep(250);
+          }
+          return null;
+        })()
+      `,
+      awaitPromise: true,
+      returnByValue: true,
+      includeCommandLineAPI: false,
+    });
+    return normalizePhone(typeof result.result.value === "string" ? result.result.value : null);
   }
 
   async function waitForWhatsAppChatReady(timeoutMs: number): Promise<void> {
@@ -3730,6 +4006,10 @@ export async function startSyncEngine(input: {
     }
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
+      const invalidPhoneMessage = await dismissInvalidPhoneDialog();
+      if (invalidPhoneMessage) {
+        throw new Error(`WhatsApp rejected target phone: ${invalidPhoneMessage}`);
+      }
       const result = await client.Runtime.evaluate({
         expression: `
           (() => ({
@@ -3818,49 +4098,73 @@ export function shouldAllowActiveSendTarget(input: {
   allowedSelfChatPhones: string[];
   expectedTitle: string | null;
   recentNavigationGraceMs?: number;
+  requireLivePhoneEvidence?: boolean;
 }): boolean {
   if (!input.state.hasComposer) {
     return false;
   }
   const normalizedTitle = normalizeTitle(input.state.title);
+  const hasExpectedTitleMatch = Boolean(
+    input.expectedTitle &&
+      (normalizedTitle === input.expectedTitle ||
+        normalizedTitle.startsWith(`${input.expectedTitle} `)),
+  );
+  const recentNavigationGraceMs = input.recentNavigationGraceMs ?? 45_000;
+  const hasRecentNavigationEvidence =
+    phonesMatchForSendTarget(input.openChatPhone, input.expectedPhone) &&
+    input.nowMs - input.openChatPhoneNavigatedAtMs >= 0 &&
+    input.nowMs - input.openChatPhoneNavigatedAtMs <= recentNavigationGraceMs &&
+    (!input.expectedTitle || isSyntheticImportedSendTitle(input.expectedTitle) || hasExpectedTitleMatch);
   const livePhoneMismatch =
-    (Boolean(input.state.titlePhone) && input.state.titlePhone !== input.expectedPhone) ||
-    (Boolean(input.state.overlayPhone) && input.state.overlayPhone !== input.expectedPhone);
+    (Boolean(input.state.hrefPhone) &&
+      !phonesMatchForSendTarget(input.state.hrefPhone, input.expectedPhone)) ||
+    (Boolean(input.state.titlePhone) &&
+      !phonesMatchForSendTarget(input.state.titlePhone, input.expectedPhone)) ||
+    (Boolean(input.state.contactInfoPhone) &&
+      !phonesMatchForSendTarget(input.state.contactInfoPhone, input.expectedPhone));
   if (livePhoneMismatch) {
     return false;
   }
   if (
     input.expectedTitle &&
+    !hasRecentNavigationEvidence &&
     isUsefulSendTitle(input.state.title) &&
     normalizedTitle !== input.expectedTitle &&
     !normalizedTitle.startsWith(`${input.expectedTitle} `)
   ) {
     return false;
   }
+  const hasLivePhoneEvidence =
+    phonesMatchForSendTarget(input.state.hrefPhone, input.expectedPhone) ||
+    phonesMatchForSendTarget(input.state.titlePhone, input.expectedPhone) ||
+    phonesMatchForSendTarget(input.state.overlayPhone, input.expectedPhone) ||
+    phonesMatchForSendTarget(input.state.contactInfoPhone, input.expectedPhone);
+  if (input.requireLivePhoneEvidence ?? true) {
+    return hasLivePhoneEvidence;
+  }
   return (
-    input.state.hrefPhone === input.expectedPhone ||
-    input.state.titlePhone === input.expectedPhone ||
-    input.state.overlayPhone === input.expectedPhone ||
+    hasLivePhoneEvidence ||
+    (hasRecentNavigationEvidence && isUsefulSendTitle(input.state.title)) ||
     isAllowedSelfChatTarget({
       expectedPhone: input.expectedPhone,
       allowedPhones: input.allowedSelfChatPhones,
       title: input.state.title,
       expectedTitle: input.expectedTitle,
     }) ||
-    Boolean(
-      input.expectedTitle &&
-        (normalizedTitle === input.expectedTitle ||
-          normalizedTitle.startsWith(`${input.expectedTitle} `)),
-    )
+    hasExpectedTitleMatch
   );
 }
 
 async function selectSyncTarget(env: WorkerEnv): Promise<CDP.Target | undefined> {
-  const targets = await CDP.List({
-    host: env.CHROMIUM_CDP_HOST,
-    port: env.CHROMIUM_CDP_PORT,
+  const response = await fetch(`http://${env.CHROMIUM_CDP_HOST}:${env.CHROMIUM_CDP_PORT}/json/list`, {
+    signal: AbortSignal.timeout(5_000),
   });
+  const targets = (await response.json()) as CDP.Target[];
   const pageTargets = targets.filter((target) => target.type === "page");
+  const whatsappTargets = pageTargets.filter((target) => target.url.includes("web.whatsapp.com"));
+  if (whatsappTargets.length === 1) {
+    return whatsappTargets[0];
+  }
   const preferredTargets = [
     ...pageTargets.filter((target) => target.url.startsWith(env.WA_WEB_URL)),
     ...pageTargets.filter(
@@ -4156,6 +4460,16 @@ function temporaryMessagesUiScript(
         if (/(^|[^a-z])(?:tres|três|three)\\s*(meses|months)([^a-z]|$)/i.test(text)) return "90d";
         return null;
       };
+      const durationsFromText = (value) => {
+        const found = new Set();
+        const text = clean(value);
+        if (/(^|[^0-9])24\\s*(h|hora|horas|hour|hours)([^a-z]|$)/i.test(text)) found.add("24h");
+        if (/(^|[^0-9])7\\s*(d|dia|dias|day|days)([^a-z]|$)/i.test(text)) found.add("7d");
+        if (/(^|[^0-9])90\\s*(d|dia|dias|day|days)([^a-z]|$)/i.test(text)) found.add("90d");
+        if (/(^|[^0-9])3\\s*(mes|meses|month|months)([^a-z]|$)/i.test(text)) found.add("90d");
+        if (/(^|[^a-z])(?:tres|três|three)\\s*(meses|months)([^a-z]|$)/i.test(text)) found.add("90d");
+        return found;
+      };
       const clickNode = (node) => {
         const target = node && (node.closest("button") || node.closest("[role='button']") || node.closest("[role='menuitem']") || node);
         if (!(target instanceof HTMLElement) || !isVisible(target)) return false;
@@ -4199,10 +4513,40 @@ function temporaryMessagesUiScript(
         }
         return null;
       };
+      const durationOptionCount = () =>
+        visibleNodes("input[aria-checked], input[type='radio'], [role='radio'], [aria-checked]", true).length;
+      const waitForDurationOptions = async () => {
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+          if (durationOptionCount() >= 4) return true;
+          await sleep(350);
+        }
+        return false;
+      };
+      const latestEphemeralSystemDuration = () => {
+        const notices = visibleNodes(
+          "[data-testid='ephemeral_system_message'], [data-testid='msg-notification-container']",
+          true,
+        )
+          .map((node, index) => {
+            const text = node.textContent || "";
+            return {
+              index,
+              text,
+              duration: durationFromText(text),
+              relevant: /mensagens temporarias|mensagens temporárias|disappearing messages|mensajes temporales/i.test(text),
+            };
+          })
+          .filter((item) => item.relevant && item.duration);
+        return notices.reverse()[0]?.duration || null;
+      };
       const findByText = (needles, root = document) => {
         const normalizedNeedles = needles.map(clean);
         return Array.from(root.querySelectorAll("button, [role='button'], [role='menuitem'], [role='radio'], [role='option'], div, span"))
-          .filter((node) => isVisible(node) && isChatSurfaceNode(node))
+          .filter((node) =>
+            isVisible(node) &&
+            isChatSurfaceNode(node) &&
+            !(node instanceof HTMLElement && node.closest("[data-testid='msg-notification-container'], [data-testid='ephemeral_system_message']"))
+          )
           .map((node) => {
             const text = clean(node.getAttribute("aria-label") || node.getAttribute("title") || node.textContent || "");
             const rect = node.getBoundingClientRect();
@@ -4235,9 +4579,13 @@ function temporaryMessagesUiScript(
           "Mensagens temporarias", "Mensagens temporárias", "Disappearing messages",
           "Mensajes temporales", "Mensajes temporarios"
         ];
+        const clickAndConfirm = async (node) => {
+          if (!node || !clickNode(node)) return false;
+          return waitForDurationOptions();
+        };
         for (let attempt = 0; attempt < 3; attempt += 1) {
           const direct = findByText(tempLabels);
-          if (direct && clickNode(direct)) return true;
+          if (await clickAndConfirm(direct)) return true;
           if (attempt === 0) {
             await openChatInfo();
           } else if (attempt === 1) {
@@ -4246,7 +4594,7 @@ function temporaryMessagesUiScript(
           await sleep(700);
         }
         const menuItem = findByText(tempLabels);
-        return menuItem ? clickNode(menuItem) : false;
+        return clickAndConfirm(menuItem);
       };
       const clickDuration = async () => {
         const labelsByDuration = {
@@ -4254,25 +4602,89 @@ function temporaryMessagesUiScript(
           "7d": ["7 dias", "7 days", "7 d"],
           "90d": ["90 dias", "90 days", "90 d", "3 meses", "3 months", "tres meses", "três meses", "three months"]
         };
+        const radioIndexByDuration = { "24h": 0, "7d": 1, "90d": 2 };
+        const dispatchClick = (node) => {
+          if (!(node instanceof HTMLElement) || !isVisible(node)) return false;
+          node.scrollIntoView({ block: "center", inline: "center" });
+          const rect = node.getBoundingClientRect();
+          const x = rect.left + rect.width / 2;
+          const y = rect.top + rect.height / 2;
+          node.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, clientX: x, clientY: y }));
+          node.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, clientX: x, clientY: y }));
+          node.click();
+          return true;
+        };
+        const radioOptions = () => {
+          const rows = visibleNodes("input[aria-checked], input[type='radio'], [role='radio'], [aria-checked]", true)
+            .map((input) => {
+              const row =
+                input.closest("label") ||
+                input.closest("[role='radio']") ||
+                input.parentElement ||
+                input;
+              const text = [
+                row?.textContent,
+                input.getAttribute("aria-label"),
+                input.getAttribute("title"),
+                input.parentElement?.textContent,
+              ].filter(Boolean).join(" ");
+              const duration = durationFromText(text) || (/desativad|off|disabled/i.test(clean(text)) ? "off" : null);
+              const rect = row instanceof HTMLElement ? row.getBoundingClientRect() : input.getBoundingClientRect();
+              return {
+                input,
+                row,
+                text: clean(text),
+                duration,
+                top: rect.top,
+                left: rect.left,
+              };
+            })
+            .filter((item) => item.duration || item.text)
+            .sort((a, b) => a.top - b.top || a.left - b.left);
+          const unique = [];
+          for (const row of rows) {
+            if (!unique.some((item) => item.duration === row.duration && Math.abs(item.top - row.top) < 4)) {
+              unique.push(row);
+            }
+          }
+          return unique;
+        };
         const durationOptionTarget = () => {
           const labels = labelsByDuration[requestedDuration].map(clean);
-          const candidates = visibleNodes("label, div, span", true)
+          const candidates = visibleNodes("label, button, [role='button'], [role='radio'], [role='option'], div, span, input", true)
             .map((node) => {
-              const text = clean(node.textContent || "");
+              const text = clean([
+                node.textContent,
+                node.getAttribute("aria-label"),
+                node.getAttribute("title"),
+                node.closest("label")?.textContent,
+                node.parentElement?.textContent,
+              ].filter(Boolean).join(" "));
+              const durations = durationsFromText(text);
               const exact = labels.some((label) => text === label);
               const includes = labels.some((label) => text.includes(label));
+              const onlyRequestedDuration = durations.size === 1 && durations.has(requestedDuration);
               return {
                 node,
                 text,
-                score: (exact ? 0 : 1000) + text.length,
-                match: exact || includes,
+                score:
+                  (exact ? 0 : 1000) +
+                  (onlyRequestedDuration ? 0 : 5000) +
+                  (node.matches("input, [role='radio'], [role='option'], label, button, [role='button']") ? 0 : 500) +
+                  text.length,
+                match: (exact || includes) && onlyRequestedDuration && text.length <= 220,
               };
             })
             .filter((item) => item.match)
             .sort((a, b) => a.score - b.score);
           for (const item of candidates) {
-            const row = item.node.closest("label") || item.node.parentElement;
-            const input = row?.querySelector("input[aria-checked], input[type='radio'], [role='radio'], [aria-checked]");
+            const row =
+              item.node.closest("[role='radio'], [role='option'], label, button, [role='button']") ||
+              item.node.parentElement;
+            const input =
+              item.node.matches("[role='radio'], [role='option'], input, button, [role='button']")
+                ? item.node
+                : row?.querySelector("input[aria-checked], input[type='radio'], [role='radio'], [aria-checked]");
             if (input instanceof HTMLElement && isVisible(input) && isChatSurfaceNode(input)) {
               return input;
             }
@@ -4287,11 +4699,25 @@ function temporaryMessagesUiScript(
         };
         const scrollables = () => visibleNodes("[role='dialog'], [data-animate-modal-popup], section, div", true)
           .filter((node) => node.scrollHeight > node.clientHeight + 20);
-        for (let attempt = 0; attempt < 12; attempt += 1) {
-          const node = durationOptionTarget() || findByText(labelsByDuration[requestedDuration]);
-          if (node && clickNode(node)) return true;
+        for (let attempt = 0; attempt < 15; attempt += 1) {
+          const indexedOption = radioOptions()[radioIndexByDuration[requestedDuration]];
+          const indexedTarget =
+            indexedOption?.input instanceof HTMLElement
+              ? indexedOption.input
+              : indexedOption?.row instanceof HTMLElement
+                ? indexedOption.row
+                : null;
+          if (indexedTarget && dispatchClick(indexedTarget)) return true;
+          const node = durationOptionTarget();
+          if (node && dispatchClick(node)) return true;
           for (const scroller of scrollables()) {
-            scroller.scrollTop = attempt % 2 === 0 ? scroller.scrollHeight : Math.round(scroller.scrollHeight / 2);
+            const position = attempt % 3;
+            scroller.scrollTop =
+              position === 0
+                ? 0
+                : position === 1
+                  ? Math.round(scroller.scrollHeight / 2)
+                  : scroller.scrollHeight;
           }
           await sleep(500);
         }
@@ -4300,8 +4726,30 @@ function temporaryMessagesUiScript(
       const closePanels = async () => {
         const ok = findByText(["OK", "Ok", "Entendi", "Got it", "De acuerdo"]);
         if (ok) clickNode(ok);
+        const hasDurationOptions = () => visibleNodes("input[aria-checked], input[type='radio'], [role='radio'], [aria-checked]", true).length >= 4;
+        const hasComposer = () => Boolean(document.querySelector("#main footer [contenteditable='true']"));
+        const clickHeaderIcon = (icons) => {
+          const icon = visibleNodes(icons.map((iconName) => "span[data-icon='" + iconName + "'], span[data-testid='" + iconName + "']").join(","), true)
+            .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0];
+          const target =
+            icon?.closest("button") ||
+            icon?.closest("[role='button']") ||
+            icon?.parentElement ||
+            icon;
+          return dispatchClick(target);
+        };
+        for (let attempt = 0; attempt < 4; attempt += 1) {
+          if (!hasDurationOptions() && hasComposer()) return true;
+          if (hasDurationOptions()) {
+            clickHeaderIcon(["back-refreshed", "back"]);
+          } else {
+            clickHeaderIcon(["x", "x-alt", "dismiss"]);
+          }
+          await sleep(800);
+        }
         document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-        await sleep(300);
+        await sleep(500);
+        return !hasDurationOptions() && hasComposer();
       };
 
       const closedPanelDuration = bodyDuration();
@@ -4318,9 +4766,17 @@ function temporaryMessagesUiScript(
       const beforeDuration = selectedDuration() || closedPanelDuration;
       const clickedDuration = await clickDuration();
       await sleep(900);
-      const verifiedDuration = selectedDuration();
+      const verifiedDuration = selectedDuration() || latestEphemeralSystemDuration();
       if (!keepPanelOpen) {
-        await closePanels();
+        const closed = await closePanels();
+        if (!closed) {
+          return {
+            changed: clickedDuration && beforeDuration !== requestedDuration,
+            menuDetected: true,
+            verifiedDuration,
+            reason: "temporary-panel-close-failed"
+          };
+        }
       }
       return {
         changed: clickedDuration && beforeDuration !== requestedDuration,
@@ -4405,9 +4861,26 @@ function temporaryMessagesProofScript(duration: SyncTemporaryMessagesDuration): 
         }
         return null;
       };
+      const latestEphemeralSystemDuration = () => {
+        const notices = visibleNodes("[data-testid='ephemeral_system_message'], [data-testid='msg-notification-container']")
+          .map((node, index) => {
+            const text = node.textContent || "";
+            return {
+              index,
+              text,
+              duration: durationFromText(text),
+              relevant: /mensagens temporarias|mensagens temporárias|disappearing messages|mensajes temporales/i.test(text),
+            };
+          })
+          .filter((item) => item.relevant && item.duration);
+        return notices.reverse()[0]?.duration || null;
+      };
       const findByText = (needles) => {
         const normalizedNeedles = needles.map(clean);
         return visibleNodes("button, [role='button'], [role='menuitem'], [role='radio'], [role='option'], div, span")
+          .filter((node) =>
+            !(node instanceof HTMLElement && node.closest("[data-testid='msg-notification-container'], [data-testid='ephemeral_system_message']"))
+          )
           .map((node) => {
             const text = clean(node.getAttribute("aria-label") || node.getAttribute("title") || node.textContent || "");
             const interactive = node.matches("button, [role='button'], [role='menuitem'], [role='radio'], [role='option']");
@@ -4449,7 +4922,7 @@ function temporaryMessagesProofScript(duration: SyncTemporaryMessagesDuration): 
       const proofText = visibleNodes("#main, [role='dialog'], [data-animate-modal-popup], section, aside, div, span")
         .map((node) => node.textContent || "")
         .join("\\n");
-      const selected = selectedDuration();
+      const selected = selectedDuration() || latestEphemeralSystemDuration();
       const durationEvidence = visibleNodes("button, [role='button'], [role='radio'], [role='option'], div, span")
         .map((node) => node.textContent || node.getAttribute("aria-label") || "")
         .find((text) => durationFromText(text) === selected) || "";
@@ -4693,6 +5166,36 @@ function isUsefulSendTitle(value: string | null): boolean {
     title !== "whatsapp" &&
     title !== "whatsapp business" &&
     !normalizePhone(title),
+  );
+}
+
+function isSyntheticImportedSendTitle(value: string | null): boolean {
+  return /^\d{4}\s+bh$/.test(normalizeTitle(value ?? ""));
+}
+
+function phonesMatchForSendTarget(actual: string | null, expected: string): boolean {
+  if (!actual) {
+    return false;
+  }
+  const normalizeComparablePhone = (phone: string) => {
+    const digits = phone.replace(/\D/g, "");
+    if ((digits.length === 10 || digits.length === 11) && digits.startsWith("31")) {
+      return `55${digits}`;
+    }
+    return digits;
+  };
+  const normalizedActual = normalizeComparablePhone(actual);
+  const normalizedExpected = normalizeComparablePhone(expected);
+  if (normalizedActual === normalizedExpected) {
+    return true;
+  }
+  const withoutBrazilMobileNinthDigit = (phone: string) => {
+    const match = /^55(\d{2})9(\d{8})$/.exec(phone);
+    return match ? `55${match[1]}${match[2]}` : phone;
+  };
+  return (
+    withoutBrazilMobileNinthDigit(normalizedActual) ===
+    withoutBrazilMobileNinthDigit(normalizedExpected)
   );
 }
 

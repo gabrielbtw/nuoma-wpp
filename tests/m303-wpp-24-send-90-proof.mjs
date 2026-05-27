@@ -74,7 +74,7 @@ try {
       "ig=nao_aplicavel",
     ].join("|"),
   );
-  await browser.close();
+  process.exit(0);
 } catch (error) {
   console.error(`m303-wpp-24-send-90-proof|failed|proofDir=${outDir}|error=${error.message}`);
   process.exitCode = 1;
