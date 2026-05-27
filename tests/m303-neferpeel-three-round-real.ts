@@ -203,7 +203,7 @@ async function waitForCampaignRound(
     const jobs = readCampaignStepJobs(handle, campaignId);
     const recipient = readRecipient(handle, recipientId);
     const failed = jobs.filter((job) => job.status === "failed" || job.status === "cancelled");
-    const retried = jobs.filter((job) => job.attempts !== 1 || job.maxAttempts !== 1);
+    const retried = jobs.filter((job) => job.attempts > 1 || job.maxAttempts !== 1);
     if (failed.length > 0) {
       throw new Error(
         `Round ${round} failed campaign_step job(s): ${failed

@@ -22,7 +22,8 @@ const workerEnv = {
   WORKER_SYNC_RECONCILE_MS: "60000",
   WORKER_JOB_LOOP_ENABLED: "true",
   WORKER_SEND_REUSE_OPEN_CHAT_ENABLED: "true",
-  WORKER_SEND_CONFIRMATION_TIMEOUT_MS: "15000",
+  WORKER_SYNC_MULTI_CHAT_DELAY_MS: process.env.WORKER_SYNC_MULTI_CHAT_DELAY_MS ?? "1200",
+  WORKER_SEND_CONFIRMATION_TIMEOUT_MS: process.env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS ?? "15000",
   WORKER_SEND_STRICT_DELIVERY: "false",
   WORKER_POLL_MS: "1000",
   WORKER_HEARTBEAT_SEC: "5",
@@ -175,7 +176,9 @@ function releaseLocalClaimedJobs() {
       )
       .run(now, now, workerEnv.WORKER_ID);
     if (result.changes > 0) {
-      console.log(`worker:start|releasedClaimedJobs=${result.changes}|workerId=${workerEnv.WORKER_ID}`);
+      console.log(
+        `worker:start|releasedClaimedJobs=${result.changes}|workerId=${workerEnv.WORKER_ID}`,
+      );
     }
   } finally {
     db.close();
