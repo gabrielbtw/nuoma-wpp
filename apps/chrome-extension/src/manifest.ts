@@ -30,9 +30,9 @@ export interface ChromeExtensionManifest {
 export function createManifest(): ChromeExtensionManifest {
   return {
     manifest_version: 3,
-    name: "Nuoma WPP Companion",
+    name: "Nuoma Overlay",
     version: chromeExtensionVersion,
-    description: "Nuoma companion local para overlay seguro no WhatsApp Web.",
+    description: "Overlay local Nuoma para leitura segura no WhatsApp Web.",
     permissions: ["cookies", "storage"],
     host_permissions: [
       "https://web.whatsapp.com/*",
@@ -40,7 +40,7 @@ export function createManifest(): ChromeExtensionManifest {
       "http://localhost:3001/*",
     ],
     action: {
-      default_title: "Nuoma WPP Companion",
+      default_title: "Nuoma Overlay",
       default_popup: "popup.html",
     },
     background: {

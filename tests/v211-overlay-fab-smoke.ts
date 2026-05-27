@@ -113,9 +113,9 @@ async function validateWhatsAppWeb() {
     if (
       state.rootCount !== 1 ||
       !state.shadowIsolated ||
-      state.buttonLabel !== "Abrir Octo no Nuoma CRM" ||
-      !state.hasOcto ||
-      !state.hasOctoArt
+      state.buttonLabel !== "Abrir painel Nuoma" ||
+      !state.hasBrandButton ||
+      !state.hasBrandMark
     ) {
       throw new Error(`WhatsApp overlay invalid state: ${JSON.stringify(state)}`);
     }
@@ -152,8 +152,8 @@ async function readOverlayState(page: Page) {
         parentIsHeader: host?.parentElement === header,
         shadowIsolated: Boolean(host?.shadowRoot),
         buttonLabel: button?.getAttribute("aria-label") ?? "",
-        hasOcto: Boolean(button?.querySelector(".nuoma-octo")),
-        hasOctoArt: Boolean(button?.querySelector(".nuoma-octo-art")),
+        hasBrandButton: Boolean(button?.querySelector(".nuoma-brand-button")),
+        hasBrandMark: Boolean(button?.querySelector(".nuoma-brand-mark")),
         phone: host?.getAttribute("data-nuoma-thread-phone") ?? "",
         title: host?.getAttribute("data-nuoma-thread-title") ?? "",
         buttonWidth: buttonRect?.width ?? 0,

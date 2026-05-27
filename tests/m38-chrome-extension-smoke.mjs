@@ -34,7 +34,7 @@ const browser = await chromium.launch({ headless: true });
 try {
   const popup = await browser.newPage({ viewport: { width: 360, height: 520 } });
   await popup.goto(pathToFileURL(path.join(distDir, "popup.html")).href);
-  await popup.waitForSelector("text=Nuoma WPP Companion");
+  await popup.waitForSelector("text=Nuoma Overlay");
   await popup.waitForSelector("text=Chrome Extension runtime");
   await popup.screenshot({ path: popupScreenshot, fullPage: true });
 

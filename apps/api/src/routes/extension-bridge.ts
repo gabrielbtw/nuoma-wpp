@@ -5,6 +5,8 @@ import type { ApiEnv } from "@nuoma/config";
 import type { Repositories } from "@nuoma/db";
 
 import { buildExtensionOverlaySnapshot } from "../services/extension-overlay.js";
+import { runOverlayCampaignNow } from "../services/overlay-campaigns.js";
+import { resolveApiSendPolicy } from "../services/send-policy.js";
 import { verifyAccessToken, type AuthUser } from "../trpc/auth.js";
 import { ACCESS_COOKIE, readCookie } from "../trpc/cookies.js";
 
@@ -58,6 +60,7 @@ export async function registerExtensionBridgeRoutes(
     const overlayRequest = parsed.data;
     const phone = stringValue(overlayRequest.params.phone);
     const phoneSource = stringValue(overlayRequest.params.phoneSource);
+    const sendPolicy = resolveApiSendPolicy(deps.env);
     try {
       if (overlayRequest.method === "ping") {
         await auditExtensionOverlayRequest({
@@ -88,6 +91,7 @@ export async function registerExtensionBridgeRoutes(
           phoneSource,
           title: stringValue(overlayRequest.params.title),
           reason: stringValue(overlayRequest.params.reason) ?? "chrome-extension",
+          sendPolicy,
         });
         await auditExtensionOverlayRequest({
           repos: deps.repos,
@@ -106,6 +110,88 @@ export async function registerExtensionBridgeRoutes(
             apiLastMethod: overlayRequest.method,
             apiLastError: null,
           },
+        });
+      }
+
+      if (overlayRequest.method === "runCampaignForPhone") {
+        const mutationCheck = validateOverlayMutation(overlayRequest);
+        if (!mutationCheck.ok) {
+          await auditExtensionOverlayRequest({
+            repos: deps.repos,
+            userId: user.id,
+            request: overlayRequest,
+            ok: false,
+            latencyMs: Date.now() - startedAt,
+            phone,
+            phoneSource,
+            errorCode: mutationCheck.errorCode,
+            errorMessage: mutationCheck.errorMessage,
+          });
+          return reply.code(400).send({
+            ok: false,
+            error: {
+              code: mutationCheck.errorCode,
+              message: mutationCheck.errorMessage,
+            },
+          });
+        }
+        const campaignId = positiveIntegerValue(overlayRequest.params.campaignId);
+        if (!campaignId) {
+          return reply.code(400).send({
+            ok: false,
+            error: { code: "invalid_campaign", message: "Campaign id is required" },
+          });
+        }
+        const result = await runOverlayCampaignNow({
+          repos: deps.repos,
+          userId: user.id,
+          campaignId,
+          phone,
+          sendPolicy,
+          ownerId: `extension-overlay:${user.id}`,
+          source: "extension.overlay",
+          idempotencyKey: overlayRequest.mutation?.idempotencyKey ?? null,
+        });
+        const snapshot = await buildExtensionOverlaySnapshot({
+          repos: deps.repos,
+          userId: user.id,
+          phone: result.phone ?? phone,
+          phoneSource,
+          title: stringValue(overlayRequest.params.title),
+          reason: "chrome-extension:runCampaignForPhone",
+          sendPolicy,
+        });
+        const ok = result.rejected.length === 0 && result.recipientsCreated > 0;
+        await auditExtensionOverlayRequest({
+          repos: deps.repos,
+          userId: user.id,
+          request: overlayRequest,
+          ok,
+          latencyMs: Date.now() - startedAt,
+          phone: result.phone ?? phone,
+          phoneSource,
+          errorCode: ok ? undefined : result.rejected[0]?.reason ?? "campaign_blocked",
+          errorMessage: ok ? undefined : "Overlay campaign dispatch blocked",
+        });
+        return reply.send({
+          ok,
+          data: {
+            result,
+            snapshot: {
+              ...snapshot,
+              apiStatus: ok ? "online" : "error",
+              apiLastMethod: overlayRequest.method,
+              apiLastError: ok ? null : result.rejected[0]?.reason ?? "campaign_blocked",
+            },
+          },
+          ...(ok
+            ? {}
+            : {
+                error: {
+                  code: result.rejected[0]?.reason ?? "campaign_blocked",
+                  message: "Campanha bloqueada pelos guardrails.",
+                },
+              }),
         });
       }
 
@@ -208,4 +294,38 @@ async function auditExtensionOverlayRequest(input: {
 
 function stringValue(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function positiveIntegerValue(value: unknown): number | null {
+  const numeric = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isInteger(numeric) && numeric > 0 ? numeric : null;
+}
+
+function validateOverlayMutation(
+  request: OverlayRequest,
+):
+  | { ok: true }
+  | { ok: false; errorCode: string; errorMessage: string } {
+  if (!request.mutation) {
+    return {
+      ok: false,
+      errorCode: "mutation_guard_required",
+      errorMessage: "Sensitive overlay methods require mutation guard metadata",
+    };
+  }
+  if (!request.mutation.confirmed) {
+    return {
+      ok: false,
+      errorCode: "mutation_confirmation_required",
+      errorMessage: "Sensitive overlay methods require explicit confirmation",
+    };
+  }
+  if (!request.mutation.nonce || !request.mutation.idempotencyKey) {
+    return {
+      ok: false,
+      errorCode: "mutation_idempotency_required",
+      errorMessage: "Sensitive overlay methods require nonce and idempotency key",
+    };
+  }
+  return { ok: true };
 }

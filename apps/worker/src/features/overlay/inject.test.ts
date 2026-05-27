@@ -52,13 +52,14 @@ describe("Nuoma WhatsApp overlay injection", () => {
             shadowIsolated: Boolean(host?.shadowRoot),
             ariaLabel: button?.getAttribute("aria-label"),
             title: button?.getAttribute("title"),
-            hasOcto: Boolean(button?.querySelector(".nuoma-octo")),
-            hasOctoArt: Boolean(button?.querySelector(".nuoma-octo-art")),
+            hasBrandButton: Boolean(button?.querySelector(".nuoma-brand-button")),
+            hasBrandMark: Boolean(button?.querySelector(".nuoma-brand-mark")),
+            hasBrandStatus: Boolean(button?.querySelector(".nuoma-brand-status")),
+            brandText: button?.querySelector(".nuoma-brand-mark")?.textContent,
             hasLegacyMark: Boolean(button?.querySelector(".nuoma-mark")),
-            octoSpriteVar:
-              button instanceof HTMLElement ? button.style.getPropertyValue("--nuoma-octo-sprite") : "",
-            octoState: host?.getAttribute("data-nuoma-octo-state"),
-            octoFrame: button?.querySelector<HTMLElement>(".nuoma-octo-art")?.style.backgroundPosition ?? "",
+            hasLegacyOctoArt: Boolean(button?.querySelector(".nuoma-octo-art")),
+            visualState: host?.getAttribute("data-nuoma-visual-state"),
+            brandTransform: button?.querySelector<HTMLElement>(".nuoma-brand-mark")?.style.transform ?? "",
             version: host?.getAttribute("data-nuoma-version"),
             threadPhone: host?.getAttribute("data-nuoma-thread-phone"),
             threadPhoneSource: host?.getAttribute("data-nuoma-phone-source"),
@@ -75,11 +76,14 @@ describe("Nuoma WhatsApp overlay injection", () => {
         rootCount: 1,
         parentIsHeader: true,
         shadowIsolated: true,
-        ariaLabel: "Abrir Octo no Nuoma CRM",
-        title: "Abrir Octo no Nuoma CRM",
-        hasOcto: true,
-        hasOctoArt: true,
+        ariaLabel: "Abrir painel Nuoma",
+        title: "Abrir painel Nuoma",
+        hasBrandButton: true,
+        hasBrandMark: true,
+        hasBrandStatus: true,
+        brandText: "N",
         hasLegacyMark: false,
+        hasLegacyOctoArt: false,
         version: NUOMA_OVERLAY_VERSION,
         threadPhone: "5531982066263",
         threadPhoneSource: "header-title",
@@ -88,9 +92,8 @@ describe("Nuoma WhatsApp overlay injection", () => {
       });
       expect(state.buttonWidth).toBeGreaterThanOrEqual(38);
       expect(state.buttonHeight).toBeGreaterThanOrEqual(38);
-      expect(state.octoSpriteVar).toContain("data:image/webp;base64");
-      expect(state.octoState).toBe("idle");
-      expect(state.octoFrame).toMatch(/px/);
+      expect(state.visualState).toBe("idle");
+      expect(state.brandTransform).toContain("rotate");
 
       const clickState = await page.evaluate(
         ({ rootId, testId }) => {
@@ -108,7 +111,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
             ?.click();
           return {
             state: host?.getAttribute("data-nuoma-state"),
-            octoState: host?.getAttribute("data-nuoma-octo-state"),
+            visualState: host?.getAttribute("data-nuoma-visual-state"),
             clickDetail,
           };
         },
@@ -117,7 +120,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
 
       expect(clickState).toMatchObject({
         state: "open",
-        octoState: "review",
+        visualState: "review",
         clickDetail: {
           state: "open",
           phone: "5531982066263",
@@ -172,7 +175,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
             ?.shadowRoot?.querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`);
           if (button) {
             button.setAttribute("aria-label", "Abrir Nuoma CRM");
-            button.innerHTML = '<span class="nuoma-mark" aria-hidden="true">N</span>';
+            button.innerHTML = '<span class="nuoma-octo" aria-hidden="true"><span class="nuoma-octo-art"></span></span>';
           }
         },
         { rootId: NUOMA_OVERLAY_ROOT_ID, testId: NUOMA_OVERLAY_FAB_TEST_ID },
@@ -185,19 +188,19 @@ describe("Nuoma WhatsApp overlay injection", () => {
           return {
             rootCount: document.querySelectorAll(`#${rootId}`).length,
             ariaLabel: button?.getAttribute("aria-label"),
-            hasOcto: Boolean(button?.querySelector(".nuoma-octo")),
-            hasOctoArt: Boolean(button?.querySelector(".nuoma-octo-art")),
-            hasLegacyMark: Boolean(button?.querySelector(".nuoma-mark")),
+            hasBrandButton: Boolean(button?.querySelector(".nuoma-brand-button")),
+            hasBrandMark: Boolean(button?.querySelector(".nuoma-brand-mark")),
+            hasLegacyOctoArt: Boolean(button?.querySelector(".nuoma-octo-art")),
           };
         },
         { rootId: NUOMA_OVERLAY_ROOT_ID, testId: NUOMA_OVERLAY_FAB_TEST_ID },
       );
       expect(upgradeState).toMatchObject({
         rootCount: 1,
-        ariaLabel: "Abrir Octo no Nuoma CRM",
-        hasOcto: true,
-        hasOctoArt: true,
-        hasLegacyMark: false,
+        ariaLabel: "Abrir painel Nuoma",
+        hasBrandButton: true,
+        hasBrandMark: true,
+        hasLegacyOctoArt: false,
       });
     } finally {
       await browser.close();
@@ -560,6 +563,19 @@ describe("Nuoma WhatsApp overlay injection", () => {
               conversations: [{ id: 7, channel: "whatsapp", lastPreview: "API bridge" }],
               latestMessages: [{ body: "Mensagem via API bridge", direction: "inbound" }],
               automations: [{ id: 7, name: "Bridge automation", category: "Embed", status: "active" }],
+              campaigns: [
+                {
+                  id: 11,
+                  name: "Campanha API Fixture",
+                  status: "running",
+                  channel: "whatsapp",
+                  stepsCount: 2,
+                  firstStepType: "text",
+                  eligible: true,
+                  reasons: [],
+                  canDispatchReal: true,
+                },
+              ],
               notes: "Nota hidratada via window.__nuomaApi.",
               source: "nuoma-api",
               apiStatus: "online",
@@ -582,6 +598,25 @@ describe("Nuoma WhatsApp overlay injection", () => {
                       },
                       snapshot,
                     }
+                  : request.method === "runCampaignForPhone"
+                    ? {
+                        result: {
+                          campaign: { id: 11, name: "Campanha API Fixture", status: "running" },
+                          phone: "5531982066263",
+                          recipientsCreated: 1,
+                          jobsCreated: 1,
+                          plannedJobs: 1,
+                          rejected: [],
+                        },
+                        snapshot: {
+                          ...snapshot,
+                          campaignRunStatus: "done",
+                          campaignRunLastResult: {
+                            recipientsCreated: 1,
+                            jobsCreated: 1,
+                          },
+                        },
+                      }
                   : snapshot,
             });
           }, 0);
@@ -597,6 +632,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
                 __nuomaManaged: boolean;
                 refreshContact: (input: unknown) => Promise<unknown>;
                 forceConversationSync: (input: unknown) => Promise<unknown>;
+                runCampaignForPhone: (input: unknown) => Promise<unknown>;
                 request: (method: string, input: unknown) => Promise<unknown>;
                 prepareMutation: (method: string, input: unknown) => {
                   method: string;
@@ -624,8 +660,17 @@ describe("Nuoma WhatsApp overlay injection", () => {
             conversationId: 7,
             reason: "unit-test",
           });
+          const campaignResponse = await api.runCampaignForPhone({
+            campaignId: 11,
+            phone: "5531982066263",
+            reason: "unit-test",
+          });
           const host = document.getElementById(rootId);
           host?.shadowRoot?.querySelector<HTMLButtonElement>("[data-nuoma-fab]")?.click();
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          host
+            ?.shadowRoot?.querySelector<HTMLButtonElement>("[data-nuoma-campaign-run='11']")
+            ?.click();
           await new Promise((resolve) => setTimeout(resolve, 50));
           const panelText =
             host?.shadowRoot?.querySelector(`[data-testid="${panelTestId}"]`)?.textContent ?? "";
@@ -635,6 +680,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
             blockedMutation,
             mutationResponse,
             forceResponse,
+            campaignResponse,
             lastPayload: (window as unknown as { __nuomaApiLastPayload?: unknown }).__nuomaApiLastPayload,
             payloads: (window as unknown as { __nuomaApiPayloads?: unknown[] }).__nuomaApiPayloads,
             apiStatus: host?.getAttribute("data-nuoma-api-status"),
@@ -652,6 +698,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
       });
       expect(state.mutationResponse).toMatchObject({ ok: true });
       expect(state.forceResponse).toMatchObject({ ok: true });
+      expect(state.campaignResponse).toMatchObject({ ok: true });
       expect(state.payloads).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ method: "contactSummary" }),
@@ -673,15 +720,26 @@ describe("Nuoma WhatsApp overlay injection", () => {
               idempotencyKey: expect.any(String),
             }),
           }),
+          expect.objectContaining({
+            method: "runCampaignForPhone",
+            mutation: expect.objectContaining({
+              confirmed: true,
+              confirmationText: "Rodar campanha no numero atual",
+              nonce: expect.any(String),
+              idempotencyKey: expect.any(String),
+            }),
+          }),
         ]),
       );
       expect(state.apiStatus).toBe("online");
       expect(state.panelText).toContain("Contato API Fixture");
       expect(state.panelText).toContain("Ponte API");
-      expect(state.panelText).toContain("online / contactSummary");
+      expect(state.panelText).toContain("online / runCampaignForPhone");
       expect(state.panelText).toContain("Forcar sync");
       expect(state.panelText).toContain("atualizado");
       expect(state.panelText).toContain("Bridge automation");
+      expect(state.panelText).toContain("Campanha API Fixture");
+      expect(state.panelText).toContain("Criou 1 recipient(s) e 1 job(s).");
     } finally {
       await browser.close();
     }

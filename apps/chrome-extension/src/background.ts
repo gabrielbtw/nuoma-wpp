@@ -37,7 +37,7 @@
       };
     }
 
-    if (request.method !== "contactSummary") {
+    if (request.method !== "contactSummary" && request.method !== "runCampaignForPhone") {
       return {
         ok: false,
         error: {

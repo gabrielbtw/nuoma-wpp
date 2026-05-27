@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-
 export const NUOMA_OVERLAY_VERSION = "v2.11.7-m35";
 export const NUOMA_OVERLAY_ROOT_ID = "nuoma-wpp-overlay-root";
 export const NUOMA_OVERLAY_FAB_TEST_ID = "nuoma-overlay-fab";
@@ -8,8 +6,6 @@ export const NUOMA_OVERLAY_API_BINDING_NAME = "__nuomaApi";
 
 export interface NuomaOverlayScriptOptions {
   version?: string;
-  octoImageUrl?: string;
-  octoSpriteUrl?: string;
 }
 
 export interface NuomaOverlayData {
@@ -40,6 +36,17 @@ export interface NuomaOverlayData {
     category?: string | null;
     status?: string | null;
   }>;
+  campaigns?: Array<{
+    id?: number;
+    name?: string | null;
+    status?: string | null;
+    channel?: string | null;
+    stepsCount?: number;
+    firstStepType?: string | null;
+    eligible?: boolean;
+    reasons?: string[];
+    canDispatchReal?: boolean;
+  }>;
   notes?: string | null;
   source?: string;
   syncStatus?: string;
@@ -56,17 +63,25 @@ export interface NuomaOverlayData {
   apiStatus?: string;
   apiLastMethod?: string;
   apiLastError?: string | null;
+  campaignRunStatus?: string;
+  campaignRunLastResult?: {
+    campaign?: { id?: number; name?: string | null } | null;
+    recipientsCreated?: number;
+    jobsCreated?: number;
+    plannedJobs?: number;
+    rejected?: Array<{ reason?: string | null }>;
+  } | null;
+  campaignRunLastError?: string | null;
   updatedAt?: string;
 }
 
 const overlayTokens = {
-  bg: "oklch(0.19 0.024 198 / 0.92)",
+  bg: "oklch(0.17 0.022 198 / 0.94)",
   bgHover: "oklch(0.25 0.030 192 / 0.96)",
   fg: "oklch(0.94 0.010 175)",
   fgMuted: "oklch(0.72 0.018 182)",
   fgDim: "oklch(0.66 0.018 188)",
   cyan: "oklch(0.74 0.12 202)",
-  lime: "oklch(0.80 0.15 146)",
   warning: "oklch(0.78 0.15 74)",
   surface: "oklch(0.22 0.026 196 / 0.88)",
   elevated: "oklch(0.25 0.030 192 / 0.92)",
@@ -77,10 +92,6 @@ const overlayTokens = {
   fontFamily:
     '"Geist Variable", "Geist", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
 } as const;
-
-const defaultOctoSpriteDataUri = `data:image/webp;base64,${readFileSync(
-  new URL("./assets/octo-overlay-spritesheet.webp", import.meta.url),
-).toString("base64")}`;
 
 function createNuomaOverlayCss(): string {
   return `
@@ -106,16 +117,18 @@ function createNuomaOverlayCss(): string {
 .nuoma-fab {
   all: unset;
   box-sizing: border-box;
-  inline-size: 62px;
-  block-size: 62px;
+  inline-size: 60px;
+  block-size: 60px;
   display: inline-grid;
   place-items: center;
-  border-radius: 999px;
+  border-radius: 18px;
   color: ${overlayTokens.fg};
   background:
-    radial-gradient(circle at 50% 48%, oklch(0.74 0.12 202 / 0.14), transparent 62%),
-    radial-gradient(circle at 50% 54%, ${overlayTokens.bg}, transparent 66%);
-  box-shadow: 0 10px 30px oklch(0.05 0.020 205 / 0.28);
+    linear-gradient(145deg, oklch(0.25 0.030 192 / 0.96), ${overlayTokens.bg});
+  border: 1px solid oklch(0.74 0.12 202 / 0.44);
+  box-shadow:
+    0 12px 30px oklch(0.05 0.020 205 / 0.34),
+    inset 0 1px 0 oklch(1 0 0 / 0.12);
   cursor: pointer;
   overflow: visible;
   pointer-events: auto;
@@ -123,6 +136,7 @@ function createNuomaOverlayCss(): string {
   -webkit-tap-highlight-color: transparent;
   transition:
     transform 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 140ms cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 140ms cubic-bezier(0.22, 1, 0.36, 1),
     background 140ms cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -130,7 +144,12 @@ function createNuomaOverlayCss(): string {
 .nuoma-fab:hover,
 .nuoma-fab:focus-visible {
   transform: translateY(-1px);
-  box-shadow: 0 0 0 1px oklch(0.74 0.12 202 / 0.40), 0 14px 34px oklch(0.05 0.020 205 / 0.34);
+  background:
+    linear-gradient(145deg, oklch(0.29 0.034 192 / 0.98), ${overlayTokens.bgHover});
+  box-shadow:
+    0 0 0 1px oklch(0.74 0.12 202 / 0.52),
+    0 14px 34px oklch(0.05 0.020 205 / 0.38),
+    inset 0 1px 0 oklch(1 0 0 / 0.14);
   outline: none;
 }
 
@@ -138,76 +157,87 @@ function createNuomaOverlayCss(): string {
   transform: translateY(1px) scale(0.98);
 }
 
-.nuoma-octo {
+.nuoma-brand-button {
   position: relative;
   display: inline-grid;
   place-items: center;
-  inline-size: 62px;
-  block-size: 62px;
-  transform-origin: 50% 74%;
-  animation: nuoma-octo-float 2200ms ease-in-out infinite;
+  inline-size: 100%;
+  block-size: 100%;
+  transform-origin: 50% 50%;
+  animation: nuoma-brand-breathe 2200ms ease-in-out infinite;
 }
 
-.nuoma-octo-art {
-  display: block;
-  inline-size: 72px;
-  block-size: 78px;
-  background-image: var(--nuoma-octo-sprite);
-  background-position: 0 0;
-  background-repeat: no-repeat;
-  background-size: 576px 702px;
+.nuoma-brand-mark {
+  display: inline-grid;
+  inline-size: 38px;
+  block-size: 38px;
+  place-items: center;
+  border-radius: 14px;
+  color: oklch(0.94 0.010 175);
+  background:
+    linear-gradient(145deg, oklch(0.74 0.12 202 / 0.18), oklch(0.62 0.018 260 / 0.16)),
+    oklch(0.12 0.022 202 / 0.74);
+  border: 1px solid oklch(0.74 0.12 202 / 0.34);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.16),
+    0 8px 18px oklch(0.05 0.020 205 / 0.30);
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: uppercase;
   user-select: none;
-  filter:
-    drop-shadow(0 9px 10px oklch(0.04 0.020 205 / 0.52))
-    drop-shadow(0 0 12px oklch(0.74 0.12 202 / 0.14));
 }
 
-.nuoma-octo-status {
+.nuoma-brand-status {
   position: absolute;
-  inset-block-end: 7px;
-  inset-inline-end: 3px;
-  inline-size: 10px;
-  block-size: 10px;
+  inset-block-end: 8px;
+  inset-inline-end: 8px;
+  inline-size: 11px;
+  block-size: 11px;
   border-radius: 999px;
-  background: ${overlayTokens.lime};
-  border: 2px solid oklch(0.15 0.024 205);
-  box-shadow: 0 0 12px oklch(0.80 0.15 146 / 0.48);
+  background: ${overlayTokens.cyan};
+  border: 2px solid oklch(0.12 0.022 202);
+  box-shadow: 0 0 10px oklch(0.74 0.12 202 / 0.34);
 }
 
-:host([data-nuoma-api-status="offline"]) .nuoma-octo-status {
+:host([data-nuoma-api-status="offline"]) .nuoma-brand-status {
   background: ${overlayTokens.fgDim};
   box-shadow: none;
 }
 
-:host([data-nuoma-api-status="loading"]) .nuoma-octo-status {
+:host([data-nuoma-api-status="loading"]) .nuoma-brand-status {
   background: ${overlayTokens.cyan};
-  animation: nuoma-octo-pulse 900ms ease-in-out infinite;
+  animation: nuoma-brand-pulse 900ms ease-in-out infinite;
 }
 
-:host([data-nuoma-api-status="error"]) .nuoma-octo-status {
+:host([data-nuoma-api-status="error"]) .nuoma-brand-status {
   background: ${overlayTokens.warning};
   box-shadow: 0 0 12px oklch(0.78 0.15 74 / 0.48);
 }
 
 :host([data-nuoma-state="open"]) .nuoma-fab {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px) scale(0.92);
   box-shadow: ${overlayTokens.glow};
 }
 
-:host([data-nuoma-state="open"]) .nuoma-octo {
+:host([data-nuoma-state="open"]) .nuoma-brand-button {
   animation-duration: 1500ms;
 }
 
-@keyframes nuoma-octo-float {
+@keyframes nuoma-brand-breathe {
   0%,
   100% {
-    transform: translateY(0) rotate(-1deg);
+    transform: translateY(0) scale(1);
   }
   50% {
-    transform: translateY(-2px) rotate(1deg);
+    transform: translateY(-1px) scale(1.015);
   }
 }
 
-@keyframes nuoma-octo-pulse {
+@keyframes nuoma-brand-pulse {
   0%,
   100% {
     transform: scale(1);
@@ -234,15 +264,16 @@ function createNuomaOverlayCss(): string {
   inset-block-end: 18px;
   inset-inline-end: 18px;
   z-index: 2147483645;
-  inline-size: min(392px, calc(100vw - 32px));
+  inline-size: min(408px, calc(100vw - 32px));
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-radius: 22px;
+  border-radius: 16px;
   color: ${overlayTokens.fg};
   background:
-    radial-gradient(circle at 16% 8%, oklch(0.74 0.12 202 / 0.22), transparent 34%),
-    linear-gradient(160deg, ${overlayTokens.elevated}, ${overlayTokens.bg});
+    linear-gradient(90deg, oklch(0.74 0.12 202 / 0.20), transparent 34%) 0 0 / 100% 3px no-repeat,
+    radial-gradient(circle at 16% 8%, oklch(0.74 0.12 202 / 0.18), transparent 34%),
+    linear-gradient(160deg, oklch(0.25 0.030 192 / 0.96), ${overlayTokens.bg});
   border: 1px solid ${overlayTokens.contour};
   box-shadow: ${overlayTokens.shadow};
   opacity: 0;
@@ -268,7 +299,7 @@ function createNuomaOverlayCss(): string {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px 16px 12px;
+  padding: 16px 16px 13px;
   border-bottom: 1px solid ${overlayTokens.contourMuted};
 }
 
@@ -339,7 +370,7 @@ function createNuomaOverlayCss(): string {
   display: grid;
   gap: 8px;
   padding: 12px;
-  border-radius: 14px;
+  border-radius: 10px;
   background: ${overlayTokens.surface};
   border: 1px solid ${overlayTokens.contourMuted};
 }
@@ -363,9 +394,9 @@ function createNuomaOverlayCss(): string {
   max-inline-size: 160px;
   padding: 3px 8px;
   border-radius: 999px;
-  color: ${overlayTokens.lime};
-  background: oklch(0.80 0.15 146 / 0.08);
-  border: 1px solid oklch(0.80 0.15 146 / 0.22);
+  color: ${overlayTokens.cyan};
+  background: oklch(0.74 0.12 202 / 0.08);
+  border: 1px solid oklch(0.74 0.12 202 / 0.22);
   font-size: 10px;
   font-weight: 700;
   overflow: hidden;
@@ -413,6 +444,45 @@ function createNuomaOverlayCss(): string {
 .nuoma-action:disabled {
   cursor: not-allowed;
   opacity: 0.58;
+}
+
+.nuoma-campaign-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.nuoma-campaign-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.nuoma-campaign-chip {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 18px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: ${overlayTokens.fgMuted};
+  background: oklch(0.12 0.022 202 / 0.58);
+  border: 1px solid ${overlayTokens.contourMuted};
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.nuoma-campaign-chip[data-state="ok"] {
+  color: ${overlayTokens.cyan};
+  border-color: oklch(0.74 0.12 202 / 0.30);
+  background: oklch(0.74 0.12 202 / 0.08);
+}
+
+.nuoma-campaign-chip[data-state="blocked"] {
+  color: ${overlayTokens.warning};
+  border-color: oklch(0.78 0.15 74 / 0.28);
+  background: oklch(0.78 0.15 74 / 0.08);
 }
 
 .nuoma-sync-note {
@@ -490,6 +560,52 @@ function createNuomaOverlayCss(): string {
   line-height: 1.45;
 }
 
+.nuoma-state-card {
+  display: grid;
+  gap: 4px;
+  padding: 11px;
+  border-radius: 10px;
+  background: oklch(0.15 0.024 205 / 0.48);
+  border: 1px solid ${overlayTokens.contourMuted};
+}
+
+.nuoma-state-card strong {
+  color: ${overlayTokens.fg};
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.nuoma-state-card span {
+  color: ${overlayTokens.fgMuted};
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.nuoma-empty-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-block-start: 4px;
+}
+
+.nuoma-empty-action {
+  all: unset;
+  box-sizing: border-box;
+  min-block-size: 32px;
+  display: inline-grid;
+  place-items: center;
+  padding: 7px 8px;
+  border-radius: 9px;
+  color: ${overlayTokens.fgDim};
+  background: oklch(0.12 0.022 202 / 0.56);
+  border: 1px solid ${overlayTokens.contourMuted};
+  cursor: not-allowed;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}
+
 .nuoma-warning {
   color: ${overlayTokens.warning};
 }
@@ -502,13 +618,15 @@ function createNuomaOverlayCss(): string {
   }
 
   .nuoma-fab {
-    inline-size: 56px;
-    block-size: 56px;
+    inline-size: 54px;
+    block-size: 54px;
   }
 
-  .nuoma-octo {
-    inline-size: 56px;
-    block-size: 56px;
+  .nuoma-brand-mark {
+    inline-size: 34px;
+    block-size: 34px;
+    border-radius: 12px;
+    font-size: 15px;
   }
 
   .nuoma-panel {
@@ -520,8 +638,8 @@ function createNuomaOverlayCss(): string {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .nuoma-octo,
-  .nuoma-octo-status {
+  .nuoma-brand-button,
+  .nuoma-brand-status {
     animation: none;
   }
 }
@@ -535,20 +653,6 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     fabTestId: NUOMA_OVERLAY_FAB_TEST_ID,
     panelTestId: NUOMA_OVERLAY_PANEL_TEST_ID,
     apiBindingName: NUOMA_OVERLAY_API_BINDING_NAME,
-    octoSpriteUrl: options.octoSpriteUrl ?? options.octoImageUrl ?? defaultOctoSpriteDataUri,
-    octoSprite: {
-      cellWidth: 72,
-      cellHeight: 78,
-      states: {
-        idle: { row: 0, durations: [280, 110, 110, 140, 140, 320] },
-        waving: { row: 3, durations: [140, 140, 140, 280] },
-        jumping: { row: 4, durations: [140, 140, 140, 140, 280] },
-        failed: { row: 5, durations: [140, 140, 140, 140, 140, 140, 140, 240] },
-        waiting: { row: 6, durations: [150, 150, 150, 150, 150, 260] },
-        running: { row: 7, durations: [120, 120, 120, 120, 120, 220] },
-        review: { row: 8, durations: [150, 150, 150, 150, 150, 280] },
-      },
-    },
     css: createNuomaOverlayCss(),
   };
 
@@ -571,7 +675,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     apiLastError: "",
     animationRaf: 0,
     animationStartedAt: 0,
-    animationState: "idle",
+    visualState: "idle",
   };
 
   const readOnlyApiMethods = new Set(["ping", "contactSummary"]);
@@ -801,6 +905,30 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
           return response;
         });
       },
+      runCampaignForPhone: (input) => {
+        const intent = prepareMutation("runCampaignForPhone", input || {});
+        return requestNuomaApi("runCampaignForPhone", input || {}, {
+          mutationIntent: intent,
+          confirmationText: "Rodar campanha no numero atual",
+          confirm: true,
+          timeoutMs: 30000,
+        }).then((response) => {
+          if (response && response.data && typeof window.__nuomaOverlaySetData === "function") {
+            window.__nuomaOverlaySetData({
+              ...(response.data.snapshot || {}),
+              campaignRunStatus: response.ok ? "done" : "error",
+              campaignRunLastResult: response.data.result || null,
+              campaignRunLastError:
+                response.ok ? null : response.error && response.error.message ? response.error.message : "Campanha bloqueada",
+              apiStatus: response.ok ? "online" : "error",
+              apiLastMethod: "runCampaignForPhone",
+              apiLastError:
+                response.ok ? null : response.error && response.error.message ? response.error.message : "Campanha bloqueada",
+            });
+          }
+          return response;
+        });
+      },
       prepareMutation,
       confirmMutation: (intent, confirmationText) =>
         requestNuomaApi(intent && intent.method, intent && intent.params, {
@@ -855,15 +983,11 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     return element;
   }
 
-  function cssUrlValue(value) {
-    return 'url("' + String(value || "").replace(/"/g, "%22").replace(/\\n/g, "") + '")';
-  }
-
   function shouldReduceMotion() {
     return Boolean(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   }
 
-  function octoVisualStateForHost(host) {
+  function brandVisualStateForHost(host) {
     const data = state.data || {};
     const apiStatus = text(data.apiStatus) || text(state.apiStatus) || host.getAttribute("data-nuoma-api-status") || "offline";
     const syncStatus = text(data.syncStatus);
@@ -886,60 +1010,44 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     return "idle";
   }
 
-  function octoFrameIndex(elapsedMs, durations) {
-    const total = durations.reduce((sum, duration) => sum + duration, 0);
-    if (total <= 0) {
-      return 0;
-    }
-    const normalized = ((elapsedMs % total) + total) % total;
-    let cursor = 0;
-    for (let index = 0; index < durations.length; index += 1) {
-      cursor += durations[index] || 0;
-      if (normalized < cursor) {
-        return index;
-      }
-    }
-    return Math.max(0, durations.length - 1);
-  }
-
-  function animateOcto(timestamp) {
+  function animateBrand(timestamp) {
     const host = document.getElementById(config.rootId);
-    const art = host?.shadowRoot?.querySelector(".nuoma-octo-art");
-    if (!host || !art) {
+    const mark = host?.shadowRoot?.querySelector(".nuoma-brand-mark");
+    if (!host || !mark) {
       state.animationRaf = 0;
       return;
     }
 
-    const visualState = octoVisualStateForHost(host);
-    const animation = config.octoSprite.states[visualState] || config.octoSprite.states.idle;
-    if (state.animationState !== visualState || !state.animationStartedAt) {
-      state.animationState = visualState;
+    const visualState = brandVisualStateForHost(host);
+    if (state.visualState !== visualState || !state.animationStartedAt) {
+      state.visualState = visualState;
       state.animationStartedAt = timestamp || performance.now();
-      host.setAttribute("data-nuoma-octo-state", visualState);
+      host.setAttribute("data-nuoma-visual-state", visualState);
     }
 
     const elapsed = shouldReduceMotion() ? 0 : (timestamp || performance.now()) - state.animationStartedAt;
-    const frame = shouldReduceMotion() ? 0 : octoFrameIndex(elapsed, animation.durations || [1000]);
-    const x = frame === 0 ? 0 : -frame * config.octoSprite.cellWidth;
-    const y = animation.row === 0 ? 0 : -animation.row * config.octoSprite.cellHeight;
-    art.style.backgroundPosition = x + "px " + y + "px";
+    mark.style.opacity = visualState === "waiting" ? "0.78" : "1";
+    mark.style.transform =
+      visualState === "running" || visualState === "review"
+        ? "rotate(" + Math.sin(elapsed / 480) * 1.2 + "deg)"
+        : "rotate(0deg)";
 
-    state.animationRaf = requestAnimationFrame(animateOcto);
+    state.animationRaf = requestAnimationFrame(animateBrand);
   }
 
-  function ensureOctoAnimation() {
+  function ensureBrandAnimation() {
     if (!state.animationRaf) {
-      animateOcto(performance.now());
+      animateBrand(performance.now());
     }
   }
 
-  function restartOctoAnimation() {
+  function restartBrandAnimation() {
     if (state.animationRaf) {
       cancelAnimationFrame(state.animationRaf);
       state.animationRaf = 0;
     }
     state.animationStartedAt = 0;
-    animateOcto(performance.now());
+    animateBrand(performance.now());
   }
 
   function normalizePhone(value) {
@@ -1238,11 +1346,10 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     }
     style.textContent = config.css;
 
-    const octoSpriteUrl = String(config.octoSpriteUrl || "");
-    const octoMarkup =
-      '<span class="nuoma-octo" aria-hidden="true">' +
-      '<span class="nuoma-octo-art"></span>' +
-      '<span class="nuoma-octo-status"></span>' +
+    const brandMarkup =
+      '<span class="nuoma-brand-button" aria-hidden="true">' +
+      '<span class="nuoma-brand-mark">N</span>' +
+      '<span class="nuoma-brand-status"></span>' +
       '</span>';
 
     let button = shadow.querySelector("[data-nuoma-fab]");
@@ -1257,7 +1364,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         host.setAttribute("data-nuoma-state", nextState);
         button.setAttribute("aria-expanded", String(nextState === "open"));
         renderPanel(host);
-        restartOctoAnimation();
+        restartBrandAnimation();
         if (nextState === "open") {
           void refreshContactFromApi(host, "fab-open");
         }
@@ -1275,15 +1382,14 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       });
       shadow.appendChild(button);
     }
-    button.setAttribute("aria-label", "Abrir Octo no Nuoma CRM");
-    button.setAttribute("title", "Abrir Octo no Nuoma CRM");
-    button.style.setProperty("--nuoma-octo-sprite", cssUrlValue(octoSpriteUrl));
-    if (!button.querySelector(".nuoma-octo-art") || button.querySelector(".nuoma-mark")) {
-      button.innerHTML = octoMarkup;
+    button.setAttribute("aria-label", "Abrir painel Nuoma");
+    button.setAttribute("title", "Abrir painel Nuoma");
+    if (!button.querySelector(".nuoma-brand-mark") || button.querySelector(".nuoma-octo-art")) {
+      button.innerHTML = brandMarkup;
     }
     button.setAttribute("aria-controls", config.panelTestId);
     button.setAttribute("aria-expanded", String(host.getAttribute("data-nuoma-state") === "open"));
-    ensureOctoAnimation();
+    ensureBrandAnimation();
 
     let backdrop = shadow.querySelector("[data-nuoma-backdrop]");
     if (!backdrop) {
@@ -1317,7 +1423,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       button.setAttribute("aria-expanded", String(open));
     }
     renderPanel(host);
-    restartOctoAnimation();
+    restartBrandAnimation();
     if (open) {
       void refreshContactFromApi(host, "panel-open");
     }
@@ -1409,6 +1515,60 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       });
   }
 
+  function runCampaignForCurrentPhone(host, campaign) {
+    installNuomaApi();
+    if (state.apiInFlight || !window.__nuomaApi || typeof window.__nuomaApi.runCampaignForPhone !== "function") {
+      return Promise.resolve(null);
+    }
+    const phone = host.getAttribute("data-nuoma-thread-phone") || (state.data && state.data.phone) || "";
+    const campaignId = Number(campaign && campaign.id);
+    if (!phone || !Number.isFinite(campaignId) || campaignId <= 0) {
+      return Promise.resolve(null);
+    }
+    state.apiInFlight = true;
+    state.data = {
+      ...(state.data || {}),
+      campaignRunStatus: "running",
+      campaignRunLastError: null,
+      apiStatus: "loading",
+      apiLastMethod: "runCampaignForPhone",
+      apiLastError: null,
+    };
+    renderPanel(host);
+    return window.__nuomaApi
+      .runCampaignForPhone({
+        campaignId,
+        phone,
+        phoneSource: host.getAttribute("data-nuoma-phone-source") || "",
+        title: host.getAttribute("data-nuoma-thread-title") || "",
+        reason: "overlay-campaign-button",
+      })
+      .then((response) => {
+        if (!response || !response.ok) {
+          state.data = {
+            ...(state.data || {}),
+            campaignRunStatus: "error",
+            campaignRunLastError:
+              response && response.error && response.error.message
+                ? response.error.message
+                : "Campanha bloqueada",
+            apiStatus: "error",
+            apiLastMethod: "runCampaignForPhone",
+            apiLastError:
+              response && response.error && response.error.message
+                ? response.error.message
+                : "Campanha bloqueada",
+          };
+        }
+        renderPanel(host);
+        return response;
+      })
+      .finally(() => {
+        state.apiInFlight = false;
+        renderPanel(host);
+      });
+  }
+
   function renderPanel(host) {
     const panel = host.shadowRoot?.querySelector("[data-nuoma-panel]");
     if (!panel) {
@@ -1424,12 +1584,16 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     const conversations = Array.isArray(data.conversations) ? data.conversations : [];
     const latestMessages = Array.isArray(data.latestMessages) ? data.latestMessages : [];
     const automations = Array.isArray(data.automations) ? data.automations : [];
+    const campaigns = Array.isArray(data.campaigns) ? data.campaigns : [];
     const notes = text(data.notes) || text(contact && contact.notes);
     const apiStatus = text(data.apiStatus) || text(state.apiStatus) || "offline";
     const apiLastMethod = text(data.apiLastMethod) || text(state.apiLastMethod);
     const apiLastError = text(data.apiLastError) || text(state.apiLastError);
     const syncStatus = text(data.syncStatus);
     const syncLastResult = data.syncLastResult || null;
+    const campaignRunStatus = text(data.campaignRunStatus);
+    const campaignRunLastResult = data.campaignRunLastResult || null;
+    const campaignRunLastError = text(data.campaignRunLastError);
     const isApiLoading =
       apiStatus === "loading" || (state.apiInFlight && apiStatus !== "online" && apiStatus !== "error");
     const hasApiError = apiStatus === "error" || Boolean(apiLastError);
@@ -1545,6 +1709,72 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     syncSection.appendChild(syncActions);
     body.appendChild(syncSection);
 
+    const campaignSection = section("Campanhas", campaigns.length ? String(campaigns.length) : "0");
+    const campaignList = document.createElement("div");
+    campaignList.className = "nuoma-list";
+    if (campaigns.length === 0) {
+      appendText(
+        campaignList,
+        "div",
+        "nuoma-empty",
+        phone ? "Nenhuma campanha elegivel para este numero." : "Identifique o telefone para listar campanhas.",
+      );
+    } else {
+      for (const campaign of campaigns.slice(0, 5)) {
+        const item = document.createElement("div");
+        item.className = "nuoma-list-item";
+        const title = appendText(item, "strong", "", text(campaign.name) || "Campanha sem nome");
+        title.title = text(campaign.name) || "";
+        const actions = document.createElement("div");
+        actions.className = "nuoma-campaign-actions";
+        const meta = document.createElement("div");
+        meta.className = "nuoma-campaign-meta";
+        meta.appendChild(campaignChip(campaign.eligible ? "elegivel" : "bloqueada", campaign.eligible ? "ok" : "blocked"));
+        meta.appendChild(campaignChip(text(campaign.status) || "status", ""));
+        meta.appendChild(campaignChip(String(campaign.stepsCount || 0) + " step(s)", ""));
+        if (campaign.firstStepType) {
+          meta.appendChild(campaignChip(text(campaign.firstStepType), ""));
+        }
+        actions.appendChild(meta);
+        const runButton = document.createElement("button");
+        runButton.type = "button";
+        runButton.className = "nuoma-action";
+        runButton.textContent = state.apiInFlight && campaignRunStatus === "running" ? "Rodando..." : "Rodar";
+        runButton.disabled = !phone || !campaign.eligible || state.apiInFlight;
+        runButton.setAttribute("data-nuoma-campaign-run", String(campaign.id || ""));
+        runButton.addEventListener("click", () => {
+          void runCampaignForCurrentPhone(host, campaign);
+        });
+        actions.appendChild(runButton);
+        item.appendChild(actions);
+        const reasons = Array.isArray(campaign.reasons) ? campaign.reasons.filter(Boolean) : [];
+        if (reasons.length > 0) {
+          appendText(item, "span", "", reasons.join(", "));
+        }
+        campaignList.appendChild(item);
+      }
+    }
+    campaignSection.appendChild(campaignList);
+    if (campaignRunStatus || campaignRunLastResult || campaignRunLastError) {
+      const resultText =
+        campaignRunStatus === "running"
+          ? "Enfileirando campanha agora."
+          : campaignRunStatus === "done" && campaignRunLastResult
+            ? "Criou " +
+              (campaignRunLastResult.recipientsCreated || 0) +
+              " recipient(s) e " +
+              (campaignRunLastResult.jobsCreated || 0) +
+              " job(s)."
+            : campaignRunLastError || "Campanha bloqueada.";
+      appendText(
+        campaignSection,
+        "div",
+        "nuoma-empty" + (campaignRunStatus === "error" ? " nuoma-warning" : ""),
+        resultText,
+      );
+    }
+    body.appendChild(campaignSection);
+
     const automationSection = section("Automacoes", automations.length ? String(automations.length) : "0");
     const automationList = document.createElement("div");
     automationList.className = "nuoma-list";
@@ -1628,6 +1858,16 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     return wrapper;
   }
 
+  function campaignChip(label, stateValue) {
+    const chip = document.createElement("span");
+    chip.className = "nuoma-campaign-chip";
+    if (stateValue) {
+      chip.setAttribute("data-state", stateValue);
+    }
+    chip.textContent = label;
+    return chip;
+  }
+
   function stat(label, value) {
     const wrapper = document.createElement("div");
     wrapper.className = "nuoma-stat";
@@ -1645,7 +1885,6 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     installNuomaApi();
     const thread = detectCurrentThread(header);
     const host = ensureHost(header);
-    const button = ensureShadow(host);
     const dataPhone = text(state.data && state.data.phone);
     const dataTitle = text(state.data && state.data.title);
     const threadChanged =
@@ -1680,6 +1919,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     host.setAttribute("data-nuoma-thread-phone", displayPhone);
     host.setAttribute("data-nuoma-phone-source", displayPhoneSource);
     host.setAttribute("data-nuoma-api-status", state.apiStatus || "offline");
+    const button = ensureShadow(host);
     button.setAttribute("data-nuoma-thread-phone", displayPhone);
     button.setAttribute("data-nuoma-thread-title", displayTitle);
     button.setAttribute("data-nuoma-phone-source", displayPhoneSource);

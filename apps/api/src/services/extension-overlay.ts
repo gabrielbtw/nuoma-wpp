@@ -1,6 +1,8 @@
 import type { Repositories } from "@nuoma/db";
 
+import { listOverlayCampaignOptions, type OverlayCampaignOption } from "./overlay-campaigns.js";
 import { normalizePhone } from "./send-policy.js";
+import type { ApiSendPolicy } from "./send-policy.js";
 
 export interface ExtensionOverlaySnapshotInput {
   repos: Repositories;
@@ -9,6 +11,7 @@ export interface ExtensionOverlaySnapshotInput {
   phoneSource: string | null;
   title: string | null;
   reason: string;
+  sendPolicy: ApiSendPolicy;
 }
 
 export async function buildExtensionOverlaySnapshot(input: ExtensionOverlaySnapshotInput) {
@@ -80,6 +83,13 @@ export async function buildExtensionOverlaySnapshot(input: ExtensionOverlaySnaps
           automation.trigger.channel === contact.primaryChannel),
     )
     .slice(0, 4);
+  const campaigns: OverlayCampaignOption[] = await listOverlayCampaignOptions({
+    repos: input.repos,
+    userId: input.userId,
+    phone,
+    sendPolicy: input.sendPolicy,
+    limit: 5,
+  });
 
   return {
     phone,
@@ -111,6 +121,7 @@ export async function buildExtensionOverlaySnapshot(input: ExtensionOverlaySnaps
       category: automation.category,
       status: automation.status,
     })),
+    campaigns,
     notes: contact?.notes ?? null,
     source: "nuoma-api",
     reason: input.reason,
