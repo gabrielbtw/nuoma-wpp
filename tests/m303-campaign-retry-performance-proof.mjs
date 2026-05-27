@@ -6,6 +6,7 @@ const userId = Number(process.env.M303_USER_ID ?? 1);
 const expectedRounds = Number(process.env.M303_EXPECTED_ROUNDS ?? 3);
 const maxDurationSeconds = Number(process.env.M303_MAX_DURATION_SECONDS ?? 120);
 const requireMaxAttemptsOne = process.env.M303_REQUIRE_MAX_ATTEMPTS_ONE !== "false";
+const requireNeferpeelBh = process.env.M303_REQUIRE_NEFERPEEL_BH !== "false";
 const phone = normalizePhone(process.env.M303_PHONE ?? process.env.SMOKE_PHONE ?? "5531982066263");
 const campaignIds = parseIntegerList(process.env.M303_CAMPAIGN_IDS);
 const campaignBatchIds = parseStringList(process.env.M303_CAMPAIGN_BATCH_IDS);
@@ -37,6 +38,7 @@ function main() {
       `expected ${expectedRounds} round scope(s), got ${scopes.length}; set M303_CAMPAIGN_IDS or M303_CAMPAIGN_BATCH_IDS`,
     );
   }
+  assertDistinctScopes(scopes);
 
   const db = new Database(databaseUrl, { readonly: true });
   try {
@@ -67,10 +69,10 @@ function main() {
 
 function reportScope(db, scope) {
   const jobs = readJobs(db, scope).filter((job) => normalizePhone(job.payload.phone) === phone);
-  const events = readEvents(db, scope).filter((event) => {
-    const eventPhone = normalizePhone(event.payload.phone);
-    return !eventPhone || eventPhone === phone;
-  });
+  const jobIds = new Set(jobs.map((job) => job.id));
+  const events = readEvents(db, scope).filter((event) => jobIds.has(Number(event.payload.jobId)));
+  const campaignIds = uniquePositiveIds(jobs.map((job) => Number(job.payload.campaignId)));
+  const campaigns = requireNeferpeelBh ? readCampaigns(db, campaignIds) : [];
   const startedEvents = events.filter((event) => event.type === "sender.campaign_step.started");
   const completedEvents = events.filter((event) => event.type === "sender.campaign_step.completed");
   const failedEvents = events.filter((event) => event.type === "sender.campaign_step.failed");
@@ -94,6 +96,7 @@ function reportScope(db, scope) {
     firstAt,
     lastAt,
     jobs,
+    campaigns,
     batches: [...new Set(jobs.map((job) => job.payload.campaignBatchId).filter(Boolean))],
     startedEvents: startedEvents.length,
     completedEvents: completedEvents.length,
@@ -112,6 +115,18 @@ function assertReport(report) {
   const scopeLabel = `${report.scope.kind}:${report.scope.id}`;
   if (report.jobs.length === 0) {
     throw new Error(`${scopeLabel} has no campaign_step jobs for phone ${phone}`);
+  }
+  if (requireNeferpeelBh) {
+    const nonNeferpeelCampaigns = report.campaigns.filter(
+      (campaign) => !isNeferpeelBhName(campaign.name),
+    );
+    if (report.campaigns.length === 0 || nonNeferpeelCampaigns.length > 0) {
+      throw new Error(
+        `${scopeLabel} is not scoped to Neferpeel BH campaign(s): ${
+          report.campaigns.map((campaign) => `${campaign.id}:${campaign.name}`).join(", ") || "none"
+        }`,
+      );
+    }
   }
   if (report.nonCompletedJobs.length > 0) {
     throw new Error(
@@ -156,6 +171,14 @@ function assertReport(report) {
     throw new Error(
       `${scopeLabel} took ${report.durationSeconds.toFixed(3)}s, over ${maxDurationSeconds}s`,
     );
+  }
+}
+
+function assertDistinctScopes(scopes) {
+  const keys = scopes.map((scope) => `${scope.kind}:${scope.id}`);
+  const unique = new Set(keys);
+  if (unique.size !== keys.length) {
+    throw new Error(`round scopes must be distinct; got ${keys.join(",")}`);
   }
 }
 
@@ -206,6 +229,20 @@ function readEvents(db, scope) {
     );
 }
 
+function readCampaigns(db, campaignIds) {
+  if (campaignIds.length === 0) return [];
+  const placeholders = campaignIds.map(() => "?").join(",");
+  return db
+    .prepare(
+      `SELECT id, name, status, channel
+       FROM campaigns
+       WHERE user_id = ?
+         AND id IN (${placeholders})
+       ORDER BY id ASC`,
+    )
+    .all(userId, ...campaignIds);
+}
+
 function normalizePhone(value) {
   const digits = String(value ?? "").replace(/\D/g, "");
   if ((digits.length === 12 || digits.length === 13) && digits.startsWith("55")) return digits;
@@ -224,6 +261,15 @@ function parseStringList(value) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function uniquePositiveIds(values) {
+  return [...new Set(values.filter((value) => Number.isInteger(value) && value > 0))];
+}
+
+function isNeferpeelBhName(value) {
+  const normalized = String(value ?? "").toLocaleLowerCase("pt-BR");
+  return normalized.includes("neferpeel") && normalized.includes("bh");
 }
 
 function minDate(values) {
