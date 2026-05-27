@@ -338,7 +338,7 @@ export async function triggerAutomationForPhone(
       }`,
       scheduledAt,
       priority: 5,
-      maxAttempts: 3,
+      maxAttempts: 1,
     });
     if (job) {
       jobsCreated += 1;

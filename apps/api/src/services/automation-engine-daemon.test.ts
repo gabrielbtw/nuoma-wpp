@@ -124,6 +124,7 @@ describe("automation engine daemon", () => {
     });
     expect(second.scannedMessages).toBe(0);
     expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.maxAttempts).toBe(1);
     expect(jobs[0]?.payload).toMatchObject({
       automationId: expect.any(Number),
       phone: "5531982066263",
@@ -243,6 +244,7 @@ describe("automation engine daemon", () => {
       message: "Lead passou no branch.",
     });
     expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.maxAttempts).toBe(1);
     expect(jobs[0]?.payload).toMatchObject({
       automationId: parent.id,
       phone: "5531982066263",

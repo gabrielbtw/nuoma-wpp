@@ -1546,7 +1546,7 @@ describe("worker job loop", () => {
         campaignId: 11,
         recipientId: 21,
         conversationId: conversation.id,
-        phone: "5531982066263",
+        phone: "31982066263",
         campaignBatchId: "batch-temp",
         campaignBatchIndex: 0,
         campaignBatchSize: 2,

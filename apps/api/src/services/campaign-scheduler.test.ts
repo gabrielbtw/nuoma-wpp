@@ -113,6 +113,7 @@ describe("campaign scheduler tick", () => {
       expect.objectContaining({
         type: "campaign_step",
         scheduledAt: "2026-05-04T12:00:30.000Z",
+        maxAttempts: 1,
       }),
     );
     expect(jobs[0]?.payload).toEqual(
@@ -304,6 +305,7 @@ describe("campaign scheduler tick", () => {
 
     expect(result.jobsCreated).toBe(1);
     expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.maxAttempts).toBe(1);
     expect(jobs[0]?.payload).toEqual(
       expect.objectContaining({
         recipientId: first.id,
@@ -780,6 +782,7 @@ describe("campaign scheduler tick", () => {
     });
 
     expect(enqueued.jobsCreated).toBe(1);
+    expect(jobs[0]?.maxAttempts).toBe(1);
     expect(jobs[0]?.payload).toEqual(
       expect.objectContaining({
         variantId: "b",

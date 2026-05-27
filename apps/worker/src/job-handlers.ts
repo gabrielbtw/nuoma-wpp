@@ -374,6 +374,7 @@ function nextQueuedCampaignBatchSibling(
     phone: string;
   },
 ): Job | null {
+  const jobPhoneExpr = normalizedJsonPhoneSql("payload_json", "$.phone");
   const row = context.db.raw
     .prepare(
       `
@@ -384,7 +385,7 @@ function nextQueuedCampaignBatchSibling(
         and status = 'queued'
         and json_extract(payload_json, '$.campaignBatchId') = ?
         and cast(json_extract(payload_json, '$.campaignBatchIndex') as integer) > ?
-        and replace(replace(replace(replace(replace(coalesce(json_extract(payload_json, '$.phone'), ''), '+', ''), ' ', ''), '-', ''), '(', ''), ')', '') = ?
+        and ${jobPhoneExpr} = ?
       order by cast(json_extract(payload_json, '$.campaignBatchIndex') as integer) asc, scheduled_at asc, id asc
       limit 1
     `,
@@ -393,6 +394,15 @@ function nextQueuedCampaignBatchSibling(
     | RawJobRow
     | undefined;
   return row ? mapRawJob(row) : null;
+}
+
+function normalizedJsonPhoneSql(jsonColumn: string, jsonPath: string): string {
+  const digits = `replace(replace(replace(replace(replace(coalesce(json_extract(${jsonColumn}, '${jsonPath}'), ''), '+', ''), ' ', ''), '-', ''), '(', ''), ')', '')`;
+  return `(CASE
+    WHEN length(${digits}) IN (12, 13) AND substr(${digits}, 1, 2) = '55' THEN ${digits}
+    WHEN length(${digits}) IN (10, 11) THEN '55' || ${digits}
+    ELSE ''
+  END)`;
 }
 
 function claimCampaignBatchSibling(

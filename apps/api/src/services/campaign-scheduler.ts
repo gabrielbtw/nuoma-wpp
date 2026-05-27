@@ -429,7 +429,7 @@ async function enqueueRecipientNextStep(input: {
         dedupeKey: `campaign_step:${input.campaign.id}:${input.recipient.id}:${item.step.id}`,
         scheduledAt: item.scheduledAt,
         priority: 5,
-        maxAttempts: 3,
+        maxAttempts: 1,
       });
       if (job) {
         createdJobs.push({ job, step: item.step });
