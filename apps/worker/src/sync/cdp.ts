@@ -4184,17 +4184,21 @@ export function shouldAllowActiveSendTarget(input: {
   const isAllowlistedExpectedPhone = input.allowedSelfChatPhones.some((phone) =>
     phonesMatchForSendTarget(phone, input.expectedPhone),
   );
+  const hasAllowlistedSavedContactTitleEvidence =
+    isAllowlistedExpectedPhone && hasExpectedTitleMatch && isUsefulSendTitle(input.state.title);
   const hasAllowlistedPostNavigationTitleEvidence =
-    isAllowlistedExpectedPhone &&
-    hasRecentNavigationEvidence &&
-    hasExpectedTitleMatch &&
-    isUsefulSendTitle(input.state.title);
+    hasAllowlistedSavedContactTitleEvidence && hasRecentNavigationEvidence;
   if (input.requireLivePhoneEvidence ?? true) {
-    return hasLivePhoneEvidence || hasAllowlistedPostNavigationTitleEvidence;
+    return (
+      hasLivePhoneEvidence ||
+      hasAllowlistedPostNavigationTitleEvidence ||
+      hasAllowlistedSavedContactTitleEvidence
+    );
   }
   return (
     hasLivePhoneEvidence ||
     hasAllowlistedPostNavigationTitleEvidence ||
+    hasAllowlistedSavedContactTitleEvidence ||
     (hasRecentNavigationEvidence && isUsefulSendTitle(input.state.title)) ||
     isAllowedSelfChatTarget({
       expectedPhone: input.expectedPhone,

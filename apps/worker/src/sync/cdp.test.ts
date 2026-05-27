@@ -186,6 +186,20 @@ describe("CDP active send target guard", () => {
     ).toBe(true);
   });
 
+  it("allows title-only evidence for an already-open explicitly allowlisted saved contact", () => {
+    expect(
+      shouldAllowActiveSendTarget({
+        expectedPhone: "5531982066263",
+        state: baseState,
+        openChatPhone: null,
+        openChatPhoneNavigatedAtMs: 0,
+        nowMs: 1_000_000,
+        allowedSelfChatPhones: ["5531982066263"],
+        expectedTitle: "gabriel braga nuoma",
+      }),
+    ).toBe(true);
+  });
+
   it("blocks when /send phone matches but the active WhatsApp header is another phone", () => {
     expect(
       shouldAllowActiveSendTarget({
