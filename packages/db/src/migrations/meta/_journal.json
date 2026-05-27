@@ -64,6 +64,13 @@
       "when": 1778040000000,
       "tag": "0008_chatbot_variant_events",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1779062400000,
+      "tag": "0009_campaign_active_pipeline",
+      "breakpoints": true
     }
   ]
 }
