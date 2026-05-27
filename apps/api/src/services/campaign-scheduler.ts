@@ -96,11 +96,17 @@ export async function runCampaignSchedulerTick(
   }
 
   try {
-    const campaigns = (await input.repos.campaigns.list(input.userId)).filter(
-      (campaign) =>
-        (input.campaignId === undefined || campaign.id === input.campaignId) &&
-        isRunnableCampaign(campaign, now),
-    );
+    const campaigns =
+      input.campaignId === undefined
+        ? (await input.repos.campaigns.list(input.userId)).filter((campaign) =>
+            isRunnableCampaign(campaign, now),
+          )
+        : await findRunnableCampaignById({
+            repos: input.repos,
+            userId: input.userId,
+            campaignId: input.campaignId,
+            now,
+          });
     result.campaignsScanned = campaigns.length;
 
     for (const campaign of campaigns) {
@@ -145,6 +151,19 @@ export async function runCampaignSchedulerTick(
       await input.repos.schedulerLocks.release({ name: lockName, ownerId: input.ownerId });
     }
   }
+}
+
+async function findRunnableCampaignById(input: {
+  repos: Repositories;
+  userId: number;
+  campaignId: number;
+  now: Date;
+}): Promise<Campaign[]> {
+  const campaign = await input.repos.campaigns.findById({
+    userId: input.userId,
+    id: input.campaignId,
+  });
+  return campaign && isRunnableCampaign(campaign, input.now) ? [campaign] : [];
 }
 
 async function evaluateEvergreenCampaign(input: {
