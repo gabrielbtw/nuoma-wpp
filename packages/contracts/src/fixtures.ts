@@ -88,6 +88,9 @@ export const messageFixture = {
   raw: {
     source: "whatsapp-web",
   },
+  idempotencyKey: null,
+  dispatchedAt: null,
+  dispatchAttempts: 0,
   createdAt: now,
   updatedAt: now,
 } satisfies z.input<typeof messageSchema>;

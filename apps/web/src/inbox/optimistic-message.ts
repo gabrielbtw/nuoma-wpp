@@ -48,6 +48,9 @@ export function createOptimisticTextMessage(
         optimistic: true,
         clientMutationId,
       },
+      idempotencyKey: null,
+      dispatchedAt: null,
+      dispatchAttempts: 0,
     },
   };
 }

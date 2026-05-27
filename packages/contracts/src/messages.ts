@@ -40,6 +40,33 @@ export const messageSchema = baseEntitySchema.extend({
   editedAt: isoDateTimeSchema.nullable(),
   deletedAt: isoDateTimeSchema.nullable(),
   raw: jsonObjectSchema.nullable(),
+  idempotencyKey: z.string().min(1).nullable(),
+  dispatchedAt: isoDateTimeSchema.nullable(),
+  dispatchAttempts: z.number().int().min(0),
+});
+
+export const messageDispatchPhaseSchema = z.enum([
+  "claimed",
+  "sending",
+  "sent",
+  "confirmed",
+  "failed",
+  "skipped_duplicate",
+]);
+
+export const messageDispatchAttemptSchema = z.object({
+  id: idSchema,
+  idempotencyKey: z.string().min(1),
+  userId: idSchema,
+  jobId: idSchema,
+  workerId: z.string().min(1),
+  phase: messageDispatchPhaseSchema,
+  messageId: idSchema.nullable(),
+  externalId: z.string().min(1).nullable(),
+  error: z.string().nullable(),
+  startedAt: isoDateTimeSchema,
+  finishedAt: isoDateTimeSchema.nullable(),
+  updatedAt: isoDateTimeSchema,
 });
 
 export const createMessageInputSchema = z.object({
@@ -85,6 +112,8 @@ export const listMessagesFilterSchema = cursorPaginationSchema.extend({
 
 export type MessageMedia = z.infer<typeof messageMediaSchema>;
 export type Message = z.infer<typeof messageSchema>;
+export type MessageDispatchPhase = z.infer<typeof messageDispatchPhaseSchema>;
+export type MessageDispatchAttempt = z.infer<typeof messageDispatchAttemptSchema>;
 export type CreateMessageInput = z.infer<typeof createMessageInputSchema>;
 export type UpdateMessageInput = z.infer<typeof updateMessageInputSchema>;
 export type ListMessagesFilter = z.infer<typeof listMessagesFilterSchema>;

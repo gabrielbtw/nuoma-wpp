@@ -14,6 +14,7 @@ import {
   deadJobSchema,
   jobSchema,
   mediaAssetSchema,
+  messageDispatchAttemptSchema,
   messageSchema,
   quickReplySchema,
   reminderSchema,
@@ -34,6 +35,8 @@ import {
   type Job,
   type MediaAsset,
   type Message,
+  type MessageDispatchAttempt,
+  type MessageDispatchPhase,
   type QuickReply,
   type Reminder,
   type Tag,
@@ -58,6 +61,7 @@ import {
   jobs,
   jobsDead,
   mediaAssets,
+  messageDispatchAttempts,
   messages,
   passwordResetTokens,
   pushSubscriptions,
@@ -76,6 +80,7 @@ import {
   type NewJob,
   type NewJobDead,
   type NewMessage,
+  type NewMessageDispatchAttempt,
   type NewQuickReply,
   type NewUser,
 } from "./schema.js";
@@ -198,7 +203,38 @@ function mapContact(row: typeof contacts.$inferSelect, tagIds: number[] = []): C
 }
 
 function mapConversation(row: typeof conversations.$inferSelect): Conversation {
-  return conversationSchema.parse(row);
+  return conversationSchema.parse({
+    ...row,
+    lastMessageAt: normalizeNullableIsoDateTime(row.lastMessageAt),
+    temporaryMessagesUntil: normalizeNullableIsoDateTime(row.temporaryMessagesUntil),
+    profilePhotoUpdatedAt: normalizeNullableIsoDateTime(row.profilePhotoUpdatedAt),
+  });
+}
+
+function normalizeNullableIsoDateTime(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (isContractIsoDateTime(value)) return value;
+
+  const swappedDate = value.match(
+    /^(?<year>\d{4})-(?<day>\d{2})-(?<month>\d{2})(?<time>T.*(?:Z|[+-]\d{2}:\d{2}))$/,
+  );
+  if (swappedDate?.groups) {
+    const day = Number(swappedDate.groups.day);
+    const month = Number(swappedDate.groups.month);
+    if (day > 12 && month >= 1 && month <= 12) {
+      const candidate = `${swappedDate.groups.year}-${swappedDate.groups.month}-${swappedDate.groups.day}${swappedDate.groups.time}`;
+      if (isContractIsoDateTime(candidate)) return candidate;
+    }
+  }
+
+  return null;
+}
+
+function isContractIsoDateTime(value: string): boolean {
+  return (
+    /^\d{4}-\d{2}-\d{2}T.+(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
+    Number.isFinite(Date.parse(value))
+  );
 }
 
 function isDisplayableConversation(conversation: Conversation): boolean {
@@ -222,6 +258,31 @@ function isDisplayableConversation(conversation: Conversation): boolean {
 function normalizeConversationPhone(value: string | null | undefined): string | null {
   const digits = value?.replace(/\D/g, "") ?? "";
   return digits.length >= 10 && digits.length <= 13 ? digits : null;
+}
+
+const activeCampaignRecipientStatuses: Array<typeof campaignRecipients.$inferSelect.status> = [
+  "queued",
+  "running",
+];
+
+function normalizeCampaignPipelinePhone(value: string | null | undefined): string | null {
+  const digits = value?.replace(/\D/g, "") ?? "";
+  return digits.length >= 10 && digits.length <= 13 ? digits : null;
+}
+
+function campaignActivePipelineKey(input: {
+  channel: typeof campaignRecipients.$inferSelect.channel;
+  phone?: string | null | undefined;
+  status?: typeof campaignRecipients.$inferSelect.status | undefined;
+}): string | null {
+  if (input.channel !== "whatsapp") {
+    return null;
+  }
+  if (!activeCampaignRecipientStatuses.includes(input.status ?? "queued")) {
+    return null;
+  }
+  const phone = normalizeCampaignPipelinePhone(input.phone);
+  return phone ? `whatsapp:${phone}` : null;
 }
 
 function isPresenceOrStatusThreadTitle(value: string): boolean {
@@ -254,6 +315,12 @@ function mapMessage(row: typeof messages.$inferSelect): Message {
     media: decodeNullableJsonObject(row.media),
     raw: decodeNullableJsonObject(row.raw),
   });
+}
+
+function mapMessageDispatchAttempt(
+  row: typeof messageDispatchAttempts.$inferSelect,
+): MessageDispatchAttempt {
+  return messageDispatchAttemptSchema.parse(row);
 }
 
 function mapCampaign(row: typeof campaigns.$inferSelect): Campaign {
@@ -790,6 +857,8 @@ export function createRepositories(handle: DbHandle) {
       }): Promise<Conversation> {
         const updatedAt = nowIso();
         const hasUnreadCount = input.unreadCount === undefined ? 0 : 1;
+        const lastMessageAt = normalizeNullableIsoDateTime(input.lastMessageAt);
+        const profilePhotoUpdatedAt = normalizeNullableIsoDateTime(input.profilePhotoUpdatedAt);
 
         handle.raw
           .prepare(
@@ -828,12 +897,12 @@ export function createRepositories(handle: DbHandle) {
             input.channel,
             input.externalThreadId,
             input.title || input.externalThreadId,
-            input.lastMessageAt ?? null,
+            lastMessageAt,
             input.lastPreview ?? null,
             input.unreadCount ?? 0,
             input.profilePhotoMediaAssetId ?? null,
             input.profilePhotoSha256 ?? null,
-            input.profilePhotoUpdatedAt ?? null,
+            profilePhotoUpdatedAt,
             updatedAt,
             hasUnreadCount,
           );
@@ -907,7 +976,9 @@ export function createRepositories(handle: DbHandle) {
         };
         if (input.title) patch.title = input.title;
         if (input.contactId !== undefined) patch.contactId = input.contactId;
-        if (input.lastMessageAt !== undefined) patch.lastMessageAt = input.lastMessageAt;
+        if (input.lastMessageAt !== undefined) {
+          patch.lastMessageAt = normalizeNullableIsoDateTime(input.lastMessageAt);
+        }
         if (input.lastPreview !== undefined) patch.lastPreview = input.lastPreview;
         if (input.profilePhotoMediaAssetId !== undefined) {
           patch.profilePhotoMediaAssetId = input.profilePhotoMediaAssetId;
@@ -915,7 +986,7 @@ export function createRepositories(handle: DbHandle) {
         if (input.profilePhotoSha256 !== undefined)
           patch.profilePhotoSha256 = input.profilePhotoSha256;
         if (input.profilePhotoUpdatedAt !== undefined) {
-          patch.profilePhotoUpdatedAt = input.profilePhotoUpdatedAt;
+          patch.profilePhotoUpdatedAt = normalizeNullableIsoDateTime(input.profilePhotoUpdatedAt);
         }
         if (input.unreadCount !== undefined) patch.unreadCount = input.unreadCount;
 
@@ -945,12 +1016,14 @@ export function createRepositories(handle: DbHandle) {
         };
         if (input.contactId !== undefined) patch.contactId = input.contactId;
         if (input.title !== undefined) patch.title = input.title;
-        if (input.lastMessageAt !== undefined) patch.lastMessageAt = input.lastMessageAt;
+        if (input.lastMessageAt !== undefined) {
+          patch.lastMessageAt = normalizeNullableIsoDateTime(input.lastMessageAt);
+        }
         if (input.lastPreview !== undefined) patch.lastPreview = input.lastPreview;
         if (input.unreadCount !== undefined) patch.unreadCount = input.unreadCount;
         if (input.isArchived !== undefined) patch.isArchived = input.isArchived;
         if (input.temporaryMessagesUntil !== undefined) {
-          patch.temporaryMessagesUntil = input.temporaryMessagesUntil;
+          patch.temporaryMessagesUntil = normalizeNullableIsoDateTime(input.temporaryMessagesUntil);
         }
         if (input.profilePhotoMediaAssetId !== undefined) {
           patch.profilePhotoMediaAssetId = input.profilePhotoMediaAssetId;
@@ -958,7 +1031,7 @@ export function createRepositories(handle: DbHandle) {
         if (input.profilePhotoSha256 !== undefined)
           patch.profilePhotoSha256 = input.profilePhotoSha256;
         if (input.profilePhotoUpdatedAt !== undefined) {
-          patch.profilePhotoUpdatedAt = input.profilePhotoUpdatedAt;
+          patch.profilePhotoUpdatedAt = normalizeNullableIsoDateTime(input.profilePhotoUpdatedAt);
         }
 
         const [row] = await db
@@ -1395,6 +1468,175 @@ export function createRepositories(handle: DbHandle) {
           .limit(input.limit ?? 100);
         return rows.map(mapMessage);
       },
+      async findByIdempotencyKey(input: {
+        userId: number;
+        idempotencyKey: string;
+      }): Promise<Message | null> {
+        const row = await db
+          .select()
+          .from(messages)
+          .where(
+            and(
+              eq(messages.userId, input.userId),
+              eq(messages.idempotencyKey, input.idempotencyKey),
+            ),
+          )
+          .get();
+        return row ? mapMessage(row) : null;
+      },
+      async upsertOutboundByKey(
+        input: Omit<NewMessage, "media" | "raw"> & {
+          idempotencyKey: string;
+          media?: JsonObject | null;
+          raw?: JsonObject | null;
+        },
+      ): Promise<{ message: Message; created: boolean }> {
+        const values: NewMessage = {
+          ...input,
+          media: input.media ? encodeJson(input.media) : null,
+          raw: input.raw ? encodeJson(input.raw) : null,
+        };
+        // We intentionally omit the conflict target: SQLite cannot match a
+        // partial unique index (idx_messages_idempotency WHERE idempotency_key
+        // IS NOT NULL) without restating the predicate, and Drizzle's
+        // onConflictDoNothing API does not expose targetWhere. A bare
+        // ON CONFLICT DO NOTHING is safe here because every other unique
+        // constraint on messages tolerates the values used for outbound
+        // inserts (external_id is NULL until the platform returns it).
+        const inserted = await db
+          .insert(messages)
+          .values(values)
+          .onConflictDoNothing()
+          .returning();
+        if (inserted[0]) {
+          return { message: mapMessage(inserted[0]), created: true };
+        }
+        const existing = await db
+          .select()
+          .from(messages)
+          .where(
+            and(
+              eq(messages.userId, input.userId),
+              eq(messages.idempotencyKey, input.idempotencyKey),
+            ),
+          )
+          .get();
+        if (!existing) {
+          throw new Error(
+            `upsertOutboundByKey: conflict reported but no existing row for key=${input.idempotencyKey}`,
+          );
+        }
+        return { message: mapMessage(existing), created: false };
+      },
+      async markDispatched(input: { id: number; dispatchAttempts: number }): Promise<void> {
+        await db
+          .update(messages)
+          .set({
+            dispatchedAt: nowIso(),
+            dispatchAttempts: input.dispatchAttempts,
+            updatedAt: nowIso(),
+          })
+          .where(eq(messages.id, input.id));
+      },
+      async setExternalId(input: {
+        id: number;
+        externalId: string;
+        status: typeof messages.$inferInsert.status;
+      }): Promise<void> {
+        await db
+          .update(messages)
+          .set({
+            externalId: input.externalId,
+            status: input.status,
+            updatedAt: nowIso(),
+          })
+          .where(eq(messages.id, input.id));
+      },
+    },
+
+    messageDispatchAttempts: {
+      async create(input: {
+        idempotencyKey: string;
+        userId: number;
+        jobId: number;
+        workerId: string;
+        phase: MessageDispatchPhase;
+        messageId?: number | null;
+        externalId?: string | null;
+        error?: string | null;
+      }): Promise<MessageDispatchAttempt> {
+        const values: NewMessageDispatchAttempt = {
+          idempotencyKey: input.idempotencyKey,
+          userId: input.userId,
+          jobId: input.jobId,
+          workerId: input.workerId,
+          phase: input.phase,
+          messageId: input.messageId ?? null,
+          externalId: input.externalId ?? null,
+          error: input.error ?? null,
+        };
+        const [row] = await db.insert(messageDispatchAttempts).values(values).returning();
+        return mapMessageDispatchAttempt(expectRow(row, "messageDispatchAttempts.create"));
+      },
+      async findActiveByKey(input: {
+        idempotencyKey: string;
+        staleAfterMs: number;
+        now?: Date;
+      }): Promise<MessageDispatchAttempt | null> {
+        const cutoff = new Date(
+          (input.now?.getTime() ?? Date.now()) - input.staleAfterMs,
+        ).toISOString();
+        const row = await db
+          .select()
+          .from(messageDispatchAttempts)
+          .where(
+            and(
+              eq(messageDispatchAttempts.idempotencyKey, input.idempotencyKey),
+              inArray(messageDispatchAttempts.phase, ["sending", "sent", "confirmed"]),
+              gte(messageDispatchAttempts.startedAt, cutoff),
+            ),
+          )
+          .orderBy(desc(messageDispatchAttempts.startedAt))
+          .limit(1)
+          .get();
+        return row ? mapMessageDispatchAttempt(row) : null;
+      },
+      async transitionPhase(input: {
+        id: number;
+        phase: MessageDispatchPhase;
+        externalId?: string | null;
+        messageId?: number | null;
+        error?: string | null;
+      }): Promise<void> {
+        const terminalPhases: MessageDispatchPhase[] = [
+          "sent",
+          "confirmed",
+          "failed",
+          "skipped_duplicate",
+        ];
+        const patch: Partial<typeof messageDispatchAttempts.$inferInsert> = {
+          phase: input.phase,
+          updatedAt: nowIso(),
+        };
+        if (input.externalId !== undefined) patch.externalId = input.externalId;
+        if (input.messageId !== undefined) patch.messageId = input.messageId;
+        if (input.error !== undefined) patch.error = input.error;
+        if (terminalPhases.includes(input.phase)) {
+          patch.finishedAt = nowIso();
+        }
+        await db
+          .update(messageDispatchAttempts)
+          .set(patch)
+          .where(eq(messageDispatchAttempts.id, input.id));
+      },
+      async listByKey(idempotencyKey: string): Promise<MessageDispatchAttempt[]> {
+        const rows = await db
+          .select()
+          .from(messageDispatchAttempts)
+          .where(eq(messageDispatchAttempts.idempotencyKey, idempotencyKey))
+          .orderBy(asc(messageDispatchAttempts.id));
+        return rows.map(mapMessageDispatchAttempt);
+      },
     },
 
     campaigns: {
@@ -1467,11 +1709,38 @@ export function createRepositories(handle: DbHandle) {
           metadata?: JsonObject;
         },
       ): Promise<CampaignRecipient> {
+        const activePipelineKey = campaignActivePipelineKey(input);
         const [row] = await db
           .insert(campaignRecipients)
-          .values({ ...input, metadata: encodeJson(input.metadata) })
+          .values({ ...input, activePipelineKey, metadata: encodeJson(input.metadata) })
           .returning();
         return mapCampaignRecipient(expectRow(row, "campaignRecipients.create"));
+      },
+      async findActiveByPhone(input: {
+        userId: number;
+        phone: string;
+        channel?: typeof campaignRecipients.$inferSelect.channel;
+      }): Promise<CampaignRecipient | null> {
+        const activePipelineKey = campaignActivePipelineKey({
+          channel: input.channel ?? "whatsapp",
+          phone: input.phone,
+          status: "queued",
+        });
+        if (!activePipelineKey) {
+          return null;
+        }
+        const row = await db
+          .select()
+          .from(campaignRecipients)
+          .where(
+            and(
+              eq(campaignRecipients.userId, input.userId),
+              eq(campaignRecipients.activePipelineKey, activePipelineKey),
+              inArray(campaignRecipients.status, activeCampaignRecipientStatuses),
+            ),
+          )
+          .get();
+        return row ? mapCampaignRecipient(row) : null;
       },
       async findById(input: { userId: number; id: number }): Promise<CampaignRecipient | null> {
         const row = await db
@@ -1521,6 +1790,12 @@ export function createRepositories(handle: DbHandle) {
         if (input.currentStepId !== undefined) patch.currentStepId = input.currentStepId;
         if (input.lastError !== undefined) patch.lastError = input.lastError;
         if (input.metadata !== undefined) patch.metadata = encodeJson(input.metadata);
+        if (
+          input.status !== undefined &&
+          !activeCampaignRecipientStatuses.includes(input.status)
+        ) {
+          patch.activePipelineKey = null;
+        }
 
         const [row] = await db
           .update(campaignRecipients)
@@ -1900,11 +2175,48 @@ export function createRepositories(handle: DbHandle) {
           const sendTypePlaceholders = serialSendJobTypes.map(() => "?").join(", ");
           const jobPhoneExpr = normalizedJsonPhoneSql("jobs");
           const activePhoneExpr = normalizedJsonPhoneSql("active_jobs");
+          const candidateRecipientPhoneExpr =
+            "replace(replace(replace(replace(replace(coalesce(candidate_recipients.phone, ''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', '')";
           const rows = handle.raw
             .prepare(
-              `SELECT id FROM jobs
+              `SELECT id, ${jobPhoneExpr} AS phone_key FROM jobs
                WHERE status = 'queued' AND scheduled_at <= ?
                ${typeFilter}
+               AND NOT (
+                 type = 'campaign_step'
+                 AND coalesce(json_extract(payload_json, '$.campaignBatchId'), '') != ''
+                 AND EXISTS (
+                   SELECT 1
+                   FROM jobs earlier_campaign_steps
+                   WHERE earlier_campaign_steps.user_id = jobs.user_id
+                     AND earlier_campaign_steps.type = 'campaign_step'
+                     AND earlier_campaign_steps.id != jobs.id
+                     AND coalesce(json_extract(earlier_campaign_steps.payload_json, '$.campaignBatchId'), '') =
+                       coalesce(json_extract(jobs.payload_json, '$.campaignBatchId'), '')
+                     AND cast(coalesce(json_extract(earlier_campaign_steps.payload_json, '$.campaignBatchIndex'), 0) as integer) <
+                       cast(coalesce(json_extract(jobs.payload_json, '$.campaignBatchIndex'), 0) as integer)
+                     AND earlier_campaign_steps.status != 'completed'
+                 )
+               )
+               AND NOT (
+                 type = 'campaign_step'
+                 AND coalesce(json_extract(payload_json, '$.campaignId'), '') != ''
+                 AND ${jobPhoneExpr} != ''
+                 AND EXISTS (
+                   SELECT 1
+                   FROM campaign_recipients candidate_recipients
+                   JOIN campaign_recipients earlier_recipients
+                     ON earlier_recipients.user_id = candidate_recipients.user_id
+                    AND earlier_recipients.campaign_id = candidate_recipients.campaign_id
+                    AND earlier_recipients.id < candidate_recipients.id
+                    AND earlier_recipients.status IN ('queued', 'running')
+                   WHERE candidate_recipients.user_id = jobs.user_id
+                     AND candidate_recipients.campaign_id =
+                       cast(json_extract(jobs.payload_json, '$.campaignId') as integer)
+                     AND candidate_recipients.channel = 'whatsapp'
+                     AND ${candidateRecipientPhoneExpr} = ${jobPhoneExpr}
+                 )
+               )
                AND NOT (
                  type IN (${sendTypePlaceholders})
                  AND ${jobPhoneExpr} != ''
@@ -1922,7 +2234,23 @@ export function createRepositories(handle: DbHandle) {
             )
             .all(
               ...[now, ...excludeTypes, ...serialSendJobTypes, ...serialSendJobTypes, limit],
-            ) as Array<{ id: number }>;
+            ) as Array<{ id: number; phone_key: string | null }>;
+
+          const selectedRows: Array<{ id: number; phone_key: string | null }> = [];
+          const selectedPhoneKeys = new Set<string>();
+          for (const row of rows) {
+            const phoneKey = row.phone_key ?? "";
+            if (phoneKey && selectedPhoneKeys.has(phoneKey)) {
+              continue;
+            }
+            if (phoneKey) {
+              selectedPhoneKeys.add(phoneKey);
+            }
+            selectedRows.push(row);
+            if (selectedRows.length >= limit) {
+              break;
+            }
+          }
 
           const update = handle.raw.prepare(
             `UPDATE jobs
@@ -1934,11 +2262,11 @@ export function createRepositories(handle: DbHandle) {
              WHERE id = ? AND status = 'queued'`,
           );
 
-          for (const row of rows) {
+          for (const row of selectedRows) {
             update.run(claimedAt, input.workerId, claimedAt, row.id);
           }
 
-          return rows.map((row) => row.id);
+          return selectedRows.map((row) => row.id);
         });
 
         const ids = tx.immediate();
