@@ -5015,12 +5015,14 @@ function isOutgoingDeliveryStatus(value: unknown): value is OutgoingDeliveryStat
 }
 
 function isReadyChatState(value: unknown): value is ReadyChatState {
+  // WA Web can leave a visible "Iniciando conversa" overlay around even after
+  // the target chat composer is ready. The send path still validates the active
+  // target with live phone evidence before typing into the composer.
   return (
     isRecord(value) &&
     value.hasMain === true &&
     value.hasSidebar === true &&
     value.hasComposer === true &&
-    value.startingConversation !== true &&
     typeof value.headerTitle === "string" &&
     value.headerTitle.trim().length > 0
   );
