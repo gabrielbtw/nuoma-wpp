@@ -208,6 +208,9 @@ export const messages = sqliteTable(
     editedAt: text("edited_at"),
     deletedAt: text("deleted_at"),
     raw: text("raw_json"),
+    idempotencyKey: text("idempotency_key"),
+    dispatchedAt: text("dispatched_at"),
+    dispatchAttempts: integer("dispatch_attempts").notNull().default(0),
     ...timestamps,
   },
   (t) => ({
@@ -221,6 +224,36 @@ export const messages = sqliteTable(
       t.observedAtUtc,
     ),
     userStatusIdx: index("idx_messages_user_status").on(t.userId, t.status),
+    idempotencyIdx: uniqueIndex("idx_messages_idempotency")
+      .on(t.idempotencyKey)
+      .where(sql`${t.idempotencyKey} IS NOT NULL`),
+  }),
+);
+
+export const messageDispatchAttempts = sqliteTable(
+  "message_dispatch_attempts",
+  {
+    ...id,
+    idempotencyKey: text("idempotency_key").notNull(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    jobId: integer("job_id").notNull(),
+    workerId: text("worker_id").notNull(),
+    phase: text("phase", {
+      enum: ["claimed", "sending", "sent", "confirmed", "failed", "skipped_duplicate"],
+    }).notNull(),
+    messageId: integer("message_id").references(() => messages.id, { onDelete: "set null" }),
+    externalId: text("external_id"),
+    error: text("error"),
+    startedAt: text("started_at").notNull().default(nowIso),
+    finishedAt: text("finished_at"),
+    updatedAt: text("updated_at").notNull().default(nowIso),
+  },
+  (t) => ({
+    keyPhaseIdx: index("idx_mda_key_phase").on(t.idempotencyKey, t.phase),
+    jobIdx: index("idx_mda_job").on(t.jobId),
+    userStartedIdx: index("idx_mda_user_started").on(t.userId, t.startedAt),
   }),
 );
 
@@ -307,12 +340,17 @@ export const campaignRecipients = sqliteTable(
       .default("queued"),
     currentStepId: text("current_step_id"),
     lastError: text("last_error"),
+    activePipelineKey: text("active_pipeline_key"),
     metadata: text("metadata_json").notNull().default("{}"),
     ...timestamps,
   },
   (t) => ({
     userCampaignIdx: index("idx_campaign_recipients_user_campaign").on(t.userId, t.campaignId),
     userStatusIdx: index("idx_campaign_recipients_user_status").on(t.userId, t.status),
+    activePipelineIdx: uniqueIndex("idx_campaign_recipients_active_pipeline").on(
+      t.userId,
+      t.activePipelineKey,
+    ),
   }),
 );
 
@@ -721,6 +759,8 @@ export type Conversation = typeof conversations.$inferSelect;
 export type NewConversation = typeof conversations.$inferInsert;
 export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
+export type MessageDispatchAttempt = typeof messageDispatchAttempts.$inferSelect;
+export type NewMessageDispatchAttempt = typeof messageDispatchAttempts.$inferInsert;
 export type AttachmentCandidate = typeof attachmentCandidates.$inferSelect;
 export type NewAttachmentCandidate = typeof attachmentCandidates.$inferInsert;
 export type ChatbotVariantEvent = typeof chatbotVariantEvents.$inferSelect;
