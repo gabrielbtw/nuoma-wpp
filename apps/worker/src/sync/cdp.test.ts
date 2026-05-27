@@ -158,7 +158,7 @@ describe("CDP active send target guard", () => {
     ).toBe(true);
   });
 
-  it("TODO fails until title-only reuse is blocked because live phone evidence is mandatory", () => {
+  it("blocks title-only reuse without an explicit allowlist even during the post-navigation window", () => {
     expect(
       shouldAllowActiveSendTarget({
         expectedPhone: "5531982066263",
@@ -170,6 +170,20 @@ describe("CDP active send target guard", () => {
         expectedTitle: "gabriel braga nuoma",
       }),
     ).toBe(false);
+  });
+
+  it("allows title-only evidence for an explicitly allowlisted phone during the post-navigation window", () => {
+    expect(
+      shouldAllowActiveSendTarget({
+        expectedPhone: "5531982066263",
+        state: baseState,
+        openChatPhone: "5531982066263",
+        openChatPhoneNavigatedAtMs: 995_000,
+        nowMs: 1_000_000,
+        allowedSelfChatPhones: ["5531982066263"],
+        expectedTitle: "gabriel braga nuoma",
+      }),
+    ).toBe(true);
   });
 
   it("blocks when /send phone matches but the active WhatsApp header is another phone", () => {
