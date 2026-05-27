@@ -48,6 +48,10 @@ const baseCampaignStepSchema = z.object({
 
 export const campaignStepSchema = z.discriminatedUnion("type", [
   baseCampaignStepSchema.extend({
+    type: z.literal("temporary_messages"),
+    duration: z.enum(["24h", "7d", "90d"]),
+  }),
+  baseCampaignStepSchema.extend({
     type: z.literal("text"),
     template: z.string().min(1),
   }),

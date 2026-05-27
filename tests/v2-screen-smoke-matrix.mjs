@@ -41,7 +41,7 @@ const routes = [
     version: "V2.10",
     name: "Campanhas e remarketing",
     path: "/campaigns",
-    waitTestId: "safe-batch-dispatch-panel",
+    waitText: "Visão geral",
     file: "05-v210-campaigns-remarketing.png",
     details: "Builder, recipients, readiness e painel de lote real com guardas M30.3.",
     action: validateRemarketingBatchPanel,
@@ -76,7 +76,7 @@ const routes = [
     path: "/implementation",
     waitText: "Execução visível",
     file: "09-v2-implementation.png",
-    details: "Painel parseado de IMPLEMENTATION_STATUS.md para feito/parcial/falta.",
+    details: "Painel parseado do README.md para feito/parcial/falta.",
   },
   {
     version: "M37",
@@ -185,6 +185,7 @@ async function validateRemarketingBatchPanel(page, fixture) {
       waitUntil: "domcontentloaded",
     });
   }
+  await openCampaignDispatchTab(page);
   await page.getByTestId("safe-batch-dispatch-panel").waitFor({
     state: "visible",
     timeout: 20_000,
@@ -196,17 +197,33 @@ async function validateRemarketingBatchPanel(page, fixture) {
   const canDispatch = await report.getAttribute("data-can-dispatch");
   const accepted = await report.getAttribute("data-accepted");
   const plannedJobs = await report.getAttribute("data-planned-jobs");
-  if (canDispatch !== "true" || accepted !== "1" || Number(plannedJobs) < 1) {
+  const issueCodes = await page
+    .getByTestId("campaign-blocking-issue")
+    .evaluateAll((nodes) =>
+      nodes.map((node) => ({
+        code: node.getAttribute("data-code"),
+        severity: node.getAttribute("data-severity"),
+      })),
+    );
+  const blockingCodes = issueCodes
+    .filter((item) => item.severity === "error" && item.code !== "accepted_recipients")
+    .map((item) => item.code);
+  const onlyExistingRuntimeBlocks =
+    canDispatch === "false" &&
+    blockingCodes.length > 0 &&
+    blockingCodes.every((code) => code === "active_campaign_step_jobs" || code === "active_campaign_recipients");
+  if ((canDispatch !== "true" && !onlyExistingRuntimeBlocks) || accepted !== "1" || Number(plannedJobs) < 1) {
     throw new Error(
       `remarketing batch guard mismatch: ${JSON.stringify({
         canDispatch,
         accepted,
         plannedJobs,
+        issueCodes,
         campaignId: fixture.campaignId,
       })}`,
     );
   }
-  return `Lote real validado: campaign=${fixture.campaignId}, canDispatch=${canDispatch}, accepted=${accepted}, plannedJobs=${plannedJobs}, temp=24h/90d.`;
+  return `Lote real validado: campaign=${fixture.campaignId}, canDispatch=${canDispatch}, accepted=${accepted}, plannedJobs=${plannedJobs}, temp=24h/90d${onlyExistingRuntimeBlocks ? `, runtime_block=${blockingCodes.join("+")}` : ""}.`;
 }
 
 async function blockingA11yViolations(page) {
@@ -307,6 +324,12 @@ async function assertHttp(url, label) {
   if (!response.ok) {
     throw new Error(`${label} not ready: ${response.status} ${url}`);
   }
+}
+
+async function openCampaignDispatchTab(page) {
+  const tab = page.getByRole("tab", { name: /disparo/i });
+  await tab.waitFor({ state: "visible", timeout: 15_000 });
+  await tab.click();
 }
 
 main().catch((error) => {

@@ -12,6 +12,7 @@ import {
   ArrowUp,
   CheckCircle2,
   ClipboardList,
+  Clock,
   FileText,
   FileUp,
   GitBranch,
@@ -73,6 +74,7 @@ interface StepDraft {
   mediaAssetId: string;
   fileName: string;
   caption: string;
+  temporaryMessagesDuration: "24h" | "7d" | "90d";
   conditions: ConditionDraft[];
 }
 
@@ -133,12 +135,19 @@ interface CsvPreviewResult {
 }
 
 const stepTypes: Array<{ value: BuilderStepType; label: string }> = [
+  { value: "temporary_messages", label: "Mensagens temporárias" },
   { value: "text", label: "Texto" },
   { value: "link", label: "Link" },
   { value: "voice", label: "Áudio" },
   { value: "image", label: "Imagem" },
   { value: "video", label: "Vídeo" },
   { value: "document", label: "Documento" },
+];
+
+const temporaryMessagesDurations: Array<{ value: "24h" | "7d" | "90d"; label: string }> = [
+  { value: "24h", label: "24 horas" },
+  { value: "7d", label: "7 dias" },
+  { value: "90d", label: "90 dias" },
 ];
 
 const actionTypes: Array<{ value: BuilderActionType; label: string }> = [
@@ -979,6 +988,9 @@ function CampaignPreviewPanel({
                   </div>
                 </div>
                 <Badge variant="neutral">{step.type}</Badge>
+                {step.type === "temporary_messages" ? (
+                  <Badge variant="warning">{step.duration}</Badge>
+                ) : null}
               </div>
               <div className="mt-2 line-clamp-3 text-xs leading-relaxed text-fg-muted">
                 {stepSummary(step)}
@@ -1023,7 +1035,10 @@ function WorkflowViewer({
     ...steps.map((step, index) => ({
       id: step.id,
       label: step.label || `Step ${index + 1}`,
-      meta: `${step.type} · ${step.delaySeconds || 0}s`,
+      meta:
+        step.type === "temporary_messages"
+          ? `temporárias ${step.temporaryMessagesDuration} · ${step.delaySeconds || 0}s`
+          : `${step.type} · ${step.delaySeconds || 0}s`,
       icon: stepIcon(step.type),
     })),
     {
@@ -1472,6 +1487,44 @@ function StepBody({
   value: StepDraft;
   onChange: (value: StepDraft) => void;
 }) {
+  if (value.type === "temporary_messages") {
+    return (
+      <div className="mt-3 rounded-lg bg-bg-deep/70 p-3 shadow-pressed-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-brand-cyan" />
+            <div>
+              <div className="text-sm font-medium text-fg-primary">Definir mensagens temporárias</div>
+              <div className="text-xs text-fg-dim">Step operacional: não envia mensagem.</div>
+            </div>
+          </div>
+          <div className="w-36">
+            <Select
+              value={value.temporaryMessagesDuration}
+              onValueChange={(duration) =>
+                onChange({
+                  ...value,
+                  temporaryMessagesDuration: duration as StepDraft["temporaryMessagesDuration"],
+                })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {temporaryMessagesDurations.map((duration) => (
+                  <SelectItem key={duration.value} value={duration.value}>
+                    {duration.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (value.type === "text") {
     return (
       <LabeledField label="Mensagem" className="mt-3">
@@ -2270,6 +2323,7 @@ function newStepDraft(order: number): StepDraft {
     mediaAssetId: "",
     fileName: "documento.pdf",
     caption: "",
+    temporaryMessagesDuration: "24h",
     conditions: [],
   };
 }
@@ -2328,6 +2382,10 @@ function buildStep(step: StepDraft, order: number): CampaignStep | string {
     return conditions;
   }
   const base = { id, label, delaySeconds, conditions };
+
+  if (step.type === "temporary_messages") {
+    return { ...base, type: "temporary_messages", duration: step.temporaryMessagesDuration };
+  }
 
   if (step.type === "text") {
     const template = step.template.trim();
@@ -2566,6 +2624,7 @@ function conditionPlaceholder(type: CampaignStepCondition["type"]) {
 }
 
 function stepSummary(step: CampaignStep) {
+  if (step.type === "temporary_messages") return `Definir temporárias em ${step.duration}.`;
   if (step.type === "text") return step.template;
   if (step.type === "link") return `${step.text} · ${step.url}`;
   if (step.type === "document") return `${step.fileName} · asset #${step.mediaAssetId}`;
@@ -2784,6 +2843,7 @@ function moveItemById<T extends { id: string }>(items: T[], sourceId: string, ta
 }
 
 function stepIcon(type: BuilderStepType) {
+  if (type === "temporary_messages") return Clock;
   if (type === "link") return Link2;
   if (type === "voice") return Mic;
   if (type === "image") return Image;

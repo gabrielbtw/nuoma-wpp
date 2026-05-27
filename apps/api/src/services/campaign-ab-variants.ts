@@ -66,6 +66,18 @@ export function applyCampaignAbVariantToStep(
   const label = nonEmptyString(override.label) ?? step.label;
   const delaySeconds = positiveInteger(override.delaySeconds) ?? step.delaySeconds;
 
+  if (step.type === "temporary_messages") {
+    return {
+      ...step,
+      label,
+      delaySeconds,
+      duration:
+        override.duration === "24h" || override.duration === "7d" || override.duration === "90d"
+          ? override.duration
+          : step.duration,
+    };
+  }
+
   if (step.type === "text") {
     return {
       ...step,

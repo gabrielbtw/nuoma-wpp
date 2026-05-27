@@ -34,6 +34,7 @@ async function main() {
     await page.goto(`${webUrl}/campaigns?campaignId=${fixture.campaignId}`, {
       waitUntil: "domcontentloaded",
     });
+    await openCampaignDispatchTab(page);
     await page.getByTestId("safe-batch-dispatch-panel").waitFor({
       state: "visible",
       timeout: 20_000,
@@ -171,6 +172,12 @@ async function assertHttp(url, label) {
   if (!response.ok) {
     throw new Error(`${label} not ready: ${response.status} ${url}`);
   }
+}
+
+async function openCampaignDispatchTab(page) {
+  const tab = page.getByRole("tab", { name: /disparo/i });
+  await tab.waitFor({ state: "visible", timeout: 15_000 });
+  await tab.click();
 }
 
 main().catch((error) => {

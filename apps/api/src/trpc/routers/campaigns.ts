@@ -49,6 +49,7 @@ const tickCampaignBodySchema = z
   .object({
     dryRun: z.boolean().optional(),
     campaignId: z.number().int().positive().optional(),
+    confirmText: z.string().trim().optional(),
   })
   .optional();
 const readyCampaignBodySchema = z.object({
@@ -101,6 +102,7 @@ type RemarketingBatchPlan = {
     beforeSendDuration: string | null;
     afterCompletionDuration: string | null;
     restoreOnFailure: boolean | null;
+    controlSteps: Array<{ stepId: string; label: string; duration: string }>;
   };
   summary: {
     candidates: number;
@@ -617,6 +619,12 @@ export const campaignsRouter = router({
       if (!campaign) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found" });
       }
+      if (!input.dryRun && !isCampaignRunnableForManualDispatch(campaign)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Campanha está em ${campaign.status}; execução real exige running ou scheduled.`,
+        });
+      }
 
       const sendPolicy = resolveApiSendPolicy(ctx.env, [
         normalizeClientAllowedPhoneOverride(input.allowedPhone),
@@ -729,6 +737,19 @@ export const campaignsRouter = router({
           });
           continue;
         }
+        const activePipeline = await ctx.repos.campaignRecipients.findActiveByPhone({
+          userId: ctx.user.id,
+          phone: candidate.phone,
+          channel: "whatsapp",
+        });
+        if (activePipeline) {
+          rejected.push({
+            source: candidate.source,
+            value: candidate.phone,
+            reason: "active_pipeline_for_phone",
+          });
+          continue;
+        }
         if (!input.dryRun) {
           const decision = evaluateApiRealSendTarget(sendPolicy, candidate.phone);
           if (decision.allowed) {
@@ -821,6 +842,12 @@ export const campaignsRouter = router({
     }),
 
   tick: adminCsrfProcedure.input(tickCampaignBodySchema).mutation(async ({ ctx, input }) => {
+    if (!(input?.dryRun ?? false) && input?.confirmText !== "DISPARAR") {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Confirmação inválida. Digite DISPARAR.",
+      });
+    }
     const result = await runCampaignSchedulerTick({
       repos: ctx.repos,
       userId: ctx.user.id,
@@ -883,13 +910,6 @@ function buildCampaignReadinessReport(input: {
   }> = [];
   const error = (code: string, message: string, count?: number) =>
     issues.push({ code, severity: "error", message, ...(count !== undefined ? { count } : {}) });
-  const warning = (code: string, message: string, count?: number) =>
-    issues.push({
-      code,
-      severity: "warning",
-      message,
-      ...(count !== undefined ? { count } : {}),
-    });
   const info = (code: string, message: string, count?: number) =>
     issues.push({ code, severity: "info", message, ...(count !== undefined ? { count } : {}) });
 
@@ -977,9 +997,9 @@ function buildCampaignReadinessReport(input: {
     );
   }
   if (input.sendPolicy.mode === "production" && allowedPhones.size === 0) {
-    warning(
+    error(
       "production_without_canary_allowlist",
-      "Produção está sem allowlist canária; confirme limite e público antes do disparo.",
+      "Produção sem allowlist canária bloqueia enfileiramento real.",
     );
   }
   if (input.scheduler.plannedJobs.length === 0) {
@@ -1147,6 +1167,15 @@ async function collectRemarketingBatchCandidates(input: {
       rejected.push({ source: candidate.source, value: candidate.value, reason: "duplicate_recipient" });
       continue;
     }
+    const activePipeline = await input.repos.campaignRecipients.findActiveByPhone({
+      userId: input.userId,
+      phone: candidate.phone,
+      channel: "whatsapp",
+    });
+    if (activePipeline) {
+      rejected.push({ source: candidate.source, value: candidate.value, reason: "active_pipeline_for_phone" });
+      continue;
+    }
     const decision = evaluateApiRealSendTarget(input.sendPolicy, candidate.phone);
     if (!decision.allowed) {
       rejected.push({ source: candidate.source, value: candidate.value, reason: decision.reason });
@@ -1194,14 +1223,20 @@ function remarketingBatchIssues(input: {
   }
 
   const temporaryMessages = temporaryMessagesSummary(input.campaign);
-  if (
-    !temporaryMessages.enabled ||
-    temporaryMessages.beforeSendDuration !== "24h" ||
-    temporaryMessages.afterCompletionDuration !== "90d"
+  const hasTemporaryMessagesControl = temporaryMessages.controlSteps.length > 0;
+  if (!hasTemporaryMessagesControl && !temporaryMessages.enabled) {
+    error(
+      "temporary_messages_audit_only",
+      "Lote real exige step ou configuração temporaryMessages M30.3 antes do envio.",
+    );
+  } else if (
+    !hasTemporaryMessagesControl &&
+    (temporaryMessages.beforeSendDuration !== "24h" ||
+      temporaryMessages.afterCompletionDuration !== "90d")
   ) {
     error(
-      "temporary_messages_m303_required",
-      "Lote real exige temporaryMessages 24h antes e restauração 90d após conclusão.",
+      "temporary_messages_global_not_m303",
+      "temporaryMessages global precisa estar em 24h antes e 90d após conclusão.",
     );
   }
   if (input.sendPolicy.allowedPhones.length === 0) {
@@ -1247,6 +1282,11 @@ function splitRemarketingPhones(rawPhones: string): string[] {
 }
 
 function temporaryMessagesSummary(campaign: Campaign): RemarketingBatchPlan["temporaryMessages"] {
+  const controlSteps = campaign.steps
+    .filter((step): step is Extract<Campaign["steps"][number], { type: "temporary_messages" }> =>
+      step.type === "temporary_messages",
+    )
+    .map((step) => ({ stepId: step.id, label: step.label, duration: step.duration }));
   const parsed = campaignTemporaryMessagesConfigSchema.safeParse(campaign.metadata.temporaryMessages);
   if (!parsed.success || !parsed.data.enabled) {
     return {
@@ -1254,6 +1294,7 @@ function temporaryMessagesSummary(campaign: Campaign): RemarketingBatchPlan["tem
       beforeSendDuration: null,
       afterCompletionDuration: null,
       restoreOnFailure: null,
+      controlSteps,
     };
   }
   return {
@@ -1261,6 +1302,7 @@ function temporaryMessagesSummary(campaign: Campaign): RemarketingBatchPlan["tem
     beforeSendDuration: parsed.data.beforeSendDuration,
     afterCompletionDuration: parsed.data.afterCompletionDuration,
     restoreOnFailure: parsed.data.restoreOnFailure,
+    controlSteps,
   };
 }
 
@@ -1324,7 +1366,7 @@ async function evaluateCampaignForConversation(input: {
 }
 
 function isCampaignRunnableForManualDispatch(campaign: Campaign): boolean {
-  return campaign.status !== "archived" && campaign.status !== "completed";
+  return campaign.status === "running" || campaign.status === "scheduled";
 }
 
 function isCampaignReadyForEnqueue(campaign: Campaign): boolean {

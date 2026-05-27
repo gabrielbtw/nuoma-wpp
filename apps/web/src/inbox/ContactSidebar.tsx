@@ -1577,6 +1577,8 @@ function formatAutomationReason(reason: string): string {
       return "fora da allowlist";
     case "not_in_production_canary_allowlist":
       return "fora da canary";
+    case "production_without_canary_allowlist":
+      return "produção sem canary";
     default:
       return reason.replaceAll("_", " ");
   }
@@ -1598,6 +1600,8 @@ function formatCampaignReason(reason: string): string {
       return "fora da allowlist";
     case "not_in_production_canary_allowlist":
       return "fora da canary";
+    case "production_without_canary_allowlist":
+      return "produção sem canary";
     default:
       return reason.replaceAll("_", " ");
   }

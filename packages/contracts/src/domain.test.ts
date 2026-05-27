@@ -92,4 +92,26 @@ describe("domain input defaults", () => {
     expect(campaign.metadata).toEqual({});
     expect(automation.metadata).toEqual({});
   });
+
+  it("accepts temporary messages as an operational campaign step", () => {
+    const campaign = createCampaignInputSchema.parse({
+      userId: 1,
+      name: "Temporarias",
+      steps: [
+        {
+          id: "temp-24h",
+          label: "Definir 24h",
+          type: "temporary_messages",
+          delaySeconds: 0,
+          conditions: [],
+          duration: "24h",
+        },
+      ],
+    });
+
+    expect(campaign.steps[0]).toMatchObject({
+      type: "temporary_messages",
+      duration: "24h",
+    });
+  });
 });

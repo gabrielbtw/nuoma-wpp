@@ -50,13 +50,16 @@ describe("api send policy", () => {
     });
   });
 
-  it("allows production mode without a canary allowlist", () => {
+  it("blocks production mode without a canary allowlist", () => {
     const policy = resolveApiSendPolicy({
       ...baseEnv,
       API_SEND_POLICY_MODE: "production",
     });
 
-    expect(evaluateApiRealSendTarget(policy, "5531999999999")).toEqual({ allowed: true });
+    expect(evaluateApiRealSendTarget(policy, "5531999999999")).toEqual({
+      allowed: false,
+      reason: "production_without_canary_allowlist",
+    });
   });
 
   it("uses allowed phones as a production canary when configured", () => {

@@ -40,6 +40,10 @@ export function evaluateApiRealSendTarget(
     return { allowed: false, reason: "not_in_production_canary_allowlist" };
   }
 
+  if (policy.allowedPhones.length === 0) {
+    return { allowed: false, reason: "production_without_canary_allowlist" };
+  }
+
   return { allowed: true };
 }
 

@@ -1754,6 +1754,44 @@ describe("api health", () => {
         ]),
       );
 
+      const expectRealExecuteBlocked = async (expectedStatus: string) => {
+        const blocked = await trpcCall(app, "POST", "campaigns.execute", {
+          campaignId: campaignCreate.data!.campaign.id,
+          dryRun: false,
+          phones: ["5531982066263"],
+        }, { cookie: cookies, csrfToken });
+        expect(blocked.statusCode).toBe(400);
+        expect(blocked.error?.message).toContain(`Campanha está em ${expectedStatus}`);
+      };
+
+      await expectRealExecuteBlocked("draft");
+      const pausedForExecute = await trpcCall<{ campaign: { status: string } | null }>(
+        app,
+        "POST",
+        "campaigns.update",
+        { id: campaignCreate.data!.campaign.id, status: "paused" },
+        { cookie: cookies, csrfToken },
+      );
+      expect(pausedForExecute.data?.campaign?.status).toBe("paused");
+      await expectRealExecuteBlocked("paused");
+      const archivedForExecute = await trpcCall<{ campaign: { status: string } | null }>(
+        app,
+        "POST",
+        "campaigns.softDelete",
+        { id: campaignCreate.data!.campaign.id },
+        { cookie: cookies, csrfToken },
+      );
+      expect(archivedForExecute.data?.campaign?.status).toBe("archived");
+      await expectRealExecuteBlocked("archived");
+      const completedForExecute = await repos.campaigns.update({
+        id: campaignCreate.data!.campaign.id,
+        userId: user.id,
+        status: "completed",
+        completedAt: new Date().toISOString(),
+      });
+      expect(completedForExecute?.status).toBe("completed");
+      await expectRealExecuteBlocked("completed");
+
       const campaignExecutePreview = await trpcCall<{
         dryRun: boolean;
         recipientsPlanned: number;
@@ -1790,7 +1828,34 @@ describe("api health", () => {
         },
         { cookie: cookies, csrfToken },
       );
-      expect(campaignExecute.data).toMatchObject({
+      expect(campaignExecute.statusCode).toBe(400);
+      expect(campaignExecute.error?.message).toContain("execução real exige running ou scheduled");
+
+      const campaignReadyToExecute = await trpcCall<{ campaign: { status: string } | null }>(
+        app,
+        "POST",
+        "campaigns.update",
+        { id: campaignCreate.data!.campaign.id, status: "running" },
+        { cookie: cookies, csrfToken },
+      );
+      expect(campaignReadyToExecute.data?.campaign?.status).toBe("running");
+
+      const campaignExecuteRunning = await trpcCall<{
+        dryRun: boolean;
+        recipientsCreated: number;
+        scheduler: { jobsCreated: number; plannedJobs: Array<{ phone: string }> };
+      }>(
+        app,
+        "POST",
+        "campaigns.execute",
+        {
+          campaignId: campaignCreate.data!.campaign.id,
+          dryRun: false,
+          phones: ["5531982066263"],
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(campaignExecuteRunning.data).toMatchObject({
         dryRun: false,
         recipientsCreated: 1,
         scheduler: {
@@ -2344,6 +2409,22 @@ describe("api health", () => {
       body: "Oi pelo Chrome Extension",
       observedAtUtc: "2026-05-07T10:00:00.000Z",
     });
+    const campaign = await repos.campaigns.create({
+      userId: user.id,
+      name: "Campanha Overlay",
+      status: "running",
+      channel: "whatsapp",
+      steps: [
+        {
+          id: "intro",
+          label: "Intro",
+          delaySeconds: 0,
+          conditions: [],
+          type: "text",
+          template: "Oi {{contact.name}}, posso te ajudar por aqui?",
+        },
+      ],
+    });
 
     const app = await buildApiApp({
       env: loadApiEnv({
@@ -2429,6 +2510,89 @@ describe("api health", () => {
       expect(summary.json().data.latestMessages[0]).toMatchObject({
         body: "Oi pelo Chrome Extension",
       });
+      expect(summary.json().data.campaigns).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: campaign.id,
+            name: "Campanha Overlay",
+            eligible: true,
+          }),
+        ]),
+      );
+
+      const runCampaign = await app.inject({
+        method: "POST",
+        url: "/api/extension/overlay",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${accessToken}`,
+        },
+        payload: {
+          id: "m38-run-campaign",
+          method: "runCampaignForPhone",
+          params: {
+            campaignId: campaign.id,
+            phone: "5531982066263",
+            phoneSource: "title-conversation",
+            reason: "m38-api-test",
+          },
+          mutation: { nonce: "overlay-nonce", idempotencyKey: "overlay-key", confirmed: true },
+          version: "v2.11.7-m35-m38-extension",
+        },
+      });
+      expect(runCampaign.statusCode).toBe(200);
+      expect(runCampaign.json()).toMatchObject({
+        ok: true,
+        data: {
+          result: {
+            phone: "5531982066263",
+            campaign: { id: campaign.id, name: "Campanha Overlay" },
+            recipientsCreated: 1,
+            jobsCreated: 1,
+          },
+          snapshot: {
+            phone: "5531982066263",
+            apiLastMethod: "runCampaignForPhone",
+          },
+        },
+      });
+      const replayCampaign = await app.inject({
+        method: "POST",
+        url: "/api/extension/overlay",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${accessToken}`,
+        },
+        payload: {
+          id: "m38-run-campaign-replay",
+          method: "runCampaignForPhone",
+          params: {
+            campaignId: campaign.id,
+            phone: "5531982066263",
+            phoneSource: "title-conversation",
+            reason: "m38-api-test",
+          },
+          mutation: { nonce: "overlay-nonce-2", idempotencyKey: "overlay-key", confirmed: true },
+          version: "v2.11.7-m35-m38-extension",
+        },
+      });
+      expect(replayCampaign.statusCode).toBe(200);
+      expect(replayCampaign.json()).toMatchObject({
+        ok: true,
+        data: {
+          result: {
+            campaign: { id: campaign.id, name: "Campanha Overlay" },
+            recipientsCreated: 1,
+            jobsCreated: 1,
+          },
+        },
+      });
+      const overlayRecipients = await repos.campaignRecipients.listByCampaign({
+        userId: user.id,
+        campaignId: campaign.id,
+        limit: 10,
+      });
+      expect(overlayRecipients).toHaveLength(1);
 
       const mutation = await app.inject({
         method: "POST",
@@ -2822,7 +2986,7 @@ describe("api health", () => {
       userId: user.id,
       name: "V2.10 Remarketing Lote Real",
       channel: "whatsapp",
-      status: "draft",
+      status: "running",
       evergreen: false,
       startsAt: null,
       segment: null,
@@ -2853,6 +3017,26 @@ describe("api health", () => {
         },
       },
     });
+    const campaignWithoutTemporaryMessages = await repos.campaigns.create({
+      userId: user.id,
+      name: "V2.10 Remarketing Sem M30.3",
+      channel: "whatsapp",
+      status: "running",
+      evergreen: false,
+      startsAt: null,
+      segment: null,
+      steps: [
+        {
+          id: "intro",
+          label: "Intro",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Intro {{telefone}}",
+        },
+      ],
+      metadata: {},
+    });
     const app = await buildApiApp({
       env: loadApiEnv({
         API_LOG_LEVEL: "silent",
@@ -2871,6 +3055,28 @@ describe("api health", () => {
       });
       const cookies = cookieHeader(login.setCookie);
       const csrfToken = login.data!.csrfToken;
+
+      const missingTemporaryMessages = await trpcCall<{
+        canDispatch: boolean;
+        issues: Array<{ code: string; severity: string; count?: number }>;
+      }>(
+        app,
+        "POST",
+        "campaigns.remarketingBatchReady",
+        {
+          campaignId: campaignWithoutTemporaryMessages.id,
+          rawPhones: "5531982066263",
+          allowedPhone: "5531982066263",
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(missingTemporaryMessages.statusCode, JSON.stringify(missingTemporaryMessages.error)).toBe(200);
+      expect(missingTemporaryMessages.data?.canDispatch).toBe(false);
+      expect(missingTemporaryMessages.data?.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: "temporary_messages_audit_only", severity: "error" }),
+        ]),
+      );
 
       const blocked = await trpcCall<{
         canDispatch: boolean;

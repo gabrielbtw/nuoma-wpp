@@ -148,6 +148,176 @@ describe("campaign scheduler tick", () => {
     expect(conversation?.title).toBe("Gabriel Braga Nuoma");
   });
 
+  it("enqueues temporary messages control steps in the same recipient batch", async () => {
+    const repos = createRepositories(db);
+    const user = await repos.users.create({
+      email: "campaign-temp-step@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const campaign = await repos.campaigns.create({
+      userId: user.id,
+      name: "Temporarias por step",
+      channel: "whatsapp",
+      status: "running",
+      evergreen: false,
+      startsAt: null,
+      segment: null,
+      steps: [
+        {
+          id: "temp-24h",
+          label: "Definir 24h",
+          type: "temporary_messages",
+          delaySeconds: 0,
+          conditions: [],
+          duration: "24h",
+        },
+        {
+          id: "msg",
+          label: "Mensagem",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Oi {{nome}}",
+        },
+        {
+          id: "temp-90d",
+          label: "Restaurar 90d",
+          type: "temporary_messages",
+          delaySeconds: 0,
+          conditions: [],
+          duration: "90d",
+        },
+      ],
+      metadata: {},
+    });
+    const recipient = await repos.campaignRecipients.create({
+      userId: user.id,
+      campaignId: campaign.id,
+      contactId: null,
+      phone: "55 (31) 98206-6263",
+      channel: "whatsapp",
+      status: "queued",
+      currentStepId: null,
+      metadata: { variables: { nome: "Gabriel" } },
+    });
+
+    const result = await runCampaignSchedulerTick({
+      repos,
+      userId: user.id,
+      ownerId: "temp-step",
+      now: new Date("2026-05-04T12:00:00.000Z"),
+    });
+    const jobs = (await repos.jobs.list(user.id, "queued")).sort((a, b) =>
+      Number(a.payload.campaignBatchIndex ?? 0) - Number(b.payload.campaignBatchIndex ?? 0),
+    );
+    const updated = await repos.campaignRecipients.findById({
+      userId: user.id,
+      id: recipient.id,
+    });
+
+    expect(result.jobsCreated).toBe(3);
+    expect(jobs.map((job) => job.payload.step)).toEqual([
+      expect.objectContaining({ type: "temporary_messages", duration: "24h" }),
+      expect.objectContaining({ type: "text", template: "Oi {{nome}}" }),
+      expect.objectContaining({ type: "temporary_messages", duration: "90d" }),
+    ]);
+    expect(jobs.map((job) => job.payload.campaignBatchIndex)).toEqual([0, 1, 2]);
+    expect(jobs.map((job) => job.payload.phone)).toEqual([
+      "5531982066263",
+      "5531982066263",
+      "5531982066263",
+    ]);
+    expect(updated?.metadata).toEqual(
+      expect.objectContaining({
+        awaitingStepIds: ["temp-24h", "msg", "temp-90d"],
+      }),
+    );
+  });
+
+  it("blocks duplicate campaign recipients by normalized phone while the pipeline is active", async () => {
+    const repos = createRepositories(db);
+    const user = await repos.users.create({
+      email: "campaign-phone-dedupe@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const campaign = await repos.campaigns.create({
+      userId: user.id,
+      name: "Telefone unico",
+      channel: "whatsapp",
+      status: "running",
+      evergreen: false,
+      startsAt: null,
+      segment: null,
+      steps: [
+        {
+          id: "step-1",
+          label: "Primeiro envio",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Oi {{telefone}}",
+        },
+      ],
+      metadata: {},
+    });
+    const first = await repos.campaignRecipients.create({
+      userId: user.id,
+      campaignId: campaign.id,
+      contactId: null,
+      phone: "55 (31) 98206-6263",
+      channel: "whatsapp",
+      status: "queued",
+      currentStepId: null,
+      metadata: {},
+    });
+    await expect(
+      repos.campaignRecipients.create({
+        userId: user.id,
+        campaignId: campaign.id,
+        contactId: null,
+        phone: "+55 31 98206-6263",
+        channel: "whatsapp",
+        status: "queued",
+        currentStepId: null,
+        metadata: {},
+      }),
+    ).rejects.toThrow("campaign_recipients.active_pipeline_key");
+
+    const result = await runCampaignSchedulerTick({
+      repos,
+      userId: user.id,
+      ownerId: "campaign-phone-dedupe",
+      now: new Date("2026-05-18T12:00:00.000Z"),
+    });
+    const jobs = await repos.jobs.list(user.id, "queued");
+    const firstAfter = await repos.campaignRecipients.findById({
+      userId: user.id,
+      id: first.id,
+    });
+    const activeByPhone = await repos.campaignRecipients.findActiveByPhone({
+      userId: user.id,
+      phone: "5531982066263",
+    });
+
+    expect(result.jobsCreated).toBe(1);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.payload).toEqual(
+      expect.objectContaining({
+        recipientId: first.id,
+        phone: "5531982066263",
+      }),
+    );
+    expect(firstAfter?.status).toBe("running");
+    expect(activeByPhone).toEqual(
+      expect.objectContaining({
+        id: first.id,
+        status: "running",
+      }),
+    );
+  });
+
   it("groups close campaign steps for the same recipient and carries temporary message audit parameters", async () => {
     const repos = createRepositories(db);
     const user = await repos.users.create({
@@ -458,7 +628,7 @@ describe("campaign scheduler tick", () => {
       userId: user.id,
       campaignId: running.id,
       contactId: null,
-      phone: "5531982066263",
+      phone: "553188880001",
       channel: "whatsapp",
       status: "queued",
       currentStepId: null,

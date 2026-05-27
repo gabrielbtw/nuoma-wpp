@@ -21,6 +21,10 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
   Textarea,
   useToast,
 } from "@nuoma/ui";
@@ -164,8 +168,24 @@ export function CampaignsPage() {
   };
   const runSafeEnqueue = () => {
     if (!selectedSafeCampaignId || !readiness.data?.canEnqueue) return;
-    tick.mutate({ dryRun: false, campaignId: selectedSafeCampaignId });
+    tick.mutate({
+      dryRun: false,
+      campaignId: selectedSafeCampaignId,
+      confirmText: safeConfirm,
+    });
     setSafeConfirm("");
+  };
+  const runConfirmedTick = (input: { campaignId?: number; label: string }) => {
+    const confirmation = window.prompt(`Digite DISPARAR para enfileirar ${input.label}.`);
+    if (confirmation !== "DISPARAR") {
+      toast.push({
+        title: "Enfileiramento cancelado",
+        description: "Confirmação textual obrigatória não foi preenchida.",
+        variant: "warning",
+      });
+      return;
+    }
+    tick.mutate({ dryRun: false, campaignId: input.campaignId, confirmText: confirmation });
   };
   const runBatchReady = () => {
     if (!selectedSafeCampaignId) return;
@@ -186,18 +206,19 @@ export function CampaignsPage() {
   };
 
   return (
-    <div className="flex flex-col gap-7 max-w-5xl mx-auto pt-2">
+    <div className="mx-auto flex max-w-7xl flex-col gap-5 pt-2">
       <Animate preset="rise-in">
-        <header className="flex items-end justify-between gap-6">
+        <header className="flex items-center justify-between gap-6">
           <div>
             <p className="botforge-kicker">
               Campanhas
             </p>
-            <h1 className="botforge-title mt-2 text-5xl md:text-6xl">
-              Outbound <span className="text-brand-violet">orquestrado</span>.
+            <h1 className="botforge-display mt-1 text-3xl md:text-4xl">
+              Outbound <span className="nuoma-gradient-text">operacional</span>.
             </h1>
-            <p className="text-sm text-fg-muted mt-3 max-w-xl">
-              Construtor compartilhado por canal. Steps: text, voice, document, link.
+            <p className="mt-2 max-w-2xl text-sm text-fg-muted">
+              Builder, disparo, recipients e auditoria em uma superfície compacta com
+              guardrails fortes por telefone.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -213,7 +234,7 @@ export function CampaignsPage() {
               variant="soft"
               size="sm"
               loading={isGlobalTickPending(false)}
-              onClick={() => tick.mutate({ dryRun: false })}
+              onClick={() => runConfirmedTick({ label: "todas as campanhas elegíveis" })}
             >
               Enfileirar
             </Button>
@@ -221,33 +242,51 @@ export function CampaignsPage() {
         </header>
       </Animate>
 
-      <SafeRemarketingConsole
-        campaigns={campaigns.data?.campaigns ?? []}
-        selectedCampaignId={selectedSafeCampaignId}
-        selectedValue={safeCampaignId}
-        onSelect={setSafeCampaignId}
-        confirmation={safeConfirm}
-        onConfirmationChange={setSafeConfirm}
-        readiness={readiness.data ?? null}
-        loadingReady={readiness.isFetching}
-        readyError={readiness.error?.message ?? null}
-        batchPhones={safeBatchPhones}
-        onBatchPhonesChange={setSafeBatchPhones}
-        batchConfirmation={safeBatchConfirm}
-        onBatchConfirmationChange={setSafeBatchConfirm}
-        batchReady={batchReady.data ?? null}
-        batchReadyPending={batchReady.isPending}
-        batchReadyError={batchReady.error?.message ?? null}
-        batchDispatchPending={batchDispatch.isPending}
-        lastBatchDispatch={lastBatchDispatch}
-        enqueuePending={
-          selectedSafeCampaignId ? isCampaignTickPending(selectedSafeCampaignId, false) : false
-        }
-        onReady={runSafeReady}
-        onEnqueue={runSafeEnqueue}
-        onBatchReady={runBatchReady}
-        onBatchDispatch={runBatchDispatch}
-      />
+      <Tabs defaultValue={intent === "enqueue" ? "dispatch" : "overview"} className="flex flex-col gap-4">
+        <TabsList className="grid w-full grid-cols-2 gap-1 md:w-auto md:grid-cols-4">
+          <TabsTrigger value="overview">Visão geral</TabsTrigger>
+          <TabsTrigger value="builder">Builder</TabsTrigger>
+          <TabsTrigger value="dispatch">Disparo</TabsTrigger>
+          <TabsTrigger value="recipients">Recipients</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-4">
+          <CampaignsOverviewPanel
+            campaigns={campaigns.data?.campaigns ?? []}
+            loading={campaigns.isLoading}
+            error={campaigns.error?.message ?? null}
+            lastTick={lastTick}
+          />
+        </TabsContent>
+
+        <TabsContent value="dispatch" className="space-y-4">
+          <SafeRemarketingConsole
+            campaigns={campaigns.data?.campaigns ?? []}
+            selectedCampaignId={selectedSafeCampaignId}
+            selectedValue={safeCampaignId}
+            onSelect={setSafeCampaignId}
+            confirmation={safeConfirm}
+            onConfirmationChange={setSafeConfirm}
+            readiness={readiness.data ?? null}
+            loadingReady={readiness.isFetching}
+            readyError={readiness.error?.message ?? null}
+            batchPhones={safeBatchPhones}
+            onBatchPhonesChange={setSafeBatchPhones}
+            batchConfirmation={safeBatchConfirm}
+            onBatchConfirmationChange={setSafeBatchConfirm}
+            batchReady={batchReady.data ?? null}
+            batchReadyPending={batchReady.isPending}
+            batchReadyError={batchReady.error?.message ?? null}
+            batchDispatchPending={batchDispatch.isPending}
+            lastBatchDispatch={lastBatchDispatch}
+            enqueuePending={
+              selectedSafeCampaignId ? isCampaignTickPending(selectedSafeCampaignId, false) : false
+            }
+            onReady={runSafeReady}
+            onEnqueue={runSafeEnqueue}
+            onBatchReady={runBatchReady}
+            onBatchDispatch={runBatchDispatch}
+          />
 
       {intent === "enqueue" && (
         <Animate preset="rise-in" delaySeconds={0.08}>
@@ -269,7 +308,7 @@ export function CampaignsPage() {
               <Button
                 variant="soft"
                 loading={isGlobalTickPending(false)}
-                onClick={() => tick.mutate({ dryRun: false })}
+                onClick={() => runConfirmedTick({ label: "campanhas elegíveis" })}
               >
                 Enfileirar elegíveis
               </Button>
@@ -367,12 +406,17 @@ export function CampaignsPage() {
         </Animate>
       )}
 
-      <Animate preset="rise-in" delaySeconds={0.1}>
-        <CampaignFlowBuilder />
-      </Animate>
+        </TabsContent>
 
-      <Animate preset="rise-in" delaySeconds={0.1}>
-        <Card>
+        <TabsContent value="builder" className="space-y-4">
+          <Animate preset="rise-in" delaySeconds={0.1}>
+            <CampaignFlowBuilder />
+          </Animate>
+        </TabsContent>
+
+        <TabsContent value="recipients" className="space-y-4">
+          <Animate preset="rise-in" delaySeconds={0.1}>
+            <Card>
           <CardHeader>
             <CardTitle>Existentes</CardTitle>
             <CardDescription>
@@ -462,7 +506,7 @@ export function CampaignsPage() {
                         data-campaign-id={c.id}
                         disabled={!isPausableCampaign(c.status)}
                         loading={isCampaignTickPending(c.id, false)}
-                        onClick={() => tick.mutate({ dryRun: false, campaignId: c.id })}
+                        onClick={() => runConfirmedTick({ campaignId: c.id, label: c.name })}
                       >
                         Enfileirar
                       </Button>
@@ -500,9 +544,107 @@ export function CampaignsPage() {
               </ul>
             )}
           </CardContent>
-        </Card>
-      </Animate>
+            </Card>
+          </Animate>
+        </TabsContent>
+      </Tabs>
     </div>
+  );
+}
+
+function CampaignsOverviewPanel({
+  campaigns,
+  loading,
+  error,
+  lastTick,
+}: {
+  campaigns: CampaignListItem[];
+  loading: boolean;
+  error: string | null;
+  lastTick: CampaignTickResult | null;
+}) {
+  const activeRecipients = campaigns.reduce(
+    (total, campaign) =>
+      total +
+      campaign.recipients.filter(
+        (recipient) => recipient.status === "queued" || recipient.status === "running",
+      ).length,
+    0,
+  );
+  const completedSteps = campaigns.reduce(
+    (total, campaign) => total + campaign.metrics.completedSteps,
+    0,
+  );
+  const failedSteps = campaigns.reduce((total, campaign) => total + campaign.metrics.failedSteps, 0);
+  const runningCampaigns = campaigns.filter((campaign) => campaign.status === "running").length;
+
+  return (
+    <Animate preset="rise-in" delaySeconds={0.04}>
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>Visão operacional</CardTitle>
+              <CardDescription>
+                Campanhas, filas e sinais de envio em linhas compactas.
+              </CardDescription>
+            </div>
+            <Badge variant={failedSteps > 0 ? "warning" : "cyan"}>
+              {failedSteps > 0 ? "atenção" : "estável"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            <CampaignMetric label="campanhas" value={loading ? "..." : campaigns.length} />
+            <CampaignMetric label="running" value={runningCampaigns} />
+            <CampaignMetric label="recipients ativos" value={activeRecipients} />
+            <CampaignMetric label="steps ok" value={completedSteps} />
+            <CampaignMetric label="falhas" value={failedSteps} />
+          </div>
+          {error ? <ErrorState description={error} /> : null}
+          {lastTick ? (
+            <div className="grid gap-2 rounded-lg bg-bg-base px-3 py-3 shadow-pressed-sm md:grid-cols-[1fr_auto_auto_auto]">
+              <div>
+                <div className="text-sm font-medium text-fg-primary">Último tick</div>
+                <div className="font-mono text-xs text-fg-dim">
+                  {lastTick.dryRun ? "prévia" : "execução real"} · {lastTick.plannedJobs.length} planejados
+                </div>
+              </div>
+              <CampaignMetric label="jobs" value={lastTick.jobsCreated || lastTick.plannedJobs.length} />
+              <CampaignMetric label="pulados" value={lastTick.recipientsSkipped} />
+              <CampaignMetric label="erros" value={lastTick.errors.length} />
+            </div>
+          ) : null}
+          {!loading && campaigns.length > 0 ? (
+            <div className="flex flex-col gap-1">
+              {campaigns.slice(0, 6).map((campaign) => (
+                <div
+                  key={campaign.id}
+                  className="grid gap-2 rounded-lg bg-bg-sunken/82 px-3 py-2.5 shadow-flat md:grid-cols-[minmax(0,1fr)_auto_auto_auto]"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-sm text-fg-primary">{campaign.name}</div>
+                    <div className="font-mono text-[0.68rem] text-fg-dim">
+                      #{campaign.id} · {campaign.steps.length} steps · {campaign.recipients.length} recipients
+                    </div>
+                  </div>
+                  <Badge variant={campaign.status === "running" ? "cyan" : "neutral"}>
+                    {campaign.status}
+                  </Badge>
+                  <span className="font-mono text-xs text-fg-muted">
+                    ok {campaign.metrics.completedSteps}
+                  </span>
+                  <span className="font-mono text-xs text-fg-muted">
+                    fail {campaign.metrics.failedSteps}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+    </Animate>
   );
 }
 
@@ -782,7 +924,9 @@ function SafeRemarketingConsole({
                   <CampaignMetric
                     label="temp"
                     value={
-                      batchReady.temporaryMessages.enabled
+                      batchReady.temporaryMessages.controlSteps.length > 0
+                        ? `${batchReady.temporaryMessages.controlSteps.length} step(s)`
+                        : batchReady.temporaryMessages.enabled
                         ? `${batchReady.temporaryMessages.beforeSendDuration}/${batchReady.temporaryMessages.afterCompletionDuration}`
                         : "off"
                     }
@@ -1047,8 +1191,10 @@ function issueResolution(issue: CampaignBlockIssue) {
       return "Confira status, steps, delays e recipients: a prévia não encontrou job pronto.";
     case "scheduler_preview_error":
       return "Resolva o erro retornado pela prévia do scheduler e rode a validação novamente.";
-    case "temporary_messages_m303_required":
-      return "Configure temporaryMessages com 24h antes do envio e restauração 90d.";
+    case "temporary_messages_audit_only":
+      return "Adicione um step de mensagens temporárias se quiser prova operacional antes do envio.";
+    case "temporary_messages_global_not_m303":
+      return "Revise o global antigo ou migre para steps explícitos de mensagens temporárias.";
     case "send_policy_allowlist_required":
       return "Informe allowlist explícita para lote real.";
     case "active_campaign_step_jobs":
