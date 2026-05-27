@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   createContactInputSchema,
   importContactsInputSchema,
+  normalizePhone,
   searchContactsInputSchema,
   updateContactInputSchema,
   type ImportContactRow,
@@ -25,11 +26,6 @@ const csvHeaderAliases = {
   primaryChannel: ["primaryChannel", "primary_channel", "canal"],
   status: ["status", "situacao"],
 } as const;
-
-function normalizePhone(phone: string | null | undefined): string | null {
-  const digits = phone?.replace(/\D/g, "") ?? "";
-  return digits.length >= 8 ? digits : null;
-}
 
 function normalizeEmail(email: string | null | undefined): string | null {
   const value = email?.trim().toLowerCase() ?? "";
@@ -81,7 +77,9 @@ function findCsvCell(
   return undefined;
 }
 
-function parseContactsCsv(csv: string): Array<ParsedContactRow | { error: string; sourceRow: number }> {
+function parseContactsCsv(
+  csv: string,
+): Array<ParsedContactRow | { error: string; sourceRow: number }> {
   const lines = csv
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -93,7 +91,9 @@ function parseContactsCsv(csv: string): Array<ParsedContactRow | { error: string
   return lines.slice(1).map((line, index) => {
     const sourceRow = index + 2;
     const cells = parseCsvLine(line);
-    const raw = Object.fromEntries(headers.map((header, cellIndex) => [header, cells[cellIndex] ?? ""]));
+    const raw = Object.fromEntries(
+      headers.map((header, cellIndex) => [header, cells[cellIndex] ?? ""]),
+    );
     const name = findCsvCell(raw, "name");
     if (!name) {
       return { sourceRow, error: "missing_name" };
@@ -104,7 +104,8 @@ function parseContactsCsv(csv: string): Array<ParsedContactRow | { error: string
       phone: normalizePhone(findCsvCell(raw, "phone")),
       email: normalizeEmail(findCsvCell(raw, "email")),
       instagramHandle: normalizeInstagram(findCsvCell(raw, "instagramHandle")),
-      primaryChannel: (findCsvCell(raw, "primaryChannel") as ParsedContactRow["primaryChannel"]) ?? "whatsapp",
+      primaryChannel:
+        (findCsvCell(raw, "primaryChannel") as ParsedContactRow["primaryChannel"]) ?? "whatsapp",
       status: (findCsvCell(raw, "status") as ParsedContactRow["status"]) ?? "lead",
       notes: findCsvCell(raw, "notes") ?? null,
     };
@@ -163,25 +164,21 @@ export const contactsRouter = router({
       return { contact };
     }),
 
-  create: protectedCsrfProcedure
-    .input(createContactBodySchema)
-    .mutation(async ({ ctx, input }) => {
-      const contact = await ctx.repos.contacts.create({
-        ...input,
-        userId: ctx.user.id,
-      });
-      return { contact };
-    }),
+  create: protectedCsrfProcedure.input(createContactBodySchema).mutation(async ({ ctx, input }) => {
+    const contact = await ctx.repos.contacts.create({
+      ...input,
+      userId: ctx.user.id,
+    });
+    return { contact };
+  }),
 
-  update: protectedCsrfProcedure
-    .input(updateContactBodySchema)
-    .mutation(async ({ ctx, input }) => {
-      const contact = await ctx.repos.contacts.update({
-        ...input,
-        userId: ctx.user.id,
-      });
-      return { contact };
-    }),
+  update: protectedCsrfProcedure.input(updateContactBodySchema).mutation(async ({ ctx, input }) => {
+    const contact = await ctx.repos.contacts.update({
+      ...input,
+      userId: ctx.user.id,
+    });
+    return { contact };
+  }),
 
   import: protectedCsrfProcedure
     .input(importContactsInputSchema)

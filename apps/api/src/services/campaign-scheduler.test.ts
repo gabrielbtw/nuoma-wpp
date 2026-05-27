@@ -55,7 +55,7 @@ describe("campaign scheduler tick", () => {
       userId: user.id,
       campaignId: campaign.id,
       contactId: null,
-      phone: "55 (31) 98206-6263",
+      phone: "31982066263",
       channel: "whatsapp",
       status: "queued",
       currentStepId: null,
@@ -208,8 +208,9 @@ describe("campaign scheduler tick", () => {
       ownerId: "temp-step",
       now: new Date("2026-05-04T12:00:00.000Z"),
     });
-    const jobs = (await repos.jobs.list(user.id, "queued")).sort((a, b) =>
-      Number(a.payload.campaignBatchIndex ?? 0) - Number(b.payload.campaignBatchIndex ?? 0),
+    const jobs = (await repos.jobs.list(user.id, "queued")).sort(
+      (a, b) =>
+        Number(a.payload.campaignBatchIndex ?? 0) - Number(b.payload.campaignBatchIndex ?? 0),
     );
     const updated = await repos.campaignRecipients.findById({
       userId: user.id,
@@ -879,7 +880,9 @@ describe("campaign scheduler tick", () => {
       evergreenRecipientsCreated: 0,
       jobsCreated: 0,
     });
-    expect(await repos.campaignRecipients.listByCampaign({ userId: user.id, campaignId: campaign.id })).toHaveLength(0);
+    expect(
+      await repos.campaignRecipients.listByCampaign({ userId: user.id, campaignId: campaign.id }),
+    ).toHaveLength(0);
 
     const created = await runCampaignSchedulerTick({
       repos,

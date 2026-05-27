@@ -202,7 +202,7 @@ describe("repositories", () => {
       type: "campaign_step",
       status: "running",
       payload: {
-        phone: "55 (31) 98206-6263",
+        phone: "31982066263",
         campaignId: 1,
         recipientId: 10,
       },
@@ -505,7 +505,7 @@ describe("repositories", () => {
       userId: user.id,
       type: "send_message",
       status: "claimed",
-      payload: { conversationId: 1, phone: "+55 (31) 98206-6263", body: "ativo" },
+      payload: { conversationId: 1, phone: "31982066263", body: "ativo" },
       priority: 0,
       scheduledAt: "2026-04-30T12:00:00.000Z",
     });

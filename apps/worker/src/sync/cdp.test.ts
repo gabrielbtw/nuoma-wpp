@@ -121,6 +121,25 @@ describe("CDP active send target guard", () => {
     ).toBe(true);
   });
 
+  it("allows the canonical test phone when live evidence is local BR digits only", () => {
+    expect(
+      shouldAllowActiveSendTarget({
+        expectedPhone: "5531982066263",
+        state: {
+          ...baseState,
+          title: "31982066263",
+          titlePhone: "31982066263",
+          overlayPhone: "31982066263",
+        },
+        openChatPhone: null,
+        openChatPhoneNavigatedAtMs: 0,
+        nowMs: 1_000_000,
+        allowedSelfChatPhones: [],
+        expectedTitle: null,
+      }),
+    ).toBe(true);
+  });
+
   it("allows a saved-contact title immediately after navigating when overlay confirms the live target phone", () => {
     expect(
       shouldAllowActiveSendTarget({

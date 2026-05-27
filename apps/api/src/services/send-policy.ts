@@ -1,4 +1,7 @@
 import type { ApiEnv } from "@nuoma/config";
+import { normalizePhone } from "@nuoma/contracts";
+
+export { normalizePhone } from "@nuoma/contracts";
 
 const CLIENT_ALLOWED_PHONE_OVERRIDE = "5531982066263";
 
@@ -59,11 +62,6 @@ export function parsePhoneList(
     }
   }
   return [...phones];
-}
-
-export function normalizePhone(phone: string | null | undefined): string | null {
-  const digits = phone?.replace(/\D/g, "") ?? "";
-  return digits.length >= 8 ? digits : null;
 }
 
 export function normalizeClientAllowedPhoneOverride(

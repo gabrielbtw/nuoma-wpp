@@ -16,6 +16,7 @@ import {
   mediaAssetSchema,
   messageDispatchAttemptSchema,
   messageSchema,
+  normalizePhone,
   quickReplySchema,
   reminderSchema,
   tagSchema,
@@ -232,8 +233,7 @@ function normalizeNullableIsoDateTime(value: string | null | undefined): string 
 
 function isContractIsoDateTime(value: string): boolean {
   return (
-    /^\d{4}-\d{2}-\d{2}T.+(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
-    Number.isFinite(Date.parse(value))
+    /^\d{4}-\d{2}-\d{2}T.+(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value))
   );
 }
 
@@ -256,8 +256,7 @@ function isDisplayableConversation(conversation: Conversation): boolean {
 }
 
 function normalizeConversationPhone(value: string | null | undefined): string | null {
-  const digits = value?.replace(/\D/g, "") ?? "";
-  return digits.length >= 10 && digits.length <= 13 ? digits : null;
+  return normalizePhone(value);
 }
 
 const activeCampaignRecipientStatuses: Array<typeof campaignRecipients.$inferSelect.status> = [
@@ -266,8 +265,7 @@ const activeCampaignRecipientStatuses: Array<typeof campaignRecipients.$inferSel
 ];
 
 function normalizeCampaignPipelinePhone(value: string | null | undefined): string | null {
-  const digits = value?.replace(/\D/g, "") ?? "";
-  return digits.length >= 10 && digits.length <= 13 ? digits : null;
+  return normalizePhone(value);
 }
 
 function campaignActivePipelineKey(input: {
@@ -415,8 +413,17 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+function normalizedPhoneSql(valueSql: string): string {
+  const digits = `replace(replace(replace(replace(replace(coalesce(${valueSql}, ''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', '')`;
+  return `(CASE
+    WHEN length(${digits}) IN (12, 13) AND substr(${digits}, 1, 2) = '55' THEN ${digits}
+    WHEN length(${digits}) IN (10, 11) THEN '55' || ${digits}
+    ELSE ''
+  END)`;
+}
+
 function normalizedJsonPhoneSql(tableAlias: string): string {
-  return `replace(replace(replace(replace(replace(coalesce(json_extract(${tableAlias}.payload_json, '$.phone'), ''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', '')`;
+  return normalizedPhoneSql(`json_extract(${tableAlias}.payload_json, '$.phone')`);
 }
 
 function expectRow<T>(row: T | undefined, context: string): T {
@@ -1503,11 +1510,7 @@ export function createRepositories(handle: DbHandle) {
         // ON CONFLICT DO NOTHING is safe here because every other unique
         // constraint on messages tolerates the values used for outbound
         // inserts (external_id is NULL until the platform returns it).
-        const inserted = await db
-          .insert(messages)
-          .values(values)
-          .onConflictDoNothing()
-          .returning();
+        const inserted = await db.insert(messages).values(values).onConflictDoNothing().returning();
         if (inserted[0]) {
           return { message: mapMessage(inserted[0]), created: true };
         }
@@ -1936,10 +1939,7 @@ export function createRepositories(handle: DbHandle) {
         if (input.currentStepId !== undefined) patch.currentStepId = input.currentStepId;
         if (input.lastError !== undefined) patch.lastError = input.lastError;
         if (input.metadata !== undefined) patch.metadata = encodeJson(input.metadata);
-        if (
-          input.status !== undefined &&
-          !activeCampaignRecipientStatuses.includes(input.status)
-        ) {
+        if (input.status !== undefined && !activeCampaignRecipientStatuses.includes(input.status)) {
           patch.activePipelineKey = null;
         }
 
@@ -2321,8 +2321,7 @@ export function createRepositories(handle: DbHandle) {
           const sendTypePlaceholders = serialSendJobTypes.map(() => "?").join(", ");
           const jobPhoneExpr = normalizedJsonPhoneSql("jobs");
           const activePhoneExpr = normalizedJsonPhoneSql("active_jobs");
-          const candidateRecipientPhoneExpr =
-            "replace(replace(replace(replace(replace(coalesce(candidate_recipients.phone, ''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', '')";
+          const candidateRecipientPhoneExpr = normalizedPhoneSql("candidate_recipients.phone");
           const rows = handle.raw
             .prepare(
               `SELECT id, ${jobPhoneExpr} AS phone_key FROM jobs

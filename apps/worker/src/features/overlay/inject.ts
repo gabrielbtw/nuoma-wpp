@@ -1052,7 +1052,13 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
 
   function normalizePhone(value) {
     const digits = text(value).replace(/\\D/g, "");
-    return digits.length >= 10 && digits.length <= 16 ? digits : "";
+    if ((digits.length === 12 || digits.length === 13) && digits.startsWith("55")) {
+      return digits;
+    }
+    if (digits.length === 10 || digits.length === 11) {
+      return "55" + digits;
+    }
+    return "";
   }
 
   function phoneScore(phone) {

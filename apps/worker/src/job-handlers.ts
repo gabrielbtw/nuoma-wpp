@@ -8,6 +8,7 @@ import {
   campaignTemporaryMessagesConfigSchema,
   extractIdempotencyKeyFromJobPayload,
   jobSchema,
+  normalizePhone,
   type CampaignStep,
   type CampaignTemporaryMessagesConfig,
   type Job,
@@ -2657,11 +2658,6 @@ function resolveMediaStoragePath(storagePath: string): string {
     return path.resolve(process.cwd(), storagePath);
   }
   return path.resolve(process.cwd(), "../..", storagePath);
-}
-
-function normalizePhone(value: string | null | undefined): string | null {
-  const normalized = String(value ?? "").replace(/\D/g, "");
-  return normalized.length >= 10 ? normalized : null;
 }
 
 function assertNeverJobType(type: never): never {

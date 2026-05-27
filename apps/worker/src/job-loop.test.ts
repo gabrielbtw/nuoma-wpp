@@ -232,7 +232,7 @@ describe("worker job loop", () => {
       status: "queued",
       payload: {
         conversationId: conversation.id,
-        phone: "5531982066263",
+        phone: "31982066263",
         body: "teste controlado",
       },
       scheduledAt: "2026-04-30T12:00:00.000Z",

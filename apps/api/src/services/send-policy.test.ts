@@ -4,7 +4,9 @@ import type { ApiEnv } from "@nuoma/config";
 
 import {
   evaluateApiRealSendTarget,
+  normalizePhone,
   normalizeClientAllowedPhoneOverride,
+  parsePhoneList,
   resolveApiSendPolicy,
 } from "./send-policy.js";
 
@@ -44,10 +46,20 @@ describe("api send policy", () => {
     const policy = resolveApiSendPolicy(baseEnv);
 
     expect(evaluateApiRealSendTarget(policy, "5531982066263")).toEqual({ allowed: true });
+    expect(evaluateApiRealSendTarget(policy, "31982066263")).toEqual({ allowed: true });
     expect(evaluateApiRealSendTarget(policy, "5531999999999")).toEqual({
       allowed: false,
       reason: "not_allowlisted_for_test_execution",
     });
+  });
+
+  it("normalizes Brazilian phone variants into one canonical identity", () => {
+    expect(normalizePhone("31982066263")).toBe("5531982066263");
+    expect(normalizePhone("5531982066263")).toBe("5531982066263");
+    expect(normalizePhone("+55 31 98206-6263")).toBe("5531982066263");
+    expect(parsePhoneList("31982066263, 5531982066263, +55 31 98206-6263")).toEqual([
+      "5531982066263",
+    ]);
   });
 
   it("blocks production mode without a canary allowlist", () => {
@@ -76,6 +88,7 @@ describe("api send policy", () => {
   });
 
   it("keeps client-side allowedPhone override pinned to the canonical test phone", () => {
+    expect(normalizeClientAllowedPhoneOverride("31982066263")).toBe("5531982066263");
     expect(normalizeClientAllowedPhoneOverride("+55 (31) 98206-6263")).toBe("5531982066263");
     expect(normalizeClientAllowedPhoneOverride("5531999999999")).toBeUndefined();
   });

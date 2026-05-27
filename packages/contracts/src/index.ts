@@ -19,6 +19,7 @@ export * from "./jobs.js";
 export * from "./media-assets.js";
 export * from "./messages.js";
 export * from "./pagination.js";
+export * from "./phone.js";
 export * from "./quick-replies.js";
 export * from "./reminders.js";
 export * from "./tags.js";

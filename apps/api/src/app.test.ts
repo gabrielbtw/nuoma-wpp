@@ -977,13 +977,7 @@ describe("api health", () => {
           summary: { images: number; reports: number; json: number };
         }>;
         summary: { groups: number; images: number; reports: number; json: number };
-      }>(
-        app,
-        "GET",
-        "evidence.list",
-        { limit: 10 },
-        { cookie: cookies },
-      );
+      }>(app, "GET", "evidence.list", { limit: 10 }, { cookie: cookies });
       expect(evidence.statusCode, JSON.stringify(evidence.error)).toBe(200);
       expect(evidence.data).toMatchObject({
         dataRoot: evidenceRoot,
@@ -1755,11 +1749,17 @@ describe("api health", () => {
       );
 
       const expectRealExecuteBlocked = async (expectedStatus: string) => {
-        const blocked = await trpcCall(app, "POST", "campaigns.execute", {
-          campaignId: campaignCreate.data!.campaign.id,
-          dryRun: false,
-          phones: ["5531982066263"],
-        }, { cookie: cookies, csrfToken });
+        const blocked = await trpcCall(
+          app,
+          "POST",
+          "campaigns.execute",
+          {
+            campaignId: campaignCreate.data!.campaign.id,
+            dryRun: false,
+            phones: ["5531982066263"],
+          },
+          { cookie: cookies, csrfToken },
+        );
         expect(blocked.statusCode).toBe(400);
         expect(blocked.error?.message).toContain(`Campanha está em ${expectedStatus}`);
       };
@@ -2532,7 +2532,7 @@ describe("api health", () => {
           method: "runCampaignForPhone",
           params: {
             campaignId: campaign.id,
-            phone: "5531982066263",
+            phone: "31982066263",
             phoneSource: "title-conversation",
             reason: "m38-api-test",
           },
@@ -2568,7 +2568,7 @@ describe("api health", () => {
           method: "runCampaignForPhone",
           params: {
             campaignId: campaign.id,
-            phone: "5531982066263",
+            phone: "31982066263",
             phoneSource: "title-conversation",
             reason: "m38-api-test",
           },
@@ -3070,7 +3070,10 @@ describe("api health", () => {
         },
         { cookie: cookies, csrfToken },
       );
-      expect(missingTemporaryMessages.statusCode, JSON.stringify(missingTemporaryMessages.error)).toBe(200);
+      expect(
+        missingTemporaryMessages.statusCode,
+        JSON.stringify(missingTemporaryMessages.error),
+      ).toBe(200);
       expect(missingTemporaryMessages.data?.canDispatch).toBe(false);
       expect(missingTemporaryMessages.data?.issues).toEqual(
         expect.arrayContaining([

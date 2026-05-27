@@ -185,7 +185,13 @@ export function createWhatsAppObserverScript(bindingName = SYNC_BINDING_NAME): s
 
   function normalizePhone(value) {
     const digits = cleanText(value).replace(/\\D/g, "");
-    return digits.length >= 8 ? digits : null;
+    if ((digits.length === 12 || digits.length === 13) && digits.startsWith("55")) {
+      return digits;
+    }
+    if (digits.length === 10 || digits.length === 11) {
+      return "55" + digits;
+    }
+    return null;
   }
 
   function phoneFromText(value) {

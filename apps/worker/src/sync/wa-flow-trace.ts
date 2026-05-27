@@ -1,3 +1,5 @@
+import { normalizePhone } from "@nuoma/contracts";
+
 import type { SyncEvent } from "./events.js";
 
 export interface WaFlowTraceFilter {
@@ -24,9 +26,4 @@ export function filterWhatsAppFlowTrace(
       normalizePhone(event.thread.phone) ?? normalizePhone(event.thread.externalThreadId);
     return threadPhone === normalizedPhone;
   });
-}
-
-function normalizePhone(value: string | null | undefined): string | null {
-  const digits = String(value ?? "").replace(/\D/g, "");
-  return digits.length >= 8 ? digits : null;
 }

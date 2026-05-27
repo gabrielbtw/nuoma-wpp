@@ -1,5 +1,6 @@
 import {
   contactStatusSchema,
+  normalizePhone,
   type Automation,
   type AutomationAction,
 } from "@nuoma/contracts";
@@ -370,9 +371,4 @@ export async function triggerAutomationForPhone(
     skippedActions,
     wouldEnqueueJobs: jobsCreated > 0,
   };
-}
-
-function normalizePhone(phone: string | null | undefined): string | null {
-  const digits = phone?.replace(/\D/g, "") ?? "";
-  return digits.length >= 8 ? digits : null;
 }

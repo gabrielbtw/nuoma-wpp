@@ -1,4 +1,4 @@
-import type { Conversation } from "@nuoma/contracts";
+import { normalizePhone, type Conversation } from "@nuoma/contracts";
 
 export function conversationDisplayTitle(conversation: Conversation): string {
   const phone = normalizePhone(conversation.externalThreadId) ?? normalizePhone(conversation.title);
@@ -38,11 +38,6 @@ export function conversationIdentityLine(conversation: Conversation): string {
     return formatBrazilianPhone(phone);
   }
   return conversation.externalThreadId;
-}
-
-function normalizePhone(value: string | null | undefined): string | null {
-  const digits = value?.replace(/\D/g, "") ?? "";
-  return digits.length >= 10 && digits.length <= 13 ? digits : null;
 }
 
 function isPotentialContactName(value: string): boolean {

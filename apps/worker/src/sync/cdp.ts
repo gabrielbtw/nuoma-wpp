@@ -7,6 +7,7 @@ import CDP from "chrome-remote-interface";
 import type { Logger } from "pino";
 
 import { CONSTANTS, type WorkerEnv } from "@nuoma/config";
+import { normalizePhone } from "@nuoma/contracts";
 import type { Repositories } from "@nuoma/db";
 
 import {
@@ -379,7 +380,9 @@ export async function startSyncEngine(input: {
 
     await client.Runtime.enable();
     await client.Page.enable();
-    await client.Runtime.removeBinding({ name: NUOMA_OVERLAY_API_BINDING_NAME }).catch(() => undefined);
+    await client.Runtime.removeBinding({ name: NUOMA_OVERLAY_API_BINDING_NAME }).catch(
+      () => undefined,
+    );
     await client.Runtime.evaluate({
       expression: `
         (() => {
@@ -695,10 +698,10 @@ export async function startSyncEngine(input: {
               source: "worker-db",
               apiStatus: ok ? "online" : "error",
               apiLastMethod: request.method,
-              apiLastError: ok ? null : result.rejected[0]?.reason ?? "campaign_blocked",
+              apiLastError: ok ? null : (result.rejected[0]?.reason ?? "campaign_blocked"),
               campaignRunStatus: ok ? "done" : "error",
               campaignRunLastResult: result,
-              campaignRunLastError: ok ? null : result.rejected[0]?.reason ?? "campaign_blocked",
+              campaignRunLastError: ok ? null : (result.rejected[0]?.reason ?? "campaign_blocked"),
             },
           },
           ...(ok
@@ -716,7 +719,7 @@ export async function startSyncEngine(input: {
           phone: auditPhone,
           phoneSource: auditPhoneSource,
           latencyMs: Date.now() - startedAt,
-          errorCode: ok ? undefined : result.rejected[0]?.reason ?? "campaign_blocked",
+          errorCode: ok ? undefined : (result.rejected[0]?.reason ?? "campaign_blocked"),
           errorMessage: ok ? undefined : "Overlay campaign dispatch blocked",
         });
         return;
@@ -802,9 +805,7 @@ export async function startSyncEngine(input: {
 
   function validateOverlayApiSecurity(
     request: OverlayApiRequest,
-  ):
-    | { ok: true }
-    | { ok: false; errorCode: string; errorMessage: string } {
+  ): { ok: true } | { ok: false; errorCode: string; errorMessage: string } {
     if (overlayApiReadOnlyMethods.has(request.method)) {
       return { ok: true };
     }
@@ -837,10 +838,7 @@ export async function startSyncEngine(input: {
     allowedPhones: string[];
   } {
     const phones = new Set<string>();
-    for (const raw of [
-      input.env.WA_SEND_ALLOWED_PHONES,
-      input.env.WA_SEND_ALLOWED_PHONE,
-    ]) {
+    for (const raw of [input.env.WA_SEND_ALLOWED_PHONES, input.env.WA_SEND_ALLOWED_PHONE]) {
       for (const part of String(raw ?? "").split(",")) {
         const phone = normalizePhone(part);
         if (phone) {
@@ -1075,7 +1073,9 @@ export async function startSyncEngine(input: {
       normalizePhone(titleConversation?.externalThreadId) ??
       normalizePhone(titleConversation?.title);
     const phoneSource =
-      phone && titleConversation && (!inputSnapshot.phoneSource || inputSnapshot.phoneSource === "unresolved")
+      phone &&
+      titleConversation &&
+      (!inputSnapshot.phoneSource || inputSnapshot.phoneSource === "unresolved")
         ? "title-conversation"
         : inputSnapshot.phoneSource;
     const allConversations = await input.repos.conversations.list(inputSnapshot.userId, 100);
@@ -1356,13 +1356,13 @@ export async function startSyncEngine(input: {
       userId: sendInput.userId,
       conversationId: sendInput.conversationId,
     });
-      await assertActiveSendTarget({
-        expectedPhone: phone,
-        operation: "send_message",
-        userId: sendInput.userId,
-        conversationId: sendInput.conversationId,
-        requireLivePhoneEvidence: true,
-      });
+    await assertActiveSendTarget({
+      expectedPhone: phone,
+      operation: "send_message",
+      userId: sendInput.userId,
+      conversationId: sendInput.conversationId,
+      requireLivePhoneEvidence: true,
+    });
     const before = await requestActiveReconcile(`${reason}:before-send`, {
       scope: "send-message",
       conversationId: sendInput.conversationId,
@@ -1438,9 +1438,10 @@ export async function startSyncEngine(input: {
         `temporary_messages verification failed: requested=${ensureInput.duration} verified=${result.verifiedDuration ?? "none"} menuDetected=${String(result.menuDetected)} reason=${result.reason ?? "unknown"}`,
       );
     }
-    const visualProof = ensureInput.phase === "before_send" || ensureInput.phase === "temporary_messages_set"
-      ? await captureTemporaryMessagesVisualProof(ensureInput.duration)
-      : null;
+    const visualProof =
+      ensureInput.phase === "before_send" || ensureInput.phase === "temporary_messages_set"
+        ? await captureTemporaryMessagesVisualProof(ensureInput.duration)
+        : null;
     return {
       mode: "temporary-messages",
       conversationId: ensureInput.conversationId,
@@ -1478,7 +1479,9 @@ export async function startSyncEngine(input: {
     });
     const value = proof.result.value;
     if (!isRecord(value)) {
-      throw new Error(`temporary_messages visual proof returned invalid result: ${JSON.stringify(value ?? null)}`);
+      throw new Error(
+        `temporary_messages visual proof returned invalid result: ${JSON.stringify(value ?? null)}`,
+      );
     }
     const verifiedDuration = parseTemporaryMessagesDuration(value.verifiedDuration);
     if (verifiedDuration !== duration) {
@@ -1587,7 +1590,10 @@ export async function startSyncEngine(input: {
           injectionConsumed = await waitForVoiceInjectionConsumed();
         } catch (error) {
           fallbackReason = "native_recorder_injection_not_consumed";
-          input.logger.warn({ error }, "send_voice native recorder injection did not consume payload");
+          input.logger.warn(
+            { error },
+            "send_voice native recorder injection did not consume payload",
+          );
           throw new Error(
             `send_voice requires native WhatsApp PTT recording; internal media fallback blocked (${fallbackReason})`,
           );
@@ -1605,12 +1611,13 @@ export async function startSyncEngine(input: {
         navigationMode,
       });
       await bindingQueue;
-      const bubble = await waitForVoiceBubbleByExternalId(after?.lastExternalId ?? null, 10_000).catch(
-        () => ({
-          nativeVoiceEvidence: false,
-          displayDurationSecs: null,
-        }),
-      );
+      const bubble = await waitForVoiceBubbleByExternalId(
+        after?.lastExternalId ?? null,
+        10_000,
+      ).catch(() => ({
+        nativeVoiceEvidence: false,
+        displayDurationSecs: null,
+      }));
       const externalId = sentExternalId(before, after);
       const visibleMessageCountBefore = before?.visibleMessageCount ?? 0;
       const visibleMessageCountAfter = after?.visibleMessageCount ?? 0;
@@ -1800,7 +1807,9 @@ export async function startSyncEngine(input: {
         );
       }
       if (mediaFiles.length === 0) {
-        throw new Error(`send_media ${mediaInput.mediaType} internal fallback requires at least one media file`);
+        throw new Error(
+          `send_media ${mediaInput.mediaType} internal fallback requires at least one media file`,
+        );
       }
       let fallback: { chatId: string | null } = { chatId: null };
       for (const [index, fallbackFile] of mediaFiles.entries()) {
@@ -1830,7 +1839,11 @@ export async function startSyncEngine(input: {
       try {
         const fallback = await sendInternalFallback();
         input.logger.info(
-          { mediaType: mediaInput.mediaType, mediaCount: expectedMediaCount, chatId: fallback.chatId },
+          {
+            mediaType: mediaInput.mediaType,
+            mediaCount: expectedMediaCount,
+            chatId: fallback.chatId,
+          },
           "send_media sent via WhatsApp internal media API before visual attachment flow",
         );
       } catch (error) {
@@ -1847,99 +1860,101 @@ export async function startSyncEngine(input: {
     }
 
     if (!sentByInternalFallback) {
-    input.logger.info(
-      { mediaType: mediaInput.mediaType, mediaCount: mediaFiles.length },
-      "send_media stage clear-preview",
-    );
-    await withTimeout(
-      clearDocumentPreviewAttachments(),
-      10_000,
-      `send_media ${mediaInput.mediaType} clear preview timed out`,
-    );
-    input.logger.info(
-      { mediaType: mediaInput.mediaType, mediaCount: mediaFiles.length },
-      "send_media stage attach-files",
-    );
-    await withTimeout(
-      attachMediaFiles(
-        mediaFiles.map((file) => file.filePath),
-        mediaInput.mediaType,
-      ),
-      20_000,
-      `send_media ${mediaInput.mediaType} attach files timed out`,
-    );
-    input.logger.info({ mediaType: mediaInput.mediaType }, "send_media stage wait-preview");
-    try {
-      const preview = await withTimeout(
-        waitForMediaPreview(mediaInput.mediaType, 15_000, expectedMediaCount),
-        18_000,
-        `send_media ${mediaInput.mediaType} preview wait timed out`,
+      input.logger.info(
+        { mediaType: mediaInput.mediaType, mediaCount: mediaFiles.length },
+        "send_media stage clear-preview",
       );
-      previewAttachmentCount = preview.attachmentCount;
-    } catch (error) {
-      if (!allowInternalFallback) {
-        throw error;
-      }
-      const fallback = await sendInternalFallback();
-      input.logger.warn(
-        { error, mediaType: mediaInput.mediaType, chatId: fallback.chatId },
-        "send_media attachment preview did not open; sent via WhatsApp internal media API",
-      );
-    }
-    if (!sentByInternalFallback) {
-      if (caption) {
-        input.logger.info({ mediaType: mediaInput.mediaType }, "send_media stage caption");
-        captionSent = await withTimeout(
-          tryInsertAttachmentCaption(caption),
-          10_000,
-          `send_media ${mediaInput.mediaType} caption timed out`,
-        );
-      }
-      input.logger.info({ mediaType: mediaInput.mediaType }, "send_media stage dismiss-dialog");
       await withTimeout(
-        dismissStartingConversationDialog(),
-        8_000,
-        `send_media ${mediaInput.mediaType} dismiss dialog timed out`,
-      );
-      input.logger.info({ mediaType: mediaInput.mediaType }, "send_media stage click-send");
-      await withTimeout(
-        clickSendButton(),
+        clearDocumentPreviewAttachments(),
         10_000,
-        `send_media ${mediaInput.mediaType} click send timed out`,
+        `send_media ${mediaInput.mediaType} clear preview timed out`,
       );
-      input.logger.info({ mediaType: mediaInput.mediaType }, "send_media stage wait-outgoing");
-      captionVisible = caption
-        ? await withTimeout(
-            waitForVisiblePageText(caption, input.env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS),
-            input.env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS + 5_000,
-            `send_media ${mediaInput.mediaType} outgoing caption visibility timed out`,
-          )
-        : true;
-      previewClosed = await waitForAttachmentPreviewClosed(10_000);
-      if (!previewClosed && (await hasStartingConversationDialog())) {
-        input.logger.info(
-          { mediaType: mediaInput.mediaType },
-          "send_media starting conversation dialog blocked first click; retrying send",
+      input.logger.info(
+        { mediaType: mediaInput.mediaType, mediaCount: mediaFiles.length },
+        "send_media stage attach-files",
+      );
+      await withTimeout(
+        attachMediaFiles(
+          mediaFiles.map((file) => file.filePath),
+          mediaInput.mediaType,
+        ),
+        20_000,
+        `send_media ${mediaInput.mediaType} attach files timed out`,
+      );
+      input.logger.info({ mediaType: mediaInput.mediaType }, "send_media stage wait-preview");
+      try {
+        const preview = await withTimeout(
+          waitForMediaPreview(mediaInput.mediaType, 15_000, expectedMediaCount),
+          18_000,
+          `send_media ${mediaInput.mediaType} preview wait timed out`,
         );
-        await dismissStartingConversationDialog();
-        await withTimeout(
-          clickSendButton(),
-          10_000,
-          `send_media ${mediaInput.mediaType} retry click send timed out`,
-        );
-        previewClosed = await waitForAttachmentPreviewClosed(30_000);
-      }
-      if (!previewClosed) {
+        previewAttachmentCount = preview.attachmentCount;
+      } catch (error) {
         if (!allowInternalFallback) {
-          throw new Error(`send_media ${mediaInput.mediaType} preview remained open after send click`);
+          throw error;
         }
         const fallback = await sendInternalFallback();
         input.logger.warn(
-          { mediaType: mediaInput.mediaType, chatId: fallback.chatId },
-          "send_media visual send button did not close preview; sent via WhatsApp internal media API",
+          { error, mediaType: mediaInput.mediaType, chatId: fallback.chatId },
+          "send_media attachment preview did not open; sent via WhatsApp internal media API",
         );
       }
-    }
+      if (!sentByInternalFallback) {
+        if (caption) {
+          input.logger.info({ mediaType: mediaInput.mediaType }, "send_media stage caption");
+          captionSent = await withTimeout(
+            tryInsertAttachmentCaption(caption),
+            10_000,
+            `send_media ${mediaInput.mediaType} caption timed out`,
+          );
+        }
+        input.logger.info({ mediaType: mediaInput.mediaType }, "send_media stage dismiss-dialog");
+        await withTimeout(
+          dismissStartingConversationDialog(),
+          8_000,
+          `send_media ${mediaInput.mediaType} dismiss dialog timed out`,
+        );
+        input.logger.info({ mediaType: mediaInput.mediaType }, "send_media stage click-send");
+        await withTimeout(
+          clickSendButton(),
+          10_000,
+          `send_media ${mediaInput.mediaType} click send timed out`,
+        );
+        input.logger.info({ mediaType: mediaInput.mediaType }, "send_media stage wait-outgoing");
+        captionVisible = caption
+          ? await withTimeout(
+              waitForVisiblePageText(caption, input.env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS),
+              input.env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS + 5_000,
+              `send_media ${mediaInput.mediaType} outgoing caption visibility timed out`,
+            )
+          : true;
+        previewClosed = await waitForAttachmentPreviewClosed(10_000);
+        if (!previewClosed && (await hasStartingConversationDialog())) {
+          input.logger.info(
+            { mediaType: mediaInput.mediaType },
+            "send_media starting conversation dialog blocked first click; retrying send",
+          );
+          await dismissStartingConversationDialog();
+          await withTimeout(
+            clickSendButton(),
+            10_000,
+            `send_media ${mediaInput.mediaType} retry click send timed out`,
+          );
+          previewClosed = await waitForAttachmentPreviewClosed(30_000);
+        }
+        if (!previewClosed) {
+          if (!allowInternalFallback) {
+            throw new Error(
+              `send_media ${mediaInput.mediaType} preview remained open after send click`,
+            );
+          }
+          const fallback = await sendInternalFallback();
+          input.logger.warn(
+            { mediaType: mediaInput.mediaType, chatId: fallback.chatId },
+            "send_media visual send button did not close preview; sent via WhatsApp internal media API",
+          );
+        }
+      }
     }
     input.logger.info(
       { mediaType: mediaInput.mediaType, captionVisible, previewClosed, sentByInternalFallback },
@@ -2135,7 +2150,9 @@ export async function startSyncEngine(input: {
     });
     const value = result.result.value;
     if (!isRecord(value)) {
-      throw new Error(`temporary_messages returned invalid result: ${JSON.stringify(value ?? null)}`);
+      throw new Error(
+        `temporary_messages returned invalid result: ${JSON.stringify(value ?? null)}`,
+      );
     }
     return {
       changed: value.changed === true,
@@ -2981,7 +2998,9 @@ export async function startSyncEngine(input: {
       }
       await sleep(250);
     }
-    throw new Error(`send_media ${mediaType} preview did not open with ${expectedCount} attachment(s)`);
+    throw new Error(
+      `send_media ${mediaType} preview did not open with ${expectedCount} attachment(s)`,
+    );
   }
 
   async function getAttachmentPreviewState(): Promise<{ open: boolean }> {
@@ -3712,13 +3731,7 @@ export async function startSyncEngine(input: {
     if (!normalized) {
       throw new Error("temporary_messages requires a valid WhatsApp phone");
     }
-    if (
-      await canReuseOpenChat(
-        inputTemporary.userId,
-        inputTemporary.conversationId,
-        normalized,
-      )
-    ) {
+    if (await canReuseOpenChat(inputTemporary.userId, inputTemporary.conversationId, normalized)) {
       return "reused-open-chat";
     }
     await navigateWhatsAppPhone(normalized);
@@ -3776,16 +3789,18 @@ export async function startSyncEngine(input: {
     let state = await readActiveSendTargetState();
     let contactInfoChecked = false;
     while (Date.now() < deadline) {
-      if (shouldAllowActiveSendTarget({
-        expectedPhone: assertInput.expectedPhone,
-        state,
-        openChatPhone,
-        openChatPhoneNavigatedAtMs,
-        nowMs: Date.now(),
-        allowedSelfChatPhones,
-        expectedTitle,
-        requireLivePhoneEvidence: assertInput.requireLivePhoneEvidence,
-      })) {
+      if (
+        shouldAllowActiveSendTarget({
+          expectedPhone: assertInput.expectedPhone,
+          state,
+          openChatPhone,
+          openChatPhoneNavigatedAtMs,
+          nowMs: Date.now(),
+          allowedSelfChatPhones,
+          expectedTitle,
+          requireLivePhoneEvidence: assertInput.requireLivePhoneEvidence,
+        })
+      ) {
         return;
       }
       if ((assertInput.requireLivePhoneEvidence ?? true) && !contactInfoChecked) {
@@ -3806,7 +3821,10 @@ export async function startSyncEngine(input: {
     );
   }
 
-  async function expectedSendTargetTitle(userId: number, conversationId: number): Promise<string | null> {
+  async function expectedSendTargetTitle(
+    userId: number,
+    conversationId: number,
+  ): Promise<string | null> {
     const expectedConversation = await input.repos.conversations.findById({
       userId,
       id: conversationId,
@@ -3834,7 +3852,13 @@ export async function startSyncEngine(input: {
           const clean = (value) => String(value || "").replace(/\\s+/g, " ").trim();
           const normalizePhone = (value) => {
             const digits = String(value || "").replace(/\\D/g, "");
-            return digits.length >= 10 && digits.length <= 13 ? digits : null;
+            if ((digits.length === 12 || digits.length === 13) && digits.startsWith("55")) {
+              return digits;
+            }
+            if (digits.length === 10 || digits.length === 11) {
+              return "55" + digits;
+            }
+            return null;
           };
           const href = String(location.href || "");
           let hrefPhone = null;
@@ -3920,7 +3944,13 @@ export async function startSyncEngine(input: {
           };
           const normalize = (value) => {
             const digits = String(value || "").replace(/\\D/g, "");
-            return digits.length >= 10 ? digits : null;
+            if ((digits.length === 12 || digits.length === 13) && digits.startsWith("55")) {
+              return digits;
+            }
+            if (digits.length === 10 || digits.length === 11) {
+              return "55" + digits;
+            }
+            return null;
           };
           const withoutBrazilMobileNinthDigit = (phone) => {
             const match = /^55(\\d{2})9(\\d{8})$/.exec(phone);
@@ -3928,6 +3958,10 @@ export async function startSyncEngine(input: {
           };
           const expected = ${JSON.stringify(normalizedExpected)};
           const expectedWithoutNinth = withoutBrazilMobileNinthDigit(expected);
+          const expectedLocal = expected.startsWith("55") ? expected.slice(2) : expected;
+          const expectedWithoutNinthLocal = expectedWithoutNinth.startsWith("55")
+            ? expectedWithoutNinth.slice(2)
+            : expectedWithoutNinth;
           const header =
             document.querySelector("#main header [role='button']") ||
             document.querySelector("#main header");
@@ -3952,6 +3986,9 @@ export async function startSyncEngine(input: {
               const textDigits = String(panel.textContent || "").replace(/\\D/g, "");
               if (
                 textDigits.includes(expected) ||
+                textDigits.includes(expectedLocal) ||
+                (expectedWithoutNinthLocal !== expectedLocal &&
+                  textDigits.includes(expectedWithoutNinthLocal)) ||
                 (expectedWithoutNinth !== expected && textDigits.includes(expectedWithoutNinth))
               ) {
                 const close =
@@ -3973,6 +4010,9 @@ export async function startSyncEngine(input: {
             if (
               /Dados do contato|Contact info|Informações do contato|Contact details/i.test(bodyText) &&
               (bodyDigits.includes(expected) ||
+                bodyDigits.includes(expectedLocal) ||
+                (expectedWithoutNinthLocal !== expectedLocal &&
+                  bodyDigits.includes(expectedWithoutNinthLocal)) ||
                 (expectedWithoutNinth !== expected && bodyDigits.includes(expectedWithoutNinth)))
             ) {
               const close =
@@ -4106,15 +4146,17 @@ export function shouldAllowActiveSendTarget(input: {
   const normalizedTitle = normalizeTitle(input.state.title);
   const hasExpectedTitleMatch = Boolean(
     input.expectedTitle &&
-      (normalizedTitle === input.expectedTitle ||
-        normalizedTitle.startsWith(`${input.expectedTitle} `)),
+    (normalizedTitle === input.expectedTitle ||
+      normalizedTitle.startsWith(`${input.expectedTitle} `)),
   );
   const recentNavigationGraceMs = input.recentNavigationGraceMs ?? 45_000;
   const hasRecentNavigationEvidence =
     phonesMatchForSendTarget(input.openChatPhone, input.expectedPhone) &&
     input.nowMs - input.openChatPhoneNavigatedAtMs >= 0 &&
     input.nowMs - input.openChatPhoneNavigatedAtMs <= recentNavigationGraceMs &&
-    (!input.expectedTitle || isSyntheticImportedSendTitle(input.expectedTitle) || hasExpectedTitleMatch);
+    (!input.expectedTitle ||
+      isSyntheticImportedSendTitle(input.expectedTitle) ||
+      hasExpectedTitleMatch);
   const livePhoneMismatch =
     (Boolean(input.state.hrefPhone) &&
       !phonesMatchForSendTarget(input.state.hrefPhone, input.expectedPhone)) ||
@@ -4156,9 +4198,12 @@ export function shouldAllowActiveSendTarget(input: {
 }
 
 async function selectSyncTarget(env: WorkerEnv): Promise<CDP.Target | undefined> {
-  const response = await fetch(`http://${env.CHROMIUM_CDP_HOST}:${env.CHROMIUM_CDP_PORT}/json/list`, {
-    signal: AbortSignal.timeout(5_000),
-  });
+  const response = await fetch(
+    `http://${env.CHROMIUM_CDP_HOST}:${env.CHROMIUM_CDP_PORT}/json/list`,
+    {
+      signal: AbortSignal.timeout(5_000),
+    },
+  );
   const targets = (await response.json()) as CDP.Target[];
   const pageTargets = targets.filter((target) => target.type === "page");
   const whatsappTargets = pageTargets.filter((target) => target.url.includes("web.whatsapp.com"));
@@ -4224,10 +4269,17 @@ async function scoreSyncTarget(env: WorkerEnv, target: CDP.Target): Promise<numb
     if (value.hasComposer === true) {
       score += 40;
     }
-    if (value.hasChatList === true || /Tudo|Não lidas|Favoritas|Arquivadas|All|Unread|Favorites|Archived/i.test(body)) {
+    if (
+      value.hasChatList === true ||
+      /Tudo|Não lidas|Favoritas|Arquivadas|All|Unread|Favorites|Archived/i.test(body)
+    ) {
       score += 25;
     }
-    if (/WhatsApp está aberto em outra janela|WhatsApp is open in another window|Usar nesta janela|Use here/i.test(body)) {
+    if (
+      /WhatsApp está aberto em outra janela|WhatsApp is open in another window|Usar nesta janela|Use here/i.test(
+        body,
+      )
+    ) {
       score -= 100;
     }
     return score;
@@ -4373,7 +4425,8 @@ function stringValue(value: unknown): string | null {
 }
 
 function positiveIntegerValue(value: unknown): number | null {
-  const numeric = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  const numeric =
+    typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
   if (!Number.isInteger(numeric) || numeric <= 0) {
     return null;
   }
@@ -5038,11 +5091,6 @@ function clampInt(value: number, min: number, max: number): number {
     return min;
   }
   return Math.max(min, Math.min(max, Math.trunc(value)));
-}
-
-function normalizePhone(value: string | null | undefined): string | null {
-  const normalizedPhone = String(value ?? "").replace(/\D/g, "");
-  return normalizedPhone.length >= 10 ? normalizedPhone : null;
 }
 
 function parseBrowserProfilePhoto(value: unknown): BrowserProfilePhotoSnapshot | null {

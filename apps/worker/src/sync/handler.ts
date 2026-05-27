@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 
 import { CONSTANTS } from "@nuoma/config";
+import { normalizePhone } from "@nuoma/contracts";
 import type { Repositories } from "@nuoma/db";
 import type { Logger } from "pino";
 
@@ -671,11 +672,6 @@ function normalizeThreadPhone(thread: SyncThreadRef): string | null {
     normalizePhone(thread.externalThreadId) ??
     normalizePhone(thread.title)
   );
-}
-
-function normalizePhone(value: string | null | undefined): string | null {
-  const digits = value?.replace(/\D/g, "") ?? "";
-  return digits.length >= 10 ? digits : null;
 }
 
 function sanitizeInstagramHandle(value: string | null | undefined): string | null {

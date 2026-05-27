@@ -1,6 +1,7 @@
 import {
   campaignTemporaryMessagesConfigSchema,
   idempotencyKey,
+  normalizePhone,
   type Campaign,
   type CampaignRecipient,
   type CampaignStep,
@@ -333,15 +334,15 @@ async function enqueueRecipientNextStep(input: {
         id: input.recipient.id,
         status: "completed",
         lastError: null,
-      metadata: {
-        ...withRecipientAudit(input.recipient.metadata, {
-          event: "campaign_recipient.completed",
-          source: "campaign_scheduler",
-          at: input.now.toISOString(),
-          status: "completed",
-        }),
-        completedAt: input.now.toISOString(),
-      },
+        metadata: {
+          ...withRecipientAudit(input.recipient.metadata, {
+            event: "campaign_recipient.completed",
+            source: "campaign_scheduler",
+            at: input.now.toISOString(),
+            status: "completed",
+          }),
+          completedAt: input.now.toISOString(),
+        },
       });
       input.result.recipientsCompleted += 1;
       return;
@@ -556,7 +557,9 @@ function nextStepForRecipient(
   | { mode: "invalid"; error: string } {
   if (!currentStepId) {
     const first = steps[0];
-    return first ? { mode: "step", step: first, isLastStep: steps.length === 1 } : { mode: "completed" };
+    return first
+      ? { mode: "step", step: first, isLastStep: steps.length === 1 }
+      : { mode: "completed" };
   }
 
   const currentIndex = steps.findIndex((step) => step.id === currentStepId);
@@ -617,16 +620,23 @@ function campaignStepBatch(input: {
 function temporaryMessagesConfigFromCampaign(
   campaign: Campaign,
 ): CampaignTemporaryMessagesConfig | null {
-  const parsed = campaignTemporaryMessagesConfigSchema.safeParse(campaign.metadata.temporaryMessages);
+  const parsed = campaignTemporaryMessagesConfigSchema.safeParse(
+    campaign.metadata.temporaryMessages,
+  );
   return parsed.success && parsed.data.enabled ? parsed.data : null;
 }
 
-function variablesForRecipient(recipient: CampaignRecipient, phone: string): Record<string, string> {
+function variablesForRecipient(
+  recipient: CampaignRecipient,
+  phone: string,
+): Record<string, string> {
   const variables = objectRecord(recipient.metadata.variables);
   return {
     telefone: phone,
     phone,
-    ...Object.fromEntries(Object.entries(variables).map(([key, value]) => [key, String(value ?? "")])),
+    ...Object.fromEntries(
+      Object.entries(variables).map(([key, value]) => [key, String(value ?? "")]),
+    ),
   };
 }
 
@@ -654,9 +664,7 @@ function withRecipientAudit(
   metadata: Record<string, unknown>,
   entry: Record<string, unknown>,
 ): Record<string, unknown> {
-  const auditTrail = Array.isArray(metadata.auditTrail)
-    ? metadata.auditTrail.filter(isRecord)
-    : [];
+  const auditTrail = Array.isArray(metadata.auditTrail) ? metadata.auditTrail.filter(isRecord) : [];
   return {
     ...metadata,
     auditTrail: [...auditTrail.slice(-24), entry],
@@ -679,11 +687,6 @@ function numericArrayFromUnknown(value: unknown): number[] {
   return value
     .map((entry) => numberFromUnknown(entry))
     .filter((entry): entry is number => entry !== null);
-}
-
-function normalizePhone(value: string | null | undefined): string | null {
-  const normalized = String(value ?? "").replace(/\D/g, "");
-  return normalized.length >= 10 ? normalized : null;
 }
 
 function usefulConversationTitle(value: string | null | undefined): string | null {
