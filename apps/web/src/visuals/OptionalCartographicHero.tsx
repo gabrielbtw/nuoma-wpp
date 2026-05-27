@@ -1,6 +1,4 @@
-import { Canvas, useFrame } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
-import type { Group } from "three";
+import { useMemo } from "react";
 
 type HealthSignal = "active" | "idle" | "error" | "degraded";
 
@@ -20,17 +18,15 @@ interface BarDatum {
   key: string;
   label: string;
   value: string;
-  x: number;
-  z: number;
-  height: number;
-  color: string;
+  width: number;
+  tone: "cyan" | "gold" | "neutral" | "danger";
 }
 
-const SIGNAL_COLORS: Record<HealthSignal, string> = {
-  active: "#82caa4",
-  idle: "#8fb5d8",
-  degraded: "#cdb36e",
-  error: "#ce7287",
+const SIGNAL_TONES: Record<HealthSignal, BarDatum["tone"]> = {
+  active: "cyan",
+  idle: "neutral",
+  degraded: "gold",
+  error: "danger",
 };
 
 export default function OptionalCartographicHero({
@@ -50,46 +46,36 @@ export default function OptionalCartographicHero({
         key: "cdp",
         label: "CDP",
         value: cdpConnected ? "online" : "off",
-        x: -2.4,
-        z: -0.9,
-        height: cdpConnected ? 1.45 : 0.46,
-        color: cdpConnected ? "#82caa4" : "#cdb36e",
+        width: cdpConnected ? 96 : 36,
+        tone: cdpConnected ? "cyan" : "gold",
       },
       {
         key: "workers",
         label: "Workers",
         value: `${workersOnline}/${workersTotal}`,
-        x: -1.2,
-        z: 0.35,
-        height: scaleRatio(workersOnline, Math.max(1, workersTotal), 0.42, 1.65),
-        color: "#8fb5d8",
+        width: scaleRatio(workersOnline, Math.max(1, workersTotal), 24, 100),
+        tone: "neutral",
       },
       {
         key: "queue",
         label: "Fila",
         value: String(queueDepth),
-        x: 0,
-        z: -0.25,
-        height: scaleCount(queueDepth, 0.34, 1.7),
-        color: queueDepth > 0 ? "#cdb36e" : "#82caa4",
+        width: scaleCount(queueDepth, 18, 100),
+        tone: queueDepth > 0 ? "gold" : "cyan",
       },
       {
         key: "throughput",
         label: "Throughput",
         value: `${throughputPerHour}/h`,
-        x: 1.2,
-        z: 0.48,
-        height: scaleCount(throughputPerHour, 0.4, 1.8),
-        color: "#8c8ec0",
+        width: scaleCount(throughputPerHour, 22, 100),
+        tone: "neutral",
       },
       {
         key: "dlq",
         label: "DLQ",
         value: String(dlqCount),
-        x: 2.4,
-        z: -0.78,
-        height: dlqCount > 0 ? scaleCount(dlqCount + 2, 0.55, 1.85) : 0.28,
-        color: dlqCount > 0 || failureRatePct > 0 ? "#ce7287" : "#82caa4",
+        width: dlqCount > 0 ? scaleCount(dlqCount + 2, 30, 100) : 14,
+        tone: dlqCount > 0 || failureRatePct > 0 ? "danger" : "cyan",
       },
     ],
     [
@@ -102,167 +88,95 @@ export default function OptionalCartographicHero({
       workersTotal,
     ],
   );
-  const signalColor = SIGNAL_COLORS[healthSignal];
+  const signalTone = SIGNAL_TONES[healthSignal];
 
   return (
     <section
-      className="relative isolate min-h-[18rem] overflow-hidden rounded-xl border border-border-subtle/10 bg-bg-sunken shadow-raised-lg"
+      className="relative isolate overflow-hidden rounded-xl border border-border-subtle bg-bg-sunken shadow-raised-lg"
       data-testid="v214a-cartographic-hero"
       data-status={healthSignal}
       data-enabled="true"
     >
-      <div
-        className="absolute inset-0 z-0"
-        data-testid="v214a-cartographic-canvas"
-        aria-hidden="true"
-      >
-        <Canvas
-          camera={{ position: [0, 2.45, 6.6], fov: 42 }}
-          className="h-full w-full"
-          dpr={[1, 1.6]}
-          gl={{
-            alpha: true,
-            antialias: true,
-            preserveDrawingBuffer: true,
-            powerPreference: "high-performance",
-          }}
-        >
-          <color attach="background" args={["#03060d"]} />
-          <ambientLight intensity={0.46} />
-          <directionalLight position={[3, 4, 4]} intensity={2.2} color="#d7e8ff" />
-          <pointLight position={[-4, 2.2, 2.8]} intensity={8.5} color={signalColor} />
-          <CartographicScene bars={bars} signalColor={signalColor} />
-        </Canvas>
-      </div>
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:28px_28px]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_18%,rgba(210,169,94,0.08),transparent_28%),linear-gradient(135deg,rgba(18,20,26,0.96),rgba(8,9,13,0.98))]" />
 
-      <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(circle_at_72%_36%,rgba(143,181,216,0.10),transparent_34%),linear-gradient(90deg,rgba(5,7,13,0.88),rgba(5,7,13,0.34)_58%,rgba(5,7,13,0.72))]" />
+      <div className="relative z-10 grid gap-6 p-5 md:grid-cols-[minmax(0,1fr)_20rem] md:p-7">
+        <div className="min-w-0">
+          <p className="font-mono text-[0.64rem] uppercase tracking-[0.18em] text-fg-dim">
+            V2.14a · Visual opcional
+          </p>
+          <h2 className="mt-2 max-w-2xl text-3xl font-semibold leading-tight tracking-normal text-fg-primary md:text-5xl">
+            Operação em relevo matte.
+          </h2>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-fg-muted">
+            API, CDP, workers, fila e DLQ em uma leitura compacta, sem camada 3D e sem
+            alterar guardrails de envio.
+          </p>
+        </div>
 
-      <div className="pointer-events-none relative z-10 flex min-h-[18rem] flex-col justify-between gap-6 p-5 md:p-7">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="max-w-2xl">
-            <p className="font-mono text-[0.64rem] uppercase tracking-[0.18em] text-fg-dim">
-              V2.14a · Visual opcional
-            </p>
-            <h2 className="mt-2 max-w-2xl text-3xl font-semibold leading-tight tracking-normal text-fg-primary md:text-5xl">
-              Mapa vivo da operação local-first.
-            </h2>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-fg-muted">
-              API, CDP, workers, fila e DLQ aparecem como relevo operacional sem alterar os
-              guardrails de envio.
-            </p>
-          </div>
+        <div className="grid content-start gap-3">
           <div
-            className="rounded-lg bg-bg-base/70 px-3 py-2 text-right shadow-flat"
+            className="rounded-lg border border-border-subtle bg-surface-overlay/82 px-3 py-3 shadow-flat"
             data-testid="v214a-hero-status"
             data-signal={healthSignal}
           >
-            <div className="font-mono text-[0.62rem] uppercase tracking-[0.18em] text-fg-dim">
-              status
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-mono text-[0.62rem] uppercase tracking-[0.18em] text-fg-dim">
+                status
+              </span>
+              <span className={toneClass(signalTone)} />
             </div>
-            <div className="mt-1 text-sm font-semibold text-fg-primary">{healthLabel}</div>
+            <div className="mt-2 text-sm font-semibold text-fg-primary">{healthLabel}</div>
           </div>
-        </div>
 
-        <div className="grid gap-2 sm:grid-cols-5" data-testid="v214a-hero-metrics">
-          {bars.map((bar) => (
-            <div key={bar.key} className="rounded-lg bg-bg-base/62 px-3 py-2 shadow-flat">
-              <div className="font-mono text-[0.6rem] uppercase tracking-[0.16em] text-fg-dim">
-                {bar.label}
+          <div className="grid gap-2" data-testid="v214a-hero-metrics">
+            {bars.map((bar) => (
+              <div key={bar.key} className="rounded-lg bg-bg-base/72 px-3 py-2 shadow-flat">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-mono text-[0.6rem] uppercase tracking-[0.16em] text-fg-dim">
+                    {bar.label}
+                  </span>
+                  <span className="text-sm font-semibold tabular-nums text-fg-primary">{bar.value}</span>
+                </div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-bg-deep shadow-pressed-sm">
+                  <div
+                    className={barClass(bar.tone)}
+                    style={{ width: `${bar.width}%` }}
+                    aria-hidden="true"
+                  />
+                </div>
               </div>
-              <div className="mt-1 text-sm font-semibold tabular-nums text-fg-primary">
-                {bar.value}
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     </section>
   );
 }
 
-function CartographicScene({ bars, signalColor }: { bars: BarDatum[]; signalColor: string }) {
-  const rootRef = useRef<Group>(null);
-  const ringRef = useRef<Group>(null);
-  const sweepRef = useRef<Group>(null);
-
-  useFrame((state, delta) => {
-    const elapsed = state.clock.elapsedTime;
-    if (rootRef.current) {
-      rootRef.current.rotation.x = -0.32 + state.pointer.y * 0.035;
-      rootRef.current.rotation.y = Math.sin(elapsed * 0.24) * 0.16 + state.pointer.x * 0.08;
-    }
-    if (ringRef.current) {
-      ringRef.current.rotation.z += delta * 0.18;
-    }
-    if (sweepRef.current) {
-      sweepRef.current.rotation.z -= delta * 0.34;
-    }
-  });
-
-  return (
-    <group ref={rootRef} position={[0, -0.72, 0]} rotation={[-0.32, 0, 0]}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.06, 0]}>
-        <planeGeometry args={[7.6, 4.8, 22, 14]} />
-        <meshStandardMaterial
-          color="#101725"
-          metalness={0.28}
-          roughness={0.5}
-          wireframe
-          emissive="#25354d"
-          emissiveIntensity={0.3}
-        />
-      </mesh>
-      <gridHelper args={[8.4, 18, "#8fb5d8", "#27364f"]} position={[0, -0.035, 0]} />
-
-      <group position={[0, 0, 0]}>
-        {bars.map((bar) => (
-          <group key={bar.key} position={[bar.x, bar.height / 2, bar.z]}>
-            <mesh>
-              <boxGeometry args={[0.36, bar.height, 0.36]} />
-              <meshStandardMaterial
-                color={bar.color}
-                emissive={bar.color}
-                emissiveIntensity={0.34}
-                metalness={0.16}
-                roughness={0.42}
-              />
-            </mesh>
-            <mesh position={[0, bar.height / 2 + 0.08, 0]} rotation={[Math.PI / 2, 0, 0]}>
-              <torusGeometry args={[0.28, 0.012, 8, 36]} />
-              <meshBasicMaterial color={bar.color} transparent opacity={0.78} />
-            </mesh>
-          </group>
-        ))}
-      </group>
-
-      <group ref={ringRef} rotation={[Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
-        <mesh>
-          <torusGeometry args={[3.25, 0.012, 8, 112]} />
-          <meshBasicMaterial color={signalColor} transparent opacity={0.58} />
-        </mesh>
-        <mesh>
-          <torusGeometry args={[2.18, 0.008, 8, 96]} />
-          <meshBasicMaterial color="#8fb5d8" transparent opacity={0.34} />
-        </mesh>
-      </group>
-
-      <group ref={sweepRef} rotation={[Math.PI / 2, 0, 0]} position={[0, 0.09, 0]}>
-        <mesh position={[1.58, 0, 0]}>
-          <boxGeometry args={[2.8, 0.018, 0.018]} />
-          <meshBasicMaterial color={signalColor} transparent opacity={0.62} />
-        </mesh>
-      </group>
-    </group>
-  );
+function toneClass(tone: BarDatum["tone"]) {
+  const base = "h-2.5 w-2.5 rounded-full shadow-[0_0_0_3px_rgba(255,255,255,0.04)]";
+  if (tone === "cyan") return `${base} bg-brand-cyan`;
+  if (tone === "gold") return `${base} bg-brand-gold`;
+  if (tone === "danger") return `${base} bg-semantic-danger`;
+  return `${base} bg-fg-muted`;
 }
 
-function scaleRatio(value: number, max: number, min: number, maxHeight: number) {
+function barClass(tone: BarDatum["tone"]) {
+  const base = "h-full rounded-full";
+  if (tone === "cyan") return `${base} bg-brand-cyan/78`;
+  if (tone === "gold") return `${base} bg-brand-gold/78`;
+  if (tone === "danger") return `${base} bg-semantic-danger/78`;
+  return `${base} bg-fg-muted/72`;
+}
+
+function scaleRatio(value: number, max: number, min: number, maxWidth: number) {
   const ratio = Math.max(0, Math.min(1, value / max));
-  return min + ratio * (maxHeight - min);
+  return Math.round(min + ratio * (maxWidth - min));
 }
 
-function scaleCount(value: number, min: number, max: number) {
+function scaleCount(value: number, min: number, maxWidth: number) {
   if (value <= 0) return min;
   const ratio = Math.min(1, Math.log10(value + 1) / 2);
-  return min + ratio * (max - min);
+  return Math.round(min + ratio * (maxWidth - min));
 }

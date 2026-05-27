@@ -168,8 +168,8 @@ export function ChatbotsPage() {
           <p className="botforge-kicker">
             Chatbots
           </p>
-          <h1 className="botforge-title mt-2 text-5xl md:text-6xl">
-            Auto-resposta <span className="text-brand-violet">priorizada</span>.
+          <h1 className="botforge-display mt-2 text-5xl md:text-6xl">
+            Auto-resposta <span className="nuoma-gradient-text">priorizada</span>.
           </h1>
           <p className="text-sm text-fg-muted mt-3 max-w-xl">
             Regras com prioridade, fallback e variantes A/B determinísticas para dry-run seguro.

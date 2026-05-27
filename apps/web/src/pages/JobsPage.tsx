@@ -62,8 +62,8 @@ export function JobsPage() {
             <p className="botforge-kicker">
               Worker
             </p>
-            <h1 className="botforge-title mt-2 text-5xl md:text-6xl">
-              Jobs <span className="text-brand-cyan">em fila</span>.
+            <h1 className="botforge-display mt-2 text-5xl md:text-6xl">
+              Jobs <span className="nuoma-gradient-text">em fila</span>.
             </h1>
             <p className="text-sm text-fg-muted mt-3 max-w-xl">
               Mortos vão pra DLQ — recoloque manualmente após resolver causa.

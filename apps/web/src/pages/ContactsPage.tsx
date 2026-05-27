@@ -63,8 +63,8 @@ export function ContactsPage() {
           <p className="botforge-kicker">
             Contatos
           </p>
-          <h1 className="botforge-title mt-2 text-5xl md:text-6xl">
-            <span className="text-brand-cyan">Catálogo</span> ativo.
+          <h1 className="botforge-display mt-2 text-5xl md:text-6xl">
+            <span className="nuoma-gradient-text">Catálogo</span> ativo.
           </h1>
           <p className="text-sm text-fg-muted mt-3 max-w-xl">
             Contatos observados ou importados. Filtros e segmentação chegam em V2.7.11/12.

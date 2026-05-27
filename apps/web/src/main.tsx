@@ -5,7 +5,7 @@ import {
   createRouter,
   Outlet,
 } from "@tanstack/react-router";
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import ReactDOM from "react-dom/client";
 
 import { ThemeProvider, ToastProvider } from "@nuoma/ui";
@@ -15,19 +15,58 @@ import { registerNuomaServiceWorker } from "./lib/push-subscription.js";
 import { TrpcProvider } from "./lib/trpc-provider.js";
 import { ShellLayout } from "./shell/ShellLayout.js";
 import { LoginPage } from "./pages/LoginPage.js";
-import { DashboardPage } from "./pages/DashboardPage.js";
-import { InboxPage } from "./pages/InboxPage.js";
-import { CampaignsPage } from "./pages/CampaignsPage.js";
-import { AutomationsPage } from "./pages/AutomationsPage.js";
-import { ChatbotsPage } from "./pages/ChatbotsPage.js";
-import { ContactsPage } from "./pages/ContactsPage.js";
-import { JobsPage } from "./pages/JobsPage.js";
-import { ImplementationPage } from "./pages/ImplementationPage.js";
-import { EvidencePage } from "./pages/EvidencePage.js";
-import { SettingsPage } from "./pages/SettingsPage.js";
-import { DevComponentsPage } from "./pages/DevComponentsPage.js";
 
 import "./styles.css";
+
+const DashboardPage = lazy(() =>
+  import("./pages/DashboardPage.js").then((module) => ({ default: module.DashboardPage })),
+);
+const InboxPage = lazy(() =>
+  import("./pages/InboxPage.js").then((module) => ({ default: module.InboxPage })),
+);
+const CampaignsPage = lazy(() =>
+  import("./pages/CampaignsPage.js").then((module) => ({ default: module.CampaignsPage })),
+);
+const AutomationsPage = lazy(() =>
+  import("./pages/AutomationsPage.js").then((module) => ({ default: module.AutomationsPage })),
+);
+const ChatbotsPage = lazy(() =>
+  import("./pages/ChatbotsPage.js").then((module) => ({ default: module.ChatbotsPage })),
+);
+const ContactsPage = lazy(() =>
+  import("./pages/ContactsPage.js").then((module) => ({ default: module.ContactsPage })),
+);
+const JobsPage = lazy(() =>
+  import("./pages/JobsPage.js").then((module) => ({ default: module.JobsPage })),
+);
+const ImplementationPage = lazy(() =>
+  import("./pages/ImplementationPage.js").then((module) => ({ default: module.ImplementationPage })),
+);
+const EvidencePage = lazy(() =>
+  import("./pages/EvidencePage.js").then((module) => ({ default: module.EvidencePage })),
+);
+const SettingsPage = lazy(() =>
+  import("./pages/SettingsPage.js").then((module) => ({ default: module.SettingsPage })),
+);
+const DevComponentsPage = lazy(() =>
+  import("./pages/DevComponentsPage.js").then((module) => ({ default: module.DevComponentsPage })),
+);
+
+function routePage(Page: React.LazyExoticComponent<React.ComponentType>) {
+  return function RoutePage() {
+    return (
+      <Suspense
+        fallback={
+          <div className="mx-auto grid min-h-[40vh] max-w-7xl place-items-center px-6 text-sm text-fg-muted">
+            Carregando tela.
+          </div>
+        }
+      >
+        <Page />
+      </Suspense>
+    );
+  };
+}
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
@@ -52,67 +91,67 @@ const shellRoute = createRoute({
 const dashboardRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/",
-  component: DashboardPage,
+  component: routePage(DashboardPage),
 });
 
 const inboxRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/inbox",
-  component: InboxPage,
+  component: routePage(InboxPage),
 });
 
 const contactsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/contacts",
-  component: ContactsPage,
+  component: routePage(ContactsPage),
 });
 
 const campaignsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/campaigns",
-  component: CampaignsPage,
+  component: routePage(CampaignsPage),
 });
 
 const automationsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/automations",
-  component: AutomationsPage,
+  component: routePage(AutomationsPage),
 });
 
 const chatbotsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/chatbots",
-  component: ChatbotsPage,
+  component: routePage(ChatbotsPage),
 });
 
 const jobsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/jobs",
-  component: JobsPage,
+  component: routePage(JobsPage),
 });
 
 const implementationRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/implementation",
-  component: ImplementationPage,
+  component: routePage(ImplementationPage),
 });
 
 const evidenceRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/evidence",
-  component: EvidencePage,
+  component: routePage(EvidencePage),
 });
 
 const settingsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/settings",
-  component: SettingsPage,
+  component: routePage(SettingsPage),
 });
 
 const devComponentsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/dev/components",
-  component: DevComponentsPage,
+  component: routePage(DevComponentsPage),
 });
 
 const routeTree = rootRoute.addChildren([

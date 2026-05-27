@@ -928,14 +928,14 @@ function VoiceRecorderPanel({
         "mb-3 rounded-xl border px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl",
         isRecording
           ? "border-brand-cyan/30 bg-brand-cyan/10"
-          : "border-emerald-300/20 bg-emerald-300/8",
+          : "border-border-strong/60 bg-surface-overlay/82",
       )}
     >
       <div className="flex flex-wrap items-center gap-3">
         <div
           className={cn(
             "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
-            isRecording ? "bg-brand-cyan/12 text-brand-cyan" : "bg-emerald-300/12 text-emerald-200",
+            isRecording ? "bg-brand-cyan/12 text-brand-cyan" : "bg-brand-gold/12 text-brand-gold",
           )}
         >
           {isRecording ? (
@@ -962,7 +962,7 @@ function VoiceRecorderPanel({
                   key={index}
                   className={cn(
                     "w-1 rounded-full transition-[height,background-color]",
-                    isRecording ? "bg-brand-cyan/75" : "bg-emerald-200/65",
+                    isRecording ? "bg-brand-cyan/75" : "bg-brand-gold/60",
                   )}
                   style={{ height: `${height}%` }}
                 />

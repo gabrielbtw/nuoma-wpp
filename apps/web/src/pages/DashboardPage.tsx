@@ -77,8 +77,8 @@ export function DashboardPage() {
             <p className="botforge-kicker">
               Operação
             </p>
-            <h1 className="botforge-title mt-2 text-5xl md:text-6xl">
-              Implantação <span className="text-brand-cyan">sob controle</span>.
+            <h1 className="botforge-display mt-2 text-5xl md:text-6xl">
+              Implantação <span className="nuoma-gradient-text">sob controle</span>.
             </h1>
             <p className="text-sm text-fg-muted mt-3 max-w-2xl">
               Saúde da API, workers, sessão WhatsApp, fila, DLQ e eventos críticos.
@@ -365,17 +365,17 @@ function MetricTile({
   signal: "active" | "idle" | "error" | "degraded";
 }) {
   return (
-    <div className="rounded-xl bg-bg-base px-4 py-4 shadow-flat">
+    <div className="nuoma-glass-panel rounded-xl px-4 py-4 shadow-raised-sm">
       <div className="flex items-center justify-between gap-3">
         <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-bg-base text-brand-cyan shadow-pressed-sm">
           {icon}
         </span>
         <SignalDot status={signal} size="sm" />
       </div>
-      <div className="mt-4 text-[0.65rem] uppercase tracking-[0.2em] text-fg-muted font-mono">
+      <div className="mt-4 font-mono text-[0.65rem] uppercase tracking-[0.2em] text-fg-muted">
         {label}
       </div>
-      <div className="mt-1 min-h-9 text-2xl font-semibold tracking-tight tabular-nums">{value}</div>
+      <div className="botforge-display mt-1 min-h-9 text-2xl tabular-nums">{value}</div>
       <div className="mt-1 min-h-4 text-xs text-fg-muted">{detail}</div>
     </div>
   );

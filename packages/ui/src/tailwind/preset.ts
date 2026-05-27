@@ -6,6 +6,8 @@ import type { Config } from "tailwindcss";
 import {
   blurs,
   fontFamily,
+  gradients,
+  letterSpacing,
   motion,
   radii,
   spacing,
@@ -45,6 +47,9 @@ function flatColors() {
       info: withOpacity("--color-semantic-info"),
     },
     brand: {
+      gold: withOpacity("--color-brand-gold"),
+      goldSoft: withOpacity("--color-brand-gold-soft"),
+      goldGlow: withOpacity("--color-brand-gold-glow"),
       violet: withOpacity("--color-brand-violet"),
       violetSoft: withOpacity("--color-brand-violet-soft"),
       violetGlow: withOpacity("--color-brand-violet-glow"),
@@ -96,9 +101,11 @@ function flatBoxShadow() {
     "flat-subtle": "var(--shadow-flat-subtle)",
     lift: "var(--shadow-lift)",
     "glow-violet": "var(--shadow-glow-violet)",
+    "glow-gold": "var(--shadow-glow-gold)",
     "glow-cyan": "var(--shadow-glow-cyan)",
     "glow-lime": "var(--shadow-glow-lime)",
     "glow-danger": "var(--shadow-glow-danger)",
+    "glow-aura": "var(--shadow-glow-aura)",
   } as const;
 }
 
@@ -118,6 +125,12 @@ const preset: Config = {
       spacing,
       blur: blurs,
       backdropBlur: blurs,
+      letterSpacing,
+      backgroundImage: {
+        "gradient-accent": gradients.accent,
+        "gradient-aura": gradients.aura,
+        "gradient-glass": gradients.glass,
+      },
       boxShadow: flatBoxShadow(),
       zIndex: Object.fromEntries(
         Object.entries(zIndex).map(([key, value]) => [key, String(value)]),

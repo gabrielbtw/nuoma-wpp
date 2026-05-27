@@ -11,82 +11,96 @@
 }
 
 :root,
+[data-theme="nuoma-premium"],
 [data-theme="void-flow"] {
-  --color-bg-base: 10 12 22;
-  --color-bg-deep: 4 6 12;
-  --color-bg-surface: 16 20 34;
-  --color-bg-elevated: 24 29 45;
-  --color-bg-sunken: 5 7 14;
-  --color-bg-raised: 20 25 40;
-  --color-bg-subtle: 32 38 56;
-  --color-bg-panel: 14 18 30;
-  --color-bg-canvas: 5 7 13;
-  --color-fg-primary: 245 247 251;
-  --color-fg-muted: 174 181 197;
-  --color-fg-dim: 112 120 140;
-  --color-fg-faint: 78 85 103;
-  --color-channel-whatsapp: 108 255 189;
-  --color-channel-instagram: 196 134 182;
-  --color-channel-system: 143 181 216;
-  --color-semantic-success: 130 202 164;
-  --color-semantic-warning: 205 179 110;
-  --color-semantic-danger: 206 114 135;
-  --color-semantic-info: 143 181 216;
-  --color-brand-violet: 130 118 189;
-  --color-brand-violet-soft: 201 183 255;
-  --color-brand-violet-glow: 130 118 189;
-  --color-brand-cyan: 143 181 216;
-  --color-brand-cyan-soft: 201 216 234;
-  --color-brand-cyan-glow: 143 181 216;
-  --color-brand-lime: 130 202 164;
-  --color-brand-lime-glow: 130 202 164;
-  --color-contour-line: 255 255 255;
-  --color-contour-line-muted: 255 255 255;
-  --color-contour-accent: 143 181 216;
-  --color-contour-grid: 220 230 255;
-  --color-border-subtle: 255 255 255;
-  --color-border-muted: 210 225 255;
-  --color-border-active: 143 181 216;
-  --color-signal-active: 130 202 164;
-  --color-signal-idle: 112 120 140;
-  --color-signal-error: 206 114 135;
-  --color-signal-degraded: 205 179 110;
-  --color-shadow-light: 255 255 255;
-  --color-shadow-light-soft: 255 255 255;
+  --color-bg-base: 14 15 18;
+  --color-bg-deep: 6 7 9;
+  --color-bg-surface: 19 21 26;
+  --color-bg-elevated: 27 30 37;
+  --color-bg-sunken: 10 11 14;
+  --color-bg-raised: 23 25 31;
+  --color-bg-subtle: 35 38 47;
+  --color-bg-panel: 16 18 23;
+  --color-bg-canvas: 8 9 12;
+  --color-fg-primary: 240 242 246;
+  --color-fg-muted: 184 190 201;
+  --color-fg-dim: 126 134 149;
+  --color-fg-faint: 82 88 104;
+  --color-channel-whatsapp: 120 202 220;
+  --color-channel-instagram: 202 166 106;
+  --color-channel-system: 120 216 213;
+  --color-semantic-success: 120 202 220;
+  --color-semantic-warning: 215 178 101;
+  --color-semantic-danger: 211 100 100;
+  --color-semantic-info: 120 216 213;
+  --color-brand-green: 82 88 104;
+  --color-brand-green-soft: 126 134 149;
+  --color-brand-green-glow: 126 134 149;
+  --color-brand-gold: 202 166 106;
+  --color-brand-gold-soft: 232 201 141;
+  --color-brand-gold-glow: 202 166 106;
+  --color-brand-cyan: 120 216 213;
+  --color-brand-cyan-soft: 191 242 238;
+  --color-brand-cyan-glow: 120 216 213;
+  --color-brand-violet: var(--color-brand-gold);
+  --color-brand-violet-soft: var(--color-brand-gold-soft);
+  --color-brand-violet-glow: var(--color-brand-gold-glow);
+  --color-brand-lime: var(--color-brand-cyan);
+  --color-brand-lime-glow: var(--color-brand-cyan-glow);
+  --color-contour-line: 202 166 106;
+  --color-contour-line-muted: 94 101 117;
+  --color-contour-accent: 202 166 106;
+  --color-contour-grid: 94 101 117;
+  --color-border-subtle: 94 101 117;
+  --color-border-muted: 126 134 149;
+  --color-border-active: 120 216 213;
+  --color-signal-active: 120 216 213;
+  --color-signal-idle: 82 88 104;
+  --color-signal-error: 211 100 100;
+  --color-signal-degraded: 215 178 101;
+  --color-shadow-light: 232 201 141;
+  --color-shadow-light-soft: 202 166 106;
   --color-shadow-dark: 0 0 0;
   --color-shadow-dark-soft: 0 0 0;
   --theme-gradient:
-    radial-gradient(900px 560px at 18% -10%, rgba(96, 124, 178, 0.1), transparent 60%),
-    radial-gradient(760px 520px at 86% 4%, rgba(126, 104, 169, 0.075), transparent 64%),
-    linear-gradient(145deg, rgb(4, 5, 10), rgb(8, 10, 18) 52%, rgb(3, 4, 8));
+    linear-gradient(180deg, rgba(20, 22, 27, 0.96), rgba(8, 9, 12, 0.98)),
+    linear-gradient(135deg, rgb(9, 10, 13), rgb(14, 16, 20) 48%, rgb(6, 7, 9));
   --surface-overlay:
-    radial-gradient(220px 120px at 18% 0%, rgba(255, 255, 255, 0.045), transparent 70%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.025), transparent 56%);
-  --surface-specular:
-    radial-gradient(90px 90px at 12% 8%, rgba(255, 255, 255, 0.1), transparent 62%),
     linear-gradient(
       145deg,
-      rgba(255, 255, 255, 0.052),
-      rgba(255, 255, 255, 0.01) 36%,
-      transparent 58%
-    );
-  --glow-active: rgba(143, 181, 216, 0.24);
-  --robot-body: rgba(20, 24, 34, 0.94);
-  --robot-face: rgba(255, 255, 255, 0.1);
-  --robot-eye: #d8e6ff;
-  --theme-blur: blur(18px) saturate(142%);
+      rgba(255, 255, 255, 0.026),
+      rgba(255, 255, 255, 0.012) 42%,
+      transparent 68%
+    ),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.016), rgba(0, 0, 0, 0.12));
+  --surface-specular: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.045),
+    rgba(255, 255, 255, 0.018) 34%,
+    transparent 58%
+  );
+  --glass-subtle-bg: rgba(16, 18, 23, 0.92);
+  --glass-panel-bg: rgba(16, 18, 23, 0.95);
+  --glass-elevated-bg: rgba(23, 25, 31, 0.96);
+  --glass-modal-bg: rgba(10, 11, 14, 0.98);
+  --glow-active: rgba(120, 216, 213, 0.14);
+  --robot-body: rgba(16, 18, 23, 0.96);
+  --robot-face: rgba(232, 201, 141, 0.12);
+  --robot-eye: #e8c98d;
+  --theme-blur: blur(10px) saturate(112%);
+  --theme-color: #0e0f12;
 }
 
 [data-theme="aurora"] {
-  --color-bg-base: 8 20 27;
-  --color-bg-deep: 4 16 15;
-  --color-bg-surface: 14 30 34;
-  --color-bg-elevated: 20 38 43;
-  --color-bg-sunken: 4 13 14;
-  --color-bg-raised: 16 34 38;
-  --color-bg-subtle: 31 49 52;
-  --color-bg-panel: 10 25 27;
-  --color-bg-canvas: 4 16 18;
+  --color-bg-base: 14 15 18;
+  --color-bg-deep: 6 7 9;
+  --color-bg-surface: 19 21 26;
+  --color-bg-elevated: 27 30 37;
+  --color-bg-sunken: 10 11 14;
+  --color-bg-raised: 23 25 31;
+  --color-bg-subtle: 35 38 47;
+  --color-bg-panel: 16 18 23;
+  --color-bg-canvas: 8 9 12;
   --color-fg-primary: 243 250 247;
   --color-fg-muted: 181 200 197;
   --color-fg-dim: 114 136 133;
@@ -94,37 +108,34 @@
   --color-brand-violet: 141 146 191;
   --color-brand-violet-soft: 210 213 255;
   --color-brand-violet-glow: 141 146 191;
-  --color-brand-cyan: 159 205 189;
-  --color-brand-cyan-soft: 211 238 228;
-  --color-brand-cyan-glow: 159 205 189;
-  --color-brand-lime: 159 205 189;
-  --color-brand-lime-glow: 159 205 189;
-  --color-contour-accent: 159 205 189;
-  --color-border-active: 159 205 189;
+  --color-brand-cyan: 120 216 213;
+  --color-brand-cyan-soft: 191 242 238;
+  --color-brand-cyan-glow: 120 216 213;
+  --color-brand-lime: 120 216 213;
+  --color-brand-lime-glow: 120 216 213;
+  --color-contour-accent: 120 216 213;
+  --color-border-active: 120 216 213;
   --theme-gradient:
-    radial-gradient(900px 520px at 12% 8%, rgba(151, 202, 186, 0.12), transparent 58%),
-    radial-gradient(800px 520px at 78% 4%, rgba(111, 118, 170, 0.1), transparent 62%),
-    linear-gradient(145deg, rgb(4, 16, 15), rgb(8, 20, 27) 46%, rgb(18, 12, 25));
+    linear-gradient(180deg, rgba(20, 22, 27, 0.96), rgba(8, 9, 12, 0.98)),
+    linear-gradient(135deg, rgb(9, 10, 13), rgb(14, 16, 20) 48%, rgb(6, 7, 9));
   --surface-overlay:
-    radial-gradient(220px 120px at 18% 0%, rgba(159, 205, 189, 0.12), transparent 70%),
-    radial-gradient(180px 120px at 88% 12%, rgba(141, 146, 191, 0.12), transparent 68%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.04), transparent 56%);
-  --glow-active: rgba(159, 205, 189, 0.26);
-  --robot-body: rgba(14, 30, 34, 0.94);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.03), transparent 56%);
+  --glow-active: rgba(120, 216, 213, 0.14);
+  --robot-body: rgba(16, 18, 23, 0.96);
   --robot-eye: #ddfff6;
-  --theme-blur: blur(20px) saturate(154%);
+  --theme-blur: blur(10px) saturate(112%);
 }
 
 [data-theme="ocean"] {
-  --color-bg-base: 7 20 31;
-  --color-bg-deep: 4 14 22;
-  --color-bg-surface: 12 31 43;
-  --color-bg-elevated: 18 41 55;
-  --color-bg-sunken: 3 11 18;
-  --color-bg-raised: 14 35 48;
-  --color-bg-subtle: 28 54 68;
-  --color-bg-panel: 8 25 34;
-  --color-bg-canvas: 4 16 24;
+  --color-bg-base: 14 15 18;
+  --color-bg-deep: 6 7 9;
+  --color-bg-surface: 19 21 26;
+  --color-bg-elevated: 27 30 37;
+  --color-bg-sunken: 10 11 14;
+  --color-bg-raised: 23 25 31;
+  --color-bg-subtle: 35 38 47;
+  --color-bg-panel: 16 18 23;
+  --color-bg-canvas: 8 9 12;
   --color-fg-primary: 240 248 251;
   --color-fg-muted: 169 193 202;
   --color-fg-dim: 108 132 144;
@@ -138,33 +149,30 @@
   --color-contour-accent: 158 199 215;
   --color-border-active: 158 199 215;
   --theme-gradient:
-    radial-gradient(880px 540px at 14% -8%, rgba(83, 142, 175, 0.1), transparent 56%),
-    radial-gradient(760px 500px at 82% 4%, rgba(79, 102, 159, 0.08), transparent 62%),
-    linear-gradient(145deg, rgb(4, 14, 22), rgb(7, 20, 31) 54%, rgb(3, 8, 13));
+    linear-gradient(180deg, rgba(20, 22, 27, 0.96), rgba(8, 9, 12, 0.98)),
+    linear-gradient(135deg, rgb(9, 10, 13), rgb(14, 16, 20) 48%, rgb(6, 7, 9));
   --surface-overlay:
-    radial-gradient(220px 120px at 18% 0%, rgba(158, 199, 215, 0.11), transparent 70%),
-    radial-gradient(180px 120px at 88% 12%, rgba(140, 142, 192, 0.1), transparent 68%),
     linear-gradient(145deg, rgba(255, 255, 255, 0.04), transparent 56%);
-  --glow-active: rgba(158, 199, 215, 0.22);
-  --robot-body: rgba(12, 31, 43, 0.94);
+  --glow-active: rgba(120, 216, 213, 0.14);
+  --robot-body: rgba(16, 18, 23, 0.96);
   --robot-eye: #d6f4ff;
-  --theme-blur: blur(18px) saturate(136%);
+  --theme-blur: blur(10px) saturate(112%);
 }
 
 :root,
 [data-theme] {
   --shadow-raised-sm:
-    0 12px 34px rgba(var(--color-shadow-dark), 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.055),
-    0 0 0 1px rgba(var(--color-border-muted), 0.11);
+    0 12px 34px rgba(var(--color-shadow-dark), 0.28), inset 0 1px 0 rgba(232, 201, 141, 0.075),
+    0 0 0 1px rgba(var(--color-border-muted), 0.16);
   --shadow-raised-md:
-    0 18px 54px rgba(var(--color-shadow-dark), 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 0 0 1px rgba(var(--color-border-muted), 0.12);
+    0 18px 54px rgba(var(--color-shadow-dark), 0.42), inset 0 1px 0 rgba(232, 201, 141, 0.09),
+    0 0 0 1px rgba(var(--color-border-muted), 0.18);
   --shadow-raised-lg:
-    0 26px 76px rgba(var(--color-shadow-dark), 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.07),
-    0 0 0 1px rgba(var(--color-border-active), 0.16);
+    0 26px 76px rgba(var(--color-shadow-dark), 0.52), inset 0 1px 0 rgba(232, 201, 141, 0.11),
+    0 0 0 1px rgba(var(--color-border-active), 0.18);
   --shadow-raised-xl:
-    0 34px 110px rgba(var(--color-shadow-dark), 0.58), inset 0 1.2px 1px rgba(255, 255, 255, 0.16),
-    inset 0 -1px 1px rgba(255, 255, 255, 0.04);
+    0 34px 110px rgba(var(--color-shadow-dark), 0.62), inset 0 1.2px 1px rgba(232, 201, 141, 0.16),
+    inset 0 -1px 1px rgba(120, 216, 213, 0.04);
   --shadow-pressed-sm:
     inset 0 1px 0.8px rgba(255, 255, 255, 0.12), inset 0 -1px 1px rgba(255, 255, 255, 0.035),
     inset 0 0 0 1px rgba(var(--color-border-subtle), 0.1);
@@ -178,17 +186,42 @@
     inset 0 1px 0.8px rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(var(--color-border-subtle), 0.1);
   --shadow-flat-subtle: 0 0 0 1px rgba(var(--color-border-subtle), 0.08);
   --shadow-lift:
-    0 24px 80px rgba(var(--color-shadow-dark), 0.52), inset 0 1px 0.8px rgba(255, 255, 255, 0.18),
-    0 0 0 1px rgba(var(--color-border-active), 0.16);
-  --shadow-glow-violet:
-    0 0 0 1px rgba(var(--color-brand-violet), 0.46), 0 0 22px rgba(var(--color-brand-violet), 0.16);
+    0 24px 80px rgba(var(--color-shadow-dark), 0.56), inset 0 1px 0.8px rgba(232, 201, 141, 0.18),
+    0 0 0 1px rgba(var(--color-border-active), 0.18);
+  --shadow-glow-gold:
+    0 0 0 1px rgba(var(--color-brand-gold), 0.5), 0 0 22px rgba(var(--color-brand-gold), 0.16);
+  --shadow-glow-green:
+    0 0 0 1px rgba(var(--color-brand-cyan), 0.34),
+    0 0 16px rgba(var(--color-brand-cyan), 0.10);
+  --shadow-glow-violet: var(--shadow-glow-gold);
   --shadow-glow-cyan:
     0 0 0 1px rgba(var(--color-brand-cyan), 0.48), 0 0 22px rgba(var(--color-brand-cyan), 0.16);
-  --shadow-glow-lime:
-    0 0 0 1px rgba(var(--color-brand-lime), 0.48), 0 0 20px rgba(var(--color-brand-lime), 0.16);
+  --shadow-glow-lime: var(--shadow-glow-green);
   --shadow-glow-danger:
     0 0 0 1px rgba(var(--color-semantic-danger), 0.52),
     0 0 22px rgba(var(--color-semantic-danger), 0.16);
+  --shadow-glow-aura:
+    0 0 0 1px rgba(var(--color-brand-cyan), 0.40),
+    0 0 40px rgba(var(--color-brand-cyan), 0.18),
+    0 0 80px rgba(var(--color-brand-gold), 0.10);
+
+  /* Orielo 2026 accent gradients — adapt automatically per theme. */
+  --gradient-accent: linear-gradient(
+    120deg,
+    rgb(var(--color-brand-gold-soft)),
+    rgb(var(--color-brand-cyan))
+  );
+  --gradient-aura: radial-gradient(
+    120% 120% at 0% 0%,
+    rgba(var(--color-brand-cyan), 0.16),
+    transparent 62%
+  );
+  --gradient-glass: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0.014) 42%,
+    transparent 70%
+  );
 }
 
 html,
@@ -214,9 +247,26 @@ body::before {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(860px 520px at 18% -12%, rgba(var(--color-brand-cyan), 0.055), transparent 64%),
-    radial-gradient(720px 440px at 88% 0%, rgba(var(--color-brand-violet), 0.045), transparent 66%),
-    linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.22));
+    url("/assets/brand/nuoma-mark-watermark.svg") center 12vh / min(56rem, 82vw) auto no-repeat,
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.018) 0 1px,
+      transparent 1px 32px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.014) 0 1px,
+      transparent 1px 32px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(232, 201, 141, 0.012),
+      transparent 18%,
+      transparent 82%,
+      rgba(120, 216, 213, 0.01)
+    ),
+    linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.24));
+  opacity: 0.86;
 }
 
 ::selection {
@@ -245,11 +295,44 @@ body::before {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  background: var(--surface-overlay), rgba(var(--color-bg-panel), 0.88);
-  border: 1px solid rgba(var(--color-border-subtle), 0.12);
+  background: var(--surface-overlay), rgba(var(--color-bg-panel), 0.96);
+  border: 1px solid rgba(var(--color-border-subtle), 0.20);
   box-shadow: var(--shadow-raised-md);
   backdrop-filter: var(--theme-blur);
   -webkit-backdrop-filter: var(--theme-blur);
+}
+
+.nuoma-glass-subtle,
+.nuoma-glass-panel,
+.nuoma-glass-elevated,
+.nuoma-glass-modal {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--surface-overlay), var(--glass-panel-bg);
+  border: 1px solid rgba(var(--color-border-subtle), 0.20);
+  backdrop-filter: var(--theme-blur);
+  -webkit-backdrop-filter: var(--theme-blur);
+}
+
+.nuoma-glass-subtle {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.026), transparent 58%), var(--glass-subtle-bg);
+  border-color: rgba(var(--color-border-subtle), 0.12);
+}
+
+.nuoma-glass-elevated {
+  background: var(--surface-overlay), var(--glass-elevated-bg);
+  border-color: rgba(var(--color-border-active), 0.22);
+}
+
+.nuoma-glass-modal {
+  background: var(--surface-overlay), var(--glass-modal-bg);
+  border-color: rgba(var(--color-border-subtle), 0.24);
+}
+
+.nuoma-brand-text {
+  color: rgb(var(--color-brand-gold));
 }
 
 .botforge-surface::before {
@@ -259,41 +342,23 @@ body::before {
   z-index: -1;
   border-radius: inherit;
   background: var(--surface-specular);
-  opacity: 0.76;
+  opacity: 0.38;
   pointer-events: none;
 }
 
 .botforge-surface::after {
-  content: "";
-  position: absolute;
-  top: -24%;
-  left: -72%;
-  width: 58%;
-  height: 130%;
-  background: linear-gradient(
-    105deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.12) 45%,
-    transparent 58%
-  );
-  opacity: 0;
-  transform: translate3d(0, 0, 0) rotate(7deg);
-  transition:
-    transform 0.75s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.45s ease;
-  pointer-events: none;
+  display: none;
 }
 
 .botforge-surface:hover::after {
-  opacity: 0.22;
-  transform: translate3d(245%, 0, 0) rotate(7deg);
+  display: none;
 }
 
 .botforge-title {
   font-family: "Geist Variable", "Geist", system-ui, sans-serif;
   font-weight: 760;
   font-style: normal;
-  letter-spacing: -0.055em;
+  letter-spacing: 0;
   line-height: 0.94;
   color: rgb(var(--color-fg-primary));
   text-wrap: balance;
@@ -302,16 +367,17 @@ body::before {
 .botforge-kicker {
   font-family: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
   font-size: 0.64rem;
-  letter-spacing: 0.18em;
+  letter-spacing: 0;
   text-transform: uppercase;
-  color: rgb(var(--color-fg-dim));
+  color: rgb(var(--color-brand-gold));
 }
 
 .botforge-grid {
   background:
-    radial-gradient(circle at 22% 5%, rgba(var(--color-brand-cyan), 0.035), transparent 34%),
+    linear-gradient(90deg, rgba(var(--color-contour-grid), 0.08) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(var(--color-contour-grid), 0.08) 1px, transparent 1px),
     rgba(var(--color-bg-canvas), 0.68);
-  background-size: auto;
+  background-size: 28px 28px;
 }
 
 .botforge-readable {
@@ -474,4 +540,67 @@ body::before {
 }
 [data-state="closed"].animate-out {
   animation: nuoma-fade-out 150ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Orielo 2026 ──────────────────────────────────────────── */
+
+/* Display headings — negative tracking permitted on large type only. */
+.botforge-display {
+  font-family: "Geist Variable", "Geist", system-ui, sans-serif;
+  font-weight: 780;
+  letter-spacing: -0.03em;
+  line-height: 1.02;
+  color: rgb(var(--color-fg-primary));
+  text-wrap: balance;
+}
+
+/* Gradient accent text — reserved for hero/section accents, never metrics. */
+.nuoma-gradient-text {
+  background: var(--gradient-accent);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Skeleton shimmer. */
+@keyframes nuoma-shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+.nuoma-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(var(--color-border-subtle), 0.16) 25%,
+    rgba(var(--color-border-muted), 0.32) 50%,
+    rgba(var(--color-border-subtle), 0.16) 75%
+  );
+  background-size: 200% 100%;
+  animation: nuoma-shimmer 1.6s linear infinite;
+}
+
+/* AI command bar — animated accent border sweep. */
+@keyframes nuoma-ai-sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.nuoma-ai-orb {
+  background: conic-gradient(
+    from 0deg,
+    rgb(var(--color-brand-cyan)),
+    rgb(var(--color-brand-gold-soft)),
+    rgb(var(--color-brand-cyan))
+  );
+  animation: nuoma-ai-sweep 4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nuoma-skeleton,
+  .nuoma-ai-orb {
+    animation: none !important;
+  }
 }

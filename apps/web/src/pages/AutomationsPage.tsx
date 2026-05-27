@@ -58,8 +58,8 @@ export function AutomationsPage() {
           <p className="botforge-kicker">
             Automações
           </p>
-          <h1 className="botforge-title mt-2 text-5xl md:text-6xl">
-            <span className="text-brand-cyan">Triggers</span> reativos.
+          <h1 className="botforge-display mt-2 text-5xl md:text-6xl">
+            <span className="nuoma-gradient-text">Triggers</span> reativos.
           </h1>
           <p className="text-sm text-fg-muted mt-3 max-w-xl">
             Reage a eventos: msg recebida, campanha completa, tag aplicada/removida.

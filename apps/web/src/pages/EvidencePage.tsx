@@ -70,8 +70,8 @@ export function EvidencePage() {
             <p className="botforge-kicker [color:rgb(var(--color-brand-cyan))]">
               M37 Evidence Center
             </p>
-            <h1 className="botforge-title mt-2 text-4xl md:text-5xl">
-              Provas <span className="text-brand-cyan">navegáveis</span>.
+            <h1 className="botforge-display mt-2 text-4xl md:text-5xl">
+              Provas <span className="nuoma-gradient-text">navegáveis</span>.
             </h1>
             <p className="mt-3 max-w-2xl text-sm text-fg-muted">
               Relatórios, prints e arquivos `evidence.json` lidos do diretório local `data/`.

@@ -1,31 +1,6 @@
-import { Alignment, Fit, Layout, useRive } from "@rive-app/react-canvas";
-import { useEffect, useState } from "react";
-
 import { cn, Tooltip, TooltipContent, TooltipTrigger } from "@nuoma/ui";
 
-const ASSISTANT_SRC = "/mascot/nuoma-assistant.riv";
-
-type AssetState = "checking" | "rive" | "fallback";
-
 export function NuomaAssistant({ className }: { className?: string }) {
-  const [assetState, setAssetState] = useState<AssetState>("checking");
-
-  useEffect(() => {
-    let cancelled = false;
-    void fetch(ASSISTANT_SRC, { method: "HEAD", cache: "no-store" })
-      .then((response) => {
-        const contentType = response.headers.get("content-type") ?? "";
-        const isRiveAsset = response.ok && !contentType.includes("text/html");
-        if (!cancelled) setAssetState(isRiveAsset ? "rive" : "fallback");
-      })
-      .catch(() => {
-        if (!cancelled) setAssetState("fallback");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   return (
     <Tooltip delayDuration={180}>
       <TooltipTrigger asChild>
@@ -39,22 +14,12 @@ export function NuomaAssistant({ className }: { className?: string }) {
           aria-label="Assistente Nuoma"
           style={{ animation: "nuoma-assistant-float 4.8s ease-in-out infinite" }}
         >
-          {assetState === "rive" ? <RiveAssistant /> : <FallbackAssistant />}
+          <FallbackAssistant />
         </div>
       </TooltipTrigger>
       <TooltipContent side="bottom">Nuoma</TooltipContent>
     </Tooltip>
   );
-}
-
-function RiveAssistant() {
-  const { RiveComponent } = useRive({
-    src: ASSISTANT_SRC,
-    autoplay: true,
-    layout: new Layout({ fit: Fit.Contain, alignment: Alignment.Center }),
-  });
-
-  return <RiveComponent className="h-full w-full" />;
 }
 
 function FallbackAssistant() {

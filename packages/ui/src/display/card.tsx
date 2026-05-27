@@ -5,15 +5,23 @@ import { cn } from "../utils/cn.js";
 
 export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   interactive?: boolean;
-  variant?: "raised" | "pressed";
+  variant?: "raised" | "pressed" | "flat" | "glass";
 }
 
 /**
- * Card — flat contour tile. With `interactive`, lifts subtly on hover.
+ * Card — compact Nuoma panel. With `interactive`, lifts subtly on hover.
  */
 export const Card = forwardRef<HTMLDivElement, CardProps>(
   ({ className, interactive, variant = "raised", ...props }, ref) => {
-    const baseShadow = variant === "pressed" ? "shadow-pressed-md" : "shadow-raised-md";
+    const baseShadow =
+      variant === "pressed"
+        ? "shadow-pressed-md"
+        : variant === "flat"
+          ? "shadow-flat"
+          : variant === "glass"
+            ? "shadow-lift"
+            : "shadow-raised-md";
+    const surfaceClass = variant === "glass" ? "nuoma-glass-panel" : "botforge-surface";
     const hoverShadow = variant === "pressed" ? "" : "hover:shadow-raised-lg";
     if (interactive) {
       return (
@@ -22,7 +30,8 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
           whileHover={{ y: -2 }}
           transition={{ type: "spring", stiffness: 280, damping: 24 }}
           className={cn(
-            "botforge-surface rounded-xxl p-6",
+            "rounded-sm p-6",
+            surfaceClass,
             baseShadow,
             "transition-shadow duration-base ease-out",
             hoverShadow,
@@ -35,11 +44,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
     return (
       <div
         ref={ref}
-        className={cn(
-          "botforge-surface rounded-xxl p-6",
-          baseShadow,
-          className,
-        )}
+        className={cn("rounded-sm p-6", surfaceClass, baseShadow, className)}
         {...props}
       />
     );

@@ -18,7 +18,7 @@ import {
   cn,
   KeyboardShortcut,
   MicroGrid,
-  SignalDot,
+  NuomaLogo,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -40,7 +40,7 @@ export const SHELL_NAV_ITEMS: NavItem[] = [
   { to: "/chatbots", label: "Chatbots", icon: Bot, shortcut: "6" },
   { to: "/jobs", label: "Jobs", icon: ListChecks, shortcut: "7" },
   { to: "/implementation", label: "Implementação", icon: ClipboardList, shortcut: "8" },
-  { to: "/evidence", label: "Evidências", icon: FolderSearch, shortcut: "e" },
+  { to: "/evidence", label: "Evidências", icon: FolderSearch, shortcut: "v" },
 ];
 
 export const SHELL_FOOTER_NAV_ITEMS: NavItem[] = [
@@ -63,28 +63,28 @@ export function Sidebar({ mode = "desktop", onNavigate }: SidebarProps) {
     <aside
       className={cn(
         "relative shrink-0",
-        mode === "desktop" ? "hidden w-20 px-3 py-5 md:block" : "w-full p-0",
+        mode === "desktop" ? "hidden w-[4.75rem] px-2 py-3 md:block" : "w-full p-0",
       )}
     >
       <div
         className={cn(
-          "botforge-surface flex flex-col items-center gap-3 rounded-xxxl p-3",
-          mode === "desktop" ? "sticky top-5 h-[calc(100vh-2.5rem)]" : "min-h-[calc(100vh-1.5rem)]",
+          "botforge-surface flex flex-col items-center gap-2 rounded-xl p-2",
+          mode === "desktop" ? "sticky top-3 h-[calc(100vh-1.5rem)]" : "min-h-[calc(100vh-1.25rem)]",
         )}
       >
-        <MicroGrid className="hidden" size={56} />
+        <MicroGrid className="hidden" size={48} />
         <Link
           to="/"
           aria-label="Nuoma"
           onClick={onNavigate}
-          className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-bg-surface shadow-pressed-sm hover:shadow-raised-sm transition-shadow"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-xl outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-brand-cyan/60"
         >
-          <SignalDot status="active" size="md" />
+          <NuomaLogo variant="small" tone="gold" className="h-10 w-10" />
         </Link>
 
-        <div className="my-1 h-px w-8 bg-contour-line" />
+        <div className="my-1 h-px w-8 bg-white/10" />
 
-        <nav className="flex flex-col gap-2">
+        <nav className="flex flex-col gap-1.5">
           {SHELL_NAV_ITEMS.map((item) => (
             <NavLink
               key={item.to}
@@ -95,7 +95,7 @@ export function Sidebar({ mode = "desktop", onNavigate }: SidebarProps) {
           ))}
         </nav>
 
-        <div className="mt-auto flex flex-col gap-2 pt-3 border-t border-contour-line/50 w-full items-center">
+        <div className="mt-auto flex w-full flex-col items-center gap-1.5 border-t border-white/10 pt-2">
           {SHELL_FOOTER_NAV_ITEMS.map((item) => (
             <NavLink
               key={item.to}
@@ -132,25 +132,25 @@ function NavLink({
           to={item.to}
           aria-label={item.label}
           onClick={onNavigate}
-          className="relative outline-none focus-visible:ring-2 focus-visible:ring-brand-cyan/60 rounded-xl"
+          className="relative rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-brand-cyan/60"
         >
           <motion.span
-            whileHover={{ scale: 1.04 }}
+            whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.96 }}
             transition={{ type: "spring", stiffness: 400, damping: 22 }}
             className={cn(
-              "relative inline-flex h-12 w-12 items-center justify-center rounded-xl bg-bg-surface",
-              "transition-shadow duration-base ease-out",
+              "relative inline-flex h-10 w-10 items-center justify-center rounded-lg",
+              "border transition-[background-color,box-shadow,color] duration-base ease-out",
               active
-                ? "shadow-pressed-md text-brand-cyan"
-                : "shadow-flat text-fg-muted hover:shadow-raised-sm hover:text-fg-primary",
+                ? "border-brand-cyan/30 bg-brand-cyan/12 text-brand-cyan shadow-glow-cyan"
+                : "border-white/8 bg-bg-sunken/62 text-fg-muted shadow-flat hover:bg-bg-surface/78 hover:text-fg-primary hover:shadow-raised-sm",
             )}
           >
             <Icon className={cn("h-4 w-4", active && "drop-shadow-[0_0_8px_var(--glow-active)]")} />
             {active && (
               <motion.span
                 layoutId="sidebar-active-marker"
-                className="absolute -left-3 top-1/2 -translate-y-1/2 h-5 w-1 rounded-full bg-brand-cyan shadow-glow-cyan"
+                className="absolute -left-2 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-brand-cyan shadow-glow-cyan"
                 transition={{ type: "spring", stiffness: 380, damping: 28 }}
               />
             )}

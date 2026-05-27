@@ -1,0 +1,23 @@
+{
+  "name": "Nuoma WPP",
+  "short_name": "Nuoma",
+  "description": "Nuoma WPP V2 local-first omnichannel CRM.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#06120d",
+  "theme_color": "#102118",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/brand/nuoma-small.svg",
+      "sizes": "96x96",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

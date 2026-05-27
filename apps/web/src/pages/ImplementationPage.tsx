@@ -78,11 +78,11 @@ export function ImplementationPage() {
             <p className="botforge-kicker">
               Implementação
             </p>
-            <h1 className="botforge-title mt-2 text-5xl md:text-6xl">
-              Execução <span className="text-brand-cyan">visível</span>.
+            <h1 className="botforge-display mt-2 text-5xl md:text-6xl">
+              Execução <span className="nuoma-gradient-text">visível</span>.
             </h1>
             <p className="text-sm text-fg-muted mt-3 max-w-2xl">
-              Status derivado de Markdown versionado em `docs/IMPLEMENTATION_STATUS.md`.
+              Status derivado do Markdown versionado em `README.md`.
             </p>
           </div>
           <div className="flex items-center gap-3 rounded-xl bg-bg-base px-4 py-3 shadow-flat">

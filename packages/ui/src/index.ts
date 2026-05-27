@@ -1,16 +1,18 @@
 /**
- * @nuoma/ui — V2.8 Cartographic Operations design system.
+ * @nuoma/ui — Nuoma premium dark/glass design system.
  *
- * Flat contour surfaces, signal dots, micro-grid texture and selective glass overlays.
+ * Matte graphite canvas, satin gold brand and restrained cyan operational accents.
  */
 
 export * from "./tokens/index.js";
+export * from "./brand/index.js";
 
 // Primitives
 export * from "./primitives/surface.js";
 export * from "./primitives/contour.js";
 export * from "./primitives/micro-grid.js";
 export * from "./primitives/signal-dot.js";
+export * from "./primitives/bento-grid.js";
 
 // Controls
 export * from "./controls/button.js";
@@ -19,6 +21,8 @@ export * from "./controls/switch.js";
 export * from "./controls/checkbox.js";
 export * from "./controls/radio.js";
 export * from "./controls/select.js";
+export * from "./controls/segmented-control.js";
+export * from "./controls/ai-command-bar.js";
 
 // Overlays
 export * from "./overlays/dialog.js";
@@ -34,6 +38,8 @@ export * from "./display/avatar.js";
 export * from "./display/tabs.js";
 export * from "./display/accordion.js";
 export * from "./display/states.js";
+export * from "./display/skeleton.js";
+export * from "./display/stat-card.js";
 export * from "./display/time-ago.js";
 export * from "./display/channel-icon.js";
 

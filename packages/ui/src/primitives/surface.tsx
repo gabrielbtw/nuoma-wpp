@@ -3,19 +3,22 @@ import { forwardRef, type HTMLAttributes } from "react";
 import { cn } from "../utils/cn.js";
 
 /**
- * Surface — the foundational cartographic primitive.
+ * Surface — foundational Nuoma premium primitive.
  *
- * `raised`: flat operational panel with contour edge.
+ * `raised`: satin operational panel with a gold contour edge.
  * `pressed`: inset panel for inputs and active navigation.
- * `flat`: one-line contour for chips and dividers.
- * `floating`: selective glass/lift for modals and command palette.
+ * `flat`: one-line contour for compact chips and dividers.
+ * `glass`: tiered transparent surface for product chrome.
+ * `floating`: lifted glass for modals and command palette.
  */
-export type SurfaceVariant = "raised" | "pressed" | "flat" | "floating";
+export type SurfaceVariant = "raised" | "pressed" | "flat" | "glass" | "floating";
 export type SurfaceSize = "sm" | "md" | "lg" | "xl";
+export type GlassLevel = "subtle" | "panel" | "elevated" | "modal";
 
 export interface SurfaceProps extends HTMLAttributes<HTMLDivElement> {
   variant?: SurfaceVariant;
   size?: SurfaceSize;
+  glassLevel?: GlassLevel;
   interactive?: boolean;
 }
 
@@ -38,6 +41,12 @@ const VARIANT_BY_SIZE: Record<SurfaceVariant, Record<SurfaceSize, string>> = {
     lg: "shadow-flat",
     xl: "shadow-flat",
   },
+  glass: {
+    sm: "shadow-flat-subtle",
+    md: "shadow-raised-sm",
+    lg: "shadow-raised-md",
+    xl: "shadow-lift",
+  },
   floating: {
     sm: "shadow-lift",
     md: "shadow-lift",
@@ -47,12 +56,26 @@ const VARIANT_BY_SIZE: Record<SurfaceVariant, Record<SurfaceSize, string>> = {
 };
 
 export const Surface = forwardRef<HTMLDivElement, SurfaceProps>(
-  ({ variant = "raised", size = "md", interactive, className, ...props }, ref) => (
+  (
+    {
+      variant = "raised",
+      size = "md",
+      glassLevel = variant === "floating" ? "modal" : "panel",
+      interactive,
+      className,
+      ...props
+    },
+    ref,
+  ) => (
     <div
       ref={ref}
       data-surface={variant}
+      data-glass-level={variant === "glass" || variant === "floating" ? glassLevel : undefined}
       className={cn(
-        "bg-bg-surface rounded-xl",
+        "rounded-sm",
+        variant === "glass" || variant === "floating"
+          ? `nuoma-glass-${glassLevel}`
+          : "bg-bg-surface",
         VARIANT_BY_SIZE[variant][size],
         interactive && "transition-shadow duration-base ease-out",
         className,
@@ -64,9 +87,11 @@ export const Surface = forwardRef<HTMLDivElement, SurfaceProps>(
 Surface.displayName = "Surface";
 
 /**
- * Selective glass alias for floating layers. Keep list cards flat.
+ * Glass alias for product chrome and floating layers.
  */
-export const Glass = forwardRef<HTMLDivElement, SurfaceProps & { level?: unknown }>(
-  ({ level: _level, ...rest }, ref) => <Surface ref={ref} variant="floating" {...rest} />,
+export const Glass = forwardRef<HTMLDivElement, SurfaceProps & { level?: GlassLevel }>(
+  ({ level = "panel", glassLevel, ...rest }, ref) => (
+    <Surface ref={ref} variant="glass" glassLevel={glassLevel ?? level} {...rest} />
+  ),
 );
 Glass.displayName = "Glass";
