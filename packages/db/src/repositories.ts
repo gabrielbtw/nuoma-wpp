@@ -1552,6 +1552,152 @@ export function createRepositories(handle: DbHandle) {
           })
           .where(eq(messages.id, input.id));
       },
+      async reconcileIdempotencyExternalConflict(input: {
+        userId: number;
+        conversationId: number;
+        idempotencyMessageId: number;
+        idempotencyKey: string;
+        externalId: string;
+        status: typeof messages.$inferInsert.status;
+        dispatchAttempts: number;
+      }): Promise<Message | null> {
+        const now = nowIso();
+        const tx = handle.raw.transaction(() => {
+          const external = handle.raw
+            .prepare(
+              `SELECT id
+               FROM messages
+               WHERE user_id = ?
+                 AND conversation_id = ?
+                 AND external_id = ?
+                 AND id != ?
+               LIMIT 1`,
+            )
+            .get(
+              input.userId,
+              input.conversationId,
+              input.externalId,
+              input.idempotencyMessageId,
+            ) as { id: number } | undefined;
+          if (!external) {
+            return null;
+          }
+
+          const placeholder = handle.raw
+            .prepare(
+              `SELECT contact_id, body, media_asset_id, media_json, raw_json
+               FROM messages
+               WHERE id = ?
+                 AND user_id = ?
+                 AND idempotency_key = ?
+               LIMIT 1`,
+            )
+            .get(input.idempotencyMessageId, input.userId, input.idempotencyKey) as
+            | {
+                contact_id: number | null;
+                body: string | null;
+                media_asset_id: number | null;
+                media_json: string | null;
+                raw_json: string | null;
+              }
+            | undefined;
+
+          if (!placeholder) {
+            return external.id;
+          }
+
+          handle.raw
+            .prepare(
+              `UPDATE message_dispatch_attempts
+               SET message_id = ?,
+                   external_id = COALESCE(external_id, ?),
+                   updated_at = ?
+               WHERE message_id = ?
+                 AND idempotency_key = ?`,
+            )
+            .run(
+              external.id,
+              input.externalId,
+              now,
+              input.idempotencyMessageId,
+              input.idempotencyKey,
+            );
+
+          handle.raw
+            .prepare(
+              `UPDATE attachment_candidates
+               SET message_id = ?,
+                   updated_at = ?
+               WHERE message_id = ?`,
+            )
+            .run(external.id, now, input.idempotencyMessageId);
+
+          handle.raw
+            .prepare(
+              `UPDATE chatbot_variant_events
+               SET message_id = ?,
+                   updated_at = ?
+               WHERE message_id = ?`,
+            )
+            .run(external.id, now, input.idempotencyMessageId);
+
+          handle.raw
+            .prepare(
+              `DELETE FROM messages
+               WHERE id = ?
+                 AND user_id = ?
+                 AND idempotency_key = ?`,
+            )
+            .run(input.idempotencyMessageId, input.userId, input.idempotencyKey);
+
+          handle.raw
+            .prepare(
+              `UPDATE messages
+               SET idempotency_key = ?,
+                   dispatched_at = COALESCE(dispatched_at, ?),
+                   dispatch_attempts = max(dispatch_attempts, ?),
+                   status = CASE
+                     WHEN status IN ('delivered', 'read') THEN status
+                     ELSE ?
+                   END,
+                   contact_id = COALESCE(contact_id, ?),
+                   body = COALESCE(body, ?),
+                   media_asset_id = COALESCE(media_asset_id, ?),
+                   media_json = COALESCE(media_json, ?),
+                   raw_json = COALESCE(raw_json, ?),
+                   updated_at = ?
+               WHERE id = ?
+                 AND user_id = ?
+                 AND conversation_id = ?
+                 AND external_id = ?`,
+            )
+            .run(
+              input.idempotencyKey,
+              now,
+              input.dispatchAttempts,
+              input.status,
+              placeholder.contact_id,
+              placeholder.body,
+              placeholder.media_asset_id,
+              placeholder.media_json,
+              placeholder.raw_json,
+              now,
+              external.id,
+              input.userId,
+              input.conversationId,
+              input.externalId,
+            );
+
+          return external.id;
+        });
+
+        const reconciledId = tx();
+        if (!reconciledId) {
+          return null;
+        }
+        const row = await db.select().from(messages).where(eq(messages.id, reconciledId)).get();
+        return row ? mapMessage(row) : null;
+      },
     },
 
     messageDispatchAttempts: {

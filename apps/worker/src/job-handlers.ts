@@ -6,12 +6,15 @@ import type { WorkerEnv } from "@nuoma/config";
 import {
   campaignStepSchema,
   campaignTemporaryMessagesConfigSchema,
+  extractIdempotencyKeyFromJobPayload,
   jobSchema,
   type CampaignStep,
   type CampaignTemporaryMessagesConfig,
   type Job,
   type JobType,
   type MediaAsset,
+  type Message,
+  type MessageContentType,
 } from "@nuoma/contracts";
 import type { DbHandle, Repositories } from "@nuoma/db";
 import type { Logger } from "pino";
@@ -174,6 +177,7 @@ async function handleSingleCampaignStepJob(job: Job, context: JobHandlerContext)
           sendDocumentToConversation(job, context, {
             conversationId,
             phoneInput,
+            mediaAssetId: mediaAsset.id,
             documentPath: resolveMediaStoragePath(mediaAsset.storagePath),
             fileName: renderTemplate(step.fileName || mediaAsset.fileName, variables),
             mimeType: mediaAsset.mimeType,
@@ -223,6 +227,7 @@ async function handleSingleCampaignStepJob(job: Job, context: JobHandlerContext)
           sendNativeMediaToConversation(job, context, {
             conversationId,
             phoneInput,
+            mediaAssetId: primaryMediaAsset.id,
             mediaType: step.type,
             mediaPath: resolveMediaStoragePath(primaryMediaAsset.storagePath),
             fileName: primaryMediaAsset.fileName,
@@ -270,6 +275,7 @@ async function handleSingleCampaignStepJob(job: Job, context: JobHandlerContext)
         sendVoiceToConversation(job, context, {
           conversationId,
           phoneInput,
+          mediaAssetId: mediaAsset.id,
           audioPath: resolveMediaStoragePath(mediaAsset.storagePath),
           reason: "campaign_step",
         }),
@@ -368,7 +374,8 @@ function nextQueuedCampaignBatchSibling(
   },
 ): Job | null {
   const row = context.db.raw
-    .prepare(`
+    .prepare(
+      `
       select *
       from jobs
       where user_id = ?
@@ -379,7 +386,8 @@ function nextQueuedCampaignBatchSibling(
         and replace(replace(replace(replace(replace(coalesce(json_extract(payload_json, '$.phone'), ''), '+', ''), ' ', ''), '-', ''), '(', ''), ')', '') = ?
       order by cast(json_extract(payload_json, '$.campaignBatchIndex') as integer) asc, scheduled_at asc, id asc
       limit 1
-    `)
+    `,
+    )
     .get(input.userId, input.campaignBatchId, input.afterIndex, input.phone) as
     | RawJobRow
     | undefined;
@@ -393,7 +401,8 @@ function claimCampaignBatchSibling(
 ): Job | null {
   const claimedAt = new Date().toISOString();
   const result = context.db.raw
-    .prepare(`
+    .prepare(
+      `
       update jobs
       set status = 'claimed',
           claimed_at = ?,
@@ -402,7 +411,8 @@ function claimCampaignBatchSibling(
           updated_at = ?
       where id = ?
         and status = 'queued'
-    `)
+    `,
+    )
     .run(claimedAt, workerId, claimedAt, jobId);
   if (result.changes === 0) {
     return null;
@@ -693,7 +703,11 @@ async function ensureCampaignTemporaryMessages(
   },
   ensureInput: {
     config?: CampaignTemporaryMessagesConfig;
-    phase: "before_send" | "temporary_messages_set" | "after_completion_restore" | "failure_restore";
+    phase:
+      | "before_send"
+      | "temporary_messages_set"
+      | "after_completion_restore"
+      | "failure_restore";
     duration: SyncTemporaryMessagesDuration;
   },
 ): Promise<SyncEnsureTemporaryMessagesResult> {
@@ -756,10 +770,14 @@ function temporaryKeepWindowEvidence(
   result: unknown,
   duration: SyncTemporaryMessagesDuration,
 ): Partial<SyncEnsureTemporaryMessagesResult> {
-  const record = result && typeof result === "object" && !Array.isArray(result) ? result as Record<string, unknown> : {};
-  const navigationMode = record.navigationMode === "navigated" || record.navigationMode === "reused-open-chat"
-    ? record.navigationMode
-    : undefined;
+  const record =
+    result && typeof result === "object" && !Array.isArray(result)
+      ? (result as Record<string, unknown>)
+      : {};
+  const navigationMode =
+    record.navigationMode === "navigated" || record.navigationMode === "reused-open-chat"
+      ? record.navigationMode
+      : undefined;
   return {
     requestedDuration: duration,
     verifiedDuration: duration,
@@ -778,7 +796,10 @@ async function recordTemporaryMessagesControlEvent(
     step: Extract<CampaignStep, { type: "temporary_messages" }>;
   },
   eventInput: {
-    event: "temporary_messages.set.started" | "temporary_messages.set.completed" | "temporary_messages.set.failed";
+    event:
+      | "temporary_messages.set.started"
+      | "temporary_messages.set.completed"
+      | "temporary_messages.set.failed";
     status: "running" | "completed" | "warn" | "failed";
     duration: SyncTemporaryMessagesDuration;
     verified?: boolean;
@@ -810,7 +831,7 @@ async function recordTemporaryMessagesControlEvent(
     lastKnownTemporaryMessagesDuration: eventInput.ensureResult?.verifiedDuration ?? null,
     temporaryMessagesWarning:
       eventInput.status === "warn" || eventInput.status === "failed"
-        ? eventInput.error ?? "not_verified"
+        ? (eventInput.error ?? "not_verified")
         : null,
     requestedDuration: eventInput.ensureResult?.requestedDuration ?? eventInput.duration,
     verifiedDuration: eventInput.ensureResult?.verifiedDuration ?? null,
@@ -833,7 +854,8 @@ async function recordTemporaryMessagesControlEvent(
   await context.repos.systemEvents.create({
     userId: job.userId,
     type: `sender.${eventInput.event}`,
-    severity: eventInput.status === "failed" ? "error" : eventInput.status === "warn" ? "warn" : "info",
+    severity:
+      eventInput.status === "failed" ? "error" : eventInput.status === "warn" ? "warn" : "info",
     payload: JSON.stringify({
       ...payload,
       targetEvidence: eventInput.ensureResult?.targetEvidence,
@@ -878,40 +900,46 @@ async function recordCampaignTemporaryMessagesEvent(
           changed: input.ensureResult?.changed,
         }
       : null;
-  await appendCampaignRecipientAudit(job, context, input.recipientId, {
-    event: "temporary_messages.audit",
-    source: "worker_campaign_step",
-    at: new Date().toISOString(),
-    status: input.verified === false ? "warn" : "info",
-    jobId: job.id,
-    campaignId: input.campaignId,
-    conversationId: input.conversationId,
-    phone: input.phone,
-    stepId: input.step.id,
-    stepType: input.step.type,
-    phase: input.phase,
-    duration: input.duration,
-    requestedDuration: input.ensureResult?.requestedDuration ?? input.duration,
-    verifiedDuration: input.ensureResult?.verifiedDuration ?? null,
-    executionMode: input.executionMode ?? "audit_only",
-    verified: input.verified ?? false,
-    navigationMode: input.ensureResult?.navigationMode,
-    menuDetected: input.ensureResult?.menuDetected,
-    changed: input.ensureResult?.changed,
-    error: input.error,
-    originalError: input.originalError,
-    campaignBatchId: stringFromPayload(job.payload.campaignBatchId),
-    campaignBatchIndex: numberFromPayloadAllowZero(job.payload.campaignBatchIndex),
-    campaignBatchSize: numberFromPayload(job.payload.campaignBatchSize),
-    sendStage: `temporary_messages.${input.phase}`,
-    targetVerification: input.verified
-      ? {
-          temporaryMessagesProof: true,
-          requestedDuration: input.ensureResult?.requestedDuration ?? input.duration,
-          verifiedDuration: input.ensureResult?.verifiedDuration ?? null,
-        }
-      : null,
-  }, proof ? { temporaryMessagesProof: proof } : undefined);
+  await appendCampaignRecipientAudit(
+    job,
+    context,
+    input.recipientId,
+    {
+      event: "temporary_messages.audit",
+      source: "worker_campaign_step",
+      at: new Date().toISOString(),
+      status: input.verified === false ? "warn" : "info",
+      jobId: job.id,
+      campaignId: input.campaignId,
+      conversationId: input.conversationId,
+      phone: input.phone,
+      stepId: input.step.id,
+      stepType: input.step.type,
+      phase: input.phase,
+      duration: input.duration,
+      requestedDuration: input.ensureResult?.requestedDuration ?? input.duration,
+      verifiedDuration: input.ensureResult?.verifiedDuration ?? null,
+      executionMode: input.executionMode ?? "audit_only",
+      verified: input.verified ?? false,
+      navigationMode: input.ensureResult?.navigationMode,
+      menuDetected: input.ensureResult?.menuDetected,
+      changed: input.ensureResult?.changed,
+      error: input.error,
+      originalError: input.originalError,
+      campaignBatchId: stringFromPayload(job.payload.campaignBatchId),
+      campaignBatchIndex: numberFromPayloadAllowZero(job.payload.campaignBatchIndex),
+      campaignBatchSize: numberFromPayload(job.payload.campaignBatchSize),
+      sendStage: `temporary_messages.${input.phase}`,
+      targetVerification: input.verified
+        ? {
+            temporaryMessagesProof: true,
+            requestedDuration: input.ensureResult?.requestedDuration ?? input.duration,
+            verifiedDuration: input.ensureResult?.verifiedDuration ?? null,
+          }
+        : null,
+    },
+    proof ? { temporaryMessagesProof: proof } : undefined,
+  );
   if (proof) {
     await context.repos.systemEvents.create({
       userId: job.userId,
@@ -974,6 +1002,7 @@ async function handleSendDocumentJob(job: Job, context: JobHandlerContext): Prom
   const result = await sendDocumentToConversation(job, context, {
     conversationId,
     phoneInput: typeof job.payload.phone === "string" ? job.payload.phone : null,
+    mediaAssetId: document.mediaAssetId ?? numberFromPayload(job.payload.mediaAssetId),
     documentPath: document.documentPath,
     fileName: document.fileName,
     mimeType: document.mimeType,
@@ -1040,6 +1069,7 @@ async function handleSendMediaJob(job: Job, context: JobHandlerContext): Promise
   const result = await sendNativeMediaToConversation(job, context, {
     conversationId,
     phoneInput: typeof job.payload.phone === "string" ? job.payload.phone : null,
+    mediaAssetId: primaryMediaAsset.id,
     mediaType,
     mediaPath: resolveMediaStoragePath(primaryMediaAsset.storagePath),
     fileName: primaryMediaAsset.fileName,
@@ -1078,6 +1108,7 @@ async function handleSendVoiceJob(job: Job, context: JobHandlerContext): Promise
   const result = await sendVoiceToConversation(job, context, {
     conversationId,
     phoneInput: typeof job.payload.phone === "string" ? job.payload.phone : null,
+    mediaAssetId: numberFromPayload(job.payload.mediaAssetId),
     audioPath,
     reason: "send_voice",
   });
@@ -1092,12 +1123,357 @@ async function handleSendVoiceJob(job: Job, context: JobHandlerContext): Promise
   });
 }
 
+type DispatchSendResult = {
+  externalId: string | null;
+};
+
+type DispatchMetadata = Record<string, unknown>;
+
+interface DispatchMessageDraft {
+  conversationId: number;
+  contactId: number | null;
+  contentType: MessageContentType;
+  body: string | null;
+  mediaAssetId?: number | null;
+  media?: DispatchMetadata | null;
+  raw?: DispatchMetadata | null;
+}
+
+interface DispatchSkippedDuplicateResult {
+  mode: "dispatch-skipped";
+  dispatchGuard: "skipped_duplicate";
+  skippedDuplicate: true;
+  idempotencyKey: string;
+  messageId: number;
+  externalId: string | null;
+  conversationId: number;
+  phone: string;
+  reason: string;
+  contentType: MessageContentType;
+  existingStatus: Message["status"];
+}
+
+function hasDispatchEvidence(message: Message): boolean {
+  return Boolean(
+    message.dispatchedAt ||
+    message.dispatchAttempts > 0 ||
+    message.externalId ||
+    ["sent", "delivered", "read"].includes(message.status),
+  );
+}
+
+function dispatchAttemptStaleAfterMs(context: JobHandlerContext): number {
+  return Math.max(context.env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS * 2, 60_000);
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /UNIQUE constraint failed/i.test(message);
+}
+
+async function recentActiveDispatchAttempt(context: JobHandlerContext, idempotencyKey: string) {
+  return context.repos.messageDispatchAttempts.findActiveByKey({
+    idempotencyKey,
+    staleAfterMs: dispatchAttemptStaleAfterMs(context),
+  });
+}
+
+async function markSkippedDuplicate(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    idempotencyKey: string;
+    message: Message;
+    activeAttemptId: number | null;
+    activeAttemptPhase: string | null;
+    phone: string | null;
+    reason: string;
+    conversationId: number;
+    contentType: MessageContentType;
+  },
+): Promise<DispatchSkippedDuplicateResult> {
+  const attempt = await context.repos.messageDispatchAttempts.create({
+    idempotencyKey: input.idempotencyKey,
+    userId: job.userId,
+    jobId: job.id,
+    workerId: context.env.WORKER_ID,
+    phase: "sending",
+    messageId: input.message.id,
+  });
+  await context.repos.messageDispatchAttempts.transitionPhase({
+    id: attempt.id,
+    phase: "skipped_duplicate",
+    messageId: input.message.id,
+    externalId: input.message.externalId,
+    error: input.activeAttemptPhase
+      ? `active_dispatch_attempt_${input.activeAttemptPhase}`
+      : "message_idempotency_key_already_dispatched",
+  });
+  context.logger.warn(
+    {
+      jobId: job.id,
+      type: job.type,
+      idempotencyKey: input.idempotencyKey,
+      messageId: input.message.id,
+      externalId: input.message.externalId,
+      activeAttemptId: input.activeAttemptId,
+      existingStatus: input.message.status,
+      dispatchAttempts: input.message.dispatchAttempts,
+    },
+    "dispatch skipped because idempotency key already exists",
+  );
+  return {
+    mode: "dispatch-skipped",
+    dispatchGuard: "skipped_duplicate",
+    skippedDuplicate: true,
+    idempotencyKey: input.idempotencyKey,
+    messageId: input.message.id,
+    externalId: input.message.externalId,
+    conversationId: input.conversationId,
+    phone: input.phone ?? "",
+    reason: input.reason,
+    contentType: input.contentType,
+    existingStatus: input.message.status,
+  };
+}
+
+async function trySkipExistingDispatch(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    idempotencyKey: string;
+    phone: string | null;
+    reason: string;
+    conversationId: number;
+    contentType: MessageContentType;
+  },
+): Promise<DispatchSkippedDuplicateResult | null> {
+  if (!context.env.WORKER_IDEMPOTENCY_GUARD_ENABLED) {
+    return null;
+  }
+  const existing = await context.repos.messages.findByIdempotencyKey({
+    userId: job.userId,
+    idempotencyKey: input.idempotencyKey,
+  });
+  if (!existing) {
+    return null;
+  }
+  const activeAttempt = await recentActiveDispatchAttempt(context, input.idempotencyKey);
+  if (!hasDispatchEvidence(existing) && !activeAttempt) {
+    return null;
+  }
+  return markSkippedDuplicate(job, context, {
+    ...input,
+    message: existing,
+    activeAttemptId: activeAttempt?.id ?? null,
+    activeAttemptPhase: activeAttempt?.phase ?? null,
+  });
+}
+
+async function dispatchWithIdempotencyGuard<T extends DispatchSendResult>(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    idempotencyKey: string;
+    phone: string;
+    reason: string;
+    draft: DispatchMessageDraft;
+    send: () => Promise<T>;
+    validateResult?: (result: T) => Promise<void>;
+  },
+): Promise<
+  (T & { idempotencyKey: string; dispatchMessageId: number }) | DispatchSkippedDuplicateResult
+> {
+  if (!context.env.WORKER_IDEMPOTENCY_GUARD_ENABLED) {
+    const result = await input.send();
+    return {
+      ...result,
+      idempotencyKey: input.idempotencyKey,
+      dispatchMessageId: 0,
+    };
+  }
+
+  const observedAtUtc = new Date().toISOString();
+  const upsert = await context.repos.messages.upsertOutboundByKey({
+    userId: job.userId,
+    conversationId: input.draft.conversationId,
+    contactId: input.draft.contactId,
+    externalId: null,
+    direction: "outbound",
+    contentType: input.draft.contentType,
+    status: "pending",
+    body: input.draft.body,
+    mediaAssetId: input.draft.mediaAssetId ?? null,
+    media: input.draft.media ?? null,
+    quotedMessageId: null,
+    waDisplayedAt: null,
+    timestampPrecision: "unknown",
+    messageSecond: null,
+    waInferredSecond: null,
+    observedAtUtc,
+    raw: {
+      ...(input.draft.raw ?? {}),
+      jobId: job.id,
+      jobType: job.type,
+      reason: input.reason,
+      idempotencyKey: input.idempotencyKey,
+      dispatchGuard: "if-01a",
+    },
+    idempotencyKey: input.idempotencyKey,
+  });
+
+  const activeAttempt = upsert.created
+    ? null
+    : await recentActiveDispatchAttempt(context, input.idempotencyKey);
+  const shouldSkipDuplicate =
+    !upsert.created && (hasDispatchEvidence(upsert.message) || Boolean(activeAttempt));
+
+  if (shouldSkipDuplicate) {
+    return markSkippedDuplicate(job, context, {
+      idempotencyKey: input.idempotencyKey,
+      message: upsert.message,
+      activeAttemptId: activeAttempt?.id ?? null,
+      activeAttemptPhase: activeAttempt?.phase ?? null,
+      conversationId: input.draft.conversationId,
+      phone: input.phone,
+      reason: input.reason,
+      contentType: input.draft.contentType,
+    });
+  }
+
+  const attempt = await context.repos.messageDispatchAttempts.create({
+    idempotencyKey: input.idempotencyKey,
+    userId: job.userId,
+    jobId: job.id,
+    workerId: context.env.WORKER_ID,
+    phase: "sending",
+    messageId: upsert.message.id,
+  });
+
+  let attemptFinalized = false;
+
+  async function finalizeDispatchMessage(inputStatus: {
+    status: "sent" | "failed";
+    externalId: string | null;
+    dispatchAttempts: number;
+  }): Promise<number> {
+    await context.repos.messages.markDispatched({
+      id: upsert.message.id,
+      dispatchAttempts: inputStatus.dispatchAttempts,
+    });
+    await context.repos.messages.updateStatus(upsert.message.id, inputStatus.status);
+    if (!inputStatus.externalId) {
+      return upsert.message.id;
+    }
+    try {
+      await context.repos.messages.setExternalId({
+        id: upsert.message.id,
+        externalId: inputStatus.externalId,
+        status: inputStatus.status,
+      });
+      return upsert.message.id;
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) {
+        throw error;
+      }
+      const reconciled = await context.repos.messages.reconcileIdempotencyExternalConflict({
+        userId: job.userId,
+        conversationId: input.draft.conversationId,
+        idempotencyMessageId: upsert.message.id,
+        idempotencyKey: input.idempotencyKey,
+        externalId: inputStatus.externalId,
+        status: inputStatus.status,
+        dispatchAttempts: inputStatus.dispatchAttempts,
+      });
+      if (reconciled) {
+        context.logger.warn(
+          {
+            jobId: job.id,
+            type: job.type,
+            idempotencyKey: input.idempotencyKey,
+            placeholderMessageId: upsert.message.id,
+            messageId: reconciled.id,
+            externalId: inputStatus.externalId,
+          },
+          "dispatch idempotency row reconciled with sync message",
+        );
+        return reconciled.id;
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      context.logger.warn(
+        {
+          jobId: job.id,
+          type: job.type,
+          idempotencyKey: input.idempotencyKey,
+          messageId: upsert.message.id,
+          externalId: inputStatus.externalId,
+          error: message,
+        },
+        "dispatch external id already reconciled by sync handler but target row was not found",
+      );
+      return upsert.message.id;
+    }
+  }
+
+  try {
+    const result = await input.send();
+    const dispatchAttempts = upsert.message.dispatchAttempts + 1;
+    if (input.validateResult) {
+      try {
+        await input.validateResult(result);
+      } catch (error) {
+        const failedMessageId = await finalizeDispatchMessage({
+          status: "failed",
+          externalId: result.externalId,
+          dispatchAttempts,
+        });
+        await context.repos.messageDispatchAttempts.transitionPhase({
+          id: attempt.id,
+          phase: "failed",
+          messageId: failedMessageId,
+          externalId: result.externalId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        attemptFinalized = true;
+        throw error;
+      }
+    }
+    const dispatchMessageId = await finalizeDispatchMessage({
+      status: "sent",
+      externalId: result.externalId,
+      dispatchAttempts,
+    });
+    await context.repos.messageDispatchAttempts.transitionPhase({
+      id: attempt.id,
+      phase: "sent",
+      messageId: dispatchMessageId,
+      externalId: result.externalId,
+    });
+    return {
+      ...result,
+      idempotencyKey: input.idempotencyKey,
+      dispatchMessageId,
+    };
+  } catch (error) {
+    if (!attemptFinalized) {
+      await context.repos.messageDispatchAttempts.transitionPhase({
+        id: attempt.id,
+        phase: "failed",
+        messageId: upsert.message.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    throw error;
+  }
+}
+
 async function sendVoiceToConversation(
   job: Job,
   context: JobHandlerContext,
   input: {
     conversationId: number;
     phoneInput: string | null;
+    mediaAssetId?: number | null;
     audioPath: string;
     reason: string;
   },
@@ -1119,6 +1495,22 @@ async function sendVoiceToConversation(
     normalizePhone(input.phoneInput) ??
     normalizePhone(conversation.externalThreadId) ??
     normalizePhone(conversation.title);
+  const idempotencyKey = extractIdempotencyKeyFromJobPayload(job.payload, job.id);
+  const skippedDuplicate = await trySkipExistingDispatch(job, context, {
+    idempotencyKey,
+    phone,
+    reason: input.reason,
+    conversationId: input.conversationId,
+    contentType: "voice",
+  });
+  if (skippedDuplicate) {
+    return {
+      audio: {
+        sourcePath: input.audioPath,
+      },
+      ...skippedDuplicate,
+    };
+  }
   const targetPhone = await enforceSendPolicy(job, context, "send_voice", phone);
 
   const prepared = await prepareVoiceAudio({
@@ -1126,15 +1518,44 @@ async function sendVoiceToConversation(
     tempDir: path.resolve(process.cwd(), context.env.WORKER_TEMP_DIR),
   });
   const sendPath = prepared.wavPath;
-  const result = await context.sync.sendVoiceMessage({
-    userId: job.userId,
-    conversationId: input.conversationId,
+  const result = await dispatchWithIdempotencyGuard(job, context, {
+    idempotencyKey,
     phone: targetPhone,
-    wavPath: sendPath,
-    durationSecs: prepared.durationSecs,
     reason: input.reason,
+    draft: {
+      conversationId: input.conversationId,
+      contactId: conversation.contactId,
+      contentType: "voice",
+      body: null,
+      mediaAssetId: input.mediaAssetId ?? null,
+      media: {
+        mediaAssetId: input.mediaAssetId ?? null,
+        type: "voice",
+        mimeType: "audio/wav",
+        fileName: path.basename(sendPath),
+        sizeBytes: prepared.sizeBytes,
+        durationMs: Math.round(prepared.durationSecs * 1000),
+      },
+      raw: {
+        sourcePath: prepared.sourcePath,
+        wavPath: prepared.wavPath,
+        sha256: prepared.sha256,
+        sampleRate: prepared.sampleRate,
+        channels: prepared.channels,
+        bitsPerSample: prepared.bitsPerSample,
+      },
+    },
+    send: () =>
+      context.sync!.sendVoiceMessage({
+        userId: job.userId,
+        conversationId: input.conversationId,
+        phone: targetPhone,
+        wavPath: sendPath,
+        durationSecs: prepared.durationSecs,
+        reason: input.reason,
+      }),
+    validateResult: (result) => assertNativeVoiceSendResult(job, context, input, result),
   });
-  await assertNativeVoiceSendResult(job, context, input, result);
   return {
     audio: {
       sourcePath: prepared.sourcePath,
@@ -1164,8 +1585,7 @@ async function assertNativeVoiceSendResult(
 ): Promise<void> {
   const record = isRecord(result) ? result : {};
   const nativeVoiceEvidence = record.nativeVoiceEvidence === true;
-  const voiceSendMode =
-    typeof record.voiceSendMode === "string" ? record.voiceSendMode : null;
+  const voiceSendMode = typeof record.voiceSendMode === "string" ? record.voiceSendMode : null;
   if (nativeVoiceEvidence && (!voiceSendMode || voiceSendMode === "native-ptt")) {
     return;
   }
@@ -1198,6 +1618,7 @@ async function sendDocumentToConversation(
   input: {
     conversationId: number;
     phoneInput: string | null;
+    mediaAssetId?: number | null;
     documentPath: string;
     fileName: string;
     mimeType: string;
@@ -1222,18 +1643,56 @@ async function sendDocumentToConversation(
     normalizePhone(input.phoneInput) ??
     normalizePhone(conversation.externalThreadId) ??
     normalizePhone(conversation.title);
+  const idempotencyKey = extractIdempotencyKeyFromJobPayload(job.payload, job.id);
+  const skippedDuplicate = await trySkipExistingDispatch(job, context, {
+    idempotencyKey,
+    phone,
+    reason: input.reason,
+    conversationId: input.conversationId,
+    contentType: "document",
+  });
+  if (skippedDuplicate) {
+    return skippedDuplicate;
+  }
   const targetPhone = await enforceSendPolicy(job, context, "send_document", phone);
 
   await fs.access(input.documentPath);
-  return context.sync.sendDocumentMessage({
-    userId: job.userId,
-    conversationId: input.conversationId,
+  return dispatchWithIdempotencyGuard(job, context, {
+    idempotencyKey,
     phone: targetPhone,
-    filePath: input.documentPath,
-    fileName: input.fileName,
-    mimeType: input.mimeType,
-    caption: input.caption,
     reason: input.reason,
+    draft: {
+      conversationId: input.conversationId,
+      contactId: conversation.contactId,
+      contentType: "document",
+      body: input.caption,
+      mediaAssetId: input.mediaAssetId ?? null,
+      media: {
+        mediaAssetId: input.mediaAssetId ?? null,
+        type: "document",
+        mimeType: input.mimeType,
+        fileName: input.fileName,
+        sizeBytes: null,
+        durationMs: null,
+      },
+      raw: {
+        documentPath: input.documentPath,
+        fileName: input.fileName,
+        mimeType: input.mimeType,
+        caption: input.caption,
+      },
+    },
+    send: () =>
+      context.sync!.sendDocumentMessage({
+        userId: job.userId,
+        conversationId: input.conversationId,
+        phone: targetPhone,
+        filePath: input.documentPath,
+        fileName: input.fileName,
+        mimeType: input.mimeType,
+        caption: input.caption,
+        reason: input.reason,
+      }),
   });
 }
 
@@ -1243,6 +1702,7 @@ async function sendNativeMediaToConversation(
   input: {
     conversationId: number;
     phoneInput: string | null;
+    mediaAssetId?: number | null;
     mediaType: "image" | "video";
     mediaPath: string;
     fileName: string;
@@ -1273,6 +1733,17 @@ async function sendNativeMediaToConversation(
     normalizePhone(input.phoneInput) ??
     normalizePhone(conversation.externalThreadId) ??
     normalizePhone(conversation.title);
+  const idempotencyKey = extractIdempotencyKeyFromJobPayload(job.payload, job.id);
+  const skippedDuplicate = await trySkipExistingDispatch(job, context, {
+    idempotencyKey,
+    phone,
+    reason: input.reason,
+    conversationId: input.conversationId,
+    contentType: input.mediaType,
+  });
+  if (skippedDuplicate) {
+    return skippedDuplicate;
+  }
   const targetPhone = await enforceSendPolicy(job, context, "send_media", phone);
 
   const mediaFiles = input.files?.length
@@ -1287,21 +1758,52 @@ async function sendNativeMediaToConversation(
   for (const file of mediaFiles) {
     await fs.access(file.mediaPath);
   }
-  return context.sync.sendMediaMessage({
-    userId: job.userId,
-    conversationId: input.conversationId,
+  return dispatchWithIdempotencyGuard(job, context, {
+    idempotencyKey,
     phone: targetPhone,
-    mediaType: input.mediaType,
-    filePath: input.mediaPath,
-    fileName: input.fileName,
-    mimeType: input.mimeType,
-    files: mediaFiles.map((file) => ({
-      filePath: file.mediaPath,
-      fileName: file.fileName,
-      mimeType: file.mimeType,
-    })),
-    caption: input.caption,
     reason: input.reason,
+    draft: {
+      conversationId: input.conversationId,
+      contactId: conversation.contactId,
+      contentType: input.mediaType,
+      body: input.caption,
+      mediaAssetId: input.mediaAssetId ?? null,
+      media: {
+        mediaAssetId: input.mediaAssetId ?? null,
+        type: input.mediaType,
+        mimeType: input.mimeType,
+        fileName: input.fileName,
+        sizeBytes: null,
+        durationMs: null,
+        files: mediaFiles.map((file) => ({
+          fileName: file.fileName,
+          mimeType: file.mimeType,
+        })),
+      },
+      raw: {
+        mediaPath: input.mediaPath,
+        fileName: input.fileName,
+        mimeType: input.mimeType,
+        mediaCount: mediaFiles.length,
+      },
+    },
+    send: () =>
+      context.sync!.sendMediaMessage({
+        userId: job.userId,
+        conversationId: input.conversationId,
+        phone: targetPhone,
+        mediaType: input.mediaType,
+        filePath: input.mediaPath,
+        fileName: input.fileName,
+        mimeType: input.mimeType,
+        files: mediaFiles.map((file) => ({
+          filePath: file.mediaPath,
+          fileName: file.fileName,
+          mimeType: file.mimeType,
+        })),
+        caption: input.caption,
+        reason: input.reason,
+      }),
   });
 }
 
@@ -1358,14 +1860,41 @@ async function sendTextToConversation(
     normalizePhone(input.phoneInput) ??
     normalizePhone(conversation.externalThreadId) ??
     normalizePhone(conversation.title);
+  const idempotencyKey = extractIdempotencyKeyFromJobPayload(job.payload, job.id);
+  const skippedDuplicate = await trySkipExistingDispatch(job, context, {
+    idempotencyKey,
+    phone,
+    reason: input.reason,
+    conversationId: input.conversationId,
+    contentType: "text",
+  });
+  if (skippedDuplicate) {
+    return skippedDuplicate;
+  }
   const targetPhone = await enforceSendPolicy(job, context, "send_message", phone);
 
-  return context.sync.sendTextMessage({
-    userId: job.userId,
-    conversationId: input.conversationId,
+  return dispatchWithIdempotencyGuard(job, context, {
+    idempotencyKey,
     phone: targetPhone,
-    body: input.body,
     reason: input.reason,
+    draft: {
+      conversationId: input.conversationId,
+      contactId: conversation.contactId,
+      contentType: "text",
+      body: input.body,
+      media: null,
+      raw: {
+        bodyLength: input.body.length,
+      },
+    },
+    send: () =>
+      context.sync!.sendTextMessage({
+        userId: job.userId,
+        conversationId: input.conversationId,
+        phone: targetPhone,
+        body: input.body,
+        reason: input.reason,
+      }),
   });
 }
 
@@ -1442,8 +1971,9 @@ async function recordCampaignStepCompleted(
       id: input.recipientId,
     });
     if (recipient) {
-      const lastKnownTemporaryMessagesDuration =
-        lastKnownTemporaryMessagesDurationFromMetadata(recipient.metadata);
+      const lastKnownTemporaryMessagesDuration = lastKnownTemporaryMessagesDurationFromMetadata(
+        recipient.metadata,
+      );
       if (
         input.step.type !== "temporary_messages" &&
         !("lastKnownTemporaryMessagesDuration" in input.result)
@@ -1536,10 +2066,10 @@ async function recordCampaignStepFailed(
   },
 ): Promise<void> {
   const message = input.error instanceof Error ? input.error.message : String(input.error);
-      const isTerminal =
-        input.error instanceof PermanentJobError ||
-        isTerminalCampaignStepError(message) ||
-        job.attempts >= job.maxAttempts;
+  const isTerminal =
+    input.error instanceof PermanentJobError ||
+    isTerminalCampaignStepError(message) ||
+    job.attempts >= job.maxAttempts;
   if (isTerminal) {
     await cancelCampaignBatchSiblingJobs(job, context, message);
   }
@@ -1639,7 +2169,8 @@ async function cancelCampaignBatchSiblingJobs(
   }
   const now = new Date().toISOString();
   const result = context.db.raw
-    .prepare(`
+    .prepare(
+      `
       update jobs
       set status = 'cancelled',
           last_error = coalesce(last_error, ?),
@@ -1649,8 +2180,15 @@ async function cancelCampaignBatchSiblingJobs(
         and id <> ?
         and status in ('queued', 'claimed', 'running', 'retrying')
         and json_extract(payload_json, '$.campaignBatchId') = ?
-    `)
-    .run(`campaign_step batch cancelled after terminal failure: ${error}`, now, job.userId, job.id, campaignBatchId);
+    `,
+    )
+    .run(
+      `campaign_step batch cancelled after terminal failure: ${error}`,
+      now,
+      job.userId,
+      job.id,
+      campaignBatchId,
+    );
   if (result.changes > 0) {
     await context.repos.systemEvents.create({
       userId: job.userId,
@@ -1951,9 +2489,7 @@ function withRecipientAudit(
   metadata: Record<string, unknown>,
   entry: Record<string, unknown>,
 ): Record<string, unknown> {
-  const auditTrail = Array.isArray(metadata.auditTrail)
-    ? metadata.auditTrail.filter(isRecord)
-    : [];
+  const auditTrail = Array.isArray(metadata.auditTrail) ? metadata.auditTrail.filter(isRecord) : [];
   return {
     ...metadata,
     auditTrail: [...auditTrail.slice(-24), entry],
@@ -1963,11 +2499,10 @@ function withRecipientAudit(
 function lastKnownTemporaryMessagesDurationFromMetadata(
   metadata: Record<string, unknown>,
 ): SyncTemporaryMessagesDuration | null {
-  const auditTrail = Array.isArray(metadata.auditTrail)
-    ? metadata.auditTrail.filter(isRecord)
-    : [];
+  const auditTrail = Array.isArray(metadata.auditTrail) ? metadata.auditTrail.filter(isRecord) : [];
   for (const entry of auditTrail.slice().reverse()) {
-    const duration = entry.lastKnownTemporaryMessagesDuration ?? entry.temporaryMessagesConfirmedDuration;
+    const duration =
+      entry.lastKnownTemporaryMessagesDuration ?? entry.temporaryMessagesConfirmedDuration;
     if (duration === "24h" || duration === "7d" || duration === "90d") {
       return duration;
     }

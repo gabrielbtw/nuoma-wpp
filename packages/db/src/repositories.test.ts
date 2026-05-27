@@ -241,9 +241,9 @@ describe("repositories", () => {
       now: "2026-05-18T12:00:01.000Z",
       limit: 10,
     });
-    const duplicateRow = handle.raw.prepare("select status from jobs where id = ?").get(
-      duplicate.id,
-    ) as { status: string } | undefined;
+    const duplicateRow = handle.raw
+      .prepare("select status from jobs where id = ?")
+      .get(duplicate.id) as { status: string } | undefined;
 
     expect(claimed.map((job) => job.id)).toEqual([otherPhone.id]);
     expect(duplicateRow?.status).toBe("queued");
@@ -725,10 +725,12 @@ describe("repositories", () => {
 
     const conversations = await repos.conversations.list(user.id);
 
-    expect(conversations.find((item) => item.externalThreadId === "5531982066201")?.lastMessageAt).toBe(
-      "2026-04-20T13:29:00.000-03:00",
-    );
-    expect(conversations.find((item) => item.externalThreadId === "5531982066202")?.lastMessageAt).toBeNull();
+    expect(
+      conversations.find((item) => item.externalThreadId === "5531982066201")?.lastMessageAt,
+    ).toBe("2026-04-20T13:29:00.000-03:00");
+    expect(
+      conversations.find((item) => item.externalThreadId === "5531982066202")?.lastMessageAt,
+    ).toBeNull();
   });
 
   it("excludes archived conversations from inbox lists", async () => {
@@ -1063,6 +1065,165 @@ describe("repositories", () => {
     expect(dispatched?.status).toBe("sent");
   });
 
+  it("reconciles an idempotency placeholder with a sync-created external message", async () => {
+    const repos = createRepositories(handle);
+    const user = await repos.users.create({
+      email: "idempotency-sync-race@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: null,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263@c.us",
+      title: "Sync race target",
+    });
+    const key = "cstep:sync:race";
+    const placeholder = await repos.messages.upsertOutboundByKey({
+      idempotencyKey: key,
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: null,
+      direction: "outbound",
+      contentType: "text",
+      status: "pending",
+      body: "Mensagem enviada",
+      observedAtUtc: "2026-04-30T15:00:00.000Z",
+      timestampPrecision: "second",
+      messageSecond: 0,
+      waInferredSecond: null,
+      raw: { source: "dispatch_guard" },
+    });
+    const attempt = await repos.messageDispatchAttempts.create({
+      idempotencyKey: key,
+      userId: user.id,
+      jobId: 123,
+      workerId: "worker-sync-race",
+      phase: "sending",
+      messageId: placeholder.message.id,
+    });
+    const mediaAsset = await repos.mediaAssets.create({
+      userId: user.id,
+      type: "image",
+      fileName: "race.jpg",
+      mimeType: "image/jpeg",
+      sha256: "a".repeat(64),
+      sizeBytes: 5,
+      durationMs: null,
+      storagePath: "/tmp/race.jpg",
+    });
+    const attachment = await repos.attachmentCandidates.create({
+      userId: user.id,
+      conversationId: conversation.id,
+      messageId: placeholder.message.id,
+      mediaAssetId: mediaAsset.id,
+      channel: "whatsapp",
+      contentType: "image",
+      externalMessageId: null,
+      caption: "Mensagem enviada",
+      observedAt: "2026-04-30T15:00:00.000Z",
+      metadata: { source: "placeholder" },
+    });
+    const chatbot = await repos.chatbots.create({
+      userId: user.id,
+      name: "Bot",
+      channel: "whatsapp",
+      status: "active",
+      fallbackMessage: null,
+      metadata: {},
+    });
+    const rule = await repos.chatbots.createRule({
+      userId: user.id,
+      chatbotId: chatbot.id,
+      name: "Rule",
+      priority: 10,
+      match: { type: "contains", value: "oi" },
+      segment: null,
+      actions: [{ type: "notify_attendant", attendantId: null, message: "Nova mensagem" }],
+      metadata: {},
+      isActive: true,
+    });
+    const variantEvent = await repos.chatbots.recordVariantEvent({
+      userId: user.id,
+      chatbotId: chatbot.id,
+      ruleId: rule.id,
+      variantId: "a",
+      variantLabel: "A",
+      eventType: "exposure",
+      channel: "whatsapp",
+      contactId: null,
+      conversationId: conversation.id,
+      messageId: placeholder.message.id,
+      exposureId: null,
+      sourceEventId: "sync-race-source",
+      metadata: {},
+    });
+
+    const synced = await repos.messages.create({
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: null,
+      externalId: "wamid.sync-race",
+      direction: "outbound",
+      contentType: "text",
+      status: "sent",
+      body: "Mensagem enviada",
+      observedAtUtc: "2026-04-30T15:00:01.000Z",
+      timestampPrecision: "second",
+      messageSecond: 1,
+      waInferredSecond: null,
+      raw: { source: "sync" },
+    });
+
+    const reconciled = await repos.messages.reconcileIdempotencyExternalConflict({
+      userId: user.id,
+      conversationId: conversation.id,
+      idempotencyMessageId: placeholder.message.id,
+      idempotencyKey: key,
+      externalId: "wamid.sync-race",
+      status: "sent",
+      dispatchAttempts: 1,
+    });
+
+    expect(reconciled).toEqual(
+      expect.objectContaining({
+        id: synced.id,
+        idempotencyKey: key,
+        externalId: "wamid.sync-race",
+        status: "sent",
+        dispatchAttempts: 1,
+      }),
+    );
+    await expect(
+      repos.messages.findById({ userId: user.id, id: placeholder.message.id }),
+    ).resolves.toBeNull();
+    await expect(
+      repos.messages.findByIdempotencyKey({ userId: user.id, idempotencyKey: key }),
+    ).resolves.toEqual(expect.objectContaining({ id: synced.id }));
+    const messages = await repos.messages.listByConversation({
+      userId: user.id,
+      conversationId: conversation.id,
+    });
+    expect(messages).toHaveLength(1);
+    const attempts = await repos.messageDispatchAttempts.listByKey(key);
+    expect(attempts[0]).toEqual(
+      expect.objectContaining({
+        id: attempt.id,
+        messageId: synced.id,
+        externalId: "wamid.sync-race",
+      }),
+    );
+    const attachmentRow = handle.raw
+      .prepare(`SELECT message_id FROM attachment_candidates WHERE id = ?`)
+      .get(attachment.id) as { message_id: number } | undefined;
+    expect(attachmentRow?.message_id).toBe(synced.id);
+    const variantRow = handle.raw
+      .prepare(`SELECT message_id FROM chatbot_variant_events WHERE id = ?`)
+      .get(variantEvent?.id) as { message_id: number } | undefined;
+    expect(variantRow?.message_id).toBe(synced.id);
+  });
+
   it("records dispatch attempts and skips stale in-flight rows when looking up active attempts", async () => {
     const repos = createRepositories(handle);
     const user = await repos.users.create({
@@ -1097,7 +1258,11 @@ describe("repositories", () => {
     expect(stale).toBeNull();
 
     // failed/skipped attempts must NOT count as in-flight.
-    await repos.messageDispatchAttempts.transitionPhase({ id: fresh.id, phase: "failed", error: "boom" });
+    await repos.messageDispatchAttempts.transitionPhase({
+      id: fresh.id,
+      phase: "failed",
+      error: "boom",
+    });
     const afterFailure = await repos.messageDispatchAttempts.findActiveByKey({
       idempotencyKey: key,
       staleAfterMs: 5 * 60 * 1000,

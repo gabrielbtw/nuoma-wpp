@@ -303,6 +303,514 @@ describe("worker job loop", () => {
         externalId: "after",
       }),
     );
+    const dispatchMessage = await repos.messages.findByIdempotencyKey({
+      userId: user.id,
+      idempotencyKey: `legacy:job:${job.id}`,
+    });
+    expect(dispatchMessage).toEqual(
+      expect.objectContaining({
+        contentType: "text",
+        body: "teste controlado",
+        status: "sent",
+        dispatchAttempts: 1,
+      }),
+    );
+  });
+
+  it("skips duplicate text dispatches by idempotency key before calling CDP again", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-send-idempotent",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_ALLOWED_PHONE: "5531982066263",
+    });
+    const user = await repos.users.create({
+      email: "send-idempotent@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      title: "Gabriel Braga Nuoma",
+    });
+    const idempotencyKey = "manual:test-text-send";
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        phone: "5531982066263",
+        body: "teste idempotente",
+        idempotencyKey,
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    if (!job) {
+      throw new Error("expected send_message job to be created");
+    }
+    const calls: unknown[] = [];
+    const context = {
+      env,
+      db,
+      repos,
+      logger,
+      sync: {
+        connected: true,
+        metrics: {} as never,
+        forceConversation: async () => {
+          throw new Error("unexpected force sync");
+        },
+        sendTextMessage: async (input: {
+          conversationId: number;
+          phone: string;
+          body: string;
+          reason?: string;
+        }) => {
+          calls.push(input);
+          return {
+            mode: "text-message" as const,
+            conversationId: input.conversationId,
+            phone: input.phone,
+            reason: input.reason ?? "send_message",
+            navigationMode: "reused-open-chat" as const,
+            externalId: "after-idempotent",
+            visibleMessageCountBefore: 1,
+            visibleMessageCountAfter: 2,
+            lastExternalIdBefore: "before",
+            lastExternalIdAfter: "after-idempotent",
+          };
+        },
+        sendVoiceMessage: async () => {
+          throw new Error("unexpected voice send");
+        },
+        sendDocumentMessage: async () => {
+          throw new Error("unexpected document send");
+        },
+        sendMediaMessage: async () => {
+          throw new Error("unexpected media send");
+        },
+        close: async () => {},
+      },
+    };
+
+    await handleJob(job, context);
+    await handleJob(job, context);
+
+    expect(calls).toHaveLength(1);
+    const message = await repos.messages.findByIdempotencyKey({
+      userId: user.id,
+      idempotencyKey,
+    });
+    expect(message).toEqual(
+      expect.objectContaining({
+        idempotencyKey,
+        externalId: "after-idempotent",
+        status: "sent",
+        dispatchAttempts: 1,
+      }),
+    );
+    const attempts = await repos.messageDispatchAttempts.listByKey(idempotencyKey);
+    expect(attempts.map((attempt) => attempt.phase)).toEqual(["sent", "skipped_duplicate"]);
+  });
+
+  it("skips duplicate voice, document, media, and campaign step dispatches before CDP", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-send-idempotent-all",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WORKER_TEMP_DIR: tempDir,
+      WA_SEND_ALLOWED_PHONE: "5531982066263",
+    });
+    const user = await repos.users.create({
+      email: "send-idempotent-all@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      title: "Gabriel Braga Nuoma",
+    });
+    const imagePath = path.join(tempDir, "duplicate-skip.jpg");
+    await fs.writeFile(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+    const mediaAsset = await repos.mediaAssets.create({
+      userId: user.id,
+      type: "image",
+      fileName: "duplicate-skip.jpg",
+      mimeType: "image/jpeg",
+      sha256: "c".repeat(64),
+      sizeBytes: (await fs.stat(imagePath)).size,
+      durationMs: null,
+      storagePath: imagePath,
+    });
+    const cases = [
+      {
+        type: "send_voice" as const,
+        key: "manual:test-voice-duplicate",
+        contentType: "voice" as const,
+        payload: {
+          conversationId: conversation.id,
+          phone: "5531982066263",
+          audioPath: path.join(tempDir, "missing-duplicate-voice.wav"),
+          idempotencyKey: "manual:test-voice-duplicate",
+        },
+      },
+      {
+        type: "send_document" as const,
+        key: "manual:test-document-duplicate",
+        contentType: "document" as const,
+        payload: {
+          conversationId: conversation.id,
+          phone: "5531982066263",
+          documentPath: path.join(tempDir, "missing-duplicate-document.pdf"),
+          fileName: "duplicate.pdf",
+          mimeType: "application/pdf",
+          caption: "Documento duplicado",
+          idempotencyKey: "manual:test-document-duplicate",
+        },
+      },
+      {
+        type: "send_media" as const,
+        key: "manual:test-media-duplicate",
+        contentType: "image" as const,
+        payload: {
+          conversationId: conversation.id,
+          phone: "5531982066263",
+          mediaAssetId: mediaAsset.id,
+          mediaType: "image",
+          caption: "Imagem duplicada",
+          idempotencyKey: "manual:test-media-duplicate",
+        },
+      },
+      {
+        type: "campaign_step" as const,
+        key: "campaign:test-step-duplicate",
+        contentType: "text" as const,
+        payload: {
+          campaignId: 900,
+          recipientId: 901,
+          conversationId: conversation.id,
+          phone: "5531982066263",
+          idempotencyKey: "campaign:test-step-duplicate",
+          step: {
+            id: "duplicate-step",
+            label: "Duplicate step",
+            type: "text",
+            delaySeconds: 0,
+            conditions: [],
+            template: "Campanha duplicada",
+          },
+        },
+      },
+    ];
+
+    for (const testCase of cases) {
+      const upsert = await repos.messages.upsertOutboundByKey({
+        idempotencyKey: testCase.key,
+        userId: user.id,
+        conversationId: conversation.id,
+        contactId: conversation.contactId,
+        externalId: null,
+        direction: "outbound",
+        contentType: testCase.contentType,
+        status: "pending",
+        body: "duplicate placeholder",
+        mediaAssetId: testCase.type === "send_media" ? mediaAsset.id : null,
+        media: null,
+        quotedMessageId: null,
+        waDisplayedAt: null,
+        timestampPrecision: "unknown",
+        messageSecond: null,
+        waInferredSecond: null,
+        observedAtUtc: new Date().toISOString(),
+        raw: { source: "test" },
+      });
+      await repos.messages.markDispatched({ id: upsert.message.id, dispatchAttempts: 1 });
+      await repos.messages.updateStatus(upsert.message.id, "sent");
+      const job = await repos.jobs.create({
+        userId: user.id,
+        type: testCase.type,
+        status: "queued",
+        payload: testCase.payload,
+        scheduledAt: "2026-04-30T12:00:00.000Z",
+        maxAttempts: 2,
+      });
+      if (!job) {
+        throw new Error(`expected ${testCase.type} job to be created`);
+      }
+      await handleJob(job, {
+        env,
+        db,
+        repos,
+        logger,
+        sync: {
+          connected: true,
+          metrics: {} as never,
+          forceConversation: async () => {
+            throw new Error("unexpected force sync");
+          },
+          sendTextMessage: async () => {
+            throw new Error(`unexpected text send for ${testCase.type}`);
+          },
+          sendVoiceMessage: async () => {
+            throw new Error(`unexpected voice send for ${testCase.type}`);
+          },
+          sendDocumentMessage: async () => {
+            throw new Error(`unexpected document send for ${testCase.type}`);
+          },
+          sendMediaMessage: async () => {
+            throw new Error(`unexpected media send for ${testCase.type}`);
+          },
+          close: async () => {},
+        },
+      });
+      const attempts = await repos.messageDispatchAttempts.listByKey(testCase.key);
+      expect(attempts.map((attempt) => attempt.phase)).toEqual(["skipped_duplicate"]);
+    }
+  });
+
+  it("retries when the first idempotent dispatch fails before a send is confirmed", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-send-idempotent-retry",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_ALLOWED_PHONE: "5531982066263",
+    });
+    const user = await repos.users.create({
+      email: "send-idempotent-retry@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      title: "Gabriel Braga Nuoma",
+    });
+    const idempotencyKey = "manual:test-text-retry";
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        phone: "5531982066263",
+        body: "retry depois de falha",
+        idempotencyKey,
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    if (!job) {
+      throw new Error("expected send_message job to be created");
+    }
+    let calls = 0;
+    const context = {
+      env,
+      db,
+      repos,
+      logger,
+      sync: {
+        connected: true,
+        metrics: {} as never,
+        forceConversation: async () => {
+          throw new Error("unexpected force sync");
+        },
+        sendTextMessage: async (input: {
+          conversationId: number;
+          phone: string;
+          body: string;
+          reason?: string;
+        }) => {
+          calls += 1;
+          if (calls === 1) {
+            throw new Error("navigation failed before send");
+          }
+          return {
+            mode: "text-message" as const,
+            conversationId: input.conversationId,
+            phone: input.phone,
+            reason: input.reason ?? "send_message",
+            navigationMode: "reused-open-chat" as const,
+            externalId: "after-retry",
+            visibleMessageCountBefore: 1,
+            visibleMessageCountAfter: 2,
+            lastExternalIdBefore: "before",
+            lastExternalIdAfter: "after-retry",
+          };
+        },
+        sendVoiceMessage: async () => {
+          throw new Error("unexpected voice send");
+        },
+        sendDocumentMessage: async () => {
+          throw new Error("unexpected document send");
+        },
+        sendMediaMessage: async () => {
+          throw new Error("unexpected media send");
+        },
+        close: async () => {},
+      },
+    };
+
+    await expect(handleJob(job, context)).rejects.toThrow("navigation failed before send");
+    await handleJob(job, context);
+
+    expect(calls).toBe(2);
+    const message = await repos.messages.findByIdempotencyKey({
+      userId: user.id,
+      idempotencyKey,
+    });
+    expect(message).toEqual(
+      expect.objectContaining({
+        idempotencyKey,
+        externalId: "after-retry",
+        status: "sent",
+        dispatchAttempts: 1,
+      }),
+    );
+    const attempts = await repos.messageDispatchAttempts.listByKey(idempotencyKey);
+    expect(attempts.map((attempt) => attempt.phase)).toEqual(["failed", "sent"]);
+  });
+
+  it("does not fail when sync already reconciled the returned external id", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-send-sync-race",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_ALLOWED_PHONE: "5531982066263",
+    });
+    const user = await repos.users.create({
+      email: "send-sync-race@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      title: "Gabriel Braga Nuoma",
+    });
+    const idempotencyKey = "manual:test-sync-race";
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        phone: "5531982066263",
+        body: "sync race",
+        idempotencyKey,
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    if (!job) {
+      throw new Error("expected send_message job to be created");
+    }
+
+    await handleJob(job, {
+      env,
+      db,
+      repos,
+      logger,
+      sync: {
+        connected: true,
+        metrics: {} as never,
+        forceConversation: async () => {
+          throw new Error("unexpected force sync");
+        },
+        sendTextMessage: async (input) => {
+          await repos.messages.create({
+            userId: user.id,
+            conversationId: conversation.id,
+            contactId: conversation.contactId,
+            externalId: "already-synced",
+            direction: "outbound",
+            contentType: "text",
+            status: "sent",
+            body: input.body,
+            media: null,
+            raw: null,
+            observedAtUtc: new Date().toISOString(),
+          });
+          return {
+            mode: "text-message",
+            conversationId: input.conversationId,
+            phone: input.phone,
+            reason: input.reason ?? "send_message",
+            navigationMode: "reused-open-chat",
+            externalId: "already-synced",
+            visibleMessageCountBefore: 1,
+            visibleMessageCountAfter: 2,
+            lastExternalIdBefore: "before",
+            lastExternalIdAfter: "already-synced",
+          };
+        },
+        sendVoiceMessage: async () => {
+          throw new Error("unexpected voice send");
+        },
+        sendDocumentMessage: async () => {
+          throw new Error("unexpected document send");
+        },
+        sendMediaMessage: async () => {
+          throw new Error("unexpected media send");
+        },
+        close: async () => {},
+      },
+    });
+
+    const message = await repos.messages.findByIdempotencyKey({
+      userId: user.id,
+      idempotencyKey,
+    });
+    const synced = await repos.messages.findByExternalId({
+      userId: user.id,
+      conversationId: conversation.id,
+      externalId: "already-synced",
+    });
+    expect(message).toEqual(
+      expect.objectContaining({
+        id: synced?.id,
+        idempotencyKey,
+        externalId: "already-synced",
+        status: "sent",
+        dispatchAttempts: 1,
+      }),
+    );
+    expect(synced).toEqual(
+      expect.objectContaining({
+        idempotencyKey,
+        externalId: "already-synced",
+        status: "sent",
+        dispatchAttempts: 1,
+      }),
+    );
+    const visibleMessages = await repos.messages.listByConversation({
+      userId: user.id,
+      conversationId: conversation.id,
+    });
+    expect(visibleMessages).toHaveLength(1);
   });
 
   it("blocks non-allowlisted targets in test send policy and audits the decision", async () => {
@@ -988,6 +1496,18 @@ describe("worker job loop", () => {
         externalId: "after",
       }),
     );
+    const dispatchMessage = await repos.messages.findByIdempotencyKey({
+      userId: user.id,
+      idempotencyKey: `legacy:job:${job.id}`,
+    });
+    expect(dispatchMessage).toEqual(
+      expect.objectContaining({
+        contentType: "text",
+        body: "Oi Gabriel, teste de campanha.",
+        status: "sent",
+        dispatchAttempts: 1,
+      }),
+    );
   });
 
   it("verifies temporary messages before the first campaign step and restores on the last", async () => {
@@ -1087,7 +1607,11 @@ describe("worker job loop", () => {
         conversationId: number;
         phone: string;
         duration: "24h" | "7d" | "90d";
-        phase: "before_send" | "temporary_messages_set" | "after_completion_restore" | "failure_restore";
+        phase:
+          | "before_send"
+          | "temporary_messages_set"
+          | "after_completion_restore"
+          | "failure_restore";
         reason?: string;
       }) => {
         ensureCalls.push(input);
@@ -1118,7 +1642,12 @@ describe("worker job loop", () => {
           },
         };
       },
-      sendTextMessage: async (input: { conversationId: number; phone: string; body: string; reason?: string }) => {
+      sendTextMessage: async (input: {
+        conversationId: number;
+        phone: string;
+        body: string;
+        reason?: string;
+      }) => {
         sendCalls.push(input);
         return {
           mode: "text-message" as const,
@@ -1296,7 +1825,11 @@ describe("worker job loop", () => {
         conversationId: number;
         phone: string;
         duration: "24h" | "7d" | "90d";
-        phase: "before_send" | "temporary_messages_set" | "after_completion_restore" | "failure_restore";
+        phase:
+          | "before_send"
+          | "temporary_messages_set"
+          | "after_completion_restore"
+          | "failure_restore";
         reason?: string;
       }) => {
         ensureCalls.push(input);
@@ -1322,7 +1855,12 @@ describe("worker job loop", () => {
           },
         };
       },
-      sendTextMessage: async (input: { conversationId: number; phone: string; body: string; reason?: string }) => {
+      sendTextMessage: async (input: {
+        conversationId: number;
+        phone: string;
+        body: string;
+        reason?: string;
+      }) => {
         sendCalls.push(input);
         return {
           mode: "text-message" as const,
@@ -1674,7 +2212,7 @@ describe("worker job loop", () => {
     );
   });
 
-  it("TODO fails until campaign voice fallback is rejected and audited instead of completed", async () => {
+  it("marks campaign voice fallback as failed while preserving dispatch evidence", async () => {
     const repos = createRepositories(db);
     const logger = pino({ level: "silent" });
     const audioPath = path.join(tempDir, "campaign-voice-fallback.wav");
@@ -1798,6 +2336,19 @@ describe("worker job loop", () => {
         reason: "native_voice_evidence_required",
       }),
     );
+    const dispatchMessage = await repos.messages.findByIdempotencyKey({
+      userId: user.id,
+      idempotencyKey: `legacy:job:${job.id}`,
+    });
+    expect(dispatchMessage).toEqual(
+      expect.objectContaining({
+        externalId: "fallback-after",
+        status: "failed",
+        dispatchAttempts: 1,
+      }),
+    );
+    const attempts = await repos.messageDispatchAttempts.listByKey(`legacy:job:${job.id}`);
+    expect(attempts.map((attempt) => attempt.phase)).toEqual(["failed"]);
   });
 
   it("sends documents only when the target phone matches the allowlist", async () => {

@@ -82,8 +82,14 @@ const workerSchema = baseSchema.extend({
   WORKER_SYNC_MULTI_CHAT_LIMIT: z.coerce.number().int().min(1).max(20).default(5),
   WORKER_SYNC_MULTI_CHAT_DELAY_MS: z.coerce.number().int().min(250).default(1_200),
   WORKER_SEND_REUSE_OPEN_CHAT_ENABLED: booleanFromEnv.default(false),
-  WORKER_SEND_CONFIRMATION_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(60_000).default(15_000),
+  WORKER_SEND_CONFIRMATION_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(1_000)
+    .max(60_000)
+    .default(15_000),
   WORKER_SEND_STRICT_DELIVERY: booleanFromEnv.default(true),
+  WORKER_IDEMPOTENCY_GUARD_ENABLED: booleanFromEnv.default(true),
   WA_SEND_POLICY_MODE: z.enum(["test", "production"]).default("test"),
   WA_SEND_ALLOWED_PHONES: z.string().default(""),
   WA_SEND_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).default(60_000),
