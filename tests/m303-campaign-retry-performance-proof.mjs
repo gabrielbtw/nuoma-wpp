@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import fs from "node:fs";
 import path from "node:path";
 
 const databaseUrl = path.resolve(process.env.DATABASE_URL ?? "data/nuoma-v2.db");
@@ -7,6 +8,7 @@ const expectedRounds = Number(process.env.M303_EXPECTED_ROUNDS ?? 3);
 const maxDurationSeconds = Number(process.env.M303_MAX_DURATION_SECONDS ?? 120);
 const requireMaxAttemptsOne = process.env.M303_REQUIRE_MAX_ATTEMPTS_ONE !== "false";
 const requireNeferpeelBh = process.env.M303_REQUIRE_NEFERPEEL_BH !== "false";
+const requireTemporaryMessages = process.env.M303_REQUIRE_TEMPORARY_MESSAGES !== "false";
 const phone = normalizePhone(process.env.M303_PHONE ?? process.env.SMOKE_PHONE ?? "5531982066263");
 const campaignIds = parseIntegerList(process.env.M303_CAMPAIGN_IDS);
 const campaignBatchIds = parseStringList(process.env.M303_CAMPAIGN_BATCH_IDS);
@@ -76,6 +78,26 @@ function reportScope(db, scope) {
   const startedEvents = events.filter((event) => event.type === "sender.campaign_step.started");
   const completedEvents = events.filter((event) => event.type === "sender.campaign_step.completed");
   const failedEvents = events.filter((event) => event.type === "sender.campaign_step.failed");
+  const temporaryEvents = events.filter(
+    (event) => event.type === "sender.temporary_messages.audit",
+  );
+  const beforeTemporaryProofs = temporaryEvents.filter(
+    (event) =>
+      event.payload.phase === "before_send" &&
+      event.payload.executionMode === "whatsapp_real" &&
+      event.payload.verified === true &&
+      event.payload.verifiedDuration === "24h",
+  );
+  const restoreTemporaryProofs = temporaryEvents.filter(
+    (event) =>
+      event.payload.phase === "after_completion_restore" &&
+      event.payload.executionMode === "whatsapp_real" &&
+      event.payload.verified === true &&
+      event.payload.verifiedDuration === "90d",
+  );
+  const failedTemporaryEvents = temporaryEvents.filter(
+    (event) => event.payload.verified === false || event.severity === "warn",
+  );
   const startedByJobId = new Set(startedEvents.map((event) => Number(event.payload.jobId)));
   const completedByJobId = new Set(completedEvents.map((event) => Number(event.payload.jobId)));
   const firstAt = minDate([
@@ -101,6 +123,10 @@ function reportScope(db, scope) {
     startedEvents: startedEvents.length,
     completedEvents: completedEvents.length,
     failedEvents: failedEvents.length,
+    temporaryEvents: temporaryEvents.length,
+    beforeTemporaryProofs,
+    restoreTemporaryProofs,
+    failedTemporaryEvents,
     missingStartedJobIds: jobs.map((job) => job.id).filter((jobId) => !startedByJobId.has(jobId)),
     missingCompletedJobIds: jobs
       .map((job) => job.id)
@@ -153,6 +179,39 @@ function assertReport(report) {
     throw new Error(
       `${scopeLabel} has ${report.failedEvents} sender.campaign_step.failed event(s)`,
     );
+  }
+  if (requireTemporaryMessages) {
+    if (report.beforeTemporaryProofs.length === 0) {
+      throw new Error(
+        `${scopeLabel} missing verified whatsapp_real temporary_messages before_send 24h proof`,
+      );
+    }
+    if (report.restoreTemporaryProofs.length === 0) {
+      throw new Error(
+        `${scopeLabel} missing verified whatsapp_real temporary_messages after_completion_restore 90d proof`,
+      );
+    }
+    const invalidProofs = report.beforeTemporaryProofs.filter((event) => {
+      const screenshotPath = event.payload.visualProof?.screenshotPath;
+      return !screenshotPath || !fs.existsSync(path.resolve(screenshotPath));
+    });
+    if (invalidProofs.length > 0) {
+      throw new Error(
+        `${scopeLabel} has temporary_messages 24h proof without readable screenshot: ${invalidProofs
+          .map((event) => event.id)
+          .join(",")}`,
+      );
+    }
+    if (report.failedTemporaryEvents.length > 0) {
+      throw new Error(
+        `${scopeLabel} has failed temporary_messages audit event(s): ${report.failedTemporaryEvents
+          .map(
+            (event) =>
+              `${event.id}:${event.payload.phase ?? "unknown"}:${event.payload.error ?? "unverified"}`,
+          )
+          .join(", ")}`,
+      );
+    }
   }
   if (report.missingStartedJobIds.length > 0) {
     throw new Error(
@@ -215,7 +274,8 @@ function readEvents(db, scope) {
          AND type IN (
            'sender.campaign_step.started',
            'sender.campaign_step.completed',
-           'sender.campaign_step.failed'
+           'sender.campaign_step.failed',
+           'sender.temporary_messages.audit'
          )
          AND payload_json LIKE ? ESCAPE '\\'
        ORDER BY id ASC`,
