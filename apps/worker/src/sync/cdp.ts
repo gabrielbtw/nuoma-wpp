@@ -5061,35 +5061,102 @@ function voiceRecorderInitScript(wavBase64: string): string {
       const w = window;
       w.__nuomaVoiceWavBase64 = ${JSON.stringify(wavBase64)};
       w.__nuomaVoiceLastInjection = null;
+      w.__nuomaVoiceLastInjectionError = null;
       if (w.__nuomaVoiceInitInstalled) return;
       w.__nuomaVoiceInitInstalled = true;
       const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      const decodePcmWav = (audioCtx, bytes) => {
+        const readAscii = (offset, length) => String.fromCharCode(...bytes.slice(offset, offset + length));
+        if (bytes.byteLength < 44 || readAscii(0, 4) !== "RIFF" || readAscii(8, 4) !== "WAVE") {
+          throw new Error("unsupported wav container");
+        }
+        let offset = 12;
+        let fmt = null;
+        let dataOffset = -1;
+        let dataSize = 0;
+        while (offset + 8 <= bytes.byteLength) {
+          const tag = readAscii(offset, 4);
+          const size =
+            bytes[offset + 4] |
+            (bytes[offset + 5] << 8) |
+            (bytes[offset + 6] << 16) |
+            (bytes[offset + 7] << 24);
+          const chunkOffset = offset + 8;
+          if (tag === "fmt ") {
+            fmt = {
+              audioFormat: bytes[chunkOffset] | (bytes[chunkOffset + 1] << 8),
+              channels: bytes[chunkOffset + 2] | (bytes[chunkOffset + 3] << 8),
+              sampleRate:
+                bytes[chunkOffset + 4] |
+                (bytes[chunkOffset + 5] << 8) |
+                (bytes[chunkOffset + 6] << 16) |
+                (bytes[chunkOffset + 7] << 24),
+              bitsPerSample: bytes[chunkOffset + 22] | (bytes[chunkOffset + 23] << 8)
+            };
+          } else if (tag === "data") {
+            dataOffset = chunkOffset;
+            dataSize = size;
+          }
+          offset += 8 + size + (size % 2);
+        }
+        if (!fmt || fmt.audioFormat !== 1 || fmt.channels < 1 || fmt.bitsPerSample !== 16 || dataOffset < 0) {
+          throw new Error("unsupported wav pcm format");
+        }
+        const frames = Math.floor(dataSize / (fmt.channels * 2));
+        const audioBuffer = audioCtx.createBuffer(1, frames, fmt.sampleRate);
+        const channel = audioBuffer.getChannelData(0);
+        for (let frame = 0; frame < frames; frame += 1) {
+          let mixed = 0;
+          for (let channelIndex = 0; channelIndex < fmt.channels; channelIndex += 1) {
+            const sampleOffset = dataOffset + (frame * fmt.channels + channelIndex) * 2;
+            const raw = bytes[sampleOffset] | (bytes[sampleOffset + 1] << 8);
+            const signed = raw >= 0x8000 ? raw - 0x10000 : raw;
+            mixed += signed / 32768;
+          }
+          channel[frame] = mixed / fmt.channels;
+        }
+        return audioBuffer;
+      };
       navigator.mediaDevices.getUserMedia = async (constraints) => {
         const b64Data = w.__nuomaVoiceWavBase64;
         if (constraints && constraints.audio && b64Data) {
-          w.__nuomaVoiceWavBase64 = null;
-          const binaryStr = w.atob(b64Data);
-          const bytes = new Uint8Array(binaryStr.length);
-          for (let index = 0; index < binaryStr.length; index += 1) {
-            bytes[index] = binaryStr.charCodeAt(index);
+          try {
+            const binaryStr = w.atob(b64Data);
+            const bytes = new Uint8Array(binaryStr.length);
+            for (let index = 0; index < binaryStr.length; index += 1) {
+              bytes[index] = binaryStr.charCodeAt(index);
+            }
+            const AudioCtx = w.AudioContext || w.webkitAudioContext;
+            const audioCtx = new AudioCtx({ sampleRate: 48000 });
+            if (audioCtx.state === "suspended") {
+              await audioCtx.resume();
+            }
+            let audioBuffer;
+            try {
+              audioBuffer = await audioCtx.decodeAudioData(bytes.buffer.slice(0));
+            } catch {
+              audioBuffer = decodePcmWav(audioCtx, bytes);
+            }
+            const source = audioCtx.createBufferSource();
+            source.buffer = audioBuffer;
+            const dest = audioCtx.createMediaStreamDestination();
+            source.connect(dest);
+            source.start(0);
+            w.__nuomaVoiceLastInjection = {
+              consumedAt: new Date().toISOString(),
+              byteLength: bytes.length,
+              sampleRate: audioBuffer.sampleRate,
+              duration: audioBuffer.duration
+            };
+            return dest.stream;
+          } catch (error) {
+            w.__nuomaVoiceLastInjectionError = {
+              at: new Date().toISOString(),
+              name: error && error.name,
+              message: String(error && (error.message || error))
+            };
+            throw error;
           }
-          const AudioCtx = w.AudioContext || w.webkitAudioContext;
-          const audioCtx = new AudioCtx({ sampleRate: 48000 });
-          if (audioCtx.state === "suspended") {
-            await audioCtx.resume();
-          }
-          const audioBuffer = await audioCtx.decodeAudioData(bytes.buffer.slice(0));
-          const source = audioCtx.createBufferSource();
-          source.buffer = audioBuffer;
-          const dest = audioCtx.createMediaStreamDestination();
-          source.connect(dest);
-          source.start(0);
-          w.__nuomaVoiceLastInjection = {
-            consumedAt: new Date().toISOString(),
-            byteLength: bytes.length,
-            sampleRate: audioBuffer.sampleRate
-          };
-          return dest.stream;
         }
         return originalGetUserMedia(constraints);
       };
