@@ -85,7 +85,7 @@ describe("loadWorkerEnv", () => {
     expect(env.WA_SEND_ALLOWED_PHONES).toBe("");
     expect(env.WA_SEND_RATE_LIMIT_WINDOW_MS).toBe(60_000);
     expect(env.WA_SEND_RATE_LIMIT_MAX).toBe(12);
-    expect(env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS).toBe(5_000);
+    expect(env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS).toBe(15_000);
     expect(env.WORKER_SEND_STRICT_DELIVERY).toBe(true);
   });
 

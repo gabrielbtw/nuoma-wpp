@@ -46,6 +46,10 @@ services:
       dockerfile: infra/docker/worker.Dockerfile
     restart: unless-stopped
     env_file: ${NUOMA_ENV_FILE:-.env}
+    environment:
+      CHROMIUM_CDP_BIND_HOST: 127.0.0.1
+      CHROMIUM_CDP_PORT: 9224
+      CHROMIUM_CDP_PUBLIC_PORT: 9223
     mem_limit: 1800m
     ports:
       - "127.0.0.1:9223:9223"

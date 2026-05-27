@@ -25,6 +25,7 @@ data/
 storage/
 chromium-profile/
 profile-snapshot/
+output/
 
 # logs
 *.log
