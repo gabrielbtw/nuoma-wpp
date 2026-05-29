@@ -130,6 +130,9 @@ export function createSyncEventHandler(input: {
       lastPreview: event.message.body,
       reconcileDetails: event.message.raw.reconcileDetails,
     });
+    if (!conversation) {
+      return;
+    }
     const inserted = await input.repos.messages.insertOrIgnore({
       userId,
       conversationId: conversation.id,
@@ -247,7 +250,10 @@ export function createSyncEventHandler(input: {
   }
 
   async function handleConversationEvent(event: SyncConversationEvent): Promise<void> {
-    await upsertConversation(event.thread, { reconcileDetails: event.details });
+    const conversation = await upsertConversation(event.thread, { reconcileDetails: event.details });
+    if (!conversation) {
+      return;
+    }
     metrics.conversationEvents += 1;
     if (event.type === "reconcile-snapshot") {
       metrics.hotWindowReconciles += 1;
@@ -269,6 +275,10 @@ export function createSyncEventHandler(input: {
   }
 
   async function handleProfilePhotoCaptured(event: SyncProfilePhotoCapturedEvent): Promise<void> {
+    if (await recordAndSkipUnidentifiedWhatsAppThread(event.thread, event.type)) {
+      return;
+    }
+
     const mediaAsset = await upsertProfilePhotoAsset(event);
     const conversation = await upsertConversation(event.thread, {
       profilePhotoMediaAssetId: mediaAsset.id,
@@ -276,6 +286,9 @@ export function createSyncEventHandler(input: {
       profilePhotoUpdatedAt: event.observedAtUtc,
       reconcileDetails: event.details,
     });
+    if (!conversation) {
+      return;
+    }
     const contact = await findOrCreateProfileContact(event.thread, conversation.contactId);
 
     if (contact) {
@@ -315,11 +328,18 @@ export function createSyncEventHandler(input: {
   async function handleAttachmentCandidateCaptured(
     event: SyncAttachmentCandidateCapturedEvent,
   ): Promise<void> {
+    if (await recordAndSkipUnidentifiedWhatsAppThread(event.thread, event.type)) {
+      return;
+    }
+
     const conversation = await upsertConversation(event.thread, {
       lastMessageAt: event.observedAtUtc,
       lastPreview: event.attachment.caption,
       reconcileDetails: event.details,
     });
+    if (!conversation) {
+      return;
+    }
     const mediaAsset = await upsertAttachmentCandidateAsset(event);
     const message = event.attachment.externalMessageId
       ? await input.repos.messages.findByExternalId({
@@ -399,6 +419,10 @@ export function createSyncEventHandler(input: {
       return updated ?? canonicalConversation;
     }
 
+    if (await recordAndSkipUnidentifiedWhatsAppThread(thread, "conversation-upsert")) {
+      return null;
+    }
+
     const existingThread = await input.repos.conversations.findByExternalThread({
       userId,
       channel: thread.channel,
@@ -433,6 +457,26 @@ export function createSyncEventHandler(input: {
       profilePhotoUpdatedAt: inputPatch.profilePhotoUpdatedAt,
       unreadCount: thread.unreadCount,
     });
+  }
+
+  async function recordAndSkipUnidentifiedWhatsAppThread(
+    thread: SyncThreadRef,
+    eventType: string,
+  ): Promise<boolean> {
+    if (!isUnidentifiedWhatsAppThread(thread)) {
+      return false;
+    }
+
+    await input.repos.systemEvents.create({
+      userId,
+      type: "sync.whatsapp_thread_unidentified",
+      severity: "warn",
+      payload: JSON.stringify({
+        eventType,
+        thread,
+      }),
+    });
+    return true;
   }
 
   async function upsertProfilePhotoAsset(event: SyncProfilePhotoCapturedEvent) {
@@ -504,10 +548,7 @@ export function createSyncEventHandler(input: {
     const phone = normalizeThreadPhone(thread);
     const waJid = normalizeThreadWaJid(thread);
     const instagramHandle =
-      thread.channel === "instagram"
-        ? (sanitizeInstagramHandle(thread.externalThreadId) ??
-          sanitizeInstagramHandle(thread.title))
-        : null;
+      thread.channel === "instagram" ? sanitizeInstagramHandle(thread.externalThreadId) : null;
     const existing = await input.repos.contacts.findByIdentity({
       userId,
       phone,
@@ -712,7 +753,15 @@ function hasTrustworthyThreadIdentity(thread: SyncThreadRef): boolean {
   return Boolean(
     normalizeThreadWaJid(thread) ||
     normalizeThreadPhone(thread) ||
-    (thread.channel === "instagram" && isUsefulThreadTitle(thread.title)),
+    (thread.channel === "instagram" && sanitizeInstagramHandle(thread.externalThreadId)),
+  );
+}
+
+function isUnidentifiedWhatsAppThread(thread: SyncThreadRef): boolean {
+  return (
+    thread.channel === "whatsapp" &&
+    !normalizeThreadWaJid(thread) &&
+    !normalizeThreadPhone(thread)
   );
 }
 

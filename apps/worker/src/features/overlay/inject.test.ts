@@ -87,7 +87,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
         hasLegacyOctoArt: false,
         version: NUOMA_OVERLAY_VERSION,
         threadPhone: "5531982066263",
-        threadPhoneSource: "header-title",
+        threadPhoneSource: "message-data-id",
         threadTitle: "5531982066263",
         insideHeader: true,
       });
@@ -123,7 +123,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
         clickDetail: {
           state: "open",
           phone: "5531982066263",
-          phoneSource: "header-title",
+          phoneSource: "message-data-id",
           title: "5531982066263",
           version: NUOMA_OVERLAY_VERSION,
         },
@@ -642,7 +642,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
 
           setData({
             phone: "5531982066263",
-            phoneSource: "header-title",
+            phoneSource: "message-data-id",
             title: "5531982066263",
             contact: null,
             source: "nuoma-api",
@@ -653,7 +653,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
 
           setData({
             phone: "5531982066263",
-            phoneSource: "header-title",
+            phoneSource: "message-data-id",
             title: "5531982066263",
             contact: null,
             source: "nuoma-api",
@@ -665,7 +665,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
 
           setData({
             phone: "5531982066263",
-            phoneSource: "header-title",
+            phoneSource: "message-data-id",
             title: "5531982066263",
             contact: null,
             conversations: [],
@@ -742,7 +742,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
           setTimeout(() => {
             const snapshot = {
               phone: "5531982066263",
-              phoneSource: "header-title",
+              phoneSource: "message-data-id",
               title: "5531982066263",
               contact: {
                 name: "Contato API Fixture",
@@ -886,7 +886,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
           ).__nuomaOverlayState!.apiBridge = null;
           const response = await api.refreshContact({
             phone: "5531982066263",
-            phoneSource: "header-title",
+            phoneSource: "message-data-id",
             title: "5531982066263",
             reason: "unit-test",
           });

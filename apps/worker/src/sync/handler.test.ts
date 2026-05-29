@@ -609,7 +609,7 @@ describe("sync event handler", () => {
     });
 
     expect(canonicalMessages).toHaveLength(0);
-    expect(onlineConversation?.title).toBe("online");
+    expect(onlineConversation).toBeNull();
     expect(untrustedEvents[0]?.payload).toEqual(
       expect.objectContaining({
         expectedPhone: "5531982066263",
@@ -739,6 +739,70 @@ describe("sync event handler", () => {
     expect(canonicalMessages).toHaveLength(1);
     expect(canonicalMessages[0]?.externalId).toBe("3EB00AAD957956437ABED2");
     expect(namedDuplicate).toBeNull();
+  });
+
+  it("does not create WhatsApp conversations from saved-contact title only", async () => {
+    const repos = createRepositories(db);
+    const user = await repos.users.create({
+      email: "title-only-whatsapp@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const handler = createSyncEventHandler({
+      repos,
+      logger: pino({ level: "silent" }),
+      userId: user.id,
+    });
+
+    await handler.handle({
+      type: "message-added",
+      source: "wa-web",
+      observedAtUtc: "2026-05-04T03:14:31.787Z",
+      thread: {
+        channel: "whatsapp",
+        externalThreadId: "Gabriel Braga Nuoma",
+        title: "Gabriel Braga Nuoma",
+        phone: null,
+        unreadCount: 0,
+        fingerprint: null,
+      },
+      message: {
+        externalId: "3EB00AAD957956437TITLE",
+        direction: "outbound",
+        contentType: "audio",
+        status: "sent",
+        body: null,
+        displayedAtText: "[13:45, 04/05/2026] Gabriel: ",
+        waDisplayedAt: null,
+        timestampPrecision: "unknown",
+        messageSecond: null,
+        waInferredSecond: 59,
+        observedAtUtc: "2026-05-04T03:14:31.787Z",
+        raw: {
+          reconcileReason: null,
+          reconcileDetails: null,
+        },
+      },
+    });
+
+    const namedConversation = await repos.conversations.findByExternalThread({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "Gabriel Braga Nuoma",
+    });
+    const unidentifiedEvents = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sync.whatsapp_thread_unidentified",
+    });
+
+    expect(namedConversation).toBeNull();
+    expect(handler.metrics.messagesInserted).toBe(0);
+    expect(unidentifiedEvents).toHaveLength(1);
+    expect(unidentifiedEvents[0]?.payload).toEqual(
+      expect.objectContaining({
+        eventType: "conversation-upsert",
+      }),
+    );
   });
 
   it("does not overwrite a canonical title with generic WhatsApp titles", async () => {

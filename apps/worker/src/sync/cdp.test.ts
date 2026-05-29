@@ -213,7 +213,7 @@ describe("CDP active send target guard", () => {
     ).toBe(false);
   });
 
-  it("allows title-only evidence for an explicitly allowlisted phone during the post-navigation window", () => {
+  it("blocks title-only evidence for an explicitly allowlisted phone during the post-navigation window", () => {
     expect(
       shouldAllowActiveSendTarget({
         expectedPhone: "5531982066263",
@@ -224,10 +224,10 @@ describe("CDP active send target guard", () => {
         allowedSelfChatPhones: ["5531982066263"],
         expectedTitle: "gabriel braga nuoma",
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it("allows title-only evidence for an already-open explicitly allowlisted saved contact", () => {
+  it("blocks title-only evidence for an already-open explicitly allowlisted saved contact", () => {
     expect(
       shouldAllowActiveSendTarget({
         expectedPhone: "5531982066263",
@@ -238,7 +238,7 @@ describe("CDP active send target guard", () => {
         allowedSelfChatPhones: ["5531982066263"],
         expectedTitle: "gabriel braga nuoma",
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("blocks when /send phone matches but contact details reveal another phone", () => {

@@ -4482,32 +4482,18 @@ export function shouldAllowActiveSendTarget(input: {
     phonesMatchForSendTarget(input.state.hrefPhone, input.expectedPhone) ||
     phonesMatchForSendTarget(input.state.overlayPhone, input.expectedPhone) ||
     phonesMatchForSendTarget(input.state.contactInfoPhone, input.expectedPhone);
-  const isAllowlistedExpectedPhone = input.allowedSelfChatPhones.some((phone) =>
-    phonesMatchForSendTarget(phone, input.expectedPhone),
-  );
-  const hasAllowlistedSavedContactTitleEvidence =
-    isAllowlistedExpectedPhone && hasExpectedTitleMatch && isUsefulSendTitle(input.state.title);
-  const hasAllowlistedPostNavigationTitleEvidence =
-    hasAllowlistedSavedContactTitleEvidence && hasRecentNavigationEvidence;
   if (input.requireLivePhoneEvidence ?? true) {
-    return (
-      hasLivePhoneEvidence ||
-      hasAllowlistedPostNavigationTitleEvidence ||
-      hasAllowlistedSavedContactTitleEvidence
-    );
+    return hasLivePhoneEvidence;
   }
   return (
     hasLivePhoneEvidence ||
-    hasAllowlistedPostNavigationTitleEvidence ||
-    hasAllowlistedSavedContactTitleEvidence ||
-    (hasRecentNavigationEvidence && isUsefulSendTitle(input.state.title)) ||
+    (hasRecentNavigationEvidence && !isUsefulSendTitle(input.state.title)) ||
     isAllowedSelfChatTarget({
       expectedPhone: input.expectedPhone,
       allowedPhones: input.allowedSelfChatPhones,
       title: input.state.title,
       expectedTitle: input.expectedTitle,
-    }) ||
-    hasExpectedTitleMatch
+    })
   );
 }
 

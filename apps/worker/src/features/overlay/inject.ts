@@ -1486,7 +1486,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     );
   }
 
-  function phoneFromSidebarActive(title) {
+  function phoneFromSidebarActive() {
     const sidebar = document.querySelector("#pane-side");
     if (!sidebar) {
       return "";
@@ -1496,13 +1496,9 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         '[aria-selected="true"], [data-nuoma-active-chat="true"], [data-testid="cell-frame-container"], [role="listitem"]',
       ),
     );
-    const normalizedTitle = text(title).toLowerCase();
     const activeRows = rows.filter(rowLooksActive);
-    const titleRows = normalizedTitle
-      ? rows.filter((row) => text(row.textContent).toLowerCase().includes(normalizedTitle))
-      : [];
     const fallbackRows = rows.length === 1 ? rows : [];
-    for (const row of [...activeRows, ...titleRows, ...fallbackRows]) {
+    for (const row of [...activeRows, ...fallbackRows]) {
       const phone = candidatePhoneFromElement(row);
       if (phone) {
         return phone;
@@ -1596,11 +1592,6 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       };
     }
 
-    const headerPhone = directPhoneFromText(title);
-    if (headerPhone) {
-      return { title, phone: headerPhone, waJid: normalizeWaJid(headerPhone), phoneSource: "header-title" };
-    }
-
     const urlPhone = phoneFromUrl();
     if (urlPhone) {
       return { title, phone: urlPhone, waJid: normalizeWaJid(urlPhone), phoneSource: "url-phone" };
@@ -1616,7 +1607,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       return { title, phone: contactDetailsPhone, waJid: normalizeWaJid(contactDetailsPhone), phoneSource: "contact-details" };
     }
 
-    const sidebarPhone = phoneFromSidebarActive(title);
+    const sidebarPhone = phoneFromSidebarActive();
     if (sidebarPhone) {
       return { title, phone: sidebarPhone, waJid: normalizeWaJid(sidebarPhone), phoneSource: "sidebar-active" };
     }
