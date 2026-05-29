@@ -35,7 +35,7 @@ async function main() {
     await page.click('button[type="submit"]');
     await page.waitForURL(`${webUrl}/`);
 
-    await page.goto(`${webUrl}/campaigns`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${webUrl}/campaigns?tab=builder`, { waitUntil: "domcontentloaded" });
     await page.getByTestId("campaign-builder-base").waitFor({ state: "visible", timeout: 10_000 });
 
     await page.getByTestId("campaign-template-card").first().click();
@@ -46,14 +46,16 @@ async function main() {
     });
 
     await page.getByTestId("campaign-builder-tab-audience").click();
-    await page.getByTestId("campaign-csv-text").fill(
-      [
-        "nome,telefone,email",
-        `Canario,+55 31 98206-6263,canario@nuoma.local`,
-        `Duplicado,${canaryPhone},duplicado@nuoma.local`,
-        "Invalido,abc,invalido@nuoma.local",
-      ].join("\n"),
-    );
+    await page
+      .getByTestId("campaign-csv-text")
+      .fill(
+        [
+          "nome,telefone,email",
+          `Canario,+55 31 98206-6263,canario@nuoma.local`,
+          `Duplicado,${canaryPhone},duplicado@nuoma.local`,
+          "Invalido,abc,invalido@nuoma.local",
+        ].join("\n"),
+      );
     await page.getByTestId("campaign-csv-process").click();
     await page.getByTestId("campaign-csv-rows").waitFor({ state: "visible", timeout: 10_000 });
     const csvDiagnostics = await page.getByTestId("campaign-csv-rows").evaluate((element) => {
@@ -75,6 +77,13 @@ async function main() {
       throw new Error(`workflow viewer rendered too few nodes: ${workflowNodes}`);
     }
 
+    await page.goto(`${webUrl}/campaigns?tab=recipients`, { waitUntil: "domcontentloaded" });
+    await page
+      .locator(
+        `[data-testid="campaign-recipients-virtual-scroll"][data-campaign-id="${fixture.virtualCampaignId}"]`,
+      )
+      .waitFor({ state: "visible", timeout: 10_000 });
+
     const virtualDiagnostics = await page
       .locator('[data-testid="campaign-recipients-virtual-scroll"]')
       .evaluateAll((elements) =>
@@ -90,7 +99,9 @@ async function main() {
       (item) => item.campaignId === String(fixture.virtualCampaignId),
     );
     if (!virtualTable) {
-      throw new Error(`seeded virtual campaign table not found: ${JSON.stringify(virtualDiagnostics)}`);
+      throw new Error(
+        `seeded virtual campaign table not found: ${JSON.stringify(virtualDiagnostics)}`,
+      );
     }
     if (
       virtualTable.virtualized !== "true" ||
@@ -99,7 +110,9 @@ async function main() {
       virtualTable.rendered !== virtualTable.visible ||
       virtualTable.rendered >= virtualTable.total
     ) {
-      throw new Error(`recipient virtual table diagnostics mismatch: ${JSON.stringify(virtualTable)}`);
+      throw new Error(
+        `recipient virtual table diagnostics mismatch: ${JSON.stringify(virtualTable)}`,
+      );
     }
     const virtualScroll = page.locator(
       `[data-testid="campaign-recipients-virtual-scroll"][data-campaign-id="${fixture.virtualCampaignId}"]`,
@@ -114,14 +127,19 @@ async function main() {
       rendered: element.querySelectorAll('[data-testid="campaign-recipient-row"]').length,
       visible: Number(element.getAttribute("data-visible-count") ?? "0"),
       firstTop: Math.round(
-        element.querySelector('[data-testid="campaign-recipient-row"]')?.getBoundingClientRect().top ?? 0,
+        element.querySelector('[data-testid="campaign-recipient-row"]')?.getBoundingClientRect()
+          .top ?? 0,
       ),
     }));
     if (afterScroll.rendered !== afterScroll.visible || afterScroll.rendered <= 0) {
       throw new Error(`virtual table broke after scroll: ${JSON.stringify(afterScroll)}`);
     }
 
-    await page.getByRole("button", { name: /^Prévia$/ }).first().click();
+    await page
+      .getByRole("button", { name: /^Prévia$/ })
+      .first()
+      .click();
+    await page.getByTestId("campaign-tab-dispatch").click();
     await page.getByText("Último tick").waitFor({ state: "visible", timeout: 10_000 });
     await page.getByText(canaryPhone).first().waitFor({ state: "visible", timeout: 10_000 });
 
@@ -165,10 +183,14 @@ function seedCampaignsFixture() {
       .prepare("SELECT id FROM campaigns WHERE user_id = 1 AND name LIKE 'V2.10 Smoke%'")
       .all();
     for (const row of existing) {
-      db.prepare("DELETE FROM campaign_recipients WHERE user_id = 1 AND campaign_id = ?").run(row.id);
+      db.prepare("DELETE FROM campaign_recipients WHERE user_id = 1 AND campaign_id = ?").run(
+        row.id,
+      );
     }
     db.prepare("DELETE FROM campaigns WHERE user_id = 1 AND name LIKE 'V2.10 Smoke%'").run();
-    db.prepare("DELETE FROM system_events WHERE user_id = 1 AND payload_json LIKE '%v2.10-smoke%'").run();
+    db.prepare(
+      "DELETE FROM system_events WHERE user_id = 1 AND payload_json LIKE '%v2.10-smoke%'",
+    ).run();
 
     const insertCampaign = db.prepare(`
       INSERT INTO campaigns (
@@ -264,10 +286,9 @@ function countCampaignStepJobs() {
 function pauseSchedulerCanary(campaignId) {
   const db = new Database(databaseUrl);
   try {
-    db.prepare("UPDATE campaigns SET status = 'paused', updated_at = ? WHERE user_id = 1 AND id = ?").run(
-      new Date().toISOString(),
-      campaignId,
-    );
+    db.prepare(
+      "UPDATE campaigns SET status = 'paused', updated_at = ? WHERE user_id = 1 AND id = ?",
+    ).run(new Date().toISOString(), campaignId);
   } finally {
     db.close();
   }

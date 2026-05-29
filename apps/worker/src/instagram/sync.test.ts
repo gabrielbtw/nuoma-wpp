@@ -50,6 +50,12 @@ describe("Instagram sync helpers", () => {
       sentAt: "2026-05-28T18:30:00.000Z",
       timestampPrecision: "date",
     });
+    expect(
+      parseInstagramDisplayedTimestamp("21 de mai de 2026 11:41", "2026-05-29T18:30:00.000Z"),
+    ).toEqual({
+      sentAt: "2026-05-21T14:41:00.000Z",
+      timestampPrecision: "minute",
+    });
     expect(parseInstagramDisplayedTimestamp("Visto: Há 6 h", "2026-05-29T18:30:00.000Z")).toBe(
       null,
     );

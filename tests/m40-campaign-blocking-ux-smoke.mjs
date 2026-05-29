@@ -29,7 +29,9 @@ async function main() {
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Senha").fill(password);
     await page.click('button[type="submit"]');
-    await page.waitForURL(`${webUrl}/`);
+    await page.waitForFunction(() => !window.location.pathname.startsWith("/login"), {
+      timeout: 30_000,
+    });
 
     await page.goto(`${webUrl}/campaigns?campaignId=${fixture.campaignId}`, {
       waitUntil: "domcontentloaded",
@@ -63,7 +65,10 @@ async function main() {
     if (!diagnostics.text.includes("Corrija todos os rejeitados")) {
       throw new Error(`M40 next action missing: ${diagnostics.text}`);
     }
-    if (!diagnostics.text.includes("Configure temporaryMessages")) {
+    if (
+      !diagnostics.text.includes("temporaryMessages") ||
+      !diagnostics.text.includes("Adicione um step de mensagens temporárias")
+    ) {
       throw new Error(`M40 temporary messages guidance missing: ${diagnostics.text}`);
     }
     if (

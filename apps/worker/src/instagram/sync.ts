@@ -752,7 +752,7 @@ async function visibleInstagramInboxRows(
       document.querySelector("[aria-label='Chats']") ??
       document.querySelector("main");
     if (!nav) return [];
-    const noise = [/nova mensagem/i, /new message/i, /^primary$/i, /^general$/i, /^pedidos$/i, /^requests$/i];
+    const noise = [/nova mensagem/i, /new message/i, /^primary$/i, /^general$/i, /^from ads$/i, /^pedidos( \\(\\d+\\))?$/i, /^requests( \\(\\d+\\))?$/i];
     return Array.from(nav.querySelectorAll("div[role='button'], button, a"))
       .map((element, index) => {
         const node = element;
@@ -856,9 +856,18 @@ async function scrapeOpenInstagramThread(
       rect.left >= chatLeft - 12;
     const relativeTimePattern = /^(há\\s*)?(\\d+\\s*(s|min|m|h|d|sem|w|hr|hrs|days?|weeks?|months?|meses?|mês|hora|horas|dia|dias|semana|semanas|minuto|minutos|segundo|segundos)|hoje|ontem|yesterday|today|just now|agora)$/i;
     const receiptStatusPattern = /^(visto|seen|enviado|sent|entregue|delivered|visualizado|read)(:|\\b)/i;
+    const threadChromePattern = /^(primary|general|from ads|requests(?: \\(\\d+\\))?|pedidos(?: \\(\\d+\\))?|sua nota|no que você está pensando\\?|new messages|\\d+ new messages|novas mensagens|\\d+ novas mensagens|número de telefone|numero de telefone|phone number)$/i;
+    const dateSeparatorPattern = /^(seg|ter|qua|qui|sex|sab|sáb|dom),?\\s+\\d{1,2}:\\d{2}$|^\\d{1,2}\\/\\d{1,2}\\/\\d{2,4}\\s+\\d{1,2}:\\d{2}$|^\\d{1,2}\\s+de\\s+\\S+\\s+de\\s+\\d{4}\\s+\\d{1,2}:\\d{2}$/i;
+    const isTimestampText = (text) => relativeTimePattern.test(text) || dateSeparatorPattern.test(text);
     const isReceiptOrTime = (text) => {
       const normalized = clean(text);
-      return !normalized || relativeTimePattern.test(normalized) || receiptStatusPattern.test(normalized);
+      return (
+        !normalized ||
+        relativeTimePattern.test(normalized) ||
+        receiptStatusPattern.test(normalized) ||
+        threadChromePattern.test(normalized) ||
+        dateSeparatorPattern.test(normalized)
+      );
     };
     const contentTypeFor = (element) => {
       const container = element.closest("div[role='row'], div[role='listitem'], article, div") || element;
@@ -882,7 +891,7 @@ async function scrapeOpenInstagramThread(
         const element = node;
         const text = clean(element.getAttribute("datetime") || element.textContent);
         const rect = element.getBoundingClientRect();
-        if (!text || !isThreadPaneRect(rect) || !relativeTimePattern.test(text)) {
+        if (!text || !isThreadPaneRect(rect) || !isTimestampText(text)) {
           return null;
         }
         return { text, top: rect.top };
@@ -1133,6 +1142,51 @@ export function parseInstagramDisplayedTimestamp(
     };
   }
 
+  const ptAbsolute = normalized.match(
+    /^(\d{1,2})\s+de\s+(jan|janeiro|fev|fevereiro|mar|marco|abr|abril|mai|maio|jun|junho|jul|julho|ago|agosto|set|setembro|out|outubro|nov|novembro|dez|dezembro)\s+de\s+(\d{4})\s+(\d{1,2}):(\d{2})$/,
+  );
+  if (ptAbsolute) {
+    const monthByName = new Map([
+      ["jan", 1],
+      ["janeiro", 1],
+      ["fev", 2],
+      ["fevereiro", 2],
+      ["mar", 3],
+      ["marco", 3],
+      ["abr", 4],
+      ["abril", 4],
+      ["mai", 5],
+      ["maio", 5],
+      ["jun", 6],
+      ["junho", 6],
+      ["jul", 7],
+      ["julho", 7],
+      ["ago", 8],
+      ["agosto", 8],
+      ["set", 9],
+      ["setembro", 9],
+      ["out", 10],
+      ["outubro", 10],
+      ["nov", 11],
+      ["novembro", 11],
+      ["dez", 12],
+      ["dezembro", 12],
+    ]);
+    const day = Number(ptAbsolute[1]);
+    const month = monthByName.get(ptAbsolute[2]!) ?? 0;
+    const year = Number(ptAbsolute[3]);
+    const hour = Number(ptAbsolute[4]);
+    const minute = Number(ptAbsolute[5]);
+    const candidate = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(
+      2,
+      "0",
+    )}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00.000-03:00`;
+    const candidateMs = Date.parse(candidate);
+    if (Number.isFinite(candidateMs)) {
+      return { sentAt: new Date(candidateMs).toISOString(), timestampPrecision: "minute" };
+    }
+  }
+
   const match = normalized.match(
     /^(\d{1,4})\s*(s|sec|secs|second|seconds|segundo|segundos|min|m|minute|minutes|minuto|minutos|h|hr|hrs|hour|hours|hora|horas|d|day|days|dia|dias|w|week|weeks|sem|semana|semanas|mes|meses|month|months)$/i,
   );
@@ -1193,7 +1247,12 @@ function normalizeThreadSnapshots(threads: InstagramThreadSnapshot[]): Instagram
         ...message,
         body: message.body.replace(/\s+/g, " ").trim(),
       }))
-      .filter((message) => message.body || message.contentType !== "text");
+      .filter(
+        (message) =>
+          (message.body || message.contentType !== "text") &&
+          message.sentAt &&
+          message.timestampPrecision !== "unknown",
+      );
     const lastMessage = messages[messages.length - 1] ?? null;
     return {
       ...thread,

@@ -10,7 +10,9 @@ const email = process.env.SMOKE_EMAIL ?? "admin@nuoma.local";
 const password = process.env.SMOKE_PASSWORD ?? "nuoma-dev-admin-123";
 const databaseUrl = path.resolve(process.env.DATABASE_URL ?? "data/nuoma-v2.db");
 const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-const outputDir = path.resolve(process.env.V2_SCREEN_SMOKE_DIR ?? `data/v2-screen-smoke-${timestamp}`);
+const outputDir = path.resolve(
+  process.env.V2_SCREEN_SMOKE_DIR ?? `data/v2-screen-smoke-${timestamp}`,
+);
 
 const routes = [
   {
@@ -113,7 +115,10 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
   const report = [];
   try {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 980 } });
+    const context = await browser.newContext({
+      viewport: { width: 1440, height: 980 },
+      serviceWorkers: "block",
+    });
     const page = await context.newPage();
 
     await page.goto(`${webUrl}/login`, { waitUntil: "networkidle" });
@@ -135,8 +140,9 @@ async function main() {
       const waitWarning = await waitForRouteSignal(page, route);
       const extra = route.action ? await route.action(page, fixture) : null;
       const screenshotPath = path.join(outputDir, route.file);
-      await page.screenshot({ path: screenshotPath, fullPage: true });
+      await page.waitForTimeout(300);
       const blocking = await blockingA11yViolations(page);
+      await page.screenshot({ path: screenshotPath, fullPage: true });
       report.push({
         version: route.version,
         name: route.name,
@@ -197,22 +203,26 @@ async function validateRemarketingBatchPanel(page, fixture) {
   const canDispatch = await report.getAttribute("data-can-dispatch");
   const accepted = await report.getAttribute("data-accepted");
   const plannedJobs = await report.getAttribute("data-planned-jobs");
-  const issueCodes = await page
-    .getByTestId("campaign-blocking-issue")
-    .evaluateAll((nodes) =>
-      nodes.map((node) => ({
-        code: node.getAttribute("data-code"),
-        severity: node.getAttribute("data-severity"),
-      })),
-    );
+  const issueCodes = await page.getByTestId("campaign-blocking-issue").evaluateAll((nodes) =>
+    nodes.map((node) => ({
+      code: node.getAttribute("data-code"),
+      severity: node.getAttribute("data-severity"),
+    })),
+  );
   const blockingCodes = issueCodes
     .filter((item) => item.severity === "error" && item.code !== "accepted_recipients")
     .map((item) => item.code);
   const onlyExistingRuntimeBlocks =
     canDispatch === "false" &&
     blockingCodes.length > 0 &&
-    blockingCodes.every((code) => code === "active_campaign_step_jobs" || code === "active_campaign_recipients");
-  if ((canDispatch !== "true" && !onlyExistingRuntimeBlocks) || accepted !== "1" || Number(plannedJobs) < 1) {
+    blockingCodes.every(
+      (code) => code === "active_campaign_step_jobs" || code === "active_campaign_recipients",
+    );
+  if (
+    (canDispatch !== "true" && !onlyExistingRuntimeBlocks) ||
+    accepted !== "1" ||
+    Number(plannedJobs) < 1
+  ) {
     throw new Error(
       `remarketing batch guard mismatch: ${JSON.stringify({
         canDispatch,
@@ -242,7 +252,9 @@ function seedScreenSmokeFixture() {
       .prepare("SELECT id FROM campaigns WHERE user_id = 1 AND name LIKE 'V2 Screen Smoke%'")
       .all();
     for (const row of existing) {
-      db.prepare("DELETE FROM campaign_recipients WHERE user_id = 1 AND campaign_id = ?").run(row.id);
+      db.prepare("DELETE FROM campaign_recipients WHERE user_id = 1 AND campaign_id = ?").run(
+        row.id,
+      );
       db.prepare("DELETE FROM jobs WHERE user_id = 1 AND dedupe_key LIKE ?").run(
         `campaign_step:${row.id}:%`,
       );
@@ -287,7 +299,7 @@ function seedScreenSmokeFixture() {
             evergreen, starts_at, completed_at, metadata_json, created_at, updated_at
           )
           VALUES (
-            1, 'V2 Screen Smoke Remarketing Real', 'draft', 'whatsapp', NULL, @steps,
+            1, 'V2 Screen Smoke Remarketing Real', 'running', 'whatsapp', NULL, @steps,
             0, NULL, NULL, @metadata, @now, @now
           )
         `,
@@ -300,12 +312,7 @@ function seedScreenSmokeFixture() {
 }
 
 function renderReport(items) {
-  const lines = [
-    "# V2 Screen Smoke Matrix",
-    "",
-    `Gerado em ${new Date().toISOString()}.`,
-    "",
-  ];
+  const lines = ["# V2 Screen Smoke Matrix", "", `Gerado em ${new Date().toISOString()}.`, ""];
   for (const item of items) {
     lines.push(
       `## ${item.version} ${item.name}`,
