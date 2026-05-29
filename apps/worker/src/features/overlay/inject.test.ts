@@ -866,6 +866,88 @@ describe("Nuoma WhatsApp overlay injection", () => {
     }
   }, 30_000);
 
+  it("does not reuse API-hydrated title when the active WhatsApp thread has no canonical identity", async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+
+    try {
+      await page.setContent(`
+        <html>
+          <body>
+            <div id="main">
+              <header>
+                <div role="button" aria-label="Dados do contato">
+                  <span>Contato Salvo Antigo</span>
+                </div>
+              </header>
+            </div>
+          </body>
+        </html>
+      `);
+      await page.evaluate(createNuomaOverlayScript());
+
+      const state = await page.evaluate(
+        ({ rootId }) => {
+          const api = window as unknown as {
+            __nuomaOverlaySetData: (data: unknown) => unknown;
+            __nuomaOverlayRefresh: () => {
+              mounted: boolean;
+              phone: string;
+              waJid: string;
+              title: string;
+            };
+          };
+          api.__nuomaOverlaySetData({
+            phone: "5531982066263",
+            waJid: "5531982066263@s.whatsapp.net",
+            phoneSource: "wa-jid",
+            title: "Contato Salvo Antigo",
+            contact: { name: "Contato Salvo Antigo", status: "active", primaryChannel: "whatsapp" },
+            conversations: [],
+            latestMessages: [],
+            automations: [],
+            campaigns: [],
+            notes: null,
+            source: "nuoma-api",
+          });
+
+          document.querySelector("#main header")!.innerHTML = `
+            <div role="button" aria-label="Dados do contato">
+              <span>Outro Contato Salvo</span>
+            </div>
+          `;
+
+          const refresh = api.__nuomaOverlayRefresh();
+          const host = document.getElementById(rootId);
+          return {
+            refresh,
+            hostPhone: host?.getAttribute("data-nuoma-thread-phone"),
+            hostWaJid: host?.getAttribute("data-nuoma-wa-jid"),
+            hostTitle: host?.getAttribute("data-nuoma-thread-title"),
+            hostPhoneSource: host?.getAttribute("data-nuoma-phone-source"),
+          };
+        },
+        { rootId: NUOMA_OVERLAY_ROOT_ID },
+      );
+
+      expect(state).toMatchObject({
+        refresh: expect.objectContaining({
+          mounted: true,
+          phone: "",
+          waJid: "",
+          phoneSource: "unresolved",
+          title: "Outro Contato Salvo",
+        }),
+        hostPhone: "",
+        hostWaJid: "",
+        hostTitle: "Outro Contato Salvo",
+        hostPhoneSource: "unresolved",
+      });
+    } finally {
+      await browser.close();
+    }
+  }, 30_000);
+
   it("exposes window.__nuomaApi through a promise bridge and hydrates the panel", async () => {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });

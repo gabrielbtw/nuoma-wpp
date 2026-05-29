@@ -2608,7 +2608,6 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     const host = ensureHost(header);
     const dataPhone = text(state.data && state.data.phone);
     const dataWaJid = text(state.data && state.data.waJid);
-    const dataTitle = text(state.data && state.data.title);
     const dataPhoneSource = text(state.data && state.data.phoneSource);
     const sameAsDataWaJid = Boolean(thread.waJid && normalizeWaJid(dataWaJid) === thread.waJid);
     const sameAsExistingWaJid = Boolean(thread.waJid && existingWaJid === thread.waJid);
@@ -2633,7 +2632,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       (thread.waJid && dataWaJid && normalizeWaJid(dataWaJid) !== thread.waJid) ||
       (thread.phone && dataPhone && dataPhone !== thread.phone) ||
       (!hasCanonicalThreadIdentity &&
-        Boolean(dataPhone || dataWaJid || (thread.title && dataTitle !== thread.title)));
+        Boolean(dataPhone || dataWaJid || (state.data && state.data.source !== "dom")));
     if (threadChanged) {
       state.data = {
         phone: thread.phone || retainedPhone,
@@ -2658,7 +2657,8 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         : retainedPhone
           ? retainedPhoneSource || "retained"
           : thread.phoneSource;
-    const displayTitle = thread.title || text(state.data && state.data.title);
+    const displayTitle =
+      thread.title || (displayPhone || displayWaJid ? text(state.data && state.data.title) : "");
     if ((displayPhone || displayWaJid) && displayTitle) {
       if (state.data && !state.data.phone) {
         state.data.phone = displayPhone;
