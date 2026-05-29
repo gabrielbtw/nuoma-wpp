@@ -3,7 +3,11 @@ import Database from "better-sqlite3";
 import { chromium } from "playwright";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { backfillSmokeWhatsappIdentity } from "./helpers/contact-identity.mjs";
+import {
+  backfillSmokeWhatsappIdentity,
+  deleteDuplicateSmokeWhatsappContacts,
+  findSmokeWhatsappContact,
+} from "./helpers/contact-identity.mjs";
 
 const webUrl = process.env.WEB_URL ?? "http://127.0.0.1:3002";
 const apiUrl = process.env.API_URL ?? "http://127.0.0.1:3001";
@@ -95,17 +99,7 @@ function seedCampaignFixture() {
     db.pragma("foreign_keys = ON");
     const now = new Date().toISOString();
 
-    const existingContact = db
-      .prepare(
-        `
-          SELECT id
-          FROM contacts
-          WHERE user_id = 1 AND phone = ?
-          ORDER BY id DESC
-          LIMIT 1
-        `,
-      )
-      .get(smokePhone);
+    const existingContact = findSmokeWhatsappContact(db, { userId: 1, phone: smokePhone });
     if (existingContact?.id) {
       db.prepare(
         `
@@ -136,24 +130,15 @@ function seedCampaignFixture() {
       ).run({ title: smokeTitle, phone: smokePhone, now });
     }
 
-    const contact = db
-      .prepare(
-        `
-          SELECT id
-          FROM contacts
-          WHERE user_id = 1 AND phone = ?
-          ORDER BY id DESC
-          LIMIT 1
-        `,
-      )
-      .get(smokePhone);
+    const contact = findSmokeWhatsappContact(db, { userId: 1, phone: smokePhone });
     if (!contact?.id) {
       throw new Error("individual campaign smoke contact was not created");
     }
-    db.prepare("DELETE FROM contacts WHERE user_id = 1 AND phone = ? AND id <> ?").run(
-      smokePhone,
-      contact.id,
-    );
+    deleteDuplicateSmokeWhatsappContacts(db, {
+      userId: 1,
+      phone: smokePhone,
+      keepContactId: contact.id,
+    });
 
     db.prepare(
       `

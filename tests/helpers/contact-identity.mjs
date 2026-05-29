@@ -67,6 +67,36 @@ export function findSmokeWhatsappContact(db, input = {}) {
     .get(userId, identity.phone);
 }
 
+export function deleteDuplicateSmokeWhatsappContacts(db, input = {}) {
+  const userId = Number(input.userId ?? 1);
+  const keepContactId = Number(input.keepContactId ?? input.contactId);
+  const identity = smokeWhatsappIdentityValues(input.phone);
+  if (!keepContactId || !identity.phone || !identity.phoneE164 || !identity.waJid) {
+    return 0;
+  }
+
+  if (hasColumns(db, "contacts", ["phone_e164", "wa_jid"])) {
+    const result = db
+      .prepare(
+        `DELETE FROM contacts
+         WHERE user_id = @userId
+           AND id <> @keepContactId
+           AND (
+             phone = @phone
+             OR phone_e164 = @phoneE164
+             OR wa_jid = @waJid
+           )`,
+      )
+      .run({ userId, keepContactId, ...identity });
+    return result.changes;
+  }
+
+  const result = db
+    .prepare("DELETE FROM contacts WHERE user_id = ? AND phone = ? AND id <> ?")
+    .run(userId, identity.phone, keepContactId);
+  return result.changes;
+}
+
 export function findSmokeWhatsappConversation(db, input = {}) {
   const userId = Number(input.userId ?? 1);
   const contactId = input.contactId ?? null;
