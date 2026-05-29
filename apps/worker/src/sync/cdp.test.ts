@@ -117,7 +117,6 @@ describe("CDP active send target guard", () => {
         state: {
           ...baseState,
           title: "+55 31 8896-2330",
-          titlePhone: "553188962330",
           overlayPhone: "553188962330",
         },
         openChatPhone: null,
@@ -136,7 +135,6 @@ describe("CDP active send target guard", () => {
         state: {
           ...baseState,
           title: "31 9127-5407 Bh",
-          titlePhone: "3191275407",
           overlayPhone: "3191275407",
         },
         openChatPhone: null,
@@ -155,7 +153,6 @@ describe("CDP active send target guard", () => {
         state: {
           ...baseState,
           title: "31982066263",
-          titlePhone: "31982066263",
           overlayPhone: "31982066263",
         },
         openChatPhone: null,
@@ -165,6 +162,23 @@ describe("CDP active send target guard", () => {
         expectedTitle: null,
       }),
     ).toBe(true);
+  });
+
+  it("does not treat a phone-looking WhatsApp title as live phone evidence", () => {
+    expect(
+      shouldAllowActiveSendTarget({
+        expectedPhone: "5531982066263",
+        state: {
+          ...baseState,
+          title: "31982066263",
+        },
+        openChatPhone: null,
+        openChatPhoneNavigatedAtMs: 0,
+        nowMs: 1_000_000,
+        allowedSelfChatPhones: [],
+        expectedTitle: null,
+      }),
+    ).toBe(false);
   });
 
   it("allows a saved-contact title immediately after navigating when overlay confirms the live target phone", () => {
@@ -227,7 +241,7 @@ describe("CDP active send target guard", () => {
     ).toBe(true);
   });
 
-  it("blocks when /send phone matches but the active WhatsApp header is another phone", () => {
+  it("blocks when /send phone matches but contact details reveal another phone", () => {
     expect(
       shouldAllowActiveSendTarget({
         expectedPhone: "5531982066263",
@@ -236,7 +250,7 @@ describe("CDP active send target guard", () => {
           href: "https://web.whatsapp.com/send?phone=5531982066263",
           hrefPhone: "5531982066263",
           title: "+55 31 9296-2471",
-          titlePhone: "553192962471",
+          contactInfoPhone: "553192962471",
         },
         openChatPhone: "5531982066263",
         openChatPhoneNavigatedAtMs: 995_000,

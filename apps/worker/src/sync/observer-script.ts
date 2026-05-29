@@ -81,12 +81,13 @@ export function createWhatsAppObserverScript(bindingName = SYNC_BINDING_NAME): s
       chatTitleFromHeader(header) ||
       textOf("[data-testid='conversation-info-header-chat-title']", header) ||
       "WhatsApp";
-    const phone = normalizePhone(title);
     const hrefKey = location.href.includes("/send?phone=")
       ? new URL(location.href).searchParams.get("phone")
       : null;
-    const waJid = currentChatJidFromStore() || normalizeWaJid(hrefKey) || normalizeWaJid(phone);
-    const externalThreadId = waJid || hrefKey || phone || title;
+    const hrefPhone = normalizePhone(hrefKey);
+    const waJid = currentChatJidFromStore() || normalizeWaJid(hrefKey);
+    const phone = hrefPhone || normalizePhone(waJid);
+    const externalThreadId = waJid || hrefPhone || hrefKey || "unknown-whatsapp-thread";
     return {
       channel,
       externalThreadId,

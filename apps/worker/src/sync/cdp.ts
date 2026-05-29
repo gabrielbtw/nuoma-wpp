@@ -4206,7 +4206,7 @@ export async function startSyncEngine(input: {
             href,
             hrefPhone: normalizePhone(hrefPhone),
             title,
-            titlePhone: normalizePhone(title),
+            titlePhone: null,
             overlayPhone,
             hasComposer: Boolean(document.querySelector("footer [contenteditable='true']")),
           };
@@ -4464,8 +4464,6 @@ export function shouldAllowActiveSendTarget(input: {
   const livePhoneMismatch =
     (Boolean(input.state.hrefPhone) &&
       !phonesMatchForSendTarget(input.state.hrefPhone, input.expectedPhone)) ||
-    (Boolean(input.state.titlePhone) &&
-      !phonesMatchForSendTarget(input.state.titlePhone, input.expectedPhone)) ||
     (Boolean(input.state.contactInfoPhone) &&
       !phonesMatchForSendTarget(input.state.contactInfoPhone, input.expectedPhone));
   if (livePhoneMismatch) {
@@ -4482,7 +4480,6 @@ export function shouldAllowActiveSendTarget(input: {
   }
   const hasLivePhoneEvidence =
     phonesMatchForSendTarget(input.state.hrefPhone, input.expectedPhone) ||
-    phonesMatchForSendTarget(input.state.titlePhone, input.expectedPhone) ||
     phonesMatchForSendTarget(input.state.overlayPhone, input.expectedPhone) ||
     phonesMatchForSendTarget(input.state.contactInfoPhone, input.expectedPhone);
   const isAllowlistedExpectedPhone = input.allowedSelfChatPhones.some((phone) =>
