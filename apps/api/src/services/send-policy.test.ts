@@ -63,12 +63,19 @@ describe("api send policy", () => {
   });
 
   it("blocks production mode without a canary allowlist", () => {
-    const policy = resolveApiSendPolicy({
-      ...baseEnv,
-      API_SEND_POLICY_MODE: "production",
-    });
+    const policy = resolveApiSendPolicy(
+      {
+        ...baseEnv,
+        API_SEND_POLICY_MODE: "production",
+      },
+      ["5531982066263"],
+    );
 
     expect(evaluateApiRealSendTarget(policy, "5531999999999")).toEqual({
+      allowed: false,
+      reason: "production_without_canary_allowlist",
+    });
+    expect(evaluateApiRealSendTarget(policy, "5531982066263")).toEqual({
       allowed: false,
       reason: "production_without_canary_allowlist",
     });
