@@ -5,6 +5,13 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import Database from "better-sqlite3";
 
+process.stdout.on("error", (error) => {
+  if (error?.code === "EPIPE") {
+    process.exit(0);
+  }
+  throw error;
+});
+
 const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const workerDir = path.join(rootDir, "apps", "worker");
 const logPath = path.join(rootDir, "data", "worker-screen.log");
