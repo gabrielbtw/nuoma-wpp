@@ -86,6 +86,7 @@
     "test:m303-campaign-retry-performance-proof": "node tests/m303-campaign-retry-performance-proof.mjs",
     "test:m303-wpp-24-send-90-proof": "node tests/m303-wpp-24-send-90-proof.mjs",
     "test:if01-crash": "node tests/if01-crash-smoke.mjs",
+    "contacts:backfill-phone-e164": "tsx scripts/backfill-phone-e164.mts",
     "test:sync-top5": "node tests/sync-top5-conversations-smoke.mjs",
     "worker:start": "node scripts/local-worker.mjs start",
     "worker:stop": "node scripts/local-worker.mjs stop",
