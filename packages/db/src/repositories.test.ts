@@ -707,6 +707,59 @@ describe("repositories", () => {
     expect(secondClaim[0]?.payload.phone).toBe("553188570530");
   });
 
+  it("finds active instagram campaign recipients by normalized handle", async () => {
+    const repos = createRepositories(handle);
+    const user = await repos.users.create({
+      email: "jobs-campaign-recipient-instagram@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const campaign = await repos.campaigns.create({
+      userId: user.id,
+      name: "Instagram active recipient",
+      status: "running",
+      channel: "instagram",
+      steps: [
+        {
+          id: "intro",
+          label: "Intro",
+          delaySeconds: 0,
+          conditions: [],
+          type: "text",
+          template: "Oi",
+        },
+      ],
+    });
+    const recipient = await repos.campaignRecipients.create({
+      userId: user.id,
+      campaignId: campaign.id,
+      channel: "instagram",
+      phone: null,
+      status: "queued",
+      metadata: { instagramHandle: "@Maria.Pele" },
+    });
+
+    await expect(
+      repos.campaignRecipients.findActiveByInstagramHandle({
+        userId: user.id,
+        instagramHandle: "maria.pele",
+      }),
+    ).resolves.toEqual(expect.objectContaining({ id: recipient.id }));
+
+    await repos.campaignRecipients.updateState({
+      userId: user.id,
+      id: recipient.id,
+      status: "completed",
+    });
+
+    await expect(
+      repos.campaignRecipients.findActiveByInstagramHandle({
+        userId: user.id,
+        instagramHandle: "maria.pele",
+      }),
+    ).resolves.toBeNull();
+  });
+
   it("can exclude job types during claim", async () => {
     const repos = createRepositories(handle);
     const user = await repos.users.create({

@@ -65,7 +65,7 @@ export async function listOverlayAutomationOptions(input: {
           repos: input.repos,
           userId: input.userId,
           automationId: automation.id,
-          phone,
+          phone: phone ?? "",
           dryRun: true,
           allowedPhones: input.sendPolicy.allowedPhones,
           sendPolicyMode: input.sendPolicy.mode,

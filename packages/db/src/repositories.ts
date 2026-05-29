@@ -289,19 +289,32 @@ function normalizeCampaignPipelinePhone(value: string | null | undefined): strin
   return normalizePhone(value);
 }
 
+function normalizeCampaignPipelineInstagramHandle(value: unknown): string | null {
+  const cleaned = String(value ?? "")
+    .trim()
+    .replace(/^@+/, "")
+    .toLowerCase();
+  return /^[a-z0-9._]{1,30}$/.test(cleaned) ? cleaned : null;
+}
+
 function campaignActivePipelineKey(input: {
   channel: typeof campaignRecipients.$inferSelect.channel;
   phone?: string | null | undefined;
+  instagramHandle?: unknown;
   status?: typeof campaignRecipients.$inferSelect.status | undefined;
 }): string | null {
-  if (input.channel !== "whatsapp") {
-    return null;
-  }
   if (!activeCampaignRecipientStatuses.includes(input.status ?? "queued")) {
     return null;
   }
-  const phone = normalizeCampaignPipelinePhone(input.phone);
-  return phone ? `whatsapp:${phone}` : null;
+  if (input.channel === "whatsapp") {
+    const phone = normalizeCampaignPipelinePhone(input.phone);
+    return phone ? `whatsapp:${phone}` : null;
+  }
+  if (input.channel === "instagram") {
+    const instagramHandle = normalizeCampaignPipelineInstagramHandle(input.instagramHandle);
+    return instagramHandle ? `instagram:${instagramHandle}` : null;
+  }
+  return null;
 }
 
 function isPresenceOrStatusThreadTitle(value: string): boolean {
@@ -1919,7 +1932,10 @@ export function createRepositories(handle: DbHandle) {
           metadata?: JsonObject;
         },
       ): Promise<CampaignRecipient> {
-        const activePipelineKey = campaignActivePipelineKey(input);
+        const activePipelineKey = campaignActivePipelineKey({
+          ...input,
+          instagramHandle: input.metadata?.instagramHandle ?? input.metadata?.instagram,
+        });
         const [row] = await db
           .insert(campaignRecipients)
           .values({ ...input, activePipelineKey, metadata: encodeJson(input.metadata) })
@@ -1934,6 +1950,31 @@ export function createRepositories(handle: DbHandle) {
         const activePipelineKey = campaignActivePipelineKey({
           channel: input.channel ?? "whatsapp",
           phone: input.phone,
+          status: "queued",
+        });
+        if (!activePipelineKey) {
+          return null;
+        }
+        const row = await db
+          .select()
+          .from(campaignRecipients)
+          .where(
+            and(
+              eq(campaignRecipients.userId, input.userId),
+              eq(campaignRecipients.activePipelineKey, activePipelineKey),
+              inArray(campaignRecipients.status, activeCampaignRecipientStatuses),
+            ),
+          )
+          .get();
+        return row ? mapCampaignRecipient(row) : null;
+      },
+      async findActiveByInstagramHandle(input: {
+        userId: number;
+        instagramHandle: string;
+      }): Promise<CampaignRecipient | null> {
+        const activePipelineKey = campaignActivePipelineKey({
+          channel: "instagram",
+          instagramHandle: input.instagramHandle,
           status: "queued",
         });
         if (!activePipelineKey) {

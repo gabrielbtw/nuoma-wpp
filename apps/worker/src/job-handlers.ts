@@ -757,8 +757,8 @@ async function resolveCampaignStepTargetPhone(
   }
   const phone =
     normalizePhone(input.phone) ??
-    normalizePhone(conversation.externalThreadId) ??
-    normalizePhone(conversation.title);
+    normalizePhone(conversation.waJid) ??
+    normalizePhone(conversation.externalThreadId);
   return enforceSendPolicy(job, context, sendPolicyJobTypeForStep(input.step), phone);
 }
 
@@ -1467,6 +1467,7 @@ async function dispatchWithIdempotencyGuard<T extends DispatchSendResult>(
     };
   } catch (error) {
     if (!attemptFinalized) {
+      await context.repos.messages.updateStatus(upsert.message.id, "failed");
       await context.repos.messageDispatchAttempts.transitionPhase({
         id: attempt.id,
         phase: "failed",
@@ -1504,8 +1505,8 @@ async function sendVoiceToConversation(
   }
   const phone =
     normalizePhone(input.phoneInput) ??
-    normalizePhone(conversation.externalThreadId) ??
-    normalizePhone(conversation.title);
+    normalizePhone(conversation.waJid) ??
+    normalizePhone(conversation.externalThreadId);
   const idempotencyKey = extractIdempotencyKeyFromJobPayload(job.payload, job.id);
   const skippedDuplicate = await trySkipExistingDispatch(job, context, {
     idempotencyKey,
@@ -1548,6 +1549,7 @@ async function sendVoiceToConversation(
         durationMs: Math.round(prepared.durationSecs * 1000),
       },
       raw: {
+        clientNonce: stringFromPayload(job.payload.clientNonce),
         sourcePath: prepared.sourcePath,
         wavPath: prepared.wavPath,
         sha256: prepared.sha256,
@@ -1652,8 +1654,8 @@ async function sendDocumentToConversation(
   }
   const phone =
     normalizePhone(input.phoneInput) ??
-    normalizePhone(conversation.externalThreadId) ??
-    normalizePhone(conversation.title);
+    normalizePhone(conversation.waJid) ??
+    normalizePhone(conversation.externalThreadId);
   const idempotencyKey = extractIdempotencyKeyFromJobPayload(job.payload, job.id);
   const skippedDuplicate = await trySkipExistingDispatch(job, context, {
     idempotencyKey,
@@ -1687,6 +1689,7 @@ async function sendDocumentToConversation(
         durationMs: null,
       },
       raw: {
+        clientNonce: stringFromPayload(job.payload.clientNonce),
         documentPath: input.documentPath,
         fileName: input.fileName,
         mimeType: input.mimeType,
@@ -1742,8 +1745,8 @@ async function sendNativeMediaToConversation(
   }
   const phone =
     normalizePhone(input.phoneInput) ??
-    normalizePhone(conversation.externalThreadId) ??
-    normalizePhone(conversation.title);
+    normalizePhone(conversation.waJid) ??
+    normalizePhone(conversation.externalThreadId);
   const idempotencyKey = extractIdempotencyKeyFromJobPayload(job.payload, job.id);
   const skippedDuplicate = await trySkipExistingDispatch(job, context, {
     idempotencyKey,
@@ -1792,6 +1795,7 @@ async function sendNativeMediaToConversation(
         })),
       },
       raw: {
+        clientNonce: stringFromPayload(job.payload.clientNonce),
         mediaPath: input.mediaPath,
         fileName: input.fileName,
         mimeType: input.mimeType,
@@ -1869,8 +1873,8 @@ async function sendTextToConversation(
   }
   const phone =
     normalizePhone(input.phoneInput) ??
-    normalizePhone(conversation.externalThreadId) ??
-    normalizePhone(conversation.title);
+    normalizePhone(conversation.waJid) ??
+    normalizePhone(conversation.externalThreadId);
   const idempotencyKey = extractIdempotencyKeyFromJobPayload(job.payload, job.id);
   const skippedDuplicate = await trySkipExistingDispatch(job, context, {
     idempotencyKey,
@@ -1896,6 +1900,7 @@ async function sendTextToConversation(
       media: null,
       raw: {
         bodyLength: input.body.length,
+        clientNonce: stringFromPayload(job.payload.clientNonce),
       },
     },
     send: () =>
