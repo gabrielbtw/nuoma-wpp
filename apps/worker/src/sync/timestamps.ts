@@ -1,6 +1,7 @@
 import type { TimestampPrecision } from "@nuoma/contracts";
 
 const SAO_PAULO_OFFSET = "-03:00";
+const FUTURE_SWAP_GRACE_MS = 36 * 60 * 60 * 1000;
 
 export interface ParsedWhatsAppTimestamp {
   waDisplayedAt: string | null;
@@ -15,7 +16,10 @@ export interface MessageForInference {
   messageSecond: number | null;
 }
 
-export function parseWhatsAppDisplayedAt(text: string | null): ParsedWhatsAppTimestamp {
+export function parseWhatsAppDisplayedAt(
+  text: string | null,
+  observedAtUtc?: string | null,
+): ParsedWhatsAppTimestamp {
   if (!text) {
     return emptyTimestamp();
   }
@@ -29,11 +33,15 @@ export function parseWhatsAppDisplayedAt(text: string | null): ParsedWhatsAppTim
 
   const hour = pad2(match.groups.hour);
   const minute = pad2(match.groups.minute);
-  const day = pad2(match.groups.day);
-  const month = pad2(match.groups.month);
+  const parsedDay = pad2(match.groups.day);
+  const parsedMonth = pad2(match.groups.month);
   const year = normalizeYear(match.groups.year);
   const second = match.groups.second ? pad2(match.groups.second) : "00";
   const messageSecond = match.groups.second ? Number(second) : null;
+  const { day, month } = normalizeFutureSwappedDate(
+    { year, month: parsedMonth, day: parsedDay, hour, minute, second },
+    observedAtUtc,
+  );
   const waDisplayedAt = `${year}-${month}-${day}T${hour}:${minute}:${second}.000${SAO_PAULO_OFFSET}`;
 
   return {
@@ -107,4 +115,60 @@ function normalizeYear(value: string | undefined): string {
     return `20${year}`;
   }
   return year.padStart(4, "0");
+}
+
+interface DateTimeParts {
+  year: string;
+  month: string;
+  day: string;
+  hour: string;
+  minute: string;
+  second: string;
+}
+
+function normalizeFutureSwappedDate(
+  parts: DateTimeParts,
+  observedAtUtc?: string | null,
+): Pick<DateTimeParts, "month" | "day"> {
+  if (!observedAtUtc || !isValidDateParts(parts.year, parts.month, parts.day)) {
+    return { month: parts.month, day: parts.day };
+  }
+
+  const observedAt = new Date(observedAtUtc);
+  const parsedAt = dateFromParts(parts);
+  if (Number.isNaN(observedAt.getTime()) || Number.isNaN(parsedAt.getTime())) {
+    return { month: parts.month, day: parts.day };
+  }
+
+  if (parsedAt.getTime() <= observedAt.getTime() + FUTURE_SWAP_GRACE_MS) {
+    return { month: parts.month, day: parts.day };
+  }
+
+  const swapped = { ...parts, month: parts.day, day: parts.month };
+  if (!isValidDateParts(swapped.year, swapped.month, swapped.day)) {
+    return { month: parts.month, day: parts.day };
+  }
+
+  const swappedAt = dateFromParts(swapped);
+  if (swappedAt.getTime() <= observedAt.getTime() + FUTURE_SWAP_GRACE_MS) {
+    return { month: swapped.month, day: swapped.day };
+  }
+
+  return { month: parts.month, day: parts.day };
+}
+
+function dateFromParts(parts: DateTimeParts): Date {
+  return new Date(
+    `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}.000${SAO_PAULO_OFFSET}`,
+  );
+}
+
+function isValidDateParts(year: string, month: string, day: string): boolean {
+  const date = new Date(`${year}-${month}-${day}T00:00:00.000Z`);
+  return (
+    !Number.isNaN(date.getTime()) &&
+    date.getUTCFullYear() === Number(year) &&
+    date.getUTCMonth() + 1 === Number(month) &&
+    date.getUTCDate() === Number(day)
+  );
 }

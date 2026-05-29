@@ -113,9 +113,10 @@ export function createSyncEventHandler(input: {
   }
 
   async function handleMessageEvent(event: SyncMessageEvent): Promise<void> {
+    const observedAtUtc = event.message.observedAtUtc || event.observedAtUtc;
     const timestamp =
       event.message.waDisplayedAt === null
-        ? parseWhatsAppDisplayedAt(event.message.displayedAtText)
+        ? parseWhatsAppDisplayedAt(event.message.displayedAtText, observedAtUtc)
         : null;
     const waDisplayedAt = event.message.waDisplayedAt ?? timestamp?.waDisplayedAt ?? null;
     const timestampPrecision =
@@ -123,7 +124,6 @@ export function createSyncEventHandler(input: {
         ? timestamp.timestampPrecision
         : event.message.timestampPrecision;
     const messageSecond = event.message.messageSecond ?? timestamp?.messageSecond ?? null;
-    const observedAtUtc = event.message.observedAtUtc || event.observedAtUtc;
 
     const conversation = await upsertConversation(event.thread, {
       lastMessageAt: waDisplayedAt ?? observedAtUtc,
