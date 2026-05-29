@@ -25,6 +25,60 @@ afterEach(async () => {
 });
 
 describe("extension overlay snapshot identity", () => {
+  it("does not resolve a WhatsApp overlay by saved contact title without canonical identity", async () => {
+    const repos = createRepositories(db);
+    const user = await repos.users.create({
+      email: "overlay-title-only@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const decoyContact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel Braga Nuoma",
+      phone: "31982066263",
+      primaryChannel: "whatsapp",
+      notes: "Nao deve aparecer sem identidade canonica.",
+    });
+    const decoyConversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: decoyContact.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      waJid: "5531982066263@s.whatsapp.net",
+      title: "Gabriel Braga Nuoma",
+      lastMessageAt: "2026-05-07T10:00:00.000Z",
+      lastPreview: "Resumo que nao pode vazar por title",
+    });
+    await repos.messages.insertOrIgnore({
+      userId: user.id,
+      conversationId: decoyConversation.id,
+      contactId: decoyContact.id,
+      externalId: "OVERLAY-TITLE-ONLY-DECOY",
+      direction: "inbound",
+      contentType: "text",
+      status: "received",
+      body: "Mensagem que nao pode aparecer por title",
+      observedAtUtc: "2026-05-07T10:00:00.000Z",
+    });
+
+    const snapshot = await buildExtensionOverlaySnapshot({
+      repos,
+      userId: user.id,
+      phone: null,
+      waJid: null,
+      phoneSource: "unresolved",
+      title: "Gabriel Braga Nuoma",
+      reason: "unit-test",
+      sendPolicy,
+    });
+
+    expect(snapshot.phone).toBeNull();
+    expect(snapshot.waJid).toBeNull();
+    expect(snapshot.contact).toBeNull();
+    expect(snapshot.conversations).toEqual([]);
+    expect(snapshot.latestMessages).toEqual([]);
+  });
+
   it("resolves by wa_jid when the visible title is a saved name from another contact", async () => {
     const repos = createRepositories(db);
     const user = await repos.users.create({
