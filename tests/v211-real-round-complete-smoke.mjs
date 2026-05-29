@@ -5,6 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import Database from "better-sqlite3";
 import { chromium } from "playwright";
+import { backfillSmokeWhatsappIdentity } from "./helpers/contact-identity.mjs";
 
 const execFileAsync = promisify(execFile);
 const rootDir = process.cwd();
@@ -200,6 +201,14 @@ function seedConversation() {
       .run(userId, contact.id, `${phone}@c.us`, `Smoke Canary ${phone}`, now, now);
     conversation = { id: Number(result.lastInsertRowid), contact_id: contact.id };
   }
+
+  backfillSmokeWhatsappIdentity(db, {
+    userId,
+    phone,
+    contactId: Number(contact.id),
+    conversationId: Number(conversation.id),
+    now,
+  });
 
   return { contactId: Number(contact.id), conversationId: Number(conversation.id) };
 }

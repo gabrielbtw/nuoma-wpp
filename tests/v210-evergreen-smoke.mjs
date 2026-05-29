@@ -3,6 +3,7 @@ import Database from "better-sqlite3";
 import { chromium } from "playwright";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { backfillSmokeWhatsappIdentity } from "./helpers/contact-identity.mjs";
 
 const webUrl = process.env.WEB_URL ?? "http://127.0.0.1:3002";
 const apiUrl = process.env.API_URL ?? "http://127.0.0.1:3001";
@@ -166,6 +167,15 @@ function seedEvergreenFixture() {
         nowIso,
       }).lastInsertRowid,
     ].map(Number);
+    for (const index of [0, 1, 2]) {
+      const phone = [canaryPhone, "553188840002", "553188840003"][index];
+      backfillSmokeWhatsappIdentity(db, {
+        userId: 1,
+        phone,
+        contactId: contacts[index],
+        now: nowIso,
+      });
+    }
     const tagContact = db.prepare(
       "INSERT INTO contact_tags (contact_id, tag_id, user_id, created_at) VALUES (?, ?, 1, ?)",
     );

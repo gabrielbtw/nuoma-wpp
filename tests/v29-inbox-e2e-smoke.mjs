@@ -3,6 +3,7 @@ import Database from "better-sqlite3";
 import { chromium } from "playwright";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { backfillSmokeWhatsappIdentity } from "./helpers/contact-identity.mjs";
 
 const webUrl = process.env.WEB_URL ?? "http://127.0.0.1:3002";
 const apiUrl = process.env.API_URL ?? "http://127.0.0.1:3001";
@@ -329,6 +330,12 @@ function upsertSmokeContact(db, nowIso) {
     .prepare("SELECT id FROM contacts WHERE user_id = 1 AND phone = ? ORDER BY id DESC LIMIT 1")
     .get(smokePhone);
   if (!contact?.id) throw new Error("inbox e2e contact was not created");
+  backfillSmokeWhatsappIdentity(db, {
+    userId: 1,
+    phone: smokePhone,
+    contactId: Number(contact.id),
+    now: nowIso,
+  });
   return { id: Number(contact.id) };
 }
 
@@ -367,6 +374,13 @@ function upsertSmokeConversation(db, contactId, nowIso) {
     )
     .get(smokePhone);
   if (!conversation?.id) throw new Error("inbox e2e conversation was not created");
+  backfillSmokeWhatsappIdentity(db, {
+    userId: 1,
+    phone: smokePhone,
+    contactId,
+    conversationId: Number(conversation.id),
+    now: nowIso,
+  });
   return { id: Number(conversation.id) };
 }
 

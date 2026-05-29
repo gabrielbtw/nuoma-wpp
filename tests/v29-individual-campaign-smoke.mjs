@@ -3,6 +3,7 @@ import Database from "better-sqlite3";
 import { chromium } from "playwright";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { backfillSmokeWhatsappIdentity } from "./helpers/contact-identity.mjs";
 
 const webUrl = process.env.WEB_URL ?? "http://127.0.0.1:3002";
 const apiUrl = process.env.API_URL ?? "http://127.0.0.1:3001";
@@ -189,6 +190,13 @@ function seedCampaignFixture() {
     if (!conversation?.id) {
       throw new Error("individual campaign smoke conversation was not created");
     }
+    backfillSmokeWhatsappIdentity(db, {
+      userId: 1,
+      phone: smokePhone,
+      contactId: Number(contact.id),
+      conversationId: Number(conversation.id),
+      now,
+    });
 
     const smokeCampaignIds = db
       .prepare(

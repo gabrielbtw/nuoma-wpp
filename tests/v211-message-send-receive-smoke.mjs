@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { chromium } from "playwright";
+import { backfillSmokeWhatsappIdentity } from "./helpers/contact-identity.mjs";
 
 const rootDir = process.cwd();
 const dataDir = path.join(rootDir, "data");
@@ -111,6 +112,14 @@ function seedConversation() {
       .run(userId, contact.id, `${phone}@c.us`, `Smoke Canary ${phone}`, now, now);
     conversation = { id: Number(result.lastInsertRowid), contact_id: contact.id };
   }
+
+  backfillSmokeWhatsappIdentity(db, {
+    userId,
+    phone,
+    contactId: Number(contact.id),
+    conversationId: Number(conversation.id),
+    now,
+  });
 
   return { contactId: Number(contact.id), conversationId: Number(conversation.id) };
 }
