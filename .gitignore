@@ -20,6 +20,9 @@ Thumbs.db
 .idea/
 *.swp
 
+# local agent notes
+MEMORY.md
+
 # local data
 data/
 storage/
