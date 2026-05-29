@@ -377,6 +377,74 @@ describe("messages.sendVoice", () => {
       const cookies = cookieHeader(login.setCookie);
       const csrfToken = login.data!.csrfToken;
 
+      const blockedInstagramText = await trpcCall(
+        app,
+        "POST",
+        "messages.send",
+        {
+          conversationId: instagramConversation.id,
+          body: "DM fora da janela",
+          clientNonce: "composer:ig-text:no-window",
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(blockedInstagramText.statusCode).toBe(400);
+      expect(blockedInstagramText.error?.message).toContain("no inbound message found");
+
+      const blockedInstagramImage = await trpcCall(
+        app,
+        "POST",
+        "messages.sendMedia",
+        {
+          conversationId: instagramConversation.id,
+          mediaAssetId: imageAsset.id,
+          caption: "Foto IG fora da janela",
+          clientNonce: "composer:ig-media:no-window",
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(blockedInstagramImage.statusCode).toBe(400);
+      expect(blockedInstagramImage.error?.message).toContain("no inbound message found");
+
+      const latestAudit = await repos.sendAuditEvents.list({
+        userId: user.id,
+        conversationId: instagramConversation.id,
+        phase: "policy_block",
+        limit: 2,
+      });
+      expect(latestAudit).toHaveLength(2);
+      expect(latestAudit[0]).toMatchObject({
+        channel: "instagram",
+        errorCode: "instagram_24h_window_missing",
+      });
+
+      await repos.messages.create({
+        userId: user.id,
+        conversationId: instagramConversation.id,
+        contactId: instagramContact.id,
+        externalId: "ig-inbound-window",
+        direction: "inbound",
+        contentType: "text",
+        status: "received",
+        body: "Oi pelo Instagram",
+        observedAtUtc: new Date().toISOString(),
+      });
+
+      const scheduledOutsideWindow = await trpcCall(
+        app,
+        "POST",
+        "messages.send",
+        {
+          conversationId: instagramConversation.id,
+          body: "DM agendada fora da janela",
+          scheduledAt: new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString(),
+          clientNonce: "composer:ig-text:scheduled-outside-window",
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(scheduledOutsideWindow.statusCode).toBe(400);
+      expect(scheduledOutsideWindow.error?.message).toContain("outside the 24h window");
+
       const sendImage = await trpcCall<{
         job: {
           type: string;

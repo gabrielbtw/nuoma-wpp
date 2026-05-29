@@ -21,6 +21,7 @@ const createMessageBodySchema = createMessageInputSchema.omit({ userId: true });
 const updateMessageBodySchema = updateMessageInputSchema.omit({ userId: true });
 const manualSendAllowedPhone = "5531982066263";
 const clientNonceSchema = z.string().min(8).max(128).optional();
+const instagramSendWindowMs = 24 * 60 * 60 * 1000;
 
 function resolveManualIdempotencyKey(input: {
   userId: number;
@@ -127,6 +128,19 @@ export const messagesRouter = router({
       if (conversation.channel === "whatsapp") {
         assertApiSendAllowed(ctx.env, phone);
       }
+      const instagramHandle =
+        conversation.channel === "instagram"
+          ? await deriveConversationInstagramHandle(ctx.repos, ctx.user.id, conversation)
+          : null;
+      if (conversation.channel === "instagram") {
+        await assertApiInstagramWithin24hWindow(ctx.repos, {
+          userId: ctx.user.id,
+          conversationId: conversation.id,
+          contactId: conversation.contactId,
+          instagramHandle,
+          scheduledAt: input.scheduledAt ?? null,
+        });
+      }
 
       const dispatchIdempotencyKey = resolveManualIdempotencyKey({
         userId: ctx.user.id,
@@ -144,6 +158,7 @@ export const messagesRouter = router({
         payload: {
           conversationId: conversation.id,
           phone,
+          instagramHandle,
           body: input.body,
           clientNonce: input.clientNonce ?? null,
           idempotencyKey: dispatchIdempotencyKey,
@@ -285,6 +300,15 @@ export const messagesRouter = router({
         conversation.channel === "instagram"
           ? await deriveConversationInstagramHandle(ctx.repos, ctx.user.id, conversation)
           : null;
+      if (conversation.channel === "instagram") {
+        await assertApiInstagramWithin24hWindow(ctx.repos, {
+          userId: ctx.user.id,
+          conversationId: conversation.id,
+          contactId: conversation.contactId,
+          instagramHandle,
+          scheduledAt: input.scheduledAt ?? null,
+        });
+      }
 
       const job = await ctx.repos.jobs.create({
         userId: ctx.user.id,
@@ -333,6 +357,80 @@ function assertApiSendAllowed(
       message: `Envio bloqueado pela allowlist da API: ${decision.reason}`,
     });
   }
+}
+
+async function assertApiInstagramWithin24hWindow(
+  repos: Repositories,
+  input: {
+    userId: number;
+    conversationId: number;
+    contactId: number | null;
+    instagramHandle: string | null;
+    scheduledAt: string | null;
+  },
+): Promise<void> {
+  const latestInbound = await repos.messages.findLatestInboundByConversation({
+    userId: input.userId,
+    conversationId: input.conversationId,
+  });
+  const observedAtUtc = latestInbound?.observedAtUtc ?? null;
+  const observedAtMs = observedAtUtc ? Date.parse(observedAtUtc) : Number.NaN;
+  const referenceAtMs = input.scheduledAt ? Date.parse(input.scheduledAt) : Date.now();
+  const withinWindow =
+    Number.isFinite(observedAtMs) &&
+    Number.isFinite(referenceAtMs) &&
+    referenceAtMs - observedAtMs <= instagramSendWindowMs;
+  if (withinWindow) {
+    return;
+  }
+
+  const errorCode = latestInbound ? "instagram_24h_window_expired" : "instagram_24h_window_missing";
+  const errorMessage = latestInbound
+    ? "Instagram send blocked: last inbound message is outside the 24h window"
+    : "Instagram send blocked: no inbound message found for 24h window";
+  await repos.systemEvents.create({
+    userId: input.userId,
+    type: "sender.instagram_24h_window.blocked",
+    severity: "warn",
+    payload: JSON.stringify({
+      source: "api.messages",
+      conversationId: input.conversationId,
+      contactId: input.contactId,
+      instagramHandle: input.instagramHandle,
+      latestInboundMessageId: latestInbound?.id ?? null,
+      latestInboundObservedAtUtc: observedAtUtc,
+      scheduledAt: input.scheduledAt,
+      sendWindowMs: instagramSendWindowMs,
+      reason: errorCode,
+    }),
+  });
+  await repos.sendAuditEvents.create({
+    userId: input.userId,
+    campaignId: null,
+    contactId: input.contactId,
+    conversationId: input.conversationId,
+    messageId: null,
+    jobId: null,
+    channel: "instagram",
+    phase: "policy_block",
+    latencyMs: null,
+    errorCode,
+    errorMessage,
+    payloadHash: null,
+    workerId: null,
+    metadata: {
+      source: "api.messages",
+      instagramHandle: input.instagramHandle,
+      latestInboundMessageId: latestInbound?.id ?? null,
+      latestInboundObservedAtUtc: observedAtUtc,
+      scheduledAt: input.scheduledAt,
+      sendWindowMs: instagramSendWindowMs,
+    },
+  });
+  throw new TRPCError({
+    code: "BAD_REQUEST",
+    message: `${errorMessage}${input.instagramHandle ? `: @${input.instagramHandle}` : ""}`,
+  });
 }
 
 async function deriveConversationInstagramHandle(
