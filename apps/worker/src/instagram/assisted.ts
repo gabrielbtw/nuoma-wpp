@@ -61,14 +61,17 @@ export async function sendInstagramTextViaCdp(
       threadId: input.threadId ?? null,
       username,
     });
+    await assertInstagramUsable(page);
     if (mediaPaths.length > 0) {
       await uploadInstagramMedia(page, mediaPaths);
       if (text) {
         await fillInstagramComposer(page, text);
       }
+      await assertInstagramUsable(page);
       await clickInstagramSend(page);
     } else {
       await fillInstagramComposer(page, text);
+      await assertInstagramUsable(page);
       await clickInstagramSend(page);
     }
     await waitForInstagramSendEvidence(page, text, input.env.IG_SEND_CONFIRMATION_TIMEOUT_MS);
@@ -140,6 +143,7 @@ async function openInstagramThreadOrComposer(
       waitUntil: "domcontentloaded",
       timeout: 45_000,
     });
+    await assertInstagramUsable(page);
     if (
       (await waitForInstagramComposer(page, 10_000, false)) ||
       (await waitForInstagramMediaUploadInput(page, 4_000))
@@ -153,6 +157,7 @@ async function openInstagramThreadOrComposer(
     timeout: 45_000,
   });
   await page.waitForTimeout(1_200);
+  await assertInstagramUsable(page);
 
   const searchInput = page.locator("input[name='searchInput']").last();
   if ((await searchInput.count()) === 0) {
@@ -162,6 +167,7 @@ async function openInstagramThreadOrComposer(
   await page.waitForTimeout(1_800);
 
   const selected = await clickBestInstagramRecipientCandidate(page, input.username);
+  await assertInstagramUsable(page);
   if (!selected) {
     throw new Error(`Instagram recipient @${input.username} was not found in composer search`);
   }
@@ -196,6 +202,7 @@ async function waitForInstagramComposer(
 ): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    await assertInstagramUsable(page);
     if (await hasInstagramComposer(page)) {
       return true;
     }
@@ -210,6 +217,7 @@ async function waitForInstagramComposer(
 async function waitForInstagramMediaUploadInput(page: Page, timeoutMs = 10_000): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    await assertInstagramUsable(page);
     if (await hasInstagramMediaUploadInput(page)) {
       return true;
     }
