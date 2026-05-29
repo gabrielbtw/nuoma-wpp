@@ -3093,6 +3093,16 @@ describe("api health", () => {
       primaryChannel: "whatsapp",
       status: "active",
     });
+    const priorityTag = await repos.tags.create({
+      userId: user.id,
+      name: "Prioridade",
+      color: "#2dd4bf",
+    });
+    await repos.contactTags.add({
+      userId: user.id,
+      contactId: whatsappContact.id,
+      tagId: priorityTag.id,
+    });
     const instagramContact = await repos.contacts.create({
       userId: user.id,
       name: "Neferpeel Instagram",
@@ -3101,7 +3111,7 @@ describe("api health", () => {
       instagramHandle: "neferpeel.bh",
       status: "lead",
     });
-    await repos.conversations.create({
+    const whatsappConversation = await repos.conversations.create({
       userId: user.id,
       contactId: whatsappContact.id,
       channel: "whatsapp",
@@ -3109,6 +3119,7 @@ describe("api health", () => {
       title: "Gabriel WhatsApp",
       lastMessageAt: "2026-05-07T10:00:00.000Z",
       lastPreview: "WA recente",
+      unreadCount: 2,
     });
     await repos.conversations.create({
       userId: user.id,
@@ -3118,6 +3129,17 @@ describe("api health", () => {
       title: "@neferpeel.bh",
       lastMessageAt: "2026-05-07T10:05:00.000Z",
       lastPreview: "DM recente",
+    });
+    await repos.messages.create({
+      userId: user.id,
+      conversationId: whatsappConversation.id,
+      contactId: whatsappContact.id,
+      externalId: "FAILED-WA-1",
+      direction: "outbound",
+      contentType: "text",
+      status: "failed",
+      body: "falhou",
+      observedAtUtc: "2026-05-07T10:01:00.000Z",
     });
 
     const app = await buildApiApp({
@@ -3142,14 +3164,24 @@ describe("api health", () => {
         conversations: Array<{
           channel: string;
           title: string;
-          contact: { instagramHandle: string | null; phone: string | null } | null;
+          contact: {
+            instagramHandle: string | null;
+            phone: string | null;
+            tagIds: number[];
+          } | null;
           target: { kind: string; identity: string; label: string };
+          hasFailedMessages: boolean;
         }>;
         summary: {
           total: number;
           returned: number;
           channels: { instagram: number; system: number; whatsapp: number };
-          filters: { channel: string; search: string | null };
+          filters: {
+            channel: string;
+            search: string | null;
+            operationalStatus: string;
+            tagId: number | null;
+          };
         };
       }>(
         app,
@@ -3163,7 +3195,7 @@ describe("api health", () => {
         total: 2,
         returned: 2,
         channels: { instagram: 1, system: 0, whatsapp: 1 },
-        filters: { channel: "all", search: null },
+        filters: { channel: "all", search: null, operationalStatus: "all", tagId: null },
       });
       expect(unified.data?.conversations.map((conversation) => conversation.channel)).toEqual([
         "instagram",
@@ -3178,10 +3210,19 @@ describe("api health", () => {
           label: "Neferpeel Instagram",
         },
       });
+      expect(unified.data?.conversations[1]).toMatchObject({
+        channel: "whatsapp",
+        contact: { tagIds: [priorityTag.id] },
+        hasFailedMessages: true,
+      });
 
       const byIgHandle = await trpcCall<{
         conversations: Array<{ channel: string; target: { identity: string } }>;
-        summary: { total: number; channels: { instagram: number; whatsapp: number } };
+        summary: {
+          total: number;
+          channels: { instagram: number; whatsapp: number };
+          filters: { operationalStatus: string; tagId: number | null };
+        };
       }>(
         app,
         "GET",
@@ -3198,6 +3239,66 @@ describe("api health", () => {
         expect.objectContaining({
           channel: "instagram",
           target: expect.objectContaining({ identity: "@neferpeel.bh" }),
+        }),
+      ]);
+
+      const unread = await trpcCall<{
+        conversations: Array<{ channel: string; unreadCount: number }>;
+        summary: { total: number; filters: { operationalStatus: string } };
+      }>(
+        app,
+        "GET",
+        "conversations.listUnified",
+        { operationalStatus: "unread", limit: 10 },
+        { cookie: cookies },
+      );
+      expect(unread.statusCode, JSON.stringify(unread.error)).toBe(200);
+      expect(unread.data?.summary).toMatchObject({
+        total: 1,
+        filters: { operationalStatus: "unread" },
+      });
+      expect(unread.data?.conversations).toEqual([
+        expect.objectContaining({ channel: "whatsapp", unreadCount: 2 }),
+      ]);
+
+      const failed = await trpcCall<{
+        conversations: Array<{ channel: string; hasFailedMessages: boolean }>;
+        summary: { total: number; filters: { operationalStatus: string } };
+      }>(
+        app,
+        "GET",
+        "conversations.listUnified",
+        { operationalStatus: "failed", limit: 10 },
+        { cookie: cookies },
+      );
+      expect(failed.statusCode, JSON.stringify(failed.error)).toBe(200);
+      expect(failed.data?.summary).toMatchObject({
+        total: 1,
+        filters: { operationalStatus: "failed" },
+      });
+      expect(failed.data?.conversations).toEqual([
+        expect.objectContaining({ channel: "whatsapp", hasFailedMessages: true }),
+      ]);
+
+      const byTag = await trpcCall<{
+        conversations: Array<{ channel: string; contact: { tagIds: number[] } | null }>;
+        summary: { total: number; filters: { tagId: number | null } };
+      }>(
+        app,
+        "GET",
+        "conversations.listUnified",
+        { tagId: priorityTag.id, limit: 10 },
+        { cookie: cookies },
+      );
+      expect(byTag.statusCode, JSON.stringify(byTag.error)).toBe(200);
+      expect(byTag.data?.summary).toMatchObject({
+        total: 1,
+        filters: { tagId: priorityTag.id },
+      });
+      expect(byTag.data?.conversations).toEqual([
+        expect.objectContaining({
+          channel: "whatsapp",
+          contact: expect.objectContaining({ tagIds: [priorityTag.id] }),
         }),
       ]);
     } finally {

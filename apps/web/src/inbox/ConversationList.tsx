@@ -19,7 +19,7 @@ import {
   INBOX_CONVERSATION_LIMIT,
   INBOX_CONVERSATION_ROW_ESTIMATE,
 } from "./conversation-list-config.js";
-import { conversationDisplayTitle, conversationSearchText } from "./conversation-display.js";
+import { conversationDisplayTitle } from "./conversation-display.js";
 import { trpc } from "../lib/trpc.js";
 import { mediaAssetUrl } from "../lib/media-url.js";
 
@@ -36,25 +36,34 @@ const FILTER_CHIPS: { id: ChannelOrAll; label: string }[] = [
 ];
 
 type ChannelOrAll = "all" | "whatsapp" | "instagram" | "system";
+type OperationalFilter = "all" | "unread" | "failed";
+
+const OPERATIONAL_FILTERS: { id: OperationalFilter; label: string }[] = [
+  { id: "all", label: "Tudo" },
+  { id: "unread", label: "Não lidas" },
+  { id: "failed", label: "Falhas" },
+];
 
 export function ConversationList({ selectedId, onSelect }: ConversationListProps) {
-  const conversations = trpc.conversations.list.useQuery(
-    { limit: INBOX_CONVERSATION_LIMIT },
-    { refetchInterval: 5_000 },
-  );
-
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ChannelOrAll>("all");
+  const [operationalFilter, setOperationalFilter] = useState<OperationalFilter>("all");
+  const [tagFilter, setTagFilter] = useState<number | "all">("all");
+  const conversations = trpc.conversations.listUnified.useQuery(
+    {
+      limit: INBOX_CONVERSATION_LIMIT,
+      channel: filter,
+      operationalStatus: operationalFilter,
+      tagId: tagFilter === "all" ? undefined : tagFilter,
+      search: query.trim() || undefined,
+    },
+    { refetchInterval: 5_000 },
+  );
+  const tags = trpc.tags.list.useQuery(undefined, { staleTime: 30_000 });
 
   const filtered = useMemo(() => {
-    const list = conversations.data?.conversations ?? [];
-    const q = query.trim().toLowerCase();
-    return list.filter((c) => {
-      if (filter !== "all" && c.channel !== filter) return false;
-      if (q && !conversationSearchText(c).toLowerCase().includes(q)) return false;
-      return true;
-    });
-  }, [conversations.data, query, filter]);
+    return conversations.data?.conversations ?? [];
+  }, [conversations.data]);
 
   useEffect(() => {
     const selectedIsVisible = selectedId != null && filtered.some((item) => item.id === selectedId);
@@ -75,7 +84,10 @@ export function ConversationList({ selectedId, onSelect }: ConversationListProps
 
   useEffect(() => {
     rowVirtualizer.scrollToOffset(0);
-  }, [filter, query, rowVirtualizer]);
+  }, [filter, operationalFilter, query, rowVirtualizer, tagFilter]);
+
+  const hasActiveOperationalFilter =
+    operationalFilter !== "all" || tagFilter !== "all" || filter !== "all" || query.trim() !== "";
 
   return (
     <aside
@@ -90,7 +102,7 @@ export function ConversationList({ selectedId, onSelect }: ConversationListProps
               {filtered.length} conversas ativas
             </div>
           </div>
-          <Badge variant="cyan">{conversations.data?.conversations.length ?? 0}</Badge>
+          <Badge variant="cyan">{conversations.data?.summary.total ?? 0}</Badge>
         </div>
         <div className="flex items-center gap-2 px-3 h-10 rounded-lg bg-bg-base shadow-pressed-sm">
           <Search className="h-3.5 w-3.5 text-fg-dim shrink-0" />
@@ -119,6 +131,62 @@ export function ConversationList({ selectedId, onSelect }: ConversationListProps
             </button>
           ))}
         </div>
+        <div className="flex gap-1.5">
+          {OPERATIONAL_FILTERS.map((chip) => (
+            <button
+              key={chip.id}
+              type="button"
+              onClick={() => setOperationalFilter(chip.id)}
+              data-testid="inbox-operational-filter"
+              data-filter-value={chip.id}
+              className={cn(
+                "h-7 rounded-md px-2.5 font-mono text-[0.65rem] uppercase tracking-widest transition-shadow",
+                operationalFilter === chip.id
+                  ? chip.id === "failed"
+                    ? "bg-semantic-danger/12 text-semantic-danger shadow-glow-danger"
+                    : "bg-brand-gold/12 text-brand-gold shadow-glow-gold"
+                  : "text-fg-muted shadow-flat-subtle hover:shadow-raised-sm hover:text-fg-primary",
+              )}
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
+        <label className="flex h-9 items-center gap-2 rounded-lg bg-bg-base px-3 shadow-pressed-sm">
+          <span className="font-mono text-[0.62rem] uppercase tracking-widest text-fg-dim">
+            Tag
+          </span>
+          <select
+            value={tagFilter}
+            onChange={(event) =>
+              setTagFilter(event.target.value === "all" ? "all" : Number(event.target.value))
+            }
+            data-testid="inbox-tag-filter"
+            className="min-w-0 flex-1 bg-transparent text-sm text-fg-primary outline-none"
+          >
+            <option value="all">Todas</option>
+            {(tags.data?.tags ?? []).map((tag) => (
+              <option key={tag.id} value={tag.id}>
+                {tag.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {hasActiveOperationalFilter && (
+          <button
+            type="button"
+            onClick={() => {
+              setFilter("all");
+              setOperationalFilter("all");
+              setTagFilter("all");
+              setQuery("");
+            }}
+            data-testid="inbox-filter-clear"
+            className="h-7 self-start rounded-md px-2.5 font-mono text-[0.65rem] uppercase tracking-widest text-fg-muted shadow-flat-subtle transition-shadow hover:text-fg-primary hover:shadow-raised-sm"
+          >
+            Limpar filtros
+          </button>
+        )}
       </div>
       <div
         ref={parentRef}
@@ -202,7 +270,10 @@ export function ConversationList({ selectedId, onSelect }: ConversationListProps
                       <div className="font-mono text-[0.65rem] text-fg-dim truncate">
                         {conv.lastPreview ?? conv.externalThreadId}
                       </div>
-                      {conv.unreadCount > 0 && <Badge variant="cyan">{conv.unreadCount}</Badge>}
+                      <div className="flex shrink-0 items-center gap-1">
+                        {conv.hasFailedMessages && <Badge variant="danger">falha</Badge>}
+                        {conv.unreadCount > 0 && <Badge variant="cyan">{conv.unreadCount}</Badge>}
+                      </div>
                     </div>
                   </div>
                 </button>

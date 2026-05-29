@@ -1760,6 +1760,26 @@ export function createRepositories(handle: DbHandle) {
           .get();
         return row ? mapMessage(row) : null;
       },
+      async failedConversationIds(input: {
+        userId: number;
+        conversationIds: number[];
+      }): Promise<Set<number>> {
+        if (input.conversationIds.length === 0) {
+          return new Set();
+        }
+        const placeholders = input.conversationIds.map(() => "?").join(", ");
+        const rows = handle.raw
+          .prepare(
+            `SELECT DISTINCT conversation_id AS conversationId
+             FROM messages
+             WHERE user_id = ?
+               AND status = 'failed'
+               AND deleted_at IS NULL
+               AND conversation_id IN (${placeholders})`,
+          )
+          .all(input.userId, ...input.conversationIds) as Array<{ conversationId: number }>;
+        return new Set(rows.map((row) => row.conversationId));
+      },
       async update(input: {
         id: number;
         userId: number;

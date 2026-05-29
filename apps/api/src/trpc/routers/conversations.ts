@@ -25,16 +25,22 @@ const listUnifiedInputSchema = z
     limit: z.number().int().min(1).max(500).default(100),
     channel: z.union([channelTypeSchema, z.literal("all")]).default("all"),
     search: z.string().trim().min(1).max(120).optional(),
+    operationalStatus: z.enum(["all", "unread", "failed"]).default("all"),
+    tagId: z.number().int().positive().optional(),
   })
   .optional();
 
 type UnifiedConversation = Conversation & {
-  contact: Pick<Contact, "id" | "instagramHandle" | "name" | "phone" | "primaryChannel" | "status"> | null;
+  contact: Pick<
+    Contact,
+    "id" | "instagramHandle" | "name" | "phone" | "primaryChannel" | "status" | "tagIds"
+  > | null;
   target: {
     kind: "instagram" | "phone" | "system" | "thread";
     identity: string;
     label: string;
   };
+  hasFailedMessages: boolean;
 };
 
 export const conversationsRouter = router({
@@ -54,11 +60,17 @@ export const conversationsRouter = router({
     const limit = input?.limit ?? 100;
     const channel = input?.channel ?? "all";
     const search = input?.search?.trim() ?? null;
+    const operationalStatus = input?.operationalStatus ?? "all";
+    const tagId = input?.tagId ?? null;
     const [conversations, contacts] = await Promise.all([
       ctx.repos.conversations.list(ctx.user.id, 500),
       ctx.repos.contacts.list({ userId: ctx.user.id, limit: 2_000 }),
     ]);
     const contactsById = new Map(contacts.map((contact) => [contact.id, contact]));
+    const failedConversationIds = await ctx.repos.messages.failedConversationIds({
+      userId: ctx.user.id,
+      conversationIds: conversations.map((conversation) => conversation.id),
+    });
 
     const filtered = conversations
       .filter((conversation) => channel === "all" || conversation.channel === channel)
@@ -75,12 +87,22 @@ export const conversationsRouter = router({
                 phone: contact.phone,
                 primaryChannel: contact.primaryChannel,
                 status: contact.status,
+                tagIds: contact.tagIds,
               }
             : null,
           target: buildUnifiedTarget(conversation, contact),
+          hasFailedMessages: failedConversationIds.has(conversation.id),
         };
       })
-      .filter((conversation) => !search || matchesUnifiedSearch(conversation, search));
+      .filter((conversation) => !search || matchesUnifiedSearch(conversation, search))
+      .filter((conversation) =>
+        tagId == null ? true : conversation.contact?.tagIds.includes(tagId) === true,
+      )
+      .filter((conversation) => {
+        if (operationalStatus === "unread") return conversation.unreadCount > 0;
+        if (operationalStatus === "failed") return conversation.hasFailedMessages;
+        return true;
+      });
 
     const channels = countChannels(filtered);
     return {
@@ -92,6 +114,8 @@ export const conversationsRouter = router({
         filters: {
           channel,
           search,
+          operationalStatus,
+          tagId,
         },
       },
     };
