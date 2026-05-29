@@ -100,6 +100,19 @@ const workerSchema = baseSchema.extend({
   WA_SEND_ALLOWED_PHONES: z.string().default(""),
   WA_SEND_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).default(60_000),
   WA_SEND_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(12),
+  IG_SEND_ALLOWED_HANDLES: z.string().default(""),
+  IG_SEND_CONFIRMATION_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(1_000)
+    .max(60_000)
+    .default(15_000),
+  WORKER_INSTAGRAM_SYNC_ENABLED: booleanFromEnv.default(false),
+  WORKER_INSTAGRAM_SYNC_INTERVAL_MS: z.coerce.number().int().min(10_000).default(60_000),
+  WORKER_INSTAGRAM_SYNC_THREAD_LIMIT: z.coerce.number().int().min(1).max(50).default(5),
+  WORKER_INSTAGRAM_SYNC_MESSAGE_LIMIT: z.coerce.number().int().min(1).max(100).default(20),
+  WORKER_INSTAGRAM_SYNC_SCROLL_PASSES: z.coerce.number().int().min(1).max(50).default(6),
+  IG_WEB_URL: z.string().url().default("https://www.instagram.com/direct/inbox/"),
   WORKER_JOB_LOOP_ENABLED: booleanFromEnv.default(true),
   WORKER_ID: z.string().min(1).default("worker-local-1"),
   WORKER_POLL_MS: z.coerce.number().int().min(250).default(1000),

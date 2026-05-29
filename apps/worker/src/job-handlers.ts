@@ -25,6 +25,8 @@ import type {
   SyncEnsureTemporaryMessagesResult,
   SyncTemporaryMessagesDuration,
 } from "./sync/cdp.js";
+import { normalizeInstagramHandle } from "./instagram/assisted.js";
+import type { InstagramRuntime } from "./instagram/sync.js";
 import { prepareVoiceAudio } from "./voice/audio.js";
 
 export interface JobHandlerContext {
@@ -33,6 +35,7 @@ export interface JobHandlerContext {
   repos: Repositories;
   logger: Logger;
   sync?: SyncEngineRuntime;
+  instagram?: InstagramRuntime;
 }
 
 export class PermanentJobError extends Error {
@@ -2406,11 +2409,70 @@ function parsePhoneList(
 }
 
 async function handleSyncJob(job: Job, context: JobHandlerContext): Promise<void> {
+  const conversationId = numberFromPayload(job.payload.conversationId);
+  if ((job.type === "sync_conversation" || job.type === "sync_history") && !conversationId) {
+    throw new PermanentJobError(`${job.type} requires payload.conversationId`);
+  }
+
+  const channel = typeof job.payload.channel === "string" ? job.payload.channel : null;
+  const conversation = conversationId
+    ? await context.repos.conversations.findById({ userId: job.userId, id: conversationId })
+    : null;
+  const isInstagramSync = channel === "instagram" || conversation?.channel === "instagram";
+  if (isInstagramSync) {
+    if (!context.instagram) {
+      throw new Error("Instagram sync runtime is not available");
+    }
+    const messagesLimit =
+      boundedNumberFromPayload(job.payload.messagesLimit, 1, 100) ??
+      context.env.WORKER_INSTAGRAM_SYNC_MESSAGE_LIMIT;
+    const result =
+      conversation?.channel === "instagram"
+        ? await context.instagram.syncConversation({
+            userId: job.userId,
+            threadId: conversation.externalThreadId,
+            instagramHandle:
+              normalizeInstagramHandle(stringFromPayload(job.payload.instagramHandle)) ??
+              (conversation.contactId
+                ? normalizeInstagramHandle(
+                    (await context.repos.contacts.findById(conversation.contactId))
+                      ?.instagramHandle,
+                  )
+                : null),
+            title: conversation.title,
+            messagesLimit,
+            reason: job.type,
+          })
+        : await context.instagram.syncInbox({
+            userId: job.userId,
+            threadLimit:
+              boundedNumberFromPayload(job.payload.threadLimit, 1, 50) ??
+              context.env.WORKER_INSTAGRAM_SYNC_THREAD_LIMIT,
+            messagesLimit,
+            scrollPasses:
+              boundedNumberFromPayload(job.payload.scrollPasses, 1, 50) ??
+              context.env.WORKER_INSTAGRAM_SYNC_SCROLL_PASSES,
+            openPage: booleanFromPayload(job.payload.openPage) ?? true,
+            reason: job.type,
+          });
+    await context.repos.systemEvents.create({
+      userId: job.userId,
+      type: "sync.instagram.completed",
+      severity: "info",
+      payload: JSON.stringify({
+        jobId: job.id,
+        jobType: job.type,
+        ...result,
+      }),
+    });
+    return;
+  }
+
   if (!context.sync) {
     throw new Error("sync runtime is not available");
   }
 
-  const conversationId = numberFromPayload(job.payload.conversationId);
+  const phone = typeof job.payload.phone === "string" ? job.payload.phone : null;
   if ((job.type === "sync_conversation" || job.type === "sync_history") && !conversationId) {
     throw new PermanentJobError(`${job.type} requires payload.conversationId`);
   }
@@ -2462,6 +2524,17 @@ function numericPayloadArray(value: unknown): number[] {
 
 function stringFromPayload(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function booleanFromPayload(value: unknown): boolean | null {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    if (/^(true|1|yes)$/i.test(value)) return true;
+    if (/^(false|0|no)$/i.test(value)) return false;
+  }
+  return null;
 }
 
 function stringPayloadArray(value: unknown): string[] {

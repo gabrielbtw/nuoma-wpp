@@ -74,6 +74,7 @@
     "test:v215-cutover-preflight": "tsx tests/v215-cutover-preflight-smoke.ts",
     "test:v215-cutover-apply": "tsx tests/v215-cutover-apply-smoke.ts",
     "test:v213-v215-suite": "npm run test:v213-global-events && npm run test:v214-backup-restore && npm run test:v215-cutover-preflight && npm run test:v215-cutover-apply",
+    "test:v216-instagram-sync": "tsx tests/v216-instagram-sync-smoke.ts",
     "test:v2-screen-smoke": "node tests/v2-screen-smoke-matrix.mjs",
     "test:m37-evidence-center": "npm run test --workspace @nuoma/api -- src/app.test.ts -t \"lists M37 evidence center\"",
     "build:chrome-extension": "npm run build --workspace @nuoma/chrome-extension",

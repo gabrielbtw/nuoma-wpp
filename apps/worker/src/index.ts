@@ -6,6 +6,7 @@ import pino from "pino";
 
 import { startBrowserRuntime } from "./browser.js";
 import { createJobLoop } from "./job-loop.js";
+import { startInstagramRuntime } from "./instagram/sync.js";
 import { startSyncEngine } from "./sync/cdp.js";
 
 const env = loadWorkerEnv();
@@ -22,6 +23,7 @@ await runMigrations(db);
 const repos = createRepositories(db);
 const browser = await startBrowserRuntime({ env, logger });
 const sync = await startSyncEngine({ env, repos, logger });
+const instagram = await startInstagramRuntime({ env, repos, logger });
 
 let stopping = false;
 let heartbeatStatus: "starting" | "idle" | "busy" | "stopping" | "stopped" | "error" = "starting";
@@ -37,6 +39,7 @@ const jobLoop = createJobLoop({
     repos,
     logger,
     sync,
+    instagram,
   },
 });
 
@@ -68,6 +71,7 @@ async function heartbeat(status: typeof heartbeatStatus = heartbeatStatus): Prom
     metrics: {
       ...jobLoop.state.metrics,
       sync: sync.metrics,
+      instagram: instagram.metrics,
       service: CONSTANTS.workerServiceName,
     },
   });
@@ -100,14 +104,30 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   await heartbeat("stopping").catch((error: unknown) => {
     logger.warn({ error }, "stopping heartbeat failed");
   });
-  await browser.close();
-  await sync.close();
-  heartbeatStatus = "stopped";
-  await heartbeat("stopped").catch((error: unknown) => {
-    logger.warn({ error }, "stopped heartbeat failed");
-  });
-  db.close();
-  process.exit(0);
+
+  let exitCode = 0;
+  try {
+    const closeResults = await Promise.allSettled([browser.close(), sync.close(), instagram.close()]);
+    for (const [index, result] of closeResults.entries()) {
+      if (result.status === "rejected") {
+        exitCode = 1;
+        logger.warn(
+          {
+            error: result.reason,
+            component: index === 0 ? "browser" : index === 1 ? "sync" : "instagram",
+          },
+          "worker shutdown close step failed",
+        );
+      }
+    }
+    heartbeatStatus = "stopped";
+    await heartbeat("stopped").catch((error: unknown) => {
+      logger.warn({ error }, "stopped heartbeat failed");
+    });
+  } finally {
+    db.close();
+  }
+  process.exit(exitCode);
 }
 
 const heartbeatTimer = setInterval(() => {

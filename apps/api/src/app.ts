@@ -13,6 +13,7 @@ import { registerEvidenceFileRoutes } from "./routes/evidence-files.js";
 import { registerExtensionBridgeRoutes } from "./routes/extension-bridge.js";
 import { registerGlobalEventsRoutes } from "./routes/global-events.js";
 import { registerInboxEventsRoutes } from "./routes/inbox-events.js";
+import { registerInstagramRoutes } from "./routes/instagram.js";
 import { registerMediaUploadRoutes } from "./routes/media-upload.js";
 import { createAutomationEngineDaemon } from "./services/automation-engine-daemon.js";
 import { createCampaignSchedulerDaemon } from "./services/campaign-scheduler-daemon.js";
@@ -69,6 +70,7 @@ export async function buildApiApp(options: ApiAppOptions): Promise<FastifyInstan
   await registerExtensionBridgeRoutes(app, { env: options.env, repos });
   await registerGlobalEventsRoutes(app, { env: options.env, repos });
   await registerInboxEventsRoutes(app, { env: options.env, repos });
+  await registerInstagramRoutes(app, { repos });
   await registerMediaUploadRoutes(app, { env: options.env, repos });
 
   const campaignScheduler = createCampaignSchedulerDaemon({
