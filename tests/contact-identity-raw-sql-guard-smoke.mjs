@@ -17,9 +17,17 @@ const allowedRawSqlFixtures = new Map([
     "tests/v215-cutover-preflight-smoke.ts",
     "V1 fixture only; preflight does not write V2 contacts.",
   ],
+  [
+    "tests/v215-cutover-apply-smoke.ts",
+    "V1 fixture only; cutover apply must prove V2 phone_e164/wa_jid after migration.",
+  ],
+  [
+    "tests/contact-identity-raw-sql-guard-smoke.mjs",
+    "Guard owns the violation message text; it is not a DB write fixture.",
+  ],
 ]);
 
-const rawContactInsertPattern = /\bINSERT\s+INTO\s+[`"]?contacts[`"]?\b/i;
+const rawContactInsertPattern = /\bINSERT\s+INTO\s+[`"]?contacts[`"]?\b/gi;
 const backfillPattern = /\bbackfillSmokeWhatsappIdentity\s*\(/;
 const phoneE164Pattern = /\bphone_e164\b/i;
 const waJidPattern = /\bwa_jid\b/i;
@@ -31,15 +39,18 @@ const violations = [];
 for (const relativePath of files) {
   const absolutePath = path.join(repoRoot, relativePath);
   const source = await fs.readFile(absolutePath, "utf8");
-  if (!rawContactInsertPattern.test(source)) {
+  const contactInsertStatements = extractRawContactInsertStatements(source);
+  if (contactInsertStatements.length === 0) {
     continue;
   }
 
   contactInsertFiles.push(relativePath);
-  const hasIdentityColumns = phoneE164Pattern.test(source) && waJidPattern.test(source);
   const hasBackfill = backfillPattern.test(source);
   const allowedReason = allowedRawSqlFixtures.get(relativePath);
-  if (!hasIdentityColumns && !hasBackfill && !allowedReason) {
+  const everyInsertHasIdentityColumns = contactInsertStatements.every(
+    (statement) => phoneE164Pattern.test(statement) && waJidPattern.test(statement),
+  );
+  if (!everyInsertHasIdentityColumns && !hasBackfill && !allowedReason) {
     violations.push(relativePath);
   }
 }
@@ -72,6 +83,17 @@ async function collectSourceFiles(roots) {
     await walk(path.join(repoRoot, root), root, result);
   }
   return result.sort();
+}
+
+function extractRawContactInsertStatements(source) {
+  const statements = [];
+  for (const match of source.matchAll(rawContactInsertPattern)) {
+    const start = match.index ?? 0;
+    const runIndex = source.indexOf(").run", start);
+    const end = runIndex > start ? runIndex : start + 1_200;
+    statements.push(source.slice(start, Math.min(source.length, end)));
+  }
+  return statements;
 }
 
 async function walk(absoluteDir, relativeDir, result) {
