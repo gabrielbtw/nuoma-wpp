@@ -1282,9 +1282,79 @@ describe("repositories", () => {
 
     await expect(repos.jobs.markCompleted(job.id, "worker-b")).resolves.toBe(true);
     const completed = handle.raw
-      .prepare("SELECT status, claimed_by FROM jobs WHERE id = ?")
-      .get(job.id) as { status: string; claimed_by: string | null } | undefined;
-    expect(completed).toEqual({ status: "completed", claimed_by: "worker-b" });
+      .prepare("SELECT status, claimed_at, claimed_by, last_error FROM jobs WHERE id = ?")
+      .get(job.id) as
+      | {
+          status: string;
+          claimed_at: string | null;
+          claimed_by: string | null;
+          last_error: string | null;
+        }
+      | undefined;
+    expect(completed).toEqual({
+      status: "completed",
+      claimed_at: null,
+      claimed_by: null,
+      last_error: null,
+    });
+  });
+
+  it("clears stale retry errors when a later job attempt completes", async () => {
+    const repos = createRepositories(handle);
+    const user = await repos.users.create({
+      email: "job-error-clear@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "send_instagram_message",
+      status: "queued",
+      payload: { instagramHandle: "gabriell_braga" },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 3,
+    });
+    if (!job) {
+      throw new Error("expected job to be created");
+    }
+
+    const [firstClaim] = await repos.jobs.claimDueJobs({
+      workerId: "worker-a",
+      now: "2026-04-30T12:00:01.000Z",
+    });
+    expect(firstClaim?.id).toBe(job.id);
+    await expect(
+      repos.jobs.releaseForRetry({
+        jobId: job.id,
+        error: "Instagram assisted composer search input was not found",
+        scheduledAt: "2026-04-30T12:01:00.000Z",
+        workerId: "worker-a",
+      }),
+    ).resolves.toBe(true);
+
+    const [secondClaim] = await repos.jobs.claimDueJobs({
+      workerId: "worker-b",
+      now: "2026-04-30T12:01:01.000Z",
+    });
+    expect(secondClaim?.lastError).toBe("Instagram assisted composer search input was not found");
+    await expect(repos.jobs.markCompleted(job.id, "worker-b")).resolves.toBe(true);
+
+    const completed = handle.raw
+      .prepare("SELECT status, claimed_at, claimed_by, last_error FROM jobs WHERE id = ?")
+      .get(job.id) as
+      | {
+          status: string;
+          claimed_at: string | null;
+          claimed_by: string | null;
+          last_error: string | null;
+        }
+      | undefined;
+    expect(completed).toEqual({
+      status: "completed",
+      claimed_at: null,
+      claimed_by: null,
+      last_error: null,
+    });
   });
 
   it("moves exhausted jobs to DLQ and retries them manually", async () => {

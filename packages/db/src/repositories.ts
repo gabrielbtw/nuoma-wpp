@@ -2817,6 +2817,9 @@ export function createRepositories(handle: DbHandle) {
               .prepare(
                 `UPDATE jobs
                  SET status = 'completed',
+                     claimed_at = NULL,
+                     claimed_by = NULL,
+                     last_error = NULL,
                      completed_at = ?,
                      updated_at = ?
                  WHERE id = ?
@@ -2828,6 +2831,9 @@ export function createRepositories(handle: DbHandle) {
               .prepare(
                 `UPDATE jobs
                  SET status = 'completed',
+                     claimed_at = NULL,
+                     claimed_by = NULL,
+                     last_error = NULL,
                      completed_at = ?,
                      updated_at = ?
                  WHERE id = ?
