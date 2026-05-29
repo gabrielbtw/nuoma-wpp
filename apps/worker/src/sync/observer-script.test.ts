@@ -213,6 +213,93 @@ describe("WhatsApp observer script", () => {
     expect(multiChatSnapshots.length).toBeGreaterThanOrEqual(3);
   }, 30_000);
 
+  it("restores multi-chat sidebar by canonical phone instead of saved contact title", async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    const events: unknown[] = [];
+
+    try {
+      await page.exposeFunction("__nuomaSync", (payload: string) => {
+        events.push(JSON.parse(payload) as unknown);
+      });
+      await page.setContent(`
+        <main id="app">
+          <section id="pane-side">
+            <div role="listitem" data-testid="cell-frame-container" onclick="
+              window.__activeChatId = '5531999999999@c.us';
+              document.querySelector('#main header span').setAttribute('title', 'Gabriel');
+              document.querySelector('#main header span').textContent = 'Gabriel';
+              document.querySelector('#main [data-id]').setAttribute('data-id', 'false_5531999999999@c.us_WRONG');
+              document.querySelector('#main .selectable-text').textContent = 'Chat errado';
+            "><span data-testid="cell-frame-title" title="Gabriel">Gabriel</span><span> telefone 5531999999999 msg </span><span>15:35</span></div>
+            <div role="listitem" data-testid="cell-frame-container" onclick="
+              window.__activeChatId = '5531982066263@c.us';
+              document.querySelector('#main header span').setAttribute('title', 'Gabriel');
+              document.querySelector('#main header span').textContent = 'Gabriel';
+              document.querySelector('#main [data-id]').setAttribute('data-id', 'false_5531982066263@c.us_RIGHT');
+              document.querySelector('#main .selectable-text').textContent = 'Chat correto';
+            "><span data-testid="cell-frame-title" title="Gabriel">Gabriel</span><span> telefone 5531982066263 msg </span><span>15:34</span></div>
+          </section>
+          <section id="main">
+            <header><span title="Gabriel">Gabriel</span></header>
+            <span>Hoje</span>
+            <div data-id="false_5531982066263@c.us_START">
+              <div class="copyable-text" data-pre-plain-text="[15:34, 30/04/2026] Maria: ">
+                <span class="selectable-text">Oi</span>
+              </div>
+              <div data-testid="msg-meta"><span>15:34</span></div>
+            </div>
+          </section>
+        </main>
+      `);
+      await page.evaluate(() => {
+        const runtime = globalThis as unknown as {
+          __activeChatId: string;
+          require: (name: string) => unknown;
+        };
+        runtime.__activeChatId = "5531982066263@c.us";
+        runtime.require = (name: string) => {
+          if (name !== "WAWebCollections") return null;
+          return {
+            Chat: {
+              models: [
+                {
+                  active: true,
+                  id: { _serialized: runtime.__activeChatId },
+                },
+              ],
+            },
+          };
+        };
+      });
+      await page.evaluate(createWhatsAppObserverScript());
+      await page.waitForFunction("Boolean(globalThis.__nuomaSyncObserverInstalled)");
+      const result = await page.evaluate(() =>
+        (
+          globalThis as unknown as {
+            __nuomaSyncReconcileHotWindow: (input: {
+              reason: string;
+              limit: number;
+              delayMs: number;
+              navigateByUrl?: boolean;
+            }) => Promise<{ mode: string; visited: number; restored: boolean }>;
+          }
+        ).__nuomaSyncReconcileHotWindow({
+          reason: "test-title-collision",
+          limit: 2,
+          delayMs: 100,
+          navigateByUrl: false,
+        }),
+      );
+      const activeDataId = await page.locator("#main [data-id]").getAttribute("data-id");
+
+      expect(result.restored).toBe(true);
+      expect(activeDataId).toContain("5531982066263@c.us_RIGHT");
+    } finally {
+      await browser.close();
+    }
+  }, 30_000);
+
   it("detects current WhatsApp outbound bubbles without true_ data-id prefixes", async () => {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();

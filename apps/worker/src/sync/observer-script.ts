@@ -86,7 +86,7 @@ export function createWhatsAppObserverScript(bindingName = SYNC_BINDING_NAME): s
       : null;
     const hrefPhone = normalizePhone(hrefKey);
     const waJid = currentChatJidFromStore() || normalizeWaJid(hrefKey);
-    const phone = hrefPhone || normalizePhone(waJid);
+    const phone = hrefPhone || normalizePhone(waJid) || normalizePhone(title);
     const externalThreadId = waJid || hrefPhone || hrefKey || "unknown-whatsapp-thread";
     return {
       channel,
@@ -1063,7 +1063,6 @@ export function createWhatsAppObserverScript(bindingName = SYNC_BINDING_NAME): s
     const restorePhone = phoneFromText(options && options.restorePhone);
     const restore = sidebarChats(Math.max(limit, 10)).find(
       (candidate) =>
-        candidate.title === startedThread.title ||
         (restorePhone && candidate.phone === restorePhone) ||
         (startedThread.phone && candidate.phone === startedThread.phone),
     );
