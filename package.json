@@ -45,6 +45,7 @@
     "test:v29-voice-recorder": "node tests/v29-voice-recorder-smoke.mjs",
     "test:v29-virtual-list": "node tests/v29-virtual-list-smoke.mjs",
     "test:v210-campaigns": "node tests/v210-campaigns-smoke.mjs",
+    "test:v210-campaign-builder-mobile": "node tests/v210-campaign-builder-mobile-smoke.mjs",
     "test:v210-ab-variants": "node tests/v210-ab-variants-smoke.mjs",
     "test:v210-chatbot-ab-rules": "node tests/v210-chatbot-ab-rules-smoke.mjs",
     "test:v210-evergreen": "node tests/v210-evergreen-smoke.mjs",
