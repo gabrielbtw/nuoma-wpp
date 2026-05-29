@@ -14,6 +14,8 @@ import {
 const fixtureScreenshotPath =
   process.env.FIXTURE_SCREENSHOT_PATH ?? "data/v211-overlay-phone-m34-fixture.png";
 const wppScreenshotPath = process.env.WPP_SCREENSHOT_PATH ?? "data/v211-overlay-phone-m34-wpp.png";
+const wppFailureScreenshotPath =
+  process.env.WPP_FAILURE_SCREENSHOT_PATH ?? "data/v211-overlay-phone-m34-wpp-failure.png";
 const cdpUrl = process.env.CDP_URL ?? "http://127.0.0.1:9223";
 const whatsappUrl = process.env.WA_WEB_URL ?? "https://web.whatsapp.com/";
 const canaryPhone = "5531982066263";
@@ -88,21 +90,23 @@ async function validateFixture() {
 
 async function validateWhatsAppWeb() {
   const browser = await chromium.connectOverCDP(cdpUrl);
+  let page: Page | null = null;
   try {
     const context = browser.contexts()[0] ?? (await browser.newContext());
-    let page = context.pages().find((candidate) => candidate.url().startsWith(whatsappUrl));
+    page = context.pages().find((candidate) => candidate.url().startsWith(whatsappUrl)) ?? null;
     page ??= context.pages()[0] ?? (await context.newPage());
     await page.setViewportSize({ width: 1366, height: 768 });
 
     if (!page.url().startsWith(whatsappUrl)) {
       await page.goto(whatsappUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
     }
+    await waitForConversationHeader(page);
 
     let state = await injectAndReadWhatsAppOverlay(page);
     if (!state.mounted || state.phone !== canaryPhone) {
       const targetUrl = `${whatsappUrl.replace(/\/$/, "")}/send?phone=${encodeURIComponent(canaryPhone)}`;
       await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
-      await page.waitForTimeout(7_000);
+      await waitForConversationHeader(page);
       state = await injectAndReadWhatsAppOverlay(page);
     }
 
@@ -112,20 +116,56 @@ async function validateWhatsAppWeb() {
     assertPanel(panel, "wpp");
     await page.screenshot({ path: wppScreenshotPath, fullPage: false, timeout: 15_000 });
     return { ...state, ...panel, mode: "cdp" };
+  } catch (error) {
+    if (page) {
+      await page
+        .screenshot({ path: wppFailureScreenshotPath, fullPage: false, timeout: 15_000 })
+        .catch(() => undefined);
+    }
+    throw error;
   } finally {
     await browser.close();
   }
 }
 
+async function waitForConversationHeader(page: Page) {
+  await page.waitForFunction(
+    () =>
+      Boolean(
+        document.querySelector("#main header") ||
+        document.querySelector('[data-testid="conversation-header"]'),
+      ),
+    { timeout: 45_000 },
+  );
+  await page.waitForTimeout(1_000);
+}
+
 async function injectAndReadWhatsAppOverlay(page: Page) {
   await page.evaluate((rootId) => {
+    const bridgeWindow = window as unknown as {
+      __nuomaApi?: ((...args: unknown[]) => unknown) | unknown;
+      __nuomaApiNativeBridge?: ((...args: unknown[]) => unknown) | unknown;
+    };
+    const nativeBridge =
+      typeof bridgeWindow.__nuomaApiNativeBridge === "function"
+        ? bridgeWindow.__nuomaApiNativeBridge
+        : typeof bridgeWindow.__nuomaApi === "function"
+          ? bridgeWindow.__nuomaApi.bind(window)
+          : null;
     document.getElementById(rootId)?.remove();
     delete (window as unknown as { __nuomaOverlayState?: unknown }).__nuomaOverlayState;
     delete (window as unknown as { __nuomaOverlayInstalled?: unknown }).__nuomaOverlayInstalled;
     delete (window as unknown as { __nuomaOverlayRefresh?: unknown }).__nuomaOverlayRefresh;
     delete (window as unknown as { __nuomaOverlaySetData?: unknown }).__nuomaOverlaySetData;
-    delete (window as unknown as { __nuomaOverlayRefreshFromApi?: unknown }).__nuomaOverlayRefreshFromApi;
+    delete (window as unknown as { __nuomaOverlayRefreshFromApi?: unknown })
+      .__nuomaOverlayRefreshFromApi;
+    delete (window as unknown as Record<string, unknown>).__nuomaApi;
     delete (window as unknown as { __nuomaApiResolve?: unknown }).__nuomaApiResolve;
+    if (nativeBridge) {
+      (window as unknown as Record<string, unknown>).__nuomaApiNativeBridge = nativeBridge;
+    } else {
+      delete (window as unknown as Record<string, unknown>).__nuomaApiNativeBridge;
+    }
   }, NUOMA_OVERLAY_ROOT_ID);
   await page.evaluate(createNuomaOverlayScript());
   await page.waitForTimeout(700);
@@ -159,7 +199,15 @@ async function hydrateAndOpenPanel(page: Page, state: OverlayState, label: strin
         observedAtUtc: new Date().toISOString(),
       },
     ],
-    automations: [{ id: 34, name: "Overlay phone detection", category: "Embed", status: "active" }],
+    automations: [
+      {
+        id: 34,
+        name: "Overlay phone detection",
+        category: "Embed",
+        status: "active",
+        overlayEnabled: true,
+      },
+    ],
     notes: "Telefone detectado pelo observer M34.",
     source: "smoke",
   };
@@ -192,47 +240,13 @@ async function readOverlayState(page: Page): Promise<OverlayState> {
         ).__nuomaOverlayRefresh === "function"
           ? (window as unknown as { __nuomaOverlayRefresh: () => unknown }).__nuomaOverlayRefresh()
           : {};
-      let state = refreshState as {
+      const state = refreshState as {
         mounted?: unknown;
         reason?: unknown;
         phone?: unknown;
         phoneSource?: unknown;
         title?: unknown;
       };
-      if (
-        state.mounted &&
-        typeof state.title === "string" &&
-        state.title &&
-        typeof state.phone === "string" &&
-        !state.phone &&
-        typeof (
-          window as unknown as {
-            __nuomaApi?: {
-              refreshContact?: (input: unknown) => Promise<unknown>;
-            };
-          }
-        ).__nuomaApi?.refreshContact === "function"
-      ) {
-        await (
-          window as unknown as {
-            __nuomaApi: {
-              refreshContact: (input: unknown) => Promise<unknown>;
-            };
-          }
-        ).__nuomaApi.refreshContact({
-          phone: "",
-          phoneSource: state.phoneSource,
-          title: state.title,
-          reason: "v211-phone-title-fallback",
-        });
-        state = (window as unknown as { __nuomaOverlayRefresh: () => unknown }).__nuomaOverlayRefresh() as {
-          mounted?: unknown;
-          reason?: unknown;
-          phone?: unknown;
-          phoneSource?: unknown;
-          title?: unknown;
-        };
-      }
       const host = document.getElementById(rootId);
       return {
         mounted: Boolean(state.mounted),
@@ -258,7 +272,7 @@ async function readPanelState(page: Page) {
       return {
         panelVisible: Boolean(panel && rect && rect.width > 300 && rect.height > 300),
         hasPhone: text.includes("+5531982066263"),
-        hasDetector: text.includes("Detector") && text.includes("message-data-id"),
+        hasDetector: text.includes("Detector") && !text.includes("sem fonte"),
         hasSummary: text.includes("Resumo") && text.includes("Overlay phone detection"),
         text,
       };
@@ -275,9 +289,14 @@ function assertDetectedPhone(state: OverlayState, label: string) {
     throw new Error(`${label} overlay phone mismatch: ${JSON.stringify(state)}`);
   }
   if (
-    !["message-data-id", "url-phone", "sidebar-active", "header-title", "title-conversation"].includes(
-      state.phoneSource,
-    )
+    ![
+      "message-data-id",
+      "url-phone",
+      "sidebar-active",
+      "wa-jid",
+      "contact-details",
+      "visible-link",
+    ].includes(state.phoneSource)
   ) {
     throw new Error(`${label} overlay phone source mismatch: ${JSON.stringify(state)}`);
   }
@@ -285,7 +304,9 @@ function assertDetectedPhone(state: OverlayState, label: string) {
 
 function assertPanel(panel: Awaited<ReturnType<typeof readPanelState>>, label: string) {
   if (!panel.panelVisible || !panel.hasPhone || !panel.hasSummary) {
-    throw new Error(`${label} overlay panel did not render detected phone: ${JSON.stringify(panel)}`);
+    throw new Error(
+      `${label} overlay panel did not render detected phone: ${JSON.stringify(panel)}`,
+    );
   }
 }
 

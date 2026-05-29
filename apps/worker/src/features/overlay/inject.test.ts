@@ -318,7 +318,18 @@ describe("Nuoma WhatsApp overlay injection", () => {
       expect(focusState.activeClass).toContain("nuoma-panel-body");
       expect(focusState.expanded).toBe("true");
 
-      await page.keyboard.press("Escape");
+      await page.evaluate((rootId) => {
+        const host = document.getElementById(rootId);
+        const target = host?.shadowRoot?.activeElement ?? host?.shadowRoot?.querySelector("[data-nuoma-panel]");
+        target?.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: "Escape",
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+          }),
+        );
+      }, NUOMA_OVERLAY_ROOT_ID);
       await page.waitForTimeout(20);
       const closed = await page.evaluate((rootId) => {
         const host = document.getElementById(rootId);
