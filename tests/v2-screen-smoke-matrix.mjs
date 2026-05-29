@@ -100,7 +100,7 @@ const routes = [
     version: "V2.8",
     name: "Componentes visuais",
     path: "/dev/components",
-    waitText: "Sistema de Cores",
+    waitTestId: "dev-components-page",
     file: "12-v28-components.png",
     details: "Inventario visual do design system Cartographic Operations.",
   },
@@ -122,8 +122,7 @@ async function main() {
     const page = await context.newPage();
 
     await page.goto(`${webUrl}/login`, { waitUntil: "networkidle" });
-    await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Senha").fill(password);
+    await fillLogin(page);
     await page.screenshot({ path: path.join(outputDir, "01-v24-login.png"), fullPage: true });
     report.push({
       version: "V2.4",
@@ -132,12 +131,22 @@ async function main() {
       print: path.join(outputDir, "01-v24-login.png"),
       details: "Cookies httpOnly/CSRF sao emitidos apos submit.",
     });
-    await page.click('button[type="submit"]');
-    await page.waitForURL(`${webUrl}/`);
+    await submitLogin(page);
 
     for (const route of routes) {
       await page.goto(`${webUrl}${route.path}`, { waitUntil: "domcontentloaded" });
-      const waitWarning = await waitForRouteSignal(page, route);
+      if (await isLoginScreen(page)) {
+        await fillLogin(page);
+        await submitLogin(page);
+        await page.goto(`${webUrl}${route.path}`, { waitUntil: "domcontentloaded" });
+      }
+      let waitWarning = await waitForRouteSignal(page, route);
+      if (await isLoginScreen(page)) {
+        await fillLogin(page);
+        await submitLogin(page);
+        await page.goto(`${webUrl}${route.path}`, { waitUntil: "domcontentloaded" });
+        waitWarning = await waitForRouteSignal(page, route);
+      }
       const extra = route.action ? await route.action(page, fixture) : null;
       const screenshotPath = path.join(outputDir, route.file);
       await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
@@ -184,6 +193,24 @@ async function waitForRouteSignal(page, route) {
   } catch {
     return route.waitTestId ?? route.waitText ?? "route-signal";
   }
+}
+
+async function fillLogin(page) {
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Senha").fill(password);
+}
+
+async function submitLogin(page) {
+  await page.click('button[type="submit"]');
+  await page.waitForURL(`${webUrl}/`);
+}
+
+async function isLoginScreen(page) {
+  if (new URL(page.url()).pathname === "/login") return true;
+  return await page
+    .getByRole("heading", { name: "Entrar" })
+    .isVisible({ timeout: 500 })
+    .catch(() => false);
 }
 
 async function validateRemarketingBatchPanel(page, fixture) {

@@ -178,7 +178,10 @@ export function DevComponentsPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-16 pb-20 pt-2">
+    <div
+      data-testid="dev-components-page"
+      className="mx-auto flex max-w-6xl flex-col gap-16 pb-20 pt-2"
+    >
       <Animate preset="rise-in">
         <header className="flex flex-col gap-5 border-b border-border-subtle/40 pb-10">
           <p className="botforge-kicker flex items-center gap-2 text-fg-muted">
