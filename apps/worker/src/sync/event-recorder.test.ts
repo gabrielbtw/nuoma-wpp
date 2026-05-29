@@ -20,6 +20,7 @@ describe("sync event recorder", () => {
       thread: {
         channel: "whatsapp",
         externalThreadId: "5531982066263@c.us",
+        waJid: "5531982066263@s.whatsapp.net",
         title: "5531982066263",
         phone: "5531982066263",
         unreadCount: 0,

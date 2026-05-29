@@ -3,6 +3,7 @@ import type { FastifyBaseLogger } from "fastify";
 import type { Repositories } from "@nuoma/db";
 
 import { triggerAutomationForPhone } from "./automation-trigger.js";
+import { normalizePhone } from "./send-policy.js";
 
 export interface AutomationEngineDaemon {
   start(): void;
@@ -74,12 +75,15 @@ export function createAutomationEngineDaemon(input: {
         const contact = conversation.contactId
           ? await input.repos.contacts.findById(conversation.contactId)
           : null;
-        const phone = conversation.channel === "whatsapp" ? conversation.externalThreadId.replace(/\D/g, "") : "";
+        const phone =
+          conversation.channel === "whatsapp"
+            ? deriveWhatsappPhoneIdentity({ conversation, contact })
+            : "";
         const instagramHandle =
           conversation.channel === "instagram"
-            ? normalizeInstagramHandle(contact?.instagramHandle) ??
+            ? (normalizeInstagramHandle(contact?.instagramHandle) ??
               normalizeInstagramHandle(conversation.externalThreadId) ??
-              normalizeInstagramHandle(conversation.title)
+              normalizeInstagramHandle(conversation.title))
             : null;
         if (conversation.channel === "whatsapp" && phone.length < 8) {
           result.skipped.push({ messageId: message.id, reason: "conversation_phone_missing" });
@@ -174,6 +178,27 @@ function normalizeInstagramHandle(value: string | null | undefined): string | nu
     .replace(/^@+/, "")
     .toLowerCase();
   return /^[a-z0-9._]{1,30}$/.test(cleaned) ? cleaned : null;
+}
+
+function deriveWhatsappPhoneIdentity(input: {
+  conversation: {
+    externalThreadId: string;
+    waJid?: string | null;
+  };
+  contact: {
+    phone?: string | null;
+    phoneE164?: string | null;
+    waJid?: string | null;
+  } | null;
+}): string {
+  return (
+    normalizePhone(input.conversation.waJid) ??
+    normalizePhone(input.contact?.waJid) ??
+    normalizePhone(input.contact?.phoneE164) ??
+    normalizePhone(input.contact?.phone) ??
+    normalizePhone(input.conversation.externalThreadId) ??
+    ""
+  );
 }
 
 function emptyResult(): AutomationEngineTickResult {

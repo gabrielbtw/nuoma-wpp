@@ -320,7 +320,8 @@ describe("Nuoma WhatsApp overlay injection", () => {
 
       await page.evaluate((rootId) => {
         const host = document.getElementById(rootId);
-        const target = host?.shadowRoot?.activeElement ?? host?.shadowRoot?.querySelector("[data-nuoma-panel]");
+        const target =
+          host?.shadowRoot?.activeElement ?? host?.shadowRoot?.querySelector("[data-nuoma-panel]");
         target?.dispatchEvent(
           new KeyboardEvent("keydown", {
             key: "Escape",
@@ -721,6 +722,78 @@ describe("Nuoma WhatsApp overlay injection", () => {
         { text: "Sincronizar conversa", disabled: false },
         { text: "Copiar telefone", disabled: false },
       ]);
+    } finally {
+      await browser.close();
+    }
+  }, 30_000);
+
+  it("enables manual sync when only a canonical WhatsApp JID is available", async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+
+    try {
+      await page.setContent(`
+        <html>
+          <body>
+            <div id="main">
+              <header>
+                <div role="button" aria-label="Dados do contato">
+                  <span>Gabriel Salvo</span>
+                </div>
+              </header>
+            </div>
+          </body>
+        </html>
+      `);
+      await page.evaluate(createNuomaOverlayScript());
+
+      const state = await page.evaluate(
+        ({ rootId, panelTestId }) => {
+          const host = document.getElementById(rootId);
+          host?.shadowRoot?.querySelector<HTMLButtonElement>("[data-nuoma-fab]")?.click();
+          (
+            window as unknown as {
+              __nuomaOverlaySetData: (data: unknown) => unknown;
+            }
+          ).__nuomaOverlaySetData({
+            phone: "",
+            waJid: "5531982066263@s.whatsapp.net",
+            phoneSource: "wa-jid",
+            title: "Gabriel Salvo",
+            contact: null,
+            conversations: [],
+            latestMessages: [],
+            automations: [],
+            campaigns: [],
+            notes: null,
+            source: "nuoma-api",
+            apiStatus: "online",
+            apiLastMethod: "contactSummary",
+          });
+
+          const panel = host?.shadowRoot?.querySelector(`[data-testid="${panelTestId}"]`) ?? null;
+          const syncButton = Array.from(
+            host?.shadowRoot?.querySelectorAll<HTMLButtonElement>(".nuoma-action") ?? [],
+          ).find((button) => button.textContent === "Forcar sync");
+
+          return {
+            hostPhone: host?.getAttribute("data-nuoma-thread-phone"),
+            hostWaJid: host?.getAttribute("data-nuoma-wa-jid"),
+            panelText: panel?.textContent ?? "",
+            syncDisabled: syncButton?.disabled,
+            syncAria: syncButton?.getAttribute("aria-label"),
+          };
+        },
+        { rootId: NUOMA_OVERLAY_ROOT_ID, panelTestId: NUOMA_OVERLAY_PANEL_TEST_ID },
+      );
+
+      expect(state).toMatchObject({
+        hostPhone: "",
+        hostWaJid: "5531982066263@s.whatsapp.net",
+        syncDisabled: false,
+        syncAria: "Forcar sync da conversa atual",
+      });
+      expect(state.panelText).toContain("Telefone nao identificado");
     } finally {
       await browser.close();
     }

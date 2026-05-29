@@ -2130,7 +2130,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       const syncAction = document.createElement("button");
       syncAction.type = "button";
       syncAction.className = "nuoma-empty-action";
-      syncAction.disabled = !phone || state.apiInFlight;
+      syncAction.disabled = !hasDispatchTarget || state.apiInFlight;
       syncAction.setAttribute("aria-label", "Sincronizar conversa para criar resumo do contato");
       syncAction.textContent = state.apiInFlight ? "Sincronizando..." : "Sincronizar conversa";
       syncAction.addEventListener("click", () => {
@@ -2169,9 +2169,14 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     syncButton.type = "button";
     syncButton.className = "nuoma-action";
     syncButton.textContent = state.apiInFlight ? "Sincronizando..." : "Forcar sync";
-    syncButton.disabled = !phone || state.apiInFlight;
-    syncButton.setAttribute("aria-label", phone ? "Forcar sync da conversa atual" : "Sync bloqueado sem telefone identificado");
-    syncButton.title = phone ? "Rele a conversa atual pelo WhatsApp Web" : "Identifique o telefone para liberar o sync manual";
+    syncButton.disabled = !hasDispatchTarget || state.apiInFlight;
+    syncButton.setAttribute(
+      "aria-label",
+      hasDispatchTarget ? "Forcar sync da conversa atual" : "Sync bloqueado sem identidade identificada",
+    );
+    syncButton.title = hasDispatchTarget
+      ? "Rele a conversa atual pelo WhatsApp Web"
+      : "Identifique o telefone ou JID para liberar o sync manual";
     syncButton.addEventListener("click", () => {
       void forceSyncCurrentConversation(host);
     });
@@ -2189,7 +2194,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         .filter(Boolean)
         .join(" · ");
     } else {
-      syncNote.textContent = phone
+      syncNote.textContent = hasDispatchTarget
         ? "Rele a conversa atual pelo WhatsApp Web e grava mensagens por ID unico."
         : "Abra uma conversa individual para liberar o sync manual.";
     }
