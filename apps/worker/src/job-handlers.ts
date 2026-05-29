@@ -1419,6 +1419,10 @@ interface DispatchSkippedDuplicateResult {
   existingStatus: Message["status"];
 }
 
+type SendAuditPhase = NonNullable<
+  Parameters<JobHandlerContext["repos"]["sendAuditEvents"]["list"]>[0]["phase"]
+>;
+
 function hasDispatchEvidence(message: Message): boolean {
   return Boolean(
     message.dispatchedAt ||
@@ -1488,6 +1492,30 @@ async function markSkippedDuplicate(
     },
     "dispatch skipped because idempotency key already exists",
   );
+  await recordStructuredSendAudit(job, context, {
+    phase: "duplicate",
+    channel: auditChannelFromTarget(input.phone),
+    campaignId: numberFromPayload(job.payload.campaignId),
+    contactId: input.message.contactId,
+    conversationId: input.conversationId,
+    messageId: input.message.id,
+    latencyMs: null,
+    errorCode: "skipped_duplicate",
+    errorMessage: input.activeAttemptPhase
+      ? `active_dispatch_attempt_${input.activeAttemptPhase}`
+      : "message_idempotency_key_already_dispatched",
+    metadata: {
+      idempotencyKey: input.idempotencyKey,
+      contentType: input.contentType,
+      reason: input.reason,
+      phone: input.phone,
+      externalId: input.message.externalId,
+      activeAttemptId: input.activeAttemptId,
+      activeAttemptPhase: input.activeAttemptPhase,
+      existingStatus: input.message.status,
+      dispatchAttempts: input.message.dispatchAttempts,
+    },
+  });
   return {
     mode: "dispatch-skipped",
     dispatchGuard: "skipped_duplicate",
@@ -1560,6 +1588,7 @@ async function dispatchWithIdempotencyGuard<T extends DispatchSendResult>(
   }
 
   const observedAtUtc = new Date().toISOString();
+  const dispatchStartedAtMs = Date.now();
   const upsert = await context.repos.messages.upsertOutboundByKey({
     userId: job.userId,
     conversationId: input.draft.conversationId,
@@ -1614,6 +1643,23 @@ async function dispatchWithIdempotencyGuard<T extends DispatchSendResult>(
     workerId: context.env.WORKER_ID,
     phase: "sending",
     messageId: upsert.message.id,
+  });
+  await recordStructuredSendAudit(job, context, {
+    phase: "dispatching",
+    channel: auditChannelFromTarget(input.phone),
+    campaignId: numberFromPayload(job.payload.campaignId),
+    contactId: input.draft.contactId,
+    conversationId: input.draft.conversationId,
+    messageId: upsert.message.id,
+    latencyMs: null,
+    metadata: {
+      idempotencyKey: input.idempotencyKey,
+      contentType: input.draft.contentType,
+      reason: input.reason,
+      phone: input.phone,
+      attemptId: attempt.id,
+      jobType: job.type,
+    },
   });
 
   let attemptFinalized = false;
@@ -1700,6 +1746,26 @@ async function dispatchWithIdempotencyGuard<T extends DispatchSendResult>(
           externalId: result.externalId,
           error: error instanceof Error ? error.message : String(error),
         });
+        await recordStructuredSendAudit(job, context, {
+          phase: "failed",
+          channel: auditChannelFromTarget(input.phone),
+          campaignId: numberFromPayload(job.payload.campaignId),
+          contactId: input.draft.contactId,
+          conversationId: input.draft.conversationId,
+          messageId: failedMessageId,
+          latencyMs: elapsedMs(dispatchStartedAtMs),
+          errorCode: "dispatch_result_validation_failed",
+          errorMessage: error instanceof Error ? error.message : String(error),
+          metadata: {
+            idempotencyKey: input.idempotencyKey,
+            contentType: input.draft.contentType,
+            reason: input.reason,
+            phone: input.phone,
+            attemptId: attempt.id,
+            externalId: result.externalId,
+            jobType: job.type,
+          },
+        });
         attemptFinalized = true;
         throw error;
       }
@@ -1715,6 +1781,24 @@ async function dispatchWithIdempotencyGuard<T extends DispatchSendResult>(
       messageId: dispatchMessageId,
       externalId: result.externalId,
     });
+    await recordStructuredSendAudit(job, context, {
+      phase: "sent",
+      channel: auditChannelFromTarget(input.phone),
+      campaignId: numberFromPayload(job.payload.campaignId),
+      contactId: input.draft.contactId,
+      conversationId: input.draft.conversationId,
+      messageId: dispatchMessageId,
+      latencyMs: elapsedMs(dispatchStartedAtMs),
+      metadata: {
+        idempotencyKey: input.idempotencyKey,
+        contentType: input.draft.contentType,
+        reason: input.reason,
+        phone: input.phone,
+        attemptId: attempt.id,
+        externalId: result.externalId,
+        jobType: job.type,
+      },
+    });
     return {
       ...result,
       idempotencyKey: input.idempotencyKey,
@@ -1729,9 +1813,85 @@ async function dispatchWithIdempotencyGuard<T extends DispatchSendResult>(
         messageId: upsert.message.id,
         error: error instanceof Error ? error.message : String(error),
       });
+      await recordStructuredSendAudit(job, context, {
+        phase: "failed",
+        channel: auditChannelFromTarget(input.phone),
+        campaignId: numberFromPayload(job.payload.campaignId),
+        contactId: input.draft.contactId,
+        conversationId: input.draft.conversationId,
+        messageId: upsert.message.id,
+        latencyMs: elapsedMs(dispatchStartedAtMs),
+        errorCode: "dispatch_failed",
+        errorMessage: error instanceof Error ? error.message : String(error),
+        metadata: {
+          idempotencyKey: input.idempotencyKey,
+          contentType: input.draft.contentType,
+          reason: input.reason,
+          phone: input.phone,
+          attemptId: attempt.id,
+          jobType: job.type,
+        },
+      });
     }
     throw error;
   }
+}
+
+async function recordStructuredSendAudit(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    phase: SendAuditPhase;
+    channel: "whatsapp" | "instagram" | "system";
+    campaignId: number | null;
+    contactId: number | null;
+    conversationId: number | null;
+    messageId?: number | null;
+    latencyMs?: number | null;
+    errorCode?: string | null;
+    errorMessage?: string | null;
+    metadata?: Record<string, unknown>;
+  },
+): Promise<void> {
+  try {
+    const metadata: Record<string, unknown> = {
+      jobType: job.type,
+      ...input.metadata,
+    };
+    const idempotencyKey =
+      typeof metadata.idempotencyKey === "string"
+        ? metadata.idempotencyKey
+        : stringFromPayload(job.payload.idempotencyKey);
+    await context.repos.sendAuditEvents.create({
+      userId: job.userId,
+      campaignId: input.campaignId,
+      contactId: input.contactId,
+      conversationId: input.conversationId,
+      messageId: input.messageId ?? null,
+      jobId: job.id,
+      channel: input.channel,
+      phase: input.phase,
+      latencyMs: input.latencyMs ?? null,
+      errorCode: input.errorCode ?? null,
+      errorMessage: input.errorMessage ?? null,
+      payloadHash: idempotencyKey,
+      workerId: context.env.WORKER_ID,
+      metadata,
+    });
+  } catch (error) {
+    context.logger.warn(
+      { jobId: job.id, type: job.type, phase: input.phase, error },
+      "send audit event write failed",
+    );
+  }
+}
+
+function auditChannelFromTarget(target: string | null): "whatsapp" | "instagram" {
+  return target?.startsWith("ig:") ? "instagram" : "whatsapp";
+}
+
+function elapsedMs(startedAtMs: number): number {
+  return Math.max(0, Date.now() - startedAtMs);
 }
 
 async function sendVoiceToConversation(
@@ -2825,6 +2985,27 @@ async function recordSendPolicyDecision(
       recentAllowedCount: input.recentAllowedCount ?? null,
     }),
   });
+  if (input.decision === "blocked") {
+    await recordStructuredSendAudit(job, context, {
+      phase: "policy_block",
+      channel: "whatsapp",
+      campaignId: numberFromPayload(job.payload.campaignId),
+      contactId: null,
+      conversationId: numberFromPayload(job.payload.conversationId),
+      latencyMs: null,
+      errorCode: input.reason,
+      errorMessage: `${input.jobType} blocked by worker send policy`,
+      metadata: {
+        jobType: input.jobType,
+        phone: input.phone,
+        policyMode: input.policy.mode,
+        allowedPhonesCount: input.policy.allowedPhones.length,
+        rateLimitWindowMs: input.policy.rateLimitWindowMs,
+        rateLimitMax: input.policy.rateLimitMax,
+        recentAllowedCount: input.recentAllowedCount ?? null,
+      },
+    });
+  }
 }
 
 function parsePhoneList(

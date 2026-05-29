@@ -651,6 +651,44 @@ describe("worker job loop", () => {
         dispatchAttempts: 1,
       }),
     );
+    const dispatchingAudit = await repos.sendAuditEvents.list({
+      userId: user.id,
+      jobId: job.id,
+      phase: "dispatching",
+    });
+    const sentAudit = await repos.sendAuditEvents.list({
+      userId: user.id,
+      jobId: job.id,
+      phase: "sent",
+    });
+    expect(dispatchingAudit).toEqual([
+      expect.objectContaining({
+        channel: "whatsapp",
+        conversationId: conversation.id,
+        messageId: dispatchMessage?.id,
+        workerId: "worker-send",
+        metadata: expect.objectContaining({
+          idempotencyKey: `legacy:job:${job.id}`,
+          contentType: "text",
+          reason: "send_message",
+          phone: "5531982066263",
+        }),
+      }),
+    ]);
+    expect(sentAudit).toEqual([
+      expect.objectContaining({
+        channel: "whatsapp",
+        conversationId: conversation.id,
+        messageId: dispatchMessage?.id,
+        workerId: "worker-send",
+        metadata: expect.objectContaining({
+          idempotencyKey: `legacy:job:${job.id}`,
+          contentType: "text",
+          reason: "send_message",
+          externalId: "after",
+        }),
+      }),
+    ]);
   });
 
   it("skips duplicate text dispatches by idempotency key before calling CDP again", async () => {
@@ -755,6 +793,26 @@ describe("worker job loop", () => {
     );
     const attempts = await repos.messageDispatchAttempts.listByKey(idempotencyKey);
     expect(attempts.map((attempt) => attempt.phase)).toEqual(["sent", "skipped_duplicate"]);
+    const duplicateAudit = await repos.sendAuditEvents.list({
+      userId: user.id,
+      jobId: job.id,
+      phase: "duplicate",
+    });
+    expect(duplicateAudit).toEqual([
+      expect.objectContaining({
+        channel: "whatsapp",
+        conversationId: conversation.id,
+        messageId: message?.id,
+        workerId: "worker-send-idempotent",
+        metadata: expect.objectContaining({
+          idempotencyKey,
+          contentType: "text",
+          reason: "send_message",
+          externalId: "after-idempotent",
+          existingStatus: "sent",
+        }),
+      }),
+    ]);
   });
 
   it("skips duplicate voice, document, media, and campaign step dispatches before CDP", async () => {
@@ -1023,6 +1081,27 @@ describe("worker job loop", () => {
     );
     const attempts = await repos.messageDispatchAttempts.listByKey(idempotencyKey);
     expect(attempts.map((attempt) => attempt.phase)).toEqual(["failed", "sent"]);
+    const failedAudit = await repos.sendAuditEvents.list({
+      userId: user.id,
+      jobId: job.id,
+      phase: "failed",
+    });
+    expect(failedAudit).toEqual([
+      expect.objectContaining({
+        channel: "whatsapp",
+        conversationId: conversation.id,
+        messageId: message?.id,
+        workerId: "worker-send-idempotent-retry",
+        errorCode: "dispatch_failed",
+        errorMessage: "navigation failed before send",
+        metadata: expect.objectContaining({
+          idempotencyKey,
+          contentType: "text",
+          reason: "send_message",
+          phone: "5531982066263",
+        }),
+      }),
+    ]);
   });
 
   it("sends Instagram campaign image steps and materializes the real Direct thread", async () => {
@@ -1595,6 +1674,25 @@ describe("worker job loop", () => {
         policyMode: "test",
       }),
     );
+    const policyAudit = await repos.sendAuditEvents.list({
+      userId: user.id,
+      jobId: job.id,
+      phase: "policy_block",
+    });
+    expect(policyAudit).toEqual([
+      expect.objectContaining({
+        channel: "whatsapp",
+        conversationId: conversation.id,
+        workerId: "worker-send-test-policy",
+        errorCode: "not_allowlisted_for_test_execution",
+        metadata: expect.objectContaining({
+          jobType: "send_message",
+          phone: "5531999999999",
+          policyMode: "test",
+          allowedPhonesCount: 1,
+        }),
+      }),
+    ]);
   });
 
   it("records started and failed evidence for campaign steps before retry or DLQ handling", async () => {
