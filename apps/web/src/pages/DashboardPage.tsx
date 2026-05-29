@@ -52,7 +52,7 @@ export function DashboardPage() {
   const health = overallHealth(data);
 
   return (
-    <div className="flex flex-col gap-7 max-w-7xl mx-auto pt-2">
+    <div className="flex min-h-[calc(100vh-6.5rem)] w-full max-w-none flex-col gap-4 pt-0">
       {optionalVisual.enabled && (
         <Animate preset="rise-in">
           <Suspense fallback={<OptionalHeroFallback />}>
@@ -72,12 +72,12 @@ export function DashboardPage() {
       )}
 
       <Animate preset="rise-in">
-        <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <header className="nuoma-workspace-header flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="botforge-kicker">
               Operação
             </p>
-            <h1 className="botforge-display mt-2 text-5xl md:text-6xl">
+            <h1 className="botforge-display mt-2 text-3xl md:text-4xl">
               Implantação <span className="nuoma-gradient-text">sob controle</span>.
             </h1>
             <p className="text-sm text-fg-muted mt-3 max-w-2xl">

@@ -14,7 +14,10 @@ export function resolveApiSendPolicy(
   env: ApiEnv,
   extraAllowedPhones: Array<string | null | undefined> = [],
 ): ApiSendPolicy {
-  const allowedPhones = parsePhoneList(env.API_SEND_ALLOWED_PHONES, extraAllowedPhones);
+  const allowedPhones = parsePhoneList(
+    env.API_SEND_ALLOWED_PHONES,
+    env.API_SEND_POLICY_MODE === "test" ? extraAllowedPhones : [],
+  );
   return {
     mode: env.API_SEND_POLICY_MODE,
     allowedPhones:

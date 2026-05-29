@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 
 import { createAutomationInputSchema, updateAutomationInputSchema } from "@nuoma/contracts";
+import type { Repositories } from "@nuoma/db";
 
 import { triggerAutomationForPhone } from "../../services/automation-trigger.js";
 import {
@@ -39,11 +40,20 @@ export const automationsRouter = router({
       }
 
       const phone = deriveConversationPhone(conversation);
+      const instagramHandle =
+        conversation.channel === "instagram"
+          ? await deriveConversationInstagramHandle(ctx.repos, ctx.user.id, conversation)
+          : null;
       const within24hWindow = isWithin24hWindow(conversation.lastMessageAt);
       const sendPolicy = resolveApiSendPolicy(ctx.env);
-      const dispatchDecision = phone
-        ? evaluateApiRealSendTarget(sendPolicy, phone)
-        : ({ allowed: false, reason: "invalid_phone" } as const);
+      const dispatchDecision =
+        conversation.channel === "instagram"
+          ? instagramHandle
+            ? ({ allowed: true, reason: "allowed" } as const)
+            : ({ allowed: false, reason: "invalid_instagram" } as const)
+          : phone
+            ? evaluateApiRealSendTarget(sendPolicy, phone)
+            : ({ allowed: false, reason: "invalid_phone" } as const);
       const search = input.search?.toLocaleLowerCase("pt-BR");
       const automationCandidates = (await ctx.repos.automations.list(ctx.user.id)).filter(
         (automation) =>
@@ -60,6 +70,7 @@ export const automationsRouter = router({
             userId: ctx.user.id,
             automationId: automation.id,
             phone: phone ?? conversation.externalThreadId,
+            instagramHandle,
             dryRun: true,
             allowedPhones: sendPolicy.allowedPhones,
             sendPolicyMode: sendPolicy.mode,
@@ -97,6 +108,7 @@ export const automationsRouter = router({
           channel: conversation.channel,
           title: conversation.title,
           phone,
+          instagramHandle,
           within24hWindow,
           canDispatchReal: dispatchDecision.allowed,
           realDispatchBlockedReason: dispatchDecision.allowed ? null : dispatchDecision.reason,
@@ -140,16 +152,19 @@ export const automationsRouter = router({
       });
       const metadata =
         current && hasVersionedAutomationChange(input)
-          ? appendAutomationHistory({ ...current.metadata, ...(input.metadata ?? {}) }, {
-              id: current.id,
-              name: current.name,
-              category: current.category,
-              status: current.status,
-              trigger: current.trigger,
-              condition: current.condition,
-              actions: current.actions,
-              updatedAt: current.updatedAt,
-            })
+          ? appendAutomationHistory(
+              { ...current.metadata, ...(input.metadata ?? {}) },
+              {
+                id: current.id,
+                name: current.name,
+                category: current.category,
+                status: current.status,
+                trigger: current.trigger,
+                condition: current.condition,
+                actions: current.actions,
+                updatedAt: current.updatedAt,
+              },
+            )
           : input.metadata;
       const automation = await ctx.repos.automations.update({
         ...input,
@@ -254,10 +269,14 @@ export const automationsRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found" });
       }
       const phone = normalizePhone(input.phone) ?? deriveConversationPhone(conversation);
-      if (!phone) {
+      const instagramHandle =
+        conversation?.channel === "instagram"
+          ? await deriveConversationInstagramHandle(ctx.repos, ctx.user.id, conversation)
+          : null;
+      if (!phone && !instagramHandle) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Conversation does not expose a valid phone",
+          message: "Conversation does not expose a valid phone or Instagram handle",
         });
       }
       const sendPolicy = resolveApiSendPolicy(ctx.env, [
@@ -268,6 +287,7 @@ export const automationsRouter = router({
         userId: ctx.user.id,
         automationId: input.id,
         phone,
+        instagramHandle,
         dryRun: input.dryRun,
         allowedPhones: sendPolicy.allowedPhones,
         sendPolicyMode: sendPolicy.mode,
@@ -281,10 +301,38 @@ export const automationsRouter = router({
 });
 
 function deriveConversationPhone(
-  conversation: { externalThreadId: string; title: string } | null,
+  conversation: { externalThreadId: string; title: string; waJid?: string | null } | null,
 ): string | null {
   if (!conversation) return null;
-  return normalizePhone(conversation.externalThreadId) ?? normalizePhone(conversation.title);
+  return normalizePhone(conversation.waJid) ?? normalizePhone(conversation.externalThreadId);
+}
+
+async function deriveConversationInstagramHandle(
+  repos: Repositories,
+  userId: number,
+  conversation: { contactId: number | null; externalThreadId: string; title: string } | null,
+): Promise<string | null> {
+  if (!conversation) return null;
+  if (conversation.contactId) {
+    const contact = await repos.contacts.findById(conversation.contactId);
+    if (contact?.userId === userId) {
+      const fromContact = normalizeInstagramHandle(contact.instagramHandle);
+      if (fromContact) return fromContact;
+    }
+  }
+  return (
+    normalizeInstagramHandle(conversation.externalThreadId) ??
+    normalizeInstagramHandle(conversation.title)
+  );
+}
+
+function normalizeInstagramHandle(value: string | null | undefined): string | null {
+  const cleaned = String(value ?? "")
+    .trim()
+    .replace(/^ig:/i, "")
+    .replace(/^@+/, "")
+    .toLowerCase();
+  return /^[a-z0-9._]{1,30}$/.test(cleaned) ? cleaned : null;
 }
 
 function isWithin24hWindow(lastMessageAt: string | null): boolean {

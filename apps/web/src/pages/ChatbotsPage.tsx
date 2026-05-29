@@ -162,13 +162,13 @@ export function ChatbotsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-7 max-w-6xl mx-auto pt-2">
+    <div className="flex min-h-[calc(100vh-6.5rem)] w-full max-w-none flex-col gap-4 pt-0">
       <Animate preset="rise-in">
-        <header>
+        <header className="nuoma-workspace-header">
           <p className="botforge-kicker">
             Chatbots
           </p>
-          <h1 className="botforge-display mt-2 text-5xl md:text-6xl">
+          <h1 className="botforge-display mt-2 text-3xl md:text-4xl">
             Auto-resposta <span className="nuoma-gradient-text">priorizada</span>.
           </h1>
           <p className="text-sm text-fg-muted mt-3 max-w-xl">

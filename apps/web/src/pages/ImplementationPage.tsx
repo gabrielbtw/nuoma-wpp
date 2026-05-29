@@ -71,14 +71,14 @@ export function ImplementationPage() {
   const donePercent = total === 0 ? 0 : Math.round((status.data.summary.done / total) * 100);
 
   return (
-    <div className="flex flex-col gap-7 max-w-7xl mx-auto pt-2">
+    <div className="flex min-h-[calc(100vh-6.5rem)] w-full max-w-none flex-col gap-4 pt-0">
       <Animate preset="rise-in">
-        <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <header className="nuoma-workspace-header flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="botforge-kicker">
               Implementação
             </p>
-            <h1 className="botforge-display mt-2 text-5xl md:text-6xl">
+            <h1 className="botforge-display mt-2 text-3xl md:text-4xl">
               Execução <span className="nuoma-gradient-text">visível</span>.
             </h1>
             <p className="text-sm text-fg-muted mt-3 max-w-2xl">

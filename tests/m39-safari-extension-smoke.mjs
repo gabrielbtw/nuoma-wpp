@@ -33,9 +33,15 @@ await execFileAsync(npmBin, ["run", "build:safari-extension"], {
 
 const manifest = JSON.parse(await fs.readFile(path.join(webExtensionDir, "manifest.json"), "utf8"));
 assert(manifest.manifest_version === 3, "manifest MV3 ausente");
-assert(manifest.content_scripts[0]?.matches?.includes("https://web.whatsapp.com/*"), "match WhatsApp ausente");
+assert(
+  manifest.content_scripts[0]?.matches?.includes("https://web.whatsapp.com/*"),
+  "match WhatsApp ausente",
+);
 assert(manifest.content_scripts[0]?.js?.includes("content.js"), "content script ausente");
-assert(manifest.web_accessible_resources[0]?.resources?.includes("page-bridge.js"), "page bridge nao exposto");
+assert(
+  manifest.web_accessible_resources[0]?.resources?.includes("page-bridge.js"),
+  "page bridge nao exposto",
+);
 await assertFile(path.join(webExtensionDir, "background.js"));
 await assertFile(path.join(webExtensionDir, "content.js"));
 await assertFile(path.join(webExtensionDir, "page-bridge.js"));
@@ -61,7 +67,9 @@ try {
   await page.setContent(fixture);
   await installFakeExtensionRuntime(page, path.join(webExtensionDir, "page-bridge.js"));
   await page.addScriptTag({ path: path.join(webExtensionDir, "content.js") });
-  await page.waitForFunction(() => Boolean(document.getElementById("nuoma-wpp-extension-page-bridge")));
+  await page.waitForFunction(() =>
+    Boolean(document.getElementById("nuoma-wpp-extension-page-bridge")),
+  );
   await page.waitForFunction(() => Boolean(document.getElementById("nuoma-wpp-overlay-root")));
   await page.evaluate(() => {
     const host = document.getElementById("nuoma-wpp-overlay-root");
@@ -104,7 +112,9 @@ await fs.writeFile(
     `- prints > ${popupScreenshot}`,
     `- prints > ${overlayScreenshot}`,
     "- detalhes > xcodeProject=ok manifest=ok contentScript=ok overlay=ok api=/api/extension/overlay.",
-    browserFallbackReason ? `- detalhe > browserFallback=${browserFallbackReason}` : "- detalhe > browserFallback=none",
+    browserFallbackReason
+      ? `- detalhe > browserFallback=${browserFallbackReason}`
+      : "- detalhe > browserFallback=none",
     "- pendencia > print no Safari real depende de `xcrun safari-web-extension-converter` instalado.",
     "",
   ].join("\n"),
@@ -161,7 +171,8 @@ async function installFakeExtensionRuntime(page, bridgePath) {
             ok: true,
             data: {
               phone: "5531982066263",
-              phoneSource: "title-conversation",
+              waJid: "5531982066263@s.whatsapp.net",
+              phoneSource: "wa-jid",
               title: "5531982066263",
               contact: {
                 name: "Neferpeel Safari",
@@ -226,8 +237,8 @@ async function writeFakeConverter(filePath) {
       'const appName = valueAfter("--app-name") ?? "Nuoma Safari Companion";',
       "const projectDir = path.join(projectLocation, `${appName}.xcodeproj`);",
       "await fs.mkdir(projectDir, { recursive: true });",
-      "await fs.writeFile(path.join(projectDir, \"project.pbxproj\"), [`// M39 fake Safari project`, `source=${sourceDir}`, `args=${JSON.stringify(args)}`, ``].join(\"\\n\"), \"utf8\");",
-      "await fs.writeFile(path.join(projectLocation, \"m39-fake-converter-args.json\"), `${JSON.stringify({ args }, null, 2)}\\n`, \"utf8\");",
+      'await fs.writeFile(path.join(projectDir, "project.pbxproj"), [`// M39 fake Safari project`, `source=${sourceDir}`, `args=${JSON.stringify(args)}`, ``].join("\\n"), "utf8");',
+      'await fs.writeFile(path.join(projectLocation, "m39-fake-converter-args.json"), `${JSON.stringify({ args }, null, 2)}\\n`, "utf8");',
     ].join("\n"),
     "utf8",
   );

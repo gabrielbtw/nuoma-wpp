@@ -55,14 +55,14 @@ export function JobsPage() {
   });
 
   return (
-    <div className="flex flex-col gap-7 max-w-6xl mx-auto pt-2">
+    <div className="flex min-h-[calc(100vh-6.5rem)] w-full max-w-none flex-col gap-4 pt-0">
       <Animate preset="rise-in">
-        <header className="flex items-end justify-between gap-6">
+        <header className="nuoma-workspace-header flex items-end justify-between gap-6">
           <div>
             <p className="botforge-kicker">
               Worker
             </p>
-            <h1 className="botforge-display mt-2 text-5xl md:text-6xl">
+            <h1 className="botforge-display mt-2 text-3xl md:text-4xl">
               Jobs <span className="nuoma-gradient-text">em fila</span>.
             </h1>
             <p className="text-sm text-fg-muted mt-3 max-w-xl">

@@ -4,7 +4,7 @@ import rateLimit from "@fastify/rate-limit";
 import { fastifyTRPCPlugin } from "@trpc/server/adapters/fastify";
 import Fastify, { type FastifyInstance } from "fastify";
 
-import { CONSTANTS, type ApiEnv } from "@nuoma/config";
+import { CONSTANTS, LOG_REDACT_PATHS, type ApiEnv } from "@nuoma/config";
 import { healthResponseSchema, type HealthResponse } from "@nuoma/contracts";
 import { createRepositories, openDb, runMigrations, type DbHandle } from "@nuoma/db";
 
@@ -13,6 +13,7 @@ import { registerEvidenceFileRoutes } from "./routes/evidence-files.js";
 import { registerExtensionBridgeRoutes } from "./routes/extension-bridge.js";
 import { registerGlobalEventsRoutes } from "./routes/global-events.js";
 import { registerInboxEventsRoutes } from "./routes/inbox-events.js";
+import { registerInstagramRoutes } from "./routes/instagram.js";
 import { registerMediaUploadRoutes } from "./routes/media-upload.js";
 import { createAutomationEngineDaemon } from "./services/automation-engine-daemon.js";
 import { createCampaignSchedulerDaemon } from "./services/campaign-scheduler-daemon.js";
@@ -37,6 +38,10 @@ export async function buildApiApp(options: ApiAppOptions): Promise<FastifyInstan
   const app = Fastify({
     logger: {
       level: options.env.API_LOG_LEVEL,
+      redact: {
+        paths: [...LOG_REDACT_PATHS],
+        censor: "[REDACTED]",
+      },
     },
   });
 
@@ -65,6 +70,7 @@ export async function buildApiApp(options: ApiAppOptions): Promise<FastifyInstan
   await registerExtensionBridgeRoutes(app, { env: options.env, repos });
   await registerGlobalEventsRoutes(app, { env: options.env, repos });
   await registerInboxEventsRoutes(app, { env: options.env, repos });
+  await registerInstagramRoutes(app, { repos });
   await registerMediaUploadRoutes(app, { env: options.env, repos });
 
   const campaignScheduler = createCampaignSchedulerDaemon({

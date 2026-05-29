@@ -70,6 +70,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         transition={{ type: "spring", stiffness: 400, damping: 24 }}
         className={cn(
           "inline-flex items-center justify-center font-medium tracking-tight",
+          "whitespace-nowrap",
           "outline-none focus-visible:ring-2 focus-visible:ring-brand-cyan/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base",
           "transition-shadow duration-base ease-out",
           "disabled:cursor-not-allowed disabled:opacity-50",

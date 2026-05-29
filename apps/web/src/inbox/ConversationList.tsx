@@ -80,9 +80,18 @@ export function ConversationList({ selectedId, onSelect }: ConversationListProps
   return (
     <aside
       data-testid="inbox-conversation-list"
-      className="flex flex-col h-full rounded-xxl bg-bg-base shadow-raised-md overflow-hidden"
+      className="botforge-surface flex h-full flex-col overflow-hidden rounded-lg"
     >
-      <div className="p-4 flex flex-col gap-3 border-b border-contour-line/40">
+      <div className="flex flex-col gap-3 border-b border-contour-line/30 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-fg-primary">Atendimento</div>
+            <div className="font-mono text-[0.62rem] uppercase text-fg-dim">
+              {filtered.length} conversas ativas
+            </div>
+          </div>
+          <Badge variant="cyan">{conversations.data?.conversations.length ?? 0}</Badge>
+        </div>
         <div className="flex items-center gap-2 px-3 h-10 rounded-lg bg-bg-base shadow-pressed-sm">
           <Search className="h-3.5 w-3.5 text-fg-dim shrink-0" />
           <input
@@ -100,9 +109,9 @@ export function ConversationList({ selectedId, onSelect }: ConversationListProps
               type="button"
               onClick={() => setFilter(chip.id)}
               className={cn(
-                "px-2.5 h-7 rounded-md text-[0.65rem] font-mono uppercase tracking-widest transition-shadow",
+                "h-7 rounded-md px-2.5 font-mono text-[0.65rem] uppercase tracking-widest transition-shadow",
                 filter === chip.id
-                  ? "bg-bg-base shadow-raised-sm text-fg-primary"
+                  ? "bg-brand-cyan/12 text-brand-cyan shadow-glow-cyan"
                   : "text-fg-muted shadow-flat-subtle hover:shadow-raised-sm hover:text-fg-primary",
               )}
             >
@@ -152,8 +161,8 @@ export function ConversationList({ selectedId, onSelect }: ConversationListProps
                   className={cn(
                     "absolute left-2 right-2 flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors transition-shadow",
                     active
-                      ? "bg-bg-base shadow-pressed-sm"
-                      : "hover:bg-bg-base hover:shadow-flat",
+                      ? "bg-brand-cyan/10 shadow-glow-cyan"
+                      : "hover:bg-bg-base/76 hover:shadow-flat",
                   )}
                   style={{
                     transform: `translateY(${vi.start}px)`,
@@ -202,7 +211,7 @@ export function ConversationList({ selectedId, onSelect }: ConversationListProps
           </div>
         )}
       </div>
-      <div className="px-4 py-3 border-t border-contour-line/40 flex items-center justify-between text-[0.65rem] uppercase tracking-widest text-fg-dim font-mono">
+      <div className="flex items-center justify-between border-t border-contour-line/30 px-4 py-3 font-mono text-[0.65rem] uppercase tracking-widest text-fg-dim">
         <span>{filtered.length} conversas</span>
         <span>↑↓ navegar · enter abrir</span>
       </div>

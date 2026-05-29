@@ -5,6 +5,7 @@ import {
   type Campaign,
   type ChannelType,
   type Contact,
+  type Job,
 } from "@nuoma/contracts";
 import type { Repositories } from "@nuoma/db";
 import { TRPCError } from "@trpc/server";
@@ -60,8 +61,11 @@ const remarketingBatchBaseBodySchema = z.object({
   campaignId: z.number().int().positive(),
   rawPhones: z.string().max(20_000).default(""),
   phones: z.array(z.string().min(8)).default([]),
+  rawInstagramHandles: z.string().max(20_000).default(""),
+  instagramHandles: z.array(z.string().min(1)).default([]),
   contactIds: z.array(z.number().int().positive()).default([]),
   allowedPhone: z.string().min(8).optional(),
+  allowedInstagramHandle: z.string().min(1).optional(),
   maxRecipients: z.number().int().min(1).max(500).default(100),
 });
 const remarketingBatchDispatchBodySchema = remarketingBatchBaseBodySchema.extend({
@@ -83,14 +87,28 @@ type RemarketingBatchIssue = {
 };
 type RemarketingBatchCandidate = {
   contactId: number | null;
-  phone: string;
-  source: "contact" | "phone";
+  phone: string | null;
+  instagramHandle: string | null;
+  source: "contact" | "phone" | "instagram";
   value: string | number;
 };
 type RemarketingBatchRejected = {
-  source: "contact" | "phone";
+  source: "contact" | "phone" | "instagram";
   value: string | number;
   reason: string;
+};
+type InstagramSessionPreflight = {
+  status: string;
+  authenticated: boolean;
+  username: string | null;
+  pageUrl: string | null;
+  lastSyncAt: string | null;
+  workerId: string | null;
+  workerStatus: string | null;
+  heartbeatAgeSeconds: number | null;
+  stale: boolean;
+  browserConnected: boolean;
+  lastError: string | null;
 };
 type RemarketingBatchPlan = {
   campaign: Campaign;
@@ -114,6 +132,7 @@ type RemarketingBatchPlan = {
     allowedPhones: number;
     activeCampaignStepJobs: number;
     activeRecipients: number;
+    instagramSession: InstagramSessionPreflight | null;
   };
   accepted: RemarketingBatchCandidate[];
   rejected: RemarketingBatchRejected[];
@@ -228,12 +247,15 @@ export const campaignsRouter = router({
       dryRun: true,
     });
     const sendPolicy = resolveApiSendPolicy(ctx.env);
+    const instagramSession =
+      campaign.channel === "instagram" ? await readInstagramSessionPreflight(ctx.repos) : null;
     const report = buildCampaignReadinessReport({
       campaign,
       recipients,
       contactsById,
       sendPolicy,
       scheduler,
+      instagramSession,
     });
 
     return report;
@@ -292,6 +314,7 @@ export const campaignsRouter = router({
             recipientsAccepted: plan.accepted.length,
             rejectedRecipients: plan.rejected.length,
             temporaryMessages: plan.temporaryMessages,
+            instagramSession: plan.summary.instagramSession,
           },
         },
       });
@@ -314,9 +337,12 @@ export const campaignsRouter = router({
             source: "campaigns.remarketing_batch",
             batchDispatchId,
             candidateSource: candidate.source,
+            instagramHandle: candidate.instagramHandle,
             variables: {
-              telefone: candidate.phone,
-              phone: candidate.phone,
+              telefone: candidate.phone ?? "",
+              phone: candidate.phone ?? "",
+              instagram: candidate.instagramHandle ?? "",
+              instagramHandle: candidate.instagramHandle ?? "",
             },
           },
         });
@@ -344,12 +370,16 @@ export const campaignsRouter = router({
           jobsCreated: scheduler.jobsCreated,
           plannedJobs: scheduler.plannedJobs.length,
           temporaryMessages: plan.temporaryMessages,
-          executionMode: "whatsapp_real",
+          executionMode: plan.campaign.channel === "instagram" ? "instagram_real" : "whatsapp_real",
           guardrails: {
             allowlist: true,
-            temporaryMessagesM303: true,
+            temporaryMessagesM303: plan.campaign.channel === "whatsapp",
             activeJobsBlocked: true,
             partialBatchBlocked: true,
+            instagramSessionReady:
+              plan.campaign.channel === "instagram"
+                ? Boolean(plan.summary.instagramSession?.authenticated)
+                : null,
           },
         }),
       });
@@ -392,13 +422,16 @@ export const campaignsRouter = router({
       }
 
       const phone = deriveConversationPhone(conversation);
+      const instagramHandle = deriveConversationInstagramHandle(conversation);
       const sendPolicy = resolveApiSendPolicy(ctx.env);
       const realDispatchDecision =
-        conversation.channel !== "whatsapp"
-          ? ({ allowed: false, reason: "channel_not_supported" } as const)
-          : phone
+        conversation.channel === "whatsapp"
+          ? phone
             ? evaluateApiRealSendTarget(sendPolicy, phone)
-            : ({ allowed: false, reason: "invalid_phone" } as const);
+            : ({ allowed: false, reason: "invalid_phone" } as const)
+          : conversation.channel === "instagram" && instagramHandle
+            ? ({ allowed: true, reason: "allowed" } as const)
+            : ({ allowed: false, reason: "channel_not_supported" } as const);
       const search = input.search?.toLocaleLowerCase("pt-BR");
       const campaignCandidates = (await ctx.repos.campaigns.list(ctx.user.id)).filter(
         (campaign) =>
@@ -417,6 +450,7 @@ export const campaignsRouter = router({
               contactId: conversation.contactId,
               id: conversation.id,
               phone,
+              instagramHandle,
             },
             existingRecipients: await ctx.repos.campaignRecipients.listByCampaign({
               userId: ctx.user.id,
@@ -447,6 +481,7 @@ export const campaignsRouter = router({
           channel: conversation.channel,
           title: conversation.title,
           phone,
+          instagramHandle,
           contactId: conversation.contactId,
           canDispatchReal: realDispatchDecision.allowed,
           realDispatchBlockedReason: realDispatchDecision.allowed
@@ -460,6 +495,10 @@ export const campaignsRouter = router({
   create: protectedCsrfProcedure
     .input(createCampaignBodySchema)
     .mutation(async ({ ctx, input }) => {
+      assertCampaignStepsSupportedForChannel({
+        channel: input.channel,
+        steps: input.steps,
+      });
       const campaign = await ctx.repos.campaigns.create({
         userId: ctx.user.id,
         name: input.name,
@@ -477,6 +516,19 @@ export const campaignsRouter = router({
   update: protectedCsrfProcedure
     .input(updateCampaignBodySchema)
     .mutation(async ({ ctx, input }) => {
+      if (input.channel !== undefined || input.steps !== undefined) {
+        const existing = await ctx.repos.campaigns.findById({
+          userId: ctx.user.id,
+          id: input.id,
+        });
+        if (!existing) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found" });
+        }
+        assertCampaignStepsSupportedForChannel({
+          channel: input.channel ?? existing.channel,
+          steps: input.steps ?? existing.steps,
+        });
+      }
       const campaign = await ctx.repos.campaigns.update({
         ...input,
         userId: ctx.user.id,
@@ -624,6 +676,25 @@ export const campaignsRouter = router({
           code: "BAD_REQUEST",
           message: `Campanha está em ${campaign.status}; execução real exige running ou scheduled.`,
         });
+      }
+      if (!input.dryRun && campaign.channel !== "whatsapp") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Execução real por botão está liberada apenas para WhatsApp.",
+        });
+      }
+
+      if (!input.dryRun && campaign.channel === "whatsapp") {
+        const temporaryMessagesIssue = campaignTemporaryMessagesGateIssue(
+          campaign,
+          "Execução real",
+        );
+        if (temporaryMessagesIssue) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: temporaryMessagesIssue.message,
+          });
+        }
       }
 
       const sendPolicy = resolveApiSendPolicy(ctx.env, [
@@ -777,6 +848,13 @@ export const campaignsRouter = router({
         };
       }
 
+      if (accepted.length === 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Execução real bloqueada: ${rejected[0]?.reason ?? "no_accepted_recipients"}.`,
+        });
+      }
+
       const updatedCampaign = await ctx.repos.campaigns.update({
         id: campaign.id,
         userId: ctx.user.id,
@@ -901,6 +979,7 @@ function buildCampaignReadinessReport(input: {
   contactsById: Map<number, Contact>;
   sendPolicy: ReturnType<typeof resolveApiSendPolicy>;
   scheduler: Awaited<ReturnType<typeof runCampaignSchedulerTick>>;
+  instagramSession: InstagramSessionPreflight | null;
 }) {
   const issues: Array<{
     code: string;
@@ -919,8 +998,11 @@ function buildCampaignReadinessReport(input: {
       `Campanha está em ${input.campaign.status}; use running ou scheduled para enfileirar.`,
     );
   }
-  if (input.campaign.channel !== "whatsapp") {
-    error("channel_not_supported", "Remarketing seguro está liberado apenas para WhatsApp.");
+  if (input.campaign.channel !== "whatsapp" && input.campaign.channel !== "instagram") {
+    error(
+      "channel_not_supported",
+      "Remarketing seguro está liberado apenas para WhatsApp e Instagram.",
+    );
   }
   if (input.campaign.steps.length === 0) {
     error("campaign_without_steps", "Campanha não tem steps configurados.");
@@ -933,6 +1015,31 @@ function buildCampaignReadinessReport(input: {
   if (emptyTextSteps.length > 0) {
     error("empty_message_step", "Há step de texto/link sem mensagem útil.", emptyTextSteps.length);
   }
+  if (input.campaign.channel === "whatsapp") {
+    const temporaryMessagesIssue = campaignTemporaryMessagesGateIssue(
+      input.campaign,
+      "Enfileiramento real",
+    );
+    if (temporaryMessagesIssue) {
+      error(temporaryMessagesIssue.code, temporaryMessagesIssue.message);
+    }
+  }
+  if (input.campaign.channel === "instagram") {
+    const unsupportedSteps = input.campaign.steps.filter(
+      (step) => !isInstagramCampaignStepSupported(step),
+    );
+    if (unsupportedSteps.length > 0) {
+      error(
+        "unsupported_instagram_steps",
+        "Instagram na régua suporta texto, link, imagem e vídeo; remova temporárias, voz ou documento.",
+        unsupportedSteps.length,
+      );
+    }
+    const sessionIssue = instagramSessionBlockingIssue(input.instagramSession);
+    if (sessionIssue) {
+      error(sessionIssue.code, sessionIssue.message);
+    }
+  }
 
   const activeRecipients = input.recipients.filter(
     (recipient) => recipient.status === "queued" || recipient.status === "running",
@@ -942,9 +1049,23 @@ function buildCampaignReadinessReport(input: {
   }
 
   const normalizedPhones = activeRecipients.map((recipient) => normalizePhone(recipient.phone));
-  const invalidPhones = normalizedPhones.filter((phone) => !phone).length;
-  if (invalidPhones > 0) {
-    error("invalid_recipient_phone", "Recipients sem telefone WhatsApp válido.", invalidPhones);
+  const normalizedInstagramHandles = activeRecipients.map((recipient) =>
+    normalizeInstagramHandle(
+      stringField(objectRecord(recipient.metadata), "instagramHandle") ??
+        stringField(objectRecord(recipient.metadata), "instagram"),
+    ),
+  );
+  if (input.campaign.channel === "whatsapp") {
+    const invalidPhones = normalizedPhones.filter((phone) => !phone).length;
+    if (invalidPhones > 0) {
+      error("invalid_recipient_phone", "Recipients sem telefone WhatsApp válido.", invalidPhones);
+    }
+  }
+  if (input.campaign.channel === "instagram") {
+    const invalidHandles = normalizedInstagramHandles.filter((handle) => !handle).length;
+    if (invalidHandles > 0) {
+      error("invalid_recipient_instagram", "Recipients sem Instagram válido.", invalidHandles);
+    }
   }
 
   const blockedContacts = activeRecipients.filter((recipient) => {
@@ -959,13 +1080,15 @@ function buildCampaignReadinessReport(input: {
     );
   }
 
-  const duplicatePhones = countDuplicatePhones(normalizedPhones);
-  if (duplicatePhones > 0) {
-    error(
-      "duplicate_recipient_phone",
-      "Há mais de um recipient ativo para o mesmo telefone.",
-      duplicatePhones,
-    );
+  if (input.campaign.channel === "whatsapp") {
+    const duplicatePhones = countDuplicatePhones(normalizedPhones);
+    if (duplicatePhones > 0) {
+      error(
+        "duplicate_recipient_phone",
+        "Há mais de um recipient ativo para o mesmo telefone.",
+        duplicatePhones,
+      );
+    }
   }
 
   const awaitingRecipients = activeRecipients.filter(
@@ -983,24 +1106,26 @@ function buildCampaignReadinessReport(input: {
 
   const allowedPhones = new Set(input.sendPolicy.allowedPhones);
   const eligiblePhones = normalizedPhones.filter((phone): phone is string => Boolean(phone));
-  const policyBlocked =
-    input.sendPolicy.mode === "test"
-      ? eligiblePhones.filter((phone) => !allowedPhones.has(phone)).length
-      : allowedPhones.size > 0
+  if (input.campaign.channel === "whatsapp") {
+    const policyBlocked =
+      input.sendPolicy.mode === "test"
         ? eligiblePhones.filter((phone) => !allowedPhones.has(phone)).length
-        : 0;
-  if (policyBlocked > 0) {
-    error(
-      "send_policy_blocks_recipients",
-      "Política atual da API bloquearia parte dos telefones em envio real.",
-      policyBlocked,
-    );
-  }
-  if (input.sendPolicy.mode === "production" && allowedPhones.size === 0) {
-    error(
-      "production_without_canary_allowlist",
-      "Produção sem allowlist canária bloqueia enfileiramento real.",
-    );
+        : allowedPhones.size > 0
+          ? eligiblePhones.filter((phone) => !allowedPhones.has(phone)).length
+          : 0;
+    if (policyBlocked > 0) {
+      error(
+        "send_policy_blocks_recipients",
+        "Política atual da API bloquearia parte dos telefones em envio real.",
+        policyBlocked,
+      );
+    }
+    if (input.sendPolicy.mode === "production" && allowedPhones.size === 0) {
+      error(
+        "production_without_canary_allowlist",
+        "Produção sem allowlist canária bloqueia enfileiramento real.",
+      );
+    }
   }
   if (input.scheduler.plannedJobs.length === 0) {
     error("dry_run_without_jobs", "Dry-run forte não encontrou nenhum job pronto para enfileirar.");
@@ -1019,9 +1144,15 @@ function buildCampaignReadinessReport(input: {
       steps: input.campaign.steps.length,
       recipientsActive: activeRecipients.length,
       phonesUnique: new Set(eligiblePhones).size,
+      instagramUnique: new Set(
+        normalizedInstagramHandles.filter((handle): handle is string => Boolean(handle)),
+      ).size,
       plannedJobs: input.scheduler.plannedJobs.length,
       policyMode: input.sendPolicy.mode,
       allowedPhones: input.sendPolicy.allowedPhones.length,
+      instagramSessionStatus: input.instagramSession?.status ?? null,
+      instagramAuthenticated: input.instagramSession?.authenticated ?? null,
+      instagramUsername: input.instagramSession?.username ?? null,
     },
     issues,
     scheduler: input.scheduler,
@@ -1056,11 +1187,15 @@ async function buildRemarketingBatchPlan(input: {
   const activeCampaignStepJobs = (await input.repos.jobs.list(input.userId)).filter(
     (job) =>
       job.type === "campaign_step" &&
-      (job.status === "queued" || job.status === "claimed" || job.status === "running"),
+      (job.status === "queued" || job.status === "claimed" || job.status === "running") &&
+      campaignStepJobMatchesChannel(job, campaign.channel),
   ).length;
+  const instagramSession =
+    campaign.channel === "instagram" ? await readInstagramSessionPreflight(input.repos) : null;
   const { accepted, candidates, rejected } = await collectRemarketingBatchCandidates({
     repos: input.repos,
     userId: input.userId,
+    campaign,
     batch: input.input,
     existingRecipients,
     sendPolicy,
@@ -1073,6 +1208,10 @@ async function buildRemarketingBatchPlan(input: {
     candidates: candidates.length,
     accepted: accepted.length,
     rejected,
+    instagramAllowlistConfigured: Boolean(
+      normalizeInstagramHandle(input.input.allowedInstagramHandle),
+    ),
+    instagramSession,
   });
   const errors = issues.filter((issue) => issue.severity === "error").length;
   const temporaryMessages = temporaryMessagesSummary(campaign);
@@ -1093,6 +1232,7 @@ async function buildRemarketingBatchPlan(input: {
       allowedPhones: sendPolicy.allowedPhones.length,
       activeCampaignStepJobs,
       activeRecipients: activeRecipients.length,
+      instagramSession,
     },
     accepted,
     rejected,
@@ -1103,8 +1243,13 @@ async function buildRemarketingBatchPlan(input: {
 async function collectRemarketingBatchCandidates(input: {
   repos: Repositories;
   userId: number;
+  campaign: Campaign;
   batch: z.infer<typeof remarketingBatchBaseBodySchema>;
-  existingRecipients: Array<{ contactId: number | null; phone: string | null }>;
+  existingRecipients: Array<{
+    contactId: number | null;
+    phone: string | null;
+    metadata?: Record<string, unknown>;
+  }>;
   sendPolicy: ReturnType<typeof resolveApiSendPolicy>;
 }): Promise<{
   candidates: RemarketingBatchCandidate[];
@@ -1113,6 +1258,7 @@ async function collectRemarketingBatchCandidates(input: {
 }> {
   const candidates: RemarketingBatchCandidate[] = [];
   const rejected: RemarketingBatchRejected[] = [];
+  const instagramAllowedHandle = normalizeInstagramHandle(input.batch.allowedInstagramHandle);
   for (const contactId of input.batch.contactIds.slice(0, input.batch.maxRecipients)) {
     const contact = await input.repos.contacts.findById(contactId);
     if (!contact || contact.userId !== input.userId) {
@@ -1127,59 +1273,165 @@ async function collectRemarketingBatchCandidates(input: {
       });
       continue;
     }
-    const phone = normalizePhone(contact.phone);
-    if (!phone) {
-      rejected.push({ source: "contact", value: contactId, reason: "missing_phone" });
-      continue;
+    if (input.campaign.channel === "instagram") {
+      const instagramHandle = normalizeInstagramHandle(contact.instagramHandle);
+      if (!instagramHandle) {
+        rejected.push({ source: "contact", value: contactId, reason: "missing_instagram" });
+        continue;
+      }
+      candidates.push({
+        contactId: contact.id,
+        phone: null,
+        instagramHandle,
+        source: "contact",
+        value: contact.id,
+      });
+    } else {
+      const phone = normalizePhone(contact.phone);
+      if (!phone) {
+        rejected.push({ source: "contact", value: contactId, reason: "missing_phone" });
+        continue;
+      }
+      candidates.push({
+        contactId: contact.id,
+        phone,
+        instagramHandle: normalizeInstagramHandle(contact.instagramHandle),
+        source: "contact",
+        value: contact.id,
+      });
     }
-    candidates.push({ contactId: contact.id, phone, source: "contact", value: contact.id });
   }
 
-  for (const rawPhone of [
-    ...splitRemarketingPhones(input.batch.rawPhones),
-    ...input.batch.phones,
-  ].slice(0, input.batch.maxRecipients)) {
-    const phone = normalizePhone(rawPhone);
-    if (!phone) {
-      rejected.push({ source: "phone", value: rawPhone, reason: "invalid_phone" });
-      continue;
+  if (input.campaign.channel === "instagram") {
+    for (const rawHandle of [
+      ...splitRemarketingHandles(input.batch.rawInstagramHandles),
+      ...input.batch.instagramHandles,
+    ].slice(0, input.batch.maxRecipients)) {
+      const instagramHandle = normalizeInstagramHandle(rawHandle);
+      if (!instagramHandle) {
+        rejected.push({ source: "instagram", value: rawHandle, reason: "invalid_instagram" });
+        continue;
+      }
+      candidates.push({
+        contactId: null,
+        phone: null,
+        instagramHandle,
+        source: "instagram",
+        value: rawHandle,
+      });
     }
-    candidates.push({ contactId: null, phone, source: "phone", value: rawPhone });
+  } else {
+    for (const rawPhone of [
+      ...splitRemarketingPhones(input.batch.rawPhones),
+      ...input.batch.phones,
+    ].slice(0, input.batch.maxRecipients)) {
+      const phone = normalizePhone(rawPhone);
+      if (!phone) {
+        rejected.push({ source: "phone", value: rawPhone, reason: "invalid_phone" });
+        continue;
+      }
+      candidates.push({
+        contactId: null,
+        phone,
+        instagramHandle: null,
+        source: "phone",
+        value: rawPhone,
+      });
+    }
   }
 
   const existingKeys = new Set(
-    input.existingRecipients.map((recipient) =>
-      recipient.contactId
-        ? `contact:${recipient.contactId}`
-        : `phone:${normalizePhone(recipient.phone)}`,
-    ),
+    input.existingRecipients.map((recipient) => remarketingCandidateKey(recipient)),
   );
   const seen = new Set<string>();
   const accepted: RemarketingBatchCandidate[] = [];
   for (const candidate of candidates) {
-    const key = candidate.contactId ? `contact:${candidate.contactId}` : `phone:${candidate.phone}`;
+    const key = remarketingCandidateKey(candidate);
     if (seen.has(key)) {
-      rejected.push({ source: candidate.source, value: candidate.value, reason: "duplicate_candidate" });
+      rejected.push({
+        source: candidate.source,
+        value: candidate.value,
+        reason: "duplicate_candidate",
+      });
       continue;
     }
     seen.add(key);
     if (existingKeys.has(key)) {
-      rejected.push({ source: candidate.source, value: candidate.value, reason: "duplicate_recipient" });
+      rejected.push({
+        source: candidate.source,
+        value: candidate.value,
+        reason: "duplicate_recipient",
+      });
       continue;
     }
-    const activePipeline = await input.repos.campaignRecipients.findActiveByPhone({
-      userId: input.userId,
-      phone: candidate.phone,
-      channel: "whatsapp",
-    });
-    if (activePipeline) {
-      rejected.push({ source: candidate.source, value: candidate.value, reason: "active_pipeline_for_phone" });
-      continue;
-    }
-    const decision = evaluateApiRealSendTarget(input.sendPolicy, candidate.phone);
-    if (!decision.allowed) {
-      rejected.push({ source: candidate.source, value: candidate.value, reason: decision.reason });
-      continue;
+    if (input.campaign.channel === "instagram") {
+      if (!candidate.instagramHandle) {
+        rejected.push({
+          source: candidate.source,
+          value: candidate.value,
+          reason: "missing_instagram",
+        });
+        continue;
+      }
+      if (!instagramAllowedHandle) {
+        rejected.push({
+          source: candidate.source,
+          value: candidate.value,
+          reason: "instagram_allowlist_required",
+        });
+        continue;
+      }
+      if (candidate.instagramHandle !== instagramAllowedHandle) {
+        rejected.push({
+          source: candidate.source,
+          value: candidate.value,
+          reason: "instagram_handle_not_allowed",
+        });
+        continue;
+      }
+      const activePipeline = await input.repos.campaignRecipients.findActiveByInstagramHandle({
+        userId: input.userId,
+        instagramHandle: candidate.instagramHandle,
+      });
+      if (activePipeline) {
+        rejected.push({
+          source: candidate.source,
+          value: candidate.value,
+          reason: "active_pipeline_for_instagram",
+        });
+        continue;
+      }
+    } else {
+      if (!candidate.phone) {
+        rejected.push({
+          source: candidate.source,
+          value: candidate.value,
+          reason: "missing_phone",
+        });
+        continue;
+      }
+      const activePipeline = await input.repos.campaignRecipients.findActiveByPhone({
+        userId: input.userId,
+        phone: candidate.phone,
+        channel: "whatsapp",
+      });
+      if (activePipeline) {
+        rejected.push({
+          source: candidate.source,
+          value: candidate.value,
+          reason: "active_pipeline_for_phone",
+        });
+        continue;
+      }
+      const decision = evaluateApiRealSendTarget(input.sendPolicy, candidate.phone);
+      if (!decision.allowed) {
+        rejected.push({
+          source: candidate.source,
+          value: candidate.value,
+          reason: decision.reason,
+        });
+        continue;
+      }
     }
     accepted.push(candidate);
   }
@@ -1194,6 +1446,8 @@ function remarketingBatchIssues(input: {
   candidates: number;
   accepted: number;
   rejected: RemarketingBatchRejected[];
+  instagramAllowlistConfigured: boolean;
+  instagramSession: InstagramSessionPreflight | null;
 }): RemarketingBatchIssue[] {
   const issues: RemarketingBatchIssue[] = [];
   const error = (code: string, message: string, count?: number) =>
@@ -1207,8 +1461,11 @@ function remarketingBatchIssues(input: {
       `Campanha está em ${input.campaign.status}; lote real não dispara archived/completed.`,
     );
   }
-  if (input.campaign.channel !== "whatsapp") {
-    error("channel_not_supported", "Remarketing em lote real está liberado apenas para WhatsApp.");
+  if (input.campaign.channel !== "whatsapp" && input.campaign.channel !== "instagram") {
+    error(
+      "channel_not_supported",
+      "Remarketing em lote real está liberado apenas para WhatsApp e Instagram.",
+    );
   }
   if (input.campaign.steps.length === 0) {
     error("campaign_without_steps", "Campanha não tem steps configurados.");
@@ -1221,29 +1478,56 @@ function remarketingBatchIssues(input: {
   if (emptyTextSteps.length > 0) {
     error("empty_message_step", "Há step de texto/link sem mensagem útil.", emptyTextSteps.length);
   }
+  if (input.campaign.channel === "instagram") {
+    const unsupportedSteps = input.campaign.steps.filter(
+      (step) => !isInstagramCampaignStepSupported(step),
+    );
+    if (unsupportedSteps.length > 0) {
+      error(
+        "unsupported_instagram_steps",
+        "Instagram na régua suporta texto, link, imagem e vídeo; remova temporárias, voz ou documento.",
+        unsupportedSteps.length,
+      );
+    }
+    if (!input.instagramAllowlistConfigured) {
+      error(
+        "instagram_allowlist_required",
+        "Lote real Instagram exige allowlist canária explícita.",
+      );
+    }
+    const sessionIssue = instagramSessionBlockingIssue(input.instagramSession);
+    if (sessionIssue) {
+      error(sessionIssue.code, sessionIssue.message);
+    }
+  }
 
-  const temporaryMessages = temporaryMessagesSummary(input.campaign);
-  const hasTemporaryMessagesControl = temporaryMessages.controlSteps.length > 0;
-  if (!hasTemporaryMessagesControl && !temporaryMessages.enabled) {
-    error(
-      "temporary_messages_audit_only",
-      "Lote real exige step ou configuração temporaryMessages M30.3 antes do envio.",
-    );
-  } else if (
-    !hasTemporaryMessagesControl &&
-    (temporaryMessages.beforeSendDuration !== "24h" ||
-      temporaryMessages.afterCompletionDuration !== "90d")
-  ) {
-    error(
-      "temporary_messages_global_not_m303",
-      "temporaryMessages global precisa estar em 24h antes e 90d após conclusão.",
-    );
-  }
-  if (input.sendPolicy.allowedPhones.length === 0) {
-    error("send_policy_allowlist_required", "Lote real exige allowlist explícita de telefone.");
-  }
-  if (input.sendPolicy.mode === "production" && input.sendPolicy.allowedPhones.length === 0) {
-    error("production_without_canary_allowlist", "Produção sem allowlist canária bloqueia lote real.");
+  if (input.campaign.channel === "whatsapp") {
+    const temporaryMessages = temporaryMessagesSummary(input.campaign);
+    const hasTemporaryMessagesControl = temporaryMessages.controlSteps.length > 0;
+    if (!hasTemporaryMessagesControl && !temporaryMessages.enabled) {
+      error(
+        "temporary_messages_audit_only",
+        "Lote real exige step ou configuração temporaryMessages M30.3 antes do envio.",
+      );
+    } else if (
+      !hasTemporaryMessagesControl &&
+      (temporaryMessages.beforeSendDuration !== "24h" ||
+        temporaryMessages.afterCompletionDuration !== "90d")
+    ) {
+      error(
+        "temporary_messages_global_not_m303",
+        "temporaryMessages global precisa estar em 24h antes e 90d após conclusão.",
+      );
+    }
+    if (input.sendPolicy.allowedPhones.length === 0) {
+      error("send_policy_allowlist_required", "Lote real exige allowlist explícita de telefone.");
+    }
+    if (input.sendPolicy.mode === "production" && input.sendPolicy.allowedPhones.length === 0) {
+      error(
+        "production_without_canary_allowlist",
+        "Produção sem allowlist canária bloqueia lote real.",
+      );
+    }
   }
   if (input.activeCampaignStepJobs > 0) {
     error(
@@ -1260,10 +1544,14 @@ function remarketingBatchIssues(input: {
     );
   }
   if (input.candidates === 0) {
-    error("empty_batch", "Informe ao menos um telefone ou contato para o lote.");
+    error("empty_batch", "Informe ao menos um telefone, Instagram ou contato para o lote.");
   }
   if (input.rejected.length > 0) {
-    error("batch_has_rejections", "Lote parcial bloqueado; corrija todos os rejeitados.", input.rejected.length);
+    error(
+      "batch_has_rejections",
+      "Lote parcial bloqueado; corrija todos os rejeitados.",
+      input.rejected.length,
+    );
   }
   if (input.accepted === 0) {
     error("no_accepted_recipients", "Nenhum recipient aceito pelos guardrails.");
@@ -1281,13 +1569,148 @@ function splitRemarketingPhones(rawPhones: string): string[] {
     .filter(Boolean);
 }
 
+function splitRemarketingHandles(rawHandles: string): string[] {
+  return rawHandles
+    .split(/[\s,;]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function normalizeInstagramHandle(value: string | null | undefined): string | null {
+  const cleaned = String(value ?? "")
+    .trim()
+    .replace(/^ig:/i, "")
+    .replace(/^@+/, "")
+    .toLowerCase();
+  return /^[a-z0-9._]{1,30}$/.test(cleaned) ? cleaned : null;
+}
+
+async function readInstagramSessionPreflight(
+  repos: Repositories,
+): Promise<InstagramSessionPreflight | null> {
+  const workers = await repos.workerState.list();
+  const now = Date.now();
+  for (const worker of workers) {
+    const heartbeatAgeSeconds = Math.max(
+      0,
+      Math.round((now - Date.parse(worker.heartbeatAt)) / 1000),
+    );
+    const stale = heartbeatAgeSeconds > 90;
+    if (stale) continue;
+    const instagram = objectRecord(worker.metrics.instagram);
+    const session = objectRecord(instagram.session);
+    if (Object.keys(session).length === 0) continue;
+    return {
+      status: stringField(session, "status") ?? "unknown",
+      authenticated: session.authenticated === true,
+      username: stringField(session, "username"),
+      pageUrl: stringField(session, "pageUrl"),
+      lastSyncAt: stringField(session, "lastSyncAt"),
+      workerId: worker.workerId,
+      workerStatus: worker.status,
+      heartbeatAgeSeconds,
+      stale,
+      browserConnected: worker.browserConnected,
+      lastError:
+        worker.lastError ??
+        stringField(instagram, "lastError") ??
+        stringField(session, "errorMessage"),
+    };
+  }
+  return null;
+}
+
+function instagramSessionBlockingIssue(
+  session: InstagramSessionPreflight | null,
+): { code: string; message: string } | null {
+  if (!session) {
+    return {
+      code: "instagram_session_unavailable",
+      message: "Nenhum worker online publicou sessão Instagram para validar o lote real.",
+    };
+  }
+  if (session.lastError) {
+    return {
+      code: "instagram_session_error",
+      message: `Sessão Instagram reportou erro: ${session.lastError}`,
+    };
+  }
+  if (session.stale || !session.browserConnected) {
+    return {
+      code: "instagram_session_disconnected",
+      message: "Sessão Instagram sem CDP conectado em worker online.",
+    };
+  }
+  if (!session.authenticated || session.status !== "connected") {
+    return {
+      code: "instagram_session_not_authenticated",
+      message: "Instagram precisa estar autenticado na sessão compartilhada antes do lote real.",
+    };
+  }
+  return null;
+}
+
+function remarketingCandidateKey(input: {
+  contactId: number | null;
+  phone?: string | null;
+  instagramHandle?: string | null;
+  metadata?: Record<string, unknown>;
+}): string {
+  if (input.contactId) {
+    return `contact:${input.contactId}`;
+  }
+  const phone = normalizePhone(input.phone ?? null);
+  if (phone) {
+    return `phone:${phone}`;
+  }
+  const instagramHandle = normalizeInstagramHandle(
+    input.instagramHandle ??
+      stringField(objectRecord(input.metadata), "instagramHandle") ??
+      stringField(objectRecord(input.metadata), "instagram"),
+  );
+  if (instagramHandle) {
+    return `instagram:${instagramHandle}`;
+  }
+  return "empty";
+}
+
+function campaignTemporaryMessagesGateIssue(
+  campaign: Campaign,
+  label: string,
+): { code: string; message: string } | null {
+  const temporaryMessages = temporaryMessagesSummary(campaign);
+  const hasTemporaryMessagesControl = temporaryMessages.controlSteps.length > 0;
+  if (hasTemporaryMessagesControl) {
+    return null;
+  }
+  if (!temporaryMessages.enabled) {
+    return {
+      code: "temporary_messages_audit_only",
+      message: `${label} exige step ou configuracao temporaryMessages M30.3 antes do envio.`,
+    };
+  }
+  if (
+    temporaryMessages.beforeSendDuration !== "24h" ||
+    temporaryMessages.afterCompletionDuration !== "90d"
+  ) {
+    return {
+      code: "temporary_messages_global_not_m303",
+      message: `${label} exige temporaryMessages global em 24h antes e 90d apos conclusao.`,
+    };
+  }
+  return null;
+}
+
 function temporaryMessagesSummary(campaign: Campaign): RemarketingBatchPlan["temporaryMessages"] {
   const controlSteps = campaign.steps
-    .filter((step): step is Extract<Campaign["steps"][number], { type: "temporary_messages" }> =>
-      step.type === "temporary_messages",
+    .filter(
+      (step): step is Extract<Campaign["steps"][number], { type: "temporary_messages" }> =>
+        step.type === "temporary_messages",
     )
     .map((step) => ({ stepId: step.id, label: step.label, duration: step.duration }));
-  const parsed = campaignTemporaryMessagesConfigSchema.safeParse(campaign.metadata.temporaryMessages);
+  const parsed = campaignTemporaryMessagesConfigSchema.safeParse(
+    campaign.metadata.temporaryMessages,
+  );
   if (!parsed.success || !parsed.data.enabled) {
     return {
       enabled: false,
@@ -1313,35 +1736,47 @@ async function evaluateCampaignForConversation(input: {
     channel: ChannelType;
     contactId: number | null;
     phone: string | null;
+    instagramHandle: string | null;
   };
-  existingRecipients: Array<{ contactId: number | null; phone: string | null }>;
+  existingRecipients: Array<{
+    contactId: number | null;
+    phone: string | null;
+    metadata?: Record<string, unknown>;
+  }>;
 }) {
   const reasons: string[] = [];
   const firstStep = input.campaign.steps[0] ?? null;
   const existingKeys = new Set(
-    input.existingRecipients.map((recipient) =>
-      recipient.contactId
-        ? `contact:${recipient.contactId}`
-        : `phone:${normalizePhone(recipient.phone)}`,
-    ),
+    input.existingRecipients.map((recipient) => remarketingCandidateKey(recipient)),
   );
   const recipientKey = input.conversation.contactId
     ? `contact:${input.conversation.contactId}`
-    : input.conversation.phone
-      ? `phone:${input.conversation.phone}`
-      : null;
+    : input.conversation.channel === "instagram" && input.conversation.instagramHandle
+      ? `instagram:${input.conversation.instagramHandle}`
+      : input.conversation.phone
+        ? `phone:${input.conversation.phone}`
+        : null;
 
   if (!isCampaignRunnableForManualDispatch(input.campaign)) {
     reasons.push("status_not_runnable");
   }
-  if (input.conversation.channel !== "whatsapp") {
+  if (input.conversation.channel !== "whatsapp" && input.conversation.channel !== "instagram") {
     reasons.push("channel_not_supported");
   }
   if (input.campaign.channel !== input.conversation.channel) {
     reasons.push("channel_mismatch");
   }
-  if (!input.conversation.phone) {
+  if (input.conversation.channel === "whatsapp" && !input.conversation.phone) {
     reasons.push("invalid_phone");
+  }
+  if (input.conversation.channel === "instagram" && !input.conversation.instagramHandle) {
+    reasons.push("invalid_instagram");
+  }
+  if (
+    input.conversation.channel === "instagram" &&
+    input.campaign.steps.some((step) => !isInstagramCampaignStepSupported(step))
+  ) {
+    reasons.push("unsupported_instagram_step");
   }
   if (recipientKey && existingKeys.has(recipientKey)) {
     reasons.push("duplicate_recipient");
@@ -1359,7 +1794,8 @@ async function evaluateCampaignForConversation(input: {
       ? []
       : reasons.map((reason) => ({
           source: "conversation",
-          value: input.conversation.phone ?? input.conversation.id,
+          value:
+            input.conversation.instagramHandle ?? input.conversation.phone ?? input.conversation.id,
           reason,
         })),
   };
@@ -1371,6 +1807,23 @@ function isCampaignRunnableForManualDispatch(campaign: Campaign): boolean {
 
 function isCampaignReadyForEnqueue(campaign: Campaign): boolean {
   return campaign.status === "running" || campaign.status === "scheduled";
+}
+
+function assertCampaignStepsSupportedForChannel(input: {
+  channel: ChannelType;
+  steps: Campaign["steps"];
+}): void {
+  if (input.channel !== "instagram") {
+    return;
+  }
+  const unsupportedSteps = input.steps.filter((step) => !isInstagramCampaignStepSupported(step));
+  if (unsupportedSteps.length > 0) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        "Instagram na régua suporta texto, link, imagem e vídeo; remova temporárias, voz ou documento.",
+    });
+  }
 }
 
 function isContactRemarketingAllowed(contact: Contact): boolean {
@@ -1396,10 +1849,42 @@ function numberFromUnknown(value: unknown): number {
 }
 
 function deriveConversationPhone(
-  conversation: { externalThreadId: string; title: string } | null,
+  conversation: { externalThreadId: string; title: string; waJid?: string | null } | null,
 ): string | null {
   if (!conversation) return null;
-  return normalizePhone(conversation.externalThreadId) ?? normalizePhone(conversation.title);
+  return normalizePhone(conversation.waJid) ?? normalizePhone(conversation.externalThreadId);
+}
+
+function deriveConversationInstagramHandle(
+  conversation: { channel: ChannelType; externalThreadId: string; title: string } | null,
+): string | null {
+  if (!conversation || conversation.channel !== "instagram") return null;
+  return (
+    normalizeInstagramHandle(conversation.externalThreadId) ??
+    normalizeInstagramHandle(conversation.title)
+  );
+}
+
+function isInstagramCampaignStepSupported(step: Campaign["steps"][number]): boolean {
+  return (
+    step.type === "text" || step.type === "link" || step.type === "image" || step.type === "video"
+  );
+}
+
+function campaignStepJobMatchesChannel(job: Job, channel: ChannelType): boolean {
+  if (channel === "instagram") {
+    return Boolean(
+      normalizeInstagramHandle(
+        typeof job.payload.instagramHandle === "string" ? job.payload.instagramHandle : null,
+      ),
+    );
+  }
+  if (channel === "whatsapp") {
+    return Boolean(
+      normalizePhone(typeof job.payload.phone === "string" ? job.payload.phone : null),
+    );
+  }
+  return true;
 }
 
 function summarizeCampaignEvents(

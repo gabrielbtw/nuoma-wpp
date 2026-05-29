@@ -210,28 +210,27 @@ async function validatePanelStateFeedback(page: Page) {
       const noContactText =
         host?.shadowRoot?.querySelector(`[data-testid="${panelTestId}"]`)?.textContent ?? "";
       const buttons = host?.shadowRoot?.querySelectorAll<HTMLButtonElement>(".nuoma-empty-action") ?? [];
-      const disabledActions: Array<{ text: string; disabled: boolean }> = [];
+      const contactActions: Array<{ text: string; disabled: boolean }> = [];
       for (const button of buttons) {
-        disabledActions.push({ text: button.textContent ?? "", disabled: button.disabled });
+        contactActions.push({ text: button.textContent ?? "", disabled: button.disabled });
       }
-      let allActionsDisabled = disabledActions.length === 2;
-      for (const action of disabledActions) {
-        if (!action.disabled) {
-          allActionsDisabled = false;
-        }
-      }
+      const hasContactActions =
+        contactActions.length === 2 &&
+        contactActions.some((action) => action.text.includes("Sincronizar conversa") && !action.disabled) &&
+        contactActions.some((action) => action.text.includes("Copiar telefone") && !action.disabled);
 
       return {
         hasStateFeedback:
           loadingText.includes("Carregando contato") &&
           errorText.includes("Erro na ponte API") &&
           errorText.includes("bridge offline smoke") &&
+          errorText.includes("Reconectar ponte") &&
           noContactText.includes("Contato nao encontrado no CRM") &&
-          allActionsDisabled,
+          hasContactActions,
         loadingText,
         errorText,
         noContactText,
-        disabledActions,
+        contactActions,
       };
     },
     { rootId: NUOMA_OVERLAY_ROOT_ID, panelTestId: NUOMA_OVERLAY_PANEL_TEST_ID, canaryPhone },
@@ -246,7 +245,9 @@ async function mountAndOpenPanel(page: Page) {
     delete (window as unknown as { __nuomaOverlayRefresh?: unknown }).__nuomaOverlayRefresh;
     delete (window as unknown as { __nuomaOverlaySetData?: unknown }).__nuomaOverlaySetData;
     delete (window as unknown as { __nuomaOverlayRefreshFromApi?: unknown }).__nuomaOverlayRefreshFromApi;
+    delete (window as unknown as Record<string, unknown>).__nuomaApi;
     delete (window as unknown as { __nuomaApiResolve?: unknown }).__nuomaApiResolve;
+    delete (window as unknown as Record<string, unknown>).__nuomaApiNativeBridge;
   }, NUOMA_OVERLAY_ROOT_ID);
   await page.evaluate(createNuomaOverlayScript());
   await page.evaluate(({ data, rootId, fabTestId }) => {

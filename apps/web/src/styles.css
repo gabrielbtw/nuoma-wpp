@@ -247,7 +247,7 @@ body::before {
   inset: 0;
   pointer-events: none;
   background:
-    url("/assets/brand/nuoma-mark-watermark.svg") center 12vh / min(56rem, 82vw) auto no-repeat,
+    url("/assets/brand/nuoma-mark-watermark.svg") center 12vh / min(46rem, 70vw) auto no-repeat,
     repeating-linear-gradient(
       90deg,
       rgba(255, 255, 255, 0.018) 0 1px,
@@ -266,7 +266,7 @@ body::before {
       rgba(120, 216, 213, 0.01)
     ),
     linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.24));
-  opacity: 0.86;
+  opacity: 0.56;
 }
 
 ::selection {
@@ -296,7 +296,7 @@ body::before {
   isolation: isolate;
   overflow: hidden;
   background: var(--surface-overlay), rgba(var(--color-bg-panel), 0.96);
-  border: 1px solid rgba(var(--color-border-subtle), 0.20);
+  border: 1px solid rgba(var(--color-border-subtle), 0.18);
   box-shadow: var(--shadow-raised-md);
   backdrop-filter: var(--theme-blur);
   -webkit-backdrop-filter: var(--theme-blur);
@@ -344,6 +344,1810 @@ body::before {
   background: var(--surface-specular);
   opacity: 0.38;
   pointer-events: none;
+}
+
+.nuoma-concept-app {
+  --color-bg-base: 8 15 24;
+  --color-bg-deep: 5 10 16;
+  --color-bg-surface: 11 20 30;
+  --color-bg-elevated: 16 28 40;
+  --color-bg-sunken: 7 13 21;
+  --color-bg-raised: 18 30 43;
+  --color-bg-subtle: 23 38 53;
+  --color-bg-panel: 12 22 32;
+  --color-bg-canvas: 8 15 24;
+  --color-fg-primary: 239 247 252;
+  --color-fg-muted: 168 180 193;
+  --color-fg-dim: 116 132 148;
+  --color-fg-faint: 74 88 103;
+  --color-brand-cyan: 33 223 241;
+  --color-brand-cyan-soft: 157 244 251;
+  --color-brand-cyan-glow: 33 223 241;
+  --color-brand-gold: 214 162 60;
+  --color-brand-gold-soft: 238 200 126;
+  --color-brand-violet: 238 79 159;
+  --color-semantic-success: 37 211 107;
+  --color-semantic-warning: 214 162 60;
+  --color-border-subtle: 92 112 129;
+  --color-border-muted: 122 141 158;
+  --glow-active: rgba(33, 223, 241, 0.22);
+  background: #080f18;
+}
+
+.nuoma-concept-backdrop {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 8rem),
+    #080f18;
+}
+
+.nuoma-concept-app > .relative.flex > aside {
+  width: clamp(10.75rem, 11.8vw, 12.35rem);
+  padding: 0;
+}
+
+.nuoma-concept-app > .relative.flex > aside > div {
+  top: 0;
+  height: 100vh;
+  border-radius: 0;
+  border-width: 0 1px 0 0;
+  border-color: rgba(92, 112, 129, 0.24);
+  background: #080f18;
+  box-shadow: none;
+  padding: 1.15rem 0.75rem;
+}
+
+.nuoma-concept-app > .relative.flex > aside [aria-label="Nuoma"] {
+  justify-content: flex-start;
+  width: 100%;
+  height: 3.5rem;
+}
+
+.nuoma-concept-app > .relative.flex > aside [aria-label="Nuoma"] svg,
+.nuoma-concept-app > .relative.flex > aside [aria-label="Nuoma"] img {
+  display: none;
+}
+
+.nuoma-concept-app > .relative.flex > aside [aria-label="Nuoma"]::before {
+  content: "NUOMA";
+  color: #21dff1;
+  font-size: 1.04rem;
+  font-weight: 780;
+  letter-spacing: 0.16em;
+}
+
+.nuoma-concept-app > .relative.flex > aside [aria-label="Nuoma"] span {
+  display: none !important;
+}
+
+.nuoma-concept-app > .relative.flex > aside nav {
+  gap: 0.6rem;
+}
+
+.nuoma-concept-app > .relative.flex > aside nav a > span {
+  min-height: 2.48rem;
+  border-color: transparent;
+  border-radius: 0.38rem;
+  background: transparent;
+  box-shadow: none;
+  color: #b5c1cc;
+}
+
+.nuoma-concept-app > .relative.flex > aside nav a > span:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: #f0f7fb;
+}
+
+.nuoma-concept-app .nuoma-nav-label {
+  font-size: 0.84rem;
+}
+
+.nuoma-concept-app .nuoma-nav-shortcut,
+.nuoma-concept-app .nuoma-sidebar-workspace {
+  display: none !important;
+}
+
+.nuoma-concept-app .nuoma-sidebar-footer {
+  margin-top: auto;
+  border-top: 1px solid rgba(92, 112, 129, 0.24);
+}
+
+.nuoma-topbar {
+  min-height: 4.55rem;
+  border-radius: 0 !important;
+  border: 0;
+  border-bottom: 1px solid rgba(92, 112, 129, 0.26);
+  background: #080f18;
+  box-shadow: none;
+  padding-left: 1.4rem;
+  padding-right: 1.4rem;
+}
+
+.nuoma-flow-shell {
+  background: rgba(var(--color-bg-base), 0.64);
+}
+
+.nuoma-flow-shell > div,
+.nuoma-flow-shell main {
+  padding: 0 !important;
+}
+
+.nuoma-flow-shell > aside {
+  width: 10.75rem !important;
+  padding: 0 !important;
+}
+
+.nuoma-flow-shell > aside > div {
+  top: 0;
+  height: 100vh;
+  border-radius: 0;
+  border-width: 0 1px 0 0;
+  padding: 1.15rem 0.75rem;
+  background: #080f18;
+  box-shadow: none;
+}
+
+.nuoma-flow-shell > aside [aria-label="Nuoma"] {
+  justify-content: flex-start;
+  width: 100%;
+  height: 3.5rem;
+}
+
+.nuoma-flow-shell > aside [aria-label="Nuoma"] svg,
+.nuoma-flow-shell > aside [aria-label="Nuoma"] img {
+  display: none;
+}
+
+.nuoma-flow-shell > aside [aria-label="Nuoma"]::before {
+  content: "NUOMA";
+  font-weight: 780;
+  font-size: 1.05rem;
+  letter-spacing: 0.16em;
+  color: rgb(var(--color-brand-cyan));
+}
+
+.nuoma-flow-shell > aside [aria-label="Nuoma"] span {
+  display: none !important;
+}
+
+.nuoma-flow-shell > aside nav {
+  gap: 0.65rem;
+}
+
+.nuoma-flow-shell .nuoma-sidebar-workspace {
+  display: none !important;
+}
+
+.nuoma-flow-shell .nuoma-sidebar-footer {
+  margin-top: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.nuoma-flow-shell > aside nav a span {
+  border-radius: 0.375rem;
+}
+
+.nuoma-flow-shell > aside nav a span span:last-child {
+  display: none;
+}
+
+.nuoma-flow-shell .nuoma-nav-shortcut {
+  display: none !important;
+}
+
+.nuoma-flow-shell .nuoma-nav-label {
+  font-size: 0.86rem;
+}
+
+.nuoma-flow-shell .nuoma-route-frame {
+  min-height: 100vh;
+}
+
+.nuoma-flow-shell .nuoma-route-frame > div {
+  min-height: 100vh;
+}
+
+.nuoma-flow-shell .nuoma-route-frame header::after {
+  display: none;
+}
+
+.nuoma-concept-app .nuoma-main-scroll {
+  background: #081019;
+}
+
+.nuoma-concept-app .nuoma-route-frame {
+  width: 100%;
+  min-height: calc(100vh - 5.45rem);
+}
+
+.nuoma-concept-app .nuoma-route-frame > div {
+  width: 100%;
+}
+
+.nuoma-concept-app .nuoma-workspace-header {
+  border-radius: 0.45rem;
+  border: 1px solid rgba(92, 112, 129, 0.28);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.026), transparent 60%),
+    #0d1721;
+  box-shadow: none;
+}
+
+.nuoma-campaign-immersive {
+  min-height: 100vh;
+}
+
+.nuoma-main-scroll {
+  scrollbar-gutter: stable;
+}
+
+.nuoma-route-frame {
+  min-height: calc(100vh - 6.5rem);
+}
+
+.nuoma-route-frame > div {
+  position: relative;
+}
+
+.nuoma-route-frame header {
+  position: relative;
+}
+
+.nuoma-route-frame header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -0.8rem;
+  width: min(15rem, 44vw);
+  height: 1px;
+  background: linear-gradient(90deg, rgba(var(--color-brand-cyan), 0.55), transparent);
+  pointer-events: none;
+}
+
+.nuoma-route-frame .botforge-display {
+  max-width: 13ch;
+}
+
+.nuoma-route-frame :is(.botforge-display) {
+  text-shadow: 0 18px 46px rgba(0, 0, 0, 0.42);
+}
+
+.nuoma-workspace-header {
+  display: flex;
+  min-height: 3.75rem;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-radius: 0.5rem;
+  padding: 0.8rem 1rem;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.035), transparent 54%),
+    rgba(var(--color-bg-panel), 0.9);
+  border: 1px solid rgba(var(--color-border-subtle), 0.16);
+  box-shadow:
+    var(--shadow-flat),
+    0 16px 48px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(12px) saturate(112%);
+  -webkit-backdrop-filter: blur(12px) saturate(112%);
+}
+
+.nuoma-workspace-header > div:first-child,
+.nuoma-workspace-header > div {
+  min-width: 0;
+}
+
+.nuoma-workspace-header .botforge-display {
+  margin-top: 0.1rem;
+  max-width: none;
+  font-size: 1.35rem !important;
+  line-height: 1.08;
+}
+
+.nuoma-workspace-header p:not(.botforge-kicker) {
+  margin-top: 0.25rem;
+  max-width: min(42rem, 70vw);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.nuoma-route-frame :is(section, article, form, ul) > .botforge-surface,
+.nuoma-route-frame :is(section, article, form, ul) > .nuoma-glass-panel {
+  border-radius: 0.5rem;
+}
+
+.nuoma-campaign-tabs {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.25rem;
+  align-self: flex-start;
+  border-radius: 0.5rem;
+  padding: 0.25rem;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.035), transparent 58%),
+    rgba(var(--color-bg-panel), 0.74);
+  border: 1px solid rgba(var(--color-border-subtle), 0.14);
+}
+
+.nuoma-campaign-tabs [role="tab"] {
+  min-width: 0;
+  min-height: 2.35rem;
+  justify-content: center;
+  border-radius: 0.375rem;
+}
+
+.nuoma-campaign-tabs-compact {
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  background: rgba(var(--color-bg-base), 0.32);
+  border-color: rgba(var(--color-border-subtle), 0.08);
+}
+
+.nuoma-campaign-tabs-compact [role="tab"] {
+  min-height: 2rem;
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+
+.nuoma-flow-studio {
+  padding: 0;
+  border-radius: 0.5rem;
+  background:
+    radial-gradient(circle at 78% 12%, rgba(var(--color-brand-cyan), 0.11), transparent 34rem),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.035), transparent 48%),
+    rgba(var(--color-bg-panel), 0.94);
+}
+
+.nuoma-flow-studio-titlebar {
+  display: grid;
+  min-height: 7rem;
+  grid-template-columns: minmax(17rem, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.15rem 0.75rem;
+  border-bottom: 1px solid rgba(var(--color-border-subtle), 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent),
+    rgba(var(--color-bg-base), 0.46);
+}
+
+.nuoma-flow-title-search {
+  display: none;
+}
+
+.nuoma-flow-title-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 0.65rem;
+}
+
+.nuoma-flow-studio-grid {
+  display: grid;
+  min-height: calc(100vh - 17rem);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.nuoma-flow-studio-rail {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+  padding: 1rem;
+  border-bottom: 1px solid rgba(var(--color-border-subtle), 0.14);
+  background:
+    linear-gradient(90deg, rgba(var(--color-brand-cyan), 0.06), transparent 0.2rem),
+    rgba(var(--color-bg-base), 0.48);
+}
+
+.nuoma-flow-studio-tabs {
+  display: grid;
+  height: auto;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.nuoma-flow-studio-tab {
+  display: grid;
+  min-height: 4.15rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  justify-content: start;
+  gap: 0.65rem;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  text-align: left;
+  background: rgba(var(--color-bg-base), 0.48);
+  box-shadow: var(--shadow-flat);
+  position: relative;
+}
+
+.nuoma-flow-studio-tab[data-state="active"] {
+  background:
+    linear-gradient(135deg, rgba(var(--color-brand-cyan), 0.16), rgba(var(--color-bg-elevated), 0.76)),
+    rgba(var(--color-bg-elevated), 0.82);
+  box-shadow:
+    var(--shadow-raised-sm),
+    inset 0 0 0 1px rgba(var(--color-brand-cyan), 0.18);
+}
+
+.nuoma-flow-studio-tab::before {
+  content: "";
+  position: absolute;
+  left: 1.55rem;
+  top: -0.45rem;
+  bottom: calc(100% - 0.1rem);
+  width: 1px;
+  background: rgba(var(--color-brand-cyan), 0.26);
+  pointer-events: none;
+}
+
+.nuoma-flow-studio-tab:first-child::before {
+  display: none;
+}
+
+.nuoma-flow-studio-tab-index {
+  display: inline-flex;
+  width: 1.65rem;
+  height: 1.65rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  background: rgba(var(--color-brand-cyan), 0.1);
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.68rem;
+  color: rgb(var(--color-brand-cyan));
+  box-shadow: var(--shadow-pressed-sm);
+}
+
+.nuoma-flow-studio-canvas {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1rem;
+  overflow: hidden;
+  padding: 1rem;
+}
+
+.nuoma-flow-studio-canvas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(var(--color-brand-cyan), 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--color-brand-cyan), 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, transparent, black 15%, black 82%, transparent);
+  opacity: 0.45;
+}
+
+.nuoma-flow-studio-canvas > * {
+  position: relative;
+  z-index: 1;
+}
+
+.nuoma-flow-studio-canvas [role="tabpanel"] {
+  margin-top: 0;
+}
+
+.nuoma-flow-studio-canvas-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-radius: 0.5rem;
+  padding: 0.8rem 0.9rem;
+  background: rgba(var(--color-bg-base), 0.7);
+  border: 1px solid rgba(var(--color-border-subtle), 0.14);
+  box-shadow: var(--shadow-flat);
+}
+
+.nuoma-flow-studio-inspector {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+  padding: 1rem;
+  border-top: 1px solid rgba(var(--color-border-subtle), 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.028), transparent 38%),
+    rgba(var(--color-bg-base), 0.46);
+}
+
+.nuoma-flow-canvas {
+  min-height: 26rem;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(var(--color-brand-gold), 0.1), transparent 16rem),
+    linear-gradient(rgba(var(--color-brand-cyan), 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--color-brand-cyan), 0.045) 1px, transparent 1px),
+    rgba(var(--color-bg-base), 0.72);
+  background-size: auto, 38px 38px, 38px 38px, auto;
+}
+
+.nuoma-flow-board {
+  position: relative;
+  display: grid;
+  gap: 0.75rem;
+  min-height: 34rem;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  padding: 0.8rem;
+  background:
+    radial-gradient(circle at 48% 40%, rgba(var(--color-brand-cyan), 0.09), transparent 24rem),
+    radial-gradient(circle at 74% 70%, rgba(var(--color-brand-gold), 0.06), transparent 20rem),
+    linear-gradient(rgba(var(--color-brand-cyan), 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--color-brand-cyan), 0.035) 1px, transparent 1px),
+    rgba(var(--color-bg-base), 0.76);
+  background-size: auto, auto, 32px 32px, 32px 32px, auto;
+  border: 1px solid rgba(var(--color-border-subtle), 0.16);
+  box-shadow:
+    var(--shadow-flat),
+    inset 0 0 0 1px rgba(var(--color-brand-cyan), 0.035);
+}
+
+.nuoma-flow-board-toolbar {
+  z-index: 3;
+  display: inline-flex;
+  width: max-content;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 0.5rem;
+  padding: 0.35rem;
+  background: rgba(var(--color-bg-panel), 0.82);
+  border: 1px solid rgba(var(--color-border-subtle), 0.16);
+  box-shadow: var(--shadow-raised-sm);
+}
+
+.nuoma-flow-board-lines,
+.nuoma-flow-minimap {
+  display: none;
+}
+
+.nuoma-flow-node {
+  z-index: 2;
+  min-width: 0;
+  border-radius: 0.5rem;
+  padding: 0.9rem;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.045), transparent 52%),
+    rgba(var(--color-bg-panel), 0.9);
+  border: 1px solid rgba(var(--color-border-subtle), 0.2);
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.nuoma-flow-node-icon {
+  display: inline-flex;
+  height: 1.85rem;
+  width: 1.85rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  color: rgb(var(--color-brand-cyan));
+  background: rgba(var(--color-brand-cyan), 0.12);
+  box-shadow: var(--shadow-pressed-sm);
+}
+
+.nuoma-flow-node-wa .nuoma-flow-node-icon {
+  color: rgb(var(--color-semantic-success));
+  background: rgba(var(--color-semantic-success), 0.12);
+}
+
+.nuoma-flow-node-ig .nuoma-flow-node-icon,
+.nuoma-flow-node-violet .nuoma-flow-node-icon {
+  color: rgb(var(--color-brand-violet));
+  background: rgba(var(--color-brand-violet), 0.12);
+}
+
+.nuoma-flow-node-neutral .nuoma-flow-node-icon {
+  color: rgb(var(--color-fg-muted));
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.nuoma-flow-node-media {
+  margin-top: 0.75rem;
+  display: grid;
+  grid-template-columns: 3.1rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.7rem;
+  font-size: 0.72rem;
+  color: rgb(var(--color-fg-dim));
+}
+
+.nuoma-flow-node-thumb {
+  height: 3.1rem;
+  border-radius: 0.375rem;
+  background:
+    linear-gradient(135deg, rgba(var(--color-brand-cyan), 0.58), rgba(var(--color-brand-gold), 0.42)),
+    rgba(var(--color-bg-elevated), 0.9);
+  box-shadow: var(--shadow-flat);
+}
+
+.nuoma-flow-node-thumb.alt {
+  background:
+    linear-gradient(135deg, rgba(var(--color-semantic-success), 0.5), rgba(var(--color-brand-cyan), 0.34)),
+    rgba(var(--color-bg-elevated), 0.9);
+}
+
+.nuoma-flow-node-thumb.warm {
+  background:
+    linear-gradient(135deg, rgba(var(--color-brand-gold), 0.56), rgba(var(--color-brand-violet), 0.3)),
+    rgba(var(--color-bg-elevated), 0.9);
+}
+
+.nuoma-flow-node-condition {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.nuoma-flow-branch {
+  display: grid;
+  gap: 0.1rem;
+  border-radius: 0.375rem;
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+  font-size: 0.74rem;
+  border: 1px solid transparent;
+}
+
+.nuoma-flow-branch span:first-child {
+  font-weight: 700;
+}
+
+.nuoma-flow-branch-yes {
+  color: rgb(var(--color-semantic-success));
+  background: rgba(var(--color-semantic-success), 0.11);
+  border-color: rgba(var(--color-semantic-success), 0.2);
+}
+
+.nuoma-flow-branch-no {
+  color: rgb(var(--color-brand-gold));
+  background: rgba(var(--color-brand-gold), 0.1);
+  border-color: rgba(var(--color-brand-gold), 0.2);
+}
+
+.nuoma-flow-editor-dock {
+  max-height: 26rem;
+  overflow: auto;
+  border-radius: 0.5rem;
+  padding: 0.85rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 40%),
+    rgba(var(--color-bg-base), 0.58);
+  border: 1px solid rgba(var(--color-border-subtle), 0.12);
+  box-shadow: var(--shadow-flat);
+}
+
+.nuoma-flow-studio-v2 {
+  --flow-v2-bg: #080f18;
+  --flow-v2-panel: #0b141e;
+  --flow-v2-panel-soft: #101a24;
+  --flow-v2-panel-raised: #151f2a;
+  --flow-v2-border: rgba(92, 112, 129, 0.28);
+  --flow-v2-border-soft: rgba(92, 112, 129, 0.18);
+  --flow-v2-cyan: #21dff1;
+  --flow-v2-cyan-strong: #28e5fb;
+  --flow-v2-green: #25d36b;
+  --flow-v2-gold: #d6a23c;
+  --flow-v2-text: #eef6fb;
+  --flow-v2-muted: #a8b4c1;
+  --flow-v2-dim: #748494;
+  min-height: 100vh;
+  background: var(--flow-v2-bg);
+  color: var(--flow-v2-text);
+  font-family: "Geist Variable", "Geist", system-ui, sans-serif;
+}
+
+.nuoma-flow-shell {
+  background: #080f18;
+}
+
+.nuoma-flow-shell > aside {
+  width: clamp(10.75rem, 11.8vw, 12.35rem) !important;
+}
+
+.nuoma-flow-shell > aside > div {
+  background: #080f18;
+  border-color: rgba(92, 112, 129, 0.24);
+}
+
+.nuoma-flow-shell > aside nav a span {
+  min-height: 2.45rem;
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #b6c2cd !important;
+}
+
+.nuoma-flow-shell > aside nav a span:hover {
+  background: rgba(255, 255, 255, 0.035) !important;
+  color: #e8f2f8 !important;
+}
+
+.nuoma-flow-shell > aside nav a[aria-current="page"] span,
+.nuoma-flow-shell > aside nav a[data-status="active"] span {
+  background: rgba(33, 223, 241, 0.11) !important;
+  color: #21dff1 !important;
+}
+
+.nuoma-flow-v2-topbar {
+  display: grid;
+  height: 4.55rem;
+  grid-template-columns: minmax(24rem, 1fr) minmax(20rem, 24.25rem) auto;
+  align-items: center;
+  gap: 1.5rem;
+  border-bottom: 1px solid var(--flow-v2-border);
+  background: #080f18;
+  padding: 0 1.4rem;
+}
+
+.nuoma-flow-v2-title {
+  min-width: 0;
+}
+
+.nuoma-flow-v2-title-line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.15;
+  color: #f5fbff;
+}
+
+.nuoma-flow-v2-title-line > span:last-of-type {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nuoma-flow-v2-title-line button,
+.nuoma-flow-v2-account button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: #aab6c2;
+}
+
+.nuoma-flow-v2-title-line button {
+  height: 1.35rem;
+  width: 1.35rem;
+}
+
+.nuoma-flow-v2-title-slash {
+  color: #778694;
+}
+
+.nuoma-flow-v2-status {
+  margin-top: 0.55rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.76rem;
+  color: #a8b4c1;
+}
+
+.nuoma-flow-v2-status span {
+  height: 0.45rem;
+  width: 0.45rem;
+  border-radius: 999px;
+  background: #28c879;
+}
+
+.nuoma-flow-v2-search {
+  display: grid;
+  height: 2.15rem;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  border-radius: 0.45rem;
+  border: 1px solid rgba(92, 112, 129, 0.3);
+  background: #0b141e;
+  padding: 0 0.6rem;
+  color: #7f8d9b;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.nuoma-flow-v2-search span {
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.76rem;
+}
+
+.nuoma-flow-v2-search kbd {
+  border-radius: 0.3rem;
+  background: #151d28;
+  padding: 0.12rem 0.35rem;
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.65rem;
+  color: #8998a7;
+}
+
+.nuoma-flow-v2-account {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  gap: 0.8rem;
+}
+
+.nuoma-flow-v2-account button {
+  position: relative;
+  height: 2.1rem;
+  width: 2.1rem;
+  border-radius: 999px;
+}
+
+.nuoma-flow-v2-account button:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: #f2f8fc;
+}
+
+.nuoma-flow-v2-bell span {
+  position: absolute;
+  right: 0.2rem;
+  top: 0.2rem;
+  display: grid;
+  height: 0.82rem;
+  min-width: 0.82rem;
+  place-items: center;
+  border-radius: 999px;
+  background: #f2683d;
+  color: #ffffff;
+  font-size: 0.55rem;
+  font-weight: 700;
+}
+
+.nuoma-flow-v2-account .nuoma-flow-v2-avatar {
+  background: #172232;
+  color: #f4f8fb;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.nuoma-flow-v2-actionbar {
+  display: flex;
+  height: 3.45rem;
+  align-items: center;
+  justify-content: end;
+  gap: 1rem;
+  border-bottom: 1px solid var(--flow-v2-border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent),
+    #0b141e;
+  padding: 0 1.65rem;
+}
+
+.nuoma-flow-v2-button,
+.nuoma-flow-v2-activate-group button {
+  display: inline-flex;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  border-radius: 0.45rem;
+  border: 1px solid transparent;
+  padding: 0 1.2rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.nuoma-flow-v2-button-outline {
+  border-color: rgba(33, 223, 241, 0.55);
+  background: rgba(33, 223, 241, 0.055);
+  color: #d9fbff;
+}
+
+.nuoma-flow-v2-button-dark {
+  border-color: rgba(92, 112, 129, 0.35);
+  background: #111a24;
+  color: #ecf4fa;
+}
+
+.nuoma-flow-v2-activate-group {
+  display: inline-flex;
+  overflow: hidden;
+  border-radius: 0.45rem;
+  box-shadow: 0 0 24px rgba(33, 223, 241, 0.22);
+}
+
+.nuoma-flow-v2-activate-group button {
+  border-radius: 0;
+  background: #21dff1;
+  color: #031019;
+}
+
+.nuoma-flow-v2-activate-group button + button {
+  width: 2.75rem;
+  border-left-color: rgba(3, 16, 25, 0.24);
+  padding: 0;
+}
+
+.nuoma-flow-v2-body {
+  display: grid;
+  min-height: calc(100vh - 8rem);
+  grid-template-columns: clamp(10.75rem, 12vw, 12.6rem) minmax(0, 1fr) clamp(17.25rem, 18.5vw, 19.35rem);
+  background: #080f18;
+}
+
+.nuoma-flow-v2-rail {
+  position: relative;
+  border-right: 1px solid var(--flow-v2-border);
+  background: #0a121b;
+  padding: 1.55rem 0.8rem;
+}
+
+.nuoma-flow-v2-rail-title {
+  margin-bottom: 1.45rem;
+  padding-left: 0.1rem;
+  font-size: 0.86rem;
+  font-weight: 650;
+  color: #eaf3f9;
+}
+
+.nuoma-flow-v2-tabs {
+  position: relative;
+  display: grid;
+  width: 100%;
+  gap: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+}
+
+.nuoma-flow-v2-tabs::before {
+  content: "";
+  position: absolute;
+  left: 0.9rem;
+  top: 1.3rem;
+  bottom: 1.35rem;
+  width: 1px;
+  background: rgba(33, 223, 241, 0.34);
+}
+
+.nuoma-flow-v2-step-tab {
+  position: relative;
+  display: grid;
+  min-height: 4.9rem;
+  grid-template-columns: 1.8rem minmax(0, 1fr);
+  align-items: start;
+  justify-content: start;
+  gap: 0.9rem;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0;
+  text-align: left;
+  color: #aab7c2;
+}
+
+.nuoma-flow-v2-step-marker {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  height: 1.35rem;
+  width: 1.35rem;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(33, 223, 241, 0.6);
+  background: #0a121b;
+  color: #21dff1;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.nuoma-flow-v2-step-tab[data-flow-state="done"] .nuoma-flow-v2-step-marker,
+.nuoma-flow-v2-step-tab[data-flow-state="active"] .nuoma-flow-v2-step-marker {
+  background: #21dff1;
+  color: #031019;
+  box-shadow: 0 0 18px rgba(33, 223, 241, 0.35);
+}
+
+.nuoma-flow-v2-step-tab[data-flow-state="upcoming"] .nuoma-flow-v2-step-marker {
+  background: #0c1721;
+  color: #7e8e9d;
+  box-shadow: none;
+}
+
+.nuoma-flow-v2-step-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.28rem;
+}
+
+.nuoma-flow-v2-step-copy span:first-child {
+  color: #edf6fb;
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.nuoma-flow-v2-step-copy span:last-child {
+  overflow: hidden;
+  color: #a0acb7;
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nuoma-flow-v2-step-tab[data-flow-state="upcoming"] .nuoma-flow-v2-step-copy span:first-child {
+  color: #a8b5c1;
+}
+
+.nuoma-flow-v2-stage {
+  position: relative;
+  min-width: 0;
+  background: #081019;
+  overflow: visible;
+}
+
+.nuoma-flow-v2-board {
+  position: relative;
+  min-height: calc(100vh - 8rem);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 48% 45%, rgba(20, 60, 78, 0.16), transparent 24rem),
+    radial-gradient(circle, rgba(50, 75, 91, 0.24) 1px, transparent 1.45px),
+    #081019;
+  background-size: auto, 28px 28px, auto;
+}
+
+.nuoma-flow-v2-board-toolbar {
+  position: absolute;
+  left: 1.35rem;
+  top: 0.85rem;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  border-radius: 0.45rem;
+  border: 1px solid rgba(92, 112, 129, 0.28);
+  background: rgba(10, 20, 30, 0.92);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+}
+
+.nuoma-flow-v2-board-toolbar button {
+  display: inline-flex;
+  height: 2.15rem;
+  min-width: 2.15rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-right: 1px solid rgba(92, 112, 129, 0.18);
+  background: transparent;
+  color: #a9b6c2;
+  font-size: 0.78rem;
+}
+
+.nuoma-flow-v2-board-toolbar button.is-active {
+  background: rgba(33, 223, 241, 0.1);
+  color: #21dff1;
+}
+
+.nuoma-flow-v2-board-toolbar button:last-child {
+  border-right: 0;
+}
+
+.nuoma-flow-v2-zoom-label {
+  width: 3.65rem;
+  color: #d5e1e9 !important;
+}
+
+.nuoma-flow-v2-toolbar-divider {
+  height: 2.15rem;
+  width: 1px;
+  background: rgba(92, 112, 129, 0.22);
+}
+
+.nuoma-flow-v2-lines {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  height: 100%;
+  width: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.nuoma-flow-v2-lines path {
+  fill: none;
+  stroke: rgba(172, 188, 198, 0.72);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.nuoma-flow-v2-handle circle {
+  fill: #5c6670;
+  stroke: #a7b4be;
+  stroke-width: 1;
+}
+
+.nuoma-flow-v2-handle path {
+  stroke: #edf4f7;
+  stroke-width: 1.25;
+}
+
+.nuoma-flow-v2-handle-small circle {
+  fill: #c29b57;
+  stroke: #1b2026;
+}
+
+.nuoma-flow-v2-node {
+  position: absolute;
+  z-index: 2;
+  width: 11.8rem;
+  border: 1px solid rgba(92, 112, 129, 0.32);
+  border-radius: 0.45rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 46%),
+    #121c26;
+  box-shadow:
+    0 24px 58px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  color: #eef6fb;
+  padding: 0.72rem;
+}
+
+.nuoma-flow-v2-node-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.62rem;
+}
+
+.nuoma-flow-v2-node-icon {
+  display: grid;
+  height: 1.8rem;
+  width: 1.8rem;
+  place-items: center;
+  border-radius: 0.35rem;
+  background: rgba(33, 223, 241, 0.13);
+  color: #21dff1;
+}
+
+.nuoma-flow-v2-node-wa .nuoma-flow-v2-node-icon {
+  background: rgba(37, 211, 107, 0.14);
+  color: #25d36b;
+}
+
+.nuoma-flow-v2-node-ig .nuoma-flow-v2-node-icon {
+  background: rgba(238, 69, 150, 0.14);
+  color: #f04f9f;
+}
+
+.nuoma-flow-v2-node-neutral .nuoma-flow-v2-node-icon {
+  background: rgba(255, 255, 255, 0.08);
+  color: #c9d3db;
+}
+
+.nuoma-flow-v2-node-title {
+  overflow: hidden;
+  color: #f2f7fb;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nuoma-flow-v2-node-meta {
+  margin-top: 0.42rem;
+  display: grid;
+  gap: 0.16rem;
+  color: #aab6c0;
+  font-size: 0.67rem;
+  line-height: 1.45;
+}
+
+.nuoma-flow-v2-node-media {
+  margin-top: 0.75rem;
+  display: grid;
+  grid-template-columns: 3.25rem minmax(0, 1fr);
+  gap: 0.65rem;
+}
+
+.nuoma-flow-v2-node-media img {
+  height: 4.3rem;
+  width: 3.25rem;
+  border-radius: 0.3rem;
+  object-fit: cover;
+}
+
+.nuoma-flow-v2-node-caption {
+  display: block;
+  color: #d8e3ea;
+  font-size: 0.67rem;
+  line-height: 1.45;
+}
+
+.nuoma-flow-v2-node-start {
+  left: 4.8%;
+  top: 12.5%;
+}
+
+.nuoma-flow-v2-node-primary {
+  left: 4.8%;
+  top: 30%;
+}
+
+.nuoma-flow-v2-node-wait-left {
+  left: 4.8%;
+  top: 58.5%;
+}
+
+.nuoma-flow-v2-node-condition {
+  left: 31%;
+  top: 34.8%;
+  display: grid;
+  gap: 0.56rem;
+  width: 11.2rem;
+}
+
+.nuoma-flow-v2-node-secondary {
+  left: 58.2%;
+  top: 22%;
+  width: 10.8rem;
+}
+
+.nuoma-flow-v2-node-wait-right {
+  left: 58.2%;
+  top: 46.6%;
+  width: 10.8rem;
+}
+
+.nuoma-flow-v2-node-reengage {
+  left: 58.2%;
+  top: 66.6%;
+  width: 10.8rem;
+}
+
+.nuoma-flow-v2-node-end {
+  left: 83.5%;
+  top: 54.5%;
+  width: 9.1rem;
+}
+
+.nuoma-flow-v2-branch {
+  display: grid;
+  gap: 0.12rem;
+  border-radius: 0.35rem;
+  border: 1px solid transparent;
+  padding: 0.62rem 0.7rem;
+  text-align: left;
+  font-size: 0.68rem;
+  line-height: 1.2;
+}
+
+.nuoma-flow-v2-branch span:first-child {
+  font-weight: 750;
+}
+
+.nuoma-flow-v2-branch span:last-child {
+  color: #c6d0d8;
+}
+
+.nuoma-flow-v2-branch-yes {
+  border-color: rgba(37, 211, 107, 0.34);
+  background: rgba(37, 211, 107, 0.13);
+  color: #36df7a;
+}
+
+.nuoma-flow-v2-branch-no {
+  border-color: rgba(214, 162, 60, 0.5);
+  background: rgba(214, 162, 60, 0.14);
+  color: #e0ad45;
+}
+
+.nuoma-flow-v2-minimap {
+  position: absolute;
+  bottom: 1rem;
+  left: 1.35rem;
+  z-index: 4;
+  display: grid;
+  width: 10.65rem;
+  gap: 0.65rem;
+}
+
+.nuoma-flow-v2-minimap-screen {
+  position: relative;
+  height: 5rem;
+  overflow: hidden;
+  border: 1px solid rgba(33, 223, 241, 0.68);
+  border-radius: 0.35rem;
+  background: rgba(12, 23, 33, 0.88);
+  box-shadow: inset 0 0 0 1px rgba(33, 223, 241, 0.08);
+}
+
+.nuoma-flow-v2-minimap-screen span {
+  position: absolute;
+  display: block;
+  border-radius: 0.2rem;
+  background: #243241;
+}
+
+.nuoma-flow-v2-minimap-screen .a { left: 0.55rem; top: 1rem; height: 0.9rem; width: 1.8rem; }
+.nuoma-flow-v2-minimap-screen .b { left: 2.7rem; top: 1.45rem; height: 1.1rem; width: 2.05rem; }
+.nuoma-flow-v2-minimap-screen .c { right: 1.05rem; top: 0.7rem; height: 1rem; width: 2rem; }
+.nuoma-flow-v2-minimap-screen .d { right: 1.1rem; bottom: 0.85rem; height: 1.2rem; width: 2.15rem; }
+.nuoma-flow-v2-minimap-screen .e { left: 0.55rem; bottom: 1.05rem; height: 0.85rem; width: 1.95rem; }
+
+.nuoma-flow-v2-minimap-controls {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.45rem;
+  border: 1px solid rgba(92, 112, 129, 0.28);
+  border-radius: 0.35rem;
+  background: rgba(12, 23, 33, 0.88);
+  padding: 0.45rem;
+  color: #a9b6c1;
+}
+
+.nuoma-flow-v2-minimap-controls svg {
+  margin: auto;
+}
+
+.nuoma-flow-v2-editor-panels {
+  position: relative;
+  z-index: 3;
+  min-height: 34rem;
+  border-top: 1px solid rgba(92, 112, 129, 0.22);
+  background: #0a121b;
+  padding: 1rem;
+}
+
+.nuoma-flow-v2-inspector {
+  display: grid;
+  align-content: start;
+  gap: 0.82rem;
+  border-left: 1px solid var(--flow-v2-border);
+  background: #081019;
+  padding: 1.5rem 0.85rem 1rem;
+}
+
+.nuoma-flow-v2-inspector h2 {
+  color: #dfeaf1;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.nuoma-flow-v2-inspector-card {
+  border: 1px solid rgba(92, 112, 129, 0.28);
+  border-radius: 0.45rem;
+  background: #0e1822;
+  padding: 0.9rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.nuoma-flow-v2-valid-card {
+  border-color: rgba(37, 211, 107, 0.24);
+  background:
+    radial-gradient(circle at 85% 50%, rgba(37, 211, 107, 0.12), transparent 9rem),
+    #0d1d1b;
+}
+
+.nuoma-flow-v2-card-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.7rem;
+}
+
+.nuoma-flow-v2-card-head strong {
+  display: block;
+  color: #f1f7fb;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.nuoma-flow-v2-card-head span,
+.nuoma-flow-v2-inspector-card p {
+  color: #a5b2bd;
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.nuoma-flow-v2-card-icon {
+  display: grid;
+  height: 1.65rem;
+  width: 1.65rem;
+  place-items: center;
+  border-radius: 0.36rem;
+  background: rgba(33, 223, 241, 0.12);
+  color: #21dff1;
+}
+
+.nuoma-flow-v2-card-icon.is-success {
+  background: rgba(37, 211, 107, 0.14);
+  color: #25d36b;
+}
+
+.nuoma-flow-v2-card-icon.is-warning {
+  background: rgba(214, 162, 60, 0.14);
+  color: #d6a23c;
+}
+
+.nuoma-flow-v2-toggle {
+  position: relative;
+  display: block;
+  height: 1rem;
+  width: 1.75rem;
+  border-radius: 999px;
+  background: #21dff1;
+}
+
+.nuoma-flow-v2-toggle::after {
+  content: "";
+  position: absolute;
+  right: 0.15rem;
+  top: 0.15rem;
+  height: 0.7rem;
+  width: 0.7rem;
+  border-radius: 999px;
+  background: #07131d;
+}
+
+.nuoma-flow-v2-safe-grid {
+  margin-top: 0.8rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
+  border: 1px solid rgba(92, 112, 129, 0.2);
+  border-radius: 0.35rem;
+}
+
+.nuoma-flow-v2-safe-grid div {
+  display: grid;
+  gap: 0.28rem;
+  border-bottom: 1px solid rgba(92, 112, 129, 0.18);
+  padding: 0.6rem 0.72rem;
+}
+
+.nuoma-flow-v2-safe-grid div:last-child {
+  grid-column: 1 / -1;
+  border-bottom: 0;
+}
+
+.nuoma-flow-v2-safe-grid div:nth-child(odd) {
+  border-right: 1px solid rgba(92, 112, 129, 0.18);
+}
+
+.nuoma-flow-v2-safe-grid span {
+  color: #93a1ae;
+  font-size: 0.63rem;
+}
+
+.nuoma-flow-v2-safe-grid strong {
+  color: #f2f7fb;
+  font-size: 0.72rem;
+}
+
+.nuoma-flow-v2-audience-value {
+  margin-top: 0.78rem;
+  color: #f5fbff;
+  font-size: 1.28rem;
+  font-weight: 500;
+}
+
+.nuoma-flow-v2-audience-foot {
+  margin-top: 0.35rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: #a5b2bd;
+  font-size: 0.68rem;
+}
+
+.nuoma-flow-v2-audience-foot strong {
+  color: #25d36b;
+  font-size: 0.68rem;
+}
+
+.nuoma-flow-v2-compact-card .nuoma-flow-v2-card-head {
+  align-items: center;
+}
+
+.nuoma-flow-v2-compact-card button,
+.nuoma-flow-v2-alert-copy button {
+  border: 0;
+  background: transparent;
+  color: #21dff1;
+  font-size: 0.68rem;
+  font-weight: 650;
+}
+
+.nuoma-flow-v2-alert-card .nuoma-flow-v2-card-head > span:last-child {
+  color: #d6a23c;
+  font-size: 0.68rem;
+  font-weight: 650;
+}
+
+.nuoma-flow-v2-alert-copy {
+  margin-top: 0.8rem;
+  border-left: 2px solid #d6a23c;
+  padding-left: 0.7rem;
+}
+
+.nuoma-flow-v2-alert-copy strong {
+  color: #d6a23c;
+  font-size: 0.7rem;
+}
+
+.nuoma-flow-v2-alert-copy p {
+  margin-top: 0.18rem;
+}
+
+.nuoma-flow-v2-inspector-actions {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.nuoma-flow-v2-submit,
+.nuoma-flow-v2-save {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.45rem;
+  font-size: 0.74rem;
+  font-weight: 750;
+}
+
+.nuoma-flow-v2-submit {
+  border: 0;
+  background: #21dff1;
+  color: #031019;
+  box-shadow: 0 0 24px rgba(33, 223, 241, 0.26);
+}
+
+.nuoma-flow-v2-submit:disabled {
+  opacity: 0.7;
+}
+
+.nuoma-flow-v2-save {
+  border: 1px solid rgba(33, 223, 241, 0.55);
+  background: transparent;
+  color: #21dff1;
+}
+
+.nuoma-flow-v2-inspector-meta {
+  display: none;
+}
+
+.nuoma-automation-studio-grid {
+  min-height: calc(100vh - 12rem);
+}
+
+.nuoma-automation-studio [data-testid="automation-action-row"] > .grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+@media (min-width: 768px) {
+  .nuoma-campaign-tabs {
+    width: auto;
+    grid-template-columns: repeat(4, minmax(7.75rem, 1fr));
+  }
+
+  .nuoma-campaign-tabs-compact {
+    grid-template-columns: repeat(4, minmax(6.75rem, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .nuoma-flow-studio-titlebar {
+    grid-template-columns: minmax(20rem, 1fr) minmax(25rem, 31rem) auto;
+  }
+
+  .nuoma-flow-title-search {
+    display: flex;
+    min-width: 0;
+    height: 2.45rem;
+    align-items: center;
+    gap: 0.7rem;
+    border-radius: 0.375rem;
+    padding: 0 0.7rem;
+    color: rgb(var(--color-fg-muted));
+    background: rgba(var(--color-bg-sunken), 0.72);
+    border: 1px solid rgba(var(--color-border-subtle), 0.22);
+    box-shadow: var(--shadow-pressed-sm);
+  }
+
+  .nuoma-flow-title-search span {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+    font-size: 0.82rem;
+  }
+
+  .nuoma-flow-title-search kbd {
+    border-radius: 0.25rem;
+    padding: 0.15rem 0.35rem;
+    background: rgba(var(--color-bg-base), 0.9);
+    font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.65rem;
+    color: rgb(var(--color-fg-dim));
+  }
+
+  .nuoma-flow-title-actions {
+    grid-column: 1 / -1;
+    justify-self: end;
+    padding-top: 0.65rem;
+  }
+
+  .nuoma-flow-studio-grid {
+    grid-template-columns: 15rem minmax(0, 1fr) 20rem;
+  }
+
+  .nuoma-flow-studio:not(.nuoma-automation-studio) .nuoma-flow-studio-grid {
+    grid-template-columns: 10.75rem minmax(0, 1fr) 17.5rem;
+  }
+
+  .nuoma-flow-studio:not(.nuoma-automation-studio) .nuoma-flow-studio-rail,
+  .nuoma-flow-studio:not(.nuoma-automation-studio) .nuoma-flow-studio-inspector {
+    padding: 0.85rem;
+  }
+
+  .nuoma-flow-studio:not(.nuoma-automation-studio) .nuoma-flow-studio-canvas-header {
+    display: none;
+  }
+
+  .nuoma-automation-studio-grid {
+    grid-template-columns: 16rem minmax(0, 1fr) 19rem;
+  }
+
+  .nuoma-flow-studio-rail {
+    border-right: 1px solid rgba(var(--color-border-subtle), 0.14);
+    border-bottom: 0;
+  }
+
+  .nuoma-flow-studio-tabs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .nuoma-flow-studio-inspector {
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 8rem);
+    overflow-y: auto;
+    border-top: 0;
+    border-left: 1px solid rgba(var(--color-border-subtle), 0.14);
+  }
+
+  .nuoma-flow-board {
+    min-height: 43rem;
+  }
+
+  .nuoma-flow-board-toolbar {
+    position: absolute;
+    left: 1rem;
+    top: 1rem;
+  }
+
+  .nuoma-flow-board-lines {
+    position: absolute;
+    inset: 4.25rem 1.1rem 1.1rem;
+    z-index: 1;
+    display: block;
+    width: calc(100% - 2.2rem);
+    height: calc(100% - 5.35rem);
+    overflow: visible;
+  }
+
+  .nuoma-flow-board-lines path {
+    fill: none;
+    stroke: rgba(210, 224, 230, 0.62);
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+
+  .nuoma-flow-node {
+    position: absolute;
+    width: 11rem;
+  }
+
+  .nuoma-flow-node-start {
+    left: 2rem;
+    top: 6.5rem;
+  }
+
+  .nuoma-flow-node-primary {
+    left: 2rem;
+    top: 15.25rem;
+  }
+
+  .nuoma-flow-node-wait-left {
+    left: 2rem;
+    top: 30.1rem;
+  }
+
+  .nuoma-flow-node-condition {
+    left: calc(46% - 5rem);
+    top: 19rem;
+    width: 12rem;
+  }
+
+  .nuoma-flow-node-secondary {
+    right: 7rem;
+    top: 10.5rem;
+  }
+
+  .nuoma-flow-node-wait-right {
+    right: 7rem;
+    top: 24.8rem;
+  }
+
+  .nuoma-flow-node-reengage {
+    right: 7rem;
+    top: 35.2rem;
+  }
+
+  .nuoma-flow-node-end {
+    right: 0.85rem;
+    top: 26.2rem;
+    width: 8.5rem;
+  }
+
+  .nuoma-flow-minimap {
+    position: absolute;
+    left: 1rem;
+    bottom: 1rem;
+    z-index: 3;
+    display: grid;
+    width: 10.5rem;
+    gap: 0.55rem;
+  }
+
+  .nuoma-flow-minimap-screen {
+    height: 4.2rem;
+    border-radius: 0.375rem;
+    border: 1px solid rgba(var(--color-brand-cyan), 0.44);
+    background:
+      linear-gradient(90deg, transparent 12%, rgba(var(--color-brand-cyan), 0.12) 12% 34%, transparent 34%),
+      linear-gradient(rgba(var(--color-brand-cyan), 0.1) 0 0) 50% 35% / 74% 0.5rem no-repeat,
+      rgba(var(--color-bg-panel), 0.82);
+    box-shadow: var(--shadow-flat);
+  }
+
+  .nuoma-flow-minimap-controls {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.45rem;
+    padding: 0.45rem;
+    border-radius: 0.375rem;
+    background: rgba(var(--color-bg-panel), 0.78);
+    border: 1px solid rgba(var(--color-border-subtle), 0.14);
+  }
+
+  .nuoma-flow-minimap-controls span {
+    height: 1.5rem;
+    border-radius: 999px;
+    background: rgba(var(--color-bg-base), 0.9);
+    box-shadow: var(--shadow-pressed-sm);
+  }
 }
 
 .botforge-surface::after {
@@ -548,7 +2352,7 @@ body::before {
 .botforge-display {
   font-family: "Geist Variable", "Geist", system-ui, sans-serif;
   font-weight: 780;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
   line-height: 1.02;
   color: rgb(var(--color-fg-primary));
   text-wrap: balance;

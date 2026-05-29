@@ -90,6 +90,7 @@ export const systemRouter = router({
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
       .slice(0, 12);
     const cdpConnected = workerItems.some((worker) => worker.cdpConnected && !worker.stale);
+    const instagramSession = latestInstagramSession(workerItems);
     const workerErrors = workerItems.filter(
       (worker) => worker.status === "error" || Boolean(worker.lastError),
     ).length;
@@ -131,6 +132,16 @@ export const systemRouter = router({
         sessionStatus:
           workerItems.length === 0 ? "no_worker" : cdpConnected ? "connected" : "disconnected",
       },
+      instagram: {
+        cdpConnected,
+        sessionStatus:
+          instagramSession?.status ??
+          (workerItems.length === 0 ? "no_worker" : cdpConnected ? "unknown" : "disconnected"),
+        authenticated: Boolean(instagramSession?.authenticated),
+        username: instagramSession?.username ?? null,
+        pageUrl: instagramSession?.pageUrl ?? null,
+        lastSyncAt: instagramSession?.lastSyncAt ?? null,
+      },
       criticalEvents,
       sendPolicy: {
         apiMode: ctx.env.API_SEND_POLICY_MODE,
@@ -142,4 +153,22 @@ export const systemRouter = router({
 
 function statusCount(counts: Record<string, number>, status: string): number {
   return counts[status] ?? 0;
+}
+
+function latestInstagramSession(workers: Array<{ metrics: Record<string, unknown>; stale: boolean }>) {
+  for (const worker of workers) {
+    if (worker.stale) continue;
+    const instagram = worker.metrics.instagram;
+    if (!instagram || typeof instagram !== "object" || Array.isArray(instagram)) continue;
+    const session = (instagram as { session?: unknown }).session;
+    if (!session || typeof session !== "object" || Array.isArray(session)) continue;
+    return session as {
+      status?: string;
+      authenticated?: boolean;
+      username?: string | null;
+      pageUrl?: string | null;
+      lastSyncAt?: string | null;
+    };
+  }
+  return null;
 }

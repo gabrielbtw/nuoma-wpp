@@ -12,17 +12,7 @@ import {
   type JobHandlerContext,
 } from "./job-handlers.js";
 
-const syncJobTypes: Job["type"][] = ["sync_conversation", "sync_history", "sync_inbox_force"];
-const sendJobTypes: Job["type"][] = [
-  "send_message",
-  "send_instagram_message",
-  "send_voice",
-  "send_document",
-  "send_media",
-  "campaign_step",
-  "chatbot_reply",
-];
-
+const syncJobTypes: Job["type"][] = ["sync_conversation", "sync_history"];
 export interface WorkerMetrics {
   claimed: number;
   completed: number;
@@ -30,6 +20,7 @@ export interface WorkerMetrics {
   dead: number;
   emptyPolls: number;
   errors: number;
+  reaped: number;
 }
 
 export interface JobLoopState {
@@ -59,15 +50,32 @@ export function createJobLoop(input: {
       dead: 0,
       emptyPolls: 0,
       errors: 0,
+      reaped: 0,
     },
     lastError: null,
   };
 
   async function processOne(): Promise<boolean> {
+    await reapStaleClaims();
+
+    const excludeTypes: Job["type"][] = [];
+    if (!input.handlerContext.sync?.connected) {
+      excludeTypes.push(
+        ...syncJobTypes,
+        "send_message",
+        "send_voice",
+        "send_document",
+        "send_media",
+      );
+    }
+    if (!input.handlerContext.instagram?.metrics.connected) {
+      excludeTypes.push("send_instagram_message");
+    }
+
     const claimed = await input.repos.jobs.claimDueJobs({
       workerId: input.env.WORKER_ID,
       limit: 1,
-      excludeTypes: input.handlerContext.sync?.connected ? [] : [...syncJobTypes, ...sendJobTypes],
+      excludeTypes,
     });
 
     const job = claimed[0];
@@ -95,7 +103,11 @@ export function createJobLoop(input: {
       const message = serializeError(error);
       state.lastError = message;
 
-      if (isPermanentJobError(error) || isNonRetryableSendError(message) || job.attempts >= job.maxAttempts) {
+      if (
+        isPermanentJobError(error) ||
+        isNonRetryableSendError(message) ||
+        job.attempts >= job.maxAttempts
+      ) {
         await input.repos.jobs.moveToDead({ jobId: job.id, error: message });
         state.metrics.dead += 1;
         input.logger.warn({ jobId: job.id, type: job.type, error: message }, "job moved to DLQ");
@@ -117,6 +129,28 @@ export function createJobLoop(input: {
     } finally {
       state.currentJobId = null;
     }
+  }
+
+  async function reapStaleClaims(): Promise<void> {
+    if (!input.env.WORKER_IDEMPOTENCY_GUARD_ENABLED) {
+      return;
+    }
+    const result = await input.repos.jobs.releaseStaleClaims({
+      staleAfterMs: input.env.WORKER_STALE_CLAIM_TIMEOUT_MS,
+      limit: 50,
+    });
+    if (result.released === 0) {
+      return;
+    }
+    state.metrics.reaped += result.released;
+    input.logger.warn(
+      {
+        released: result.released,
+        staleAfterMs: result.staleAfterMs,
+        cutoff: result.cutoff,
+      },
+      "stale job claims released for retry",
+    );
   }
 
   async function runUntilStopped(shouldStop: () => boolean): Promise<void> {

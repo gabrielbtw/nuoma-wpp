@@ -2,6 +2,7 @@ import type { Message } from "@nuoma/contracts";
 
 export interface OptimisticMessageInput {
   body: string;
+  clientMutationId?: string;
   contactId: number | null;
   conversationId: number;
 }
@@ -17,9 +18,11 @@ export function createOptimisticTextMessage(
   const now = new Date();
   const observedAtUtc = now.toISOString();
   const localId = -(now.getTime() * 1000 + Math.floor(Math.random() * 1000));
-  const clientMutationId = `optimistic:${input.conversationId}:${now.getTime()}:${Math.random()
-    .toString(36)
-    .slice(2, 8)}`;
+  const clientMutationId =
+    input.clientMutationId ??
+    `optimistic:${input.conversationId}:${now.getTime()}:${Math.random()
+      .toString(36)
+      .slice(2, 8)}`;
 
   return {
     clientMutationId,

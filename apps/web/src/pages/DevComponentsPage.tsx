@@ -158,7 +158,7 @@ export function DevComponentsPage() {
             <span className="h-px w-5 bg-brand-cyan" />
             Nuoma · Design System · v2026.1
           </p>
-          <h1 className="botforge-display text-5xl md:text-6xl">
+          <h1 className="botforge-display text-3xl md:text-4xl">
             O sistema visual do{" "}
             <span className="nuoma-gradient-text">Nuoma WPP</span>.
           </h1>

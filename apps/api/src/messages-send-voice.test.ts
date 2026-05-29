@@ -70,6 +70,92 @@ async function trpcCall<T = unknown>(
 }
 
 describe("messages.sendVoice", () => {
+  it("exposes Instagram session and sync queue routes", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "nuoma-ig-routes-"));
+    const dbPath = path.join(tempDir, "api.db");
+    const db = openDb(dbPath);
+    await runMigrations(db);
+    const repos = createRepositories(db);
+    await repos.users.create({
+      email: "admin@nuoma.local",
+      passwordHash: await argon2.hash("initial-password-123", { type: argon2.argon2id }),
+      role: "admin",
+      displayName: "Admin",
+    });
+    await repos.workerState.heartbeat({
+      workerId: "worker-local-1",
+      status: "idle",
+      browserConnected: true,
+      metrics: {
+        instagram: {
+          connected: true,
+          lastSyncAt: "2026-05-29T00:00:00.000Z",
+          session: {
+            mode: "shared-cdp",
+            status: "connected",
+            authenticated: true,
+            username: "gabriell_braga",
+            pageUrl: "https://www.instagram.com/direct/inbox/",
+            browserEndpoint: "http://127.0.0.1:9223",
+            lastCheckedAt: "2026-05-29T00:00:00.000Z",
+            lastSyncAt: "2026-05-29T00:00:00.000Z",
+            threadCount: 2,
+            messageCount: 7,
+            errorMessage: null,
+          },
+        },
+      },
+    });
+    const app = await buildApiApp({
+      env: loadApiEnv({
+        API_LOG_LEVEL: "silent",
+        NODE_ENV: "test",
+        API_JWT_SECRET: "test-secret-with-more-than-16-chars",
+        DATABASE_URL: dbPath,
+      }),
+      db,
+      migrate: false,
+    });
+
+    try {
+      const session = await app.inject({ method: "GET", url: "/instagram/session" });
+      expect(session.statusCode).toBe(200);
+      expect(session.json()).toMatchObject({
+        status: "connected",
+        authenticated: true,
+        username: "gabriell_braga",
+        threadCount: 2,
+        messageCount: 7,
+      });
+
+      const sync = await app.inject({
+        method: "POST",
+        url: "/instagram/sync",
+        payload: { threadLimit: 3, messagesLimit: 9, scrollPasses: 2 },
+      });
+      expect(sync.statusCode).toBe(200);
+      expect(sync.json()).toMatchObject({
+        queued: true,
+        requested: { threadLimit: 3, messagesLimit: 9, scrollPasses: 2 },
+        job: {
+          type: "sync_inbox_force",
+          status: "queued",
+          payload: {
+            channel: "instagram",
+            threadLimit: 3,
+            messagesLimit: 9,
+            scrollPasses: 2,
+            source: "api.instagram.sync",
+          },
+        },
+      });
+    } finally {
+      await app.close();
+      db.close();
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it("enqueues a guarded send_voice job from a recorded media asset", async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "nuoma-v29-voice-api-"));
     const dbPath = path.join(tempDir, "api.db");
@@ -142,7 +228,11 @@ describe("messages.sendVoice", () => {
         app,
         "POST",
         "messages.sendVoice",
-        { conversationId: conversation.id, mediaAssetId: mediaAsset.id },
+        {
+          conversationId: conversation.id,
+          mediaAssetId: mediaAsset.id,
+          clientNonce: "composer:voice:test-nonce",
+        },
         { cookie: cookies, csrfToken },
       );
       expect(sendVoice.statusCode, JSON.stringify(sendVoice.error)).toBe(200);
@@ -156,6 +246,7 @@ describe("messages.sendVoice", () => {
           audioPath,
           mediaAssetId: mediaAsset.id,
           source: "inbox.voice_recorder",
+          clientNonce: "composer:voice:test-nonce",
         },
       });
 
@@ -203,6 +294,23 @@ describe("messages.sendVoice", () => {
       channel: "whatsapp",
       externalThreadId: "5531982066263",
       title: "V2.9.12 Media API",
+    });
+    const instagramContact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel IG",
+      phone: null,
+      email: null,
+      primaryChannel: "instagram",
+      instagramHandle: "gabriell_braga",
+      status: "lead",
+      notes: null,
+    });
+    const instagramConversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: instagramContact.id,
+      channel: "instagram",
+      externalThreadId: "110051807055981",
+      title: "Gabriel IG",
     });
     const imagePath = path.join(tempDir, "before.jpg");
     const imageBytes = Buffer.from("nuoma-v29-image");
@@ -269,6 +377,7 @@ describe("messages.sendVoice", () => {
           conversationId: conversation.id,
           mediaAssetId: imageAsset.id,
           caption: "Foto antes/depois",
+          clientNonce: "composer:media:test-nonce",
         },
         { cookie: cookies, csrfToken },
       );
@@ -284,6 +393,7 @@ describe("messages.sendVoice", () => {
           mediaType: "image",
           caption: "Foto antes/depois",
           source: "inbox.composer",
+          clientNonce: "composer:media:test-nonce",
         },
       });
 
@@ -302,6 +412,7 @@ describe("messages.sendVoice", () => {
           conversationId: conversation.id,
           mediaAssetId: documentAsset.id,
           caption: "Termos",
+          clientNonce: "composer:document:test-nonce",
         },
         { cookie: cookies, csrfToken },
       );
@@ -317,8 +428,61 @@ describe("messages.sendVoice", () => {
           mediaType: "document",
           caption: "Termos",
           source: "inbox.composer",
+          clientNonce: "composer:document:test-nonce",
         },
       });
+
+      const sendInstagramImage = await trpcCall<{
+        job: {
+          type: string;
+          status: string;
+          priority: number;
+          payload: Record<string, unknown>;
+        };
+      }>(
+        app,
+        "POST",
+        "messages.sendMedia",
+        {
+          conversationId: instagramConversation.id,
+          mediaAssetId: imageAsset.id,
+          caption: "Foto IG",
+          clientNonce: "composer:ig-media:test-nonce",
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(sendInstagramImage.statusCode, JSON.stringify(sendInstagramImage.error)).toBe(200);
+      expect(sendInstagramImage.data?.job).toMatchObject({
+        type: "send_instagram_message",
+        status: "queued",
+        priority: 4,
+        payload: {
+          conversationId: instagramConversation.id,
+          phone: null,
+          instagramHandle: "gabriell_braga",
+          body: "Foto IG",
+          mediaAssetId: imageAsset.id,
+          mediaType: "image",
+          caption: "Foto IG",
+          source: "inbox.composer",
+          clientNonce: "composer:ig-media:test-nonce",
+        },
+      });
+
+      const sendInstagramDocument = await trpcCall(
+        app,
+        "POST",
+        "messages.sendMedia",
+        {
+          conversationId: instagramConversation.id,
+          mediaAssetId: documentAsset.id,
+          caption: "Termos IG",
+          clientNonce: "composer:ig-document:test-nonce",
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(sendInstagramDocument.statusCode).toBe(400);
+      expect(sendInstagramDocument.error?.message).toMatch(/image and video/i);
     } finally {
       await app.close();
       db.close();

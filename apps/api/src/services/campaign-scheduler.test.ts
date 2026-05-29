@@ -149,6 +149,107 @@ describe("campaign scheduler tick", () => {
     expect(conversation?.title).toBe("Gabriel Braga Nuoma");
   });
 
+  it("enqueues Instagram campaign steps by handle without a WhatsApp phone", async () => {
+    const repos = createRepositories(db);
+    const user = await repos.users.create({
+      email: "campaign-instagram@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel IG",
+      phone: null,
+      email: null,
+      primaryChannel: "instagram",
+      instagramHandle: "gabriell_braga",
+      status: "lead",
+      notes: null,
+    });
+    const campaign = await repos.campaigns.create({
+      userId: user.id,
+      name: "Instagram remarketing",
+      channel: "instagram",
+      status: "running",
+      evergreen: false,
+      startsAt: null,
+      segment: null,
+      steps: [
+        {
+          id: "ig-step-1",
+          label: "Primeiro IG",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Oi {{instagram}}",
+        },
+      ],
+      metadata: {},
+    });
+    const recipient = await repos.campaignRecipients.create({
+      userId: user.id,
+      campaignId: campaign.id,
+      contactId: contact.id,
+      phone: null,
+      channel: "instagram",
+      status: "queued",
+      currentStepId: null,
+      metadata: {
+        instagramHandle: "gabriell_braga",
+      },
+    });
+
+    const result = await runCampaignSchedulerTick({
+      repos,
+      userId: user.id,
+      ownerId: "ig-test",
+      now: new Date("2026-05-04T12:00:00.000Z"),
+    });
+    const jobs = await repos.jobs.list(user.id, "queued");
+    const conversation = await repos.conversations.findByExternalThread({
+      userId: user.id,
+      channel: "instagram",
+      externalThreadId: "ig:gabriell_braga",
+    });
+    const updated = await repos.campaignRecipients.findById({
+      userId: user.id,
+      id: recipient.id,
+    });
+
+    expect(result.jobsCreated).toBe(1);
+    expect(result.plannedJobs).toEqual([
+      expect.objectContaining({
+        campaignId: campaign.id,
+        recipientId: recipient.id,
+        phone: null,
+        instagramHandle: "gabriell_braga",
+        targetKey: "ig:gabriell_braga",
+      }),
+    ]);
+    expect(jobs[0]?.payload).toEqual(
+      expect.objectContaining({
+        campaignId: campaign.id,
+        recipientId: recipient.id,
+        phone: null,
+        instagramHandle: "gabriell_braga",
+        recipientNormalizedValue: "gabriell_braga",
+        recipientTargetKey: "ig:gabriell_braga",
+        variables: expect.objectContaining({
+          instagram: "gabriell_braga",
+          instagramHandle: "gabriell_braga",
+        }),
+      }),
+    );
+    expect(conversation).toEqual(
+      expect.objectContaining({
+        channel: "instagram",
+        externalThreadId: "ig:gabriell_braga",
+        title: "@gabriell_braga",
+      }),
+    );
+    expect(updated?.status).toBe("running");
+  });
+
   it("enqueues temporary messages control steps in the same recipient batch", async () => {
     const repos = createRepositories(db);
     const user = await repos.users.create({
@@ -929,5 +1030,115 @@ describe("campaign scheduler tick", () => {
       }),
     );
     expect(jobs).toHaveLength(0);
+  });
+
+  it("auto-evaluates Instagram evergreen campaigns by handle and skips active handle pipelines", async () => {
+    const repos = createRepositories(db);
+    const user = await repos.users.create({
+      email: "campaign-evergreen-instagram@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const eligible = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel IG Evergreen",
+      phone: null,
+      email: null,
+      primaryChannel: "instagram",
+      instagramHandle: "gabriell_braga",
+      status: "lead",
+      notes: null,
+    });
+    await repos.contacts.create({
+      userId: user.id,
+      name: "IG sem handle",
+      phone: null,
+      email: null,
+      primaryChannel: "instagram",
+      instagramHandle: null,
+      status: "lead",
+      notes: null,
+    });
+    const campaign = await repos.campaigns.create({
+      userId: user.id,
+      name: "Evergreen IG",
+      channel: "instagram",
+      status: "running",
+      evergreen: true,
+      startsAt: null,
+      segment: null,
+      steps: [
+        {
+          id: "ig-step-1",
+          label: "Primeiro IG",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Oi {{instagramHandle}}",
+        },
+      ],
+      metadata: {},
+    });
+    const now = new Date("2026-05-04T12:00:00.000Z");
+
+    const preview = await runCampaignSchedulerTick({
+      repos,
+      userId: user.id,
+      ownerId: "evergreen-ig-preview",
+      now,
+      limit: 0,
+      dryRun: true,
+    });
+    const created = await runCampaignSchedulerTick({
+      repos,
+      userId: user.id,
+      ownerId: "evergreen-ig-create",
+      now,
+      limit: 0,
+    });
+    const repeated = await runCampaignSchedulerTick({
+      repos,
+      userId: user.id,
+      ownerId: "evergreen-ig-repeat",
+      now,
+      limit: 0,
+    });
+    const recipients = await repos.campaignRecipients.listByCampaign({
+      userId: user.id,
+      campaignId: campaign.id,
+      limit: 10,
+    });
+
+    expect(preview.evergreenRecipientsPlanned).toBe(1);
+    expect(created.evergreenRecipientsCreated).toBe(1);
+    expect(repeated.evergreenRecipientsCreated).toBe(0);
+    expect(recipients).toHaveLength(1);
+    expect(recipients[0]).toEqual(
+      expect.objectContaining({
+        contactId: eligible.id,
+        phone: null,
+        channel: "instagram",
+        metadata: expect.objectContaining({
+          instagramHandle: "gabriell_braga",
+          variables: expect.objectContaining({
+            instagram: "gabriell_braga",
+            instagramHandle: "gabriell_braga",
+          }),
+        }),
+      }),
+    );
+    await repos.campaignRecipients.updateState({
+      userId: user.id,
+      id: recipients[0]!.id,
+      status: "completed",
+    });
+    const recreatedAfterCompletion = await runCampaignSchedulerTick({
+      repos,
+      userId: user.id,
+      ownerId: "evergreen-ig-completed",
+      now,
+      limit: 0,
+    });
+    expect(recreatedAfterCompletion.evergreenRecipientsCreated).toBe(0);
   });
 });

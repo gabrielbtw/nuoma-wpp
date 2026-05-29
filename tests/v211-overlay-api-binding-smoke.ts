@@ -15,6 +15,8 @@ import {
 const fixtureScreenshotPath =
   process.env.FIXTURE_SCREENSHOT_PATH ?? "data/v211-overlay-api-m35-fixture.png";
 const wppScreenshotPath = process.env.WPP_SCREENSHOT_PATH ?? "data/v211-overlay-api-m35-wpp.png";
+const wppFailureScreenshotPath =
+  process.env.WPP_FAILURE_SCREENSHOT_PATH ?? "data/v211-overlay-api-m35-wpp-failure.png";
 const cdpUrl = process.env.CDP_URL ?? "http://127.0.0.1:9223";
 const whatsappUrl = process.env.WA_WEB_URL ?? "https://web.whatsapp.com/";
 const canaryPhone = "5531982066263";
@@ -63,12 +65,14 @@ async function validateFixture() {
     const context = await browser.newContext({ viewport: { width: 1366, height: 768 } });
     const page = await context.newPage();
     await page.setContent(savedContactFixture(), { waitUntil: "domcontentloaded" });
-	    const bridge = await installApiBinding(page, "Fixture API M35");
+    const bridge = await installApiBinding(page, "Fixture API M35");
     await mountOpenAndWaitForApi(page);
     const panel = await readPanelState(page);
     assertPanel(panel, "fixture");
     if (bridge.requests[0]?.method !== "contactSummary") {
-      throw new Error(`fixture bridge did not receive contactSummary: ${JSON.stringify(bridge.requests)}`);
+      throw new Error(
+        `fixture bridge did not receive contactSummary: ${JSON.stringify(bridge.requests)}`,
+      );
     }
     await page.screenshot({ path: fixtureScreenshotPath, fullPage: false });
     const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
@@ -92,24 +96,30 @@ async function validateFixture() {
 
 async function validateWhatsAppWeb() {
   const browser = await chromium.connectOverCDP(cdpUrl);
+  let page: Page | null = null;
   try {
     const context = browser.contexts()[0] ?? (await browser.newContext());
-    let page = context.pages().find((candidate) => candidate.url().startsWith(whatsappUrl));
+    page = context.pages().find((candidate) => candidate.url().startsWith(whatsappUrl)) ?? null;
     page ??= context.pages()[0] ?? (await context.newPage());
     await page.setViewportSize({ width: 1366, height: 768 });
 
     if (!page.url().startsWith(whatsappUrl)) {
       await page.goto(whatsappUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
     }
+    await waitForConversationHeader(page);
 
     let state = await resetInjectAndReadState(page);
-    if (!state.mounted || (state.phone && state.phone !== canaryPhone)) {
+    if (!state.mounted || !state.title || (state.phone && state.phone !== canaryPhone)) {
       const targetUrl = `${whatsappUrl.replace(/\/$/, "")}/send?phone=${encodeURIComponent(canaryPhone)}`;
       await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
-      await page.waitForTimeout(7_000);
+      await waitForConversationHeader(page);
       state = await resetInjectAndReadState(page);
     }
-    if (!state.mounted || (state.phone && state.phone !== canaryPhone)) {
+    if (
+      !state.mounted ||
+      (!state.phone && !state.title) ||
+      (state.phone && state.phone !== canaryPhone)
+    ) {
       throw new Error(`wpp overlay did not detect canary phone: ${JSON.stringify(state)}`);
     }
     await openAndWaitForApi(page);
@@ -126,65 +136,85 @@ async function validateWhatsAppWeb() {
       method: panel.apiMethod || "missing",
       mode: "worker-cdp-binding",
     };
+  } catch (error) {
+    if (page) {
+      await page
+        .screenshot({ path: wppFailureScreenshotPath, fullPage: false, timeout: 15_000 })
+        .catch(() => undefined);
+    }
+    throw error;
   } finally {
     await browser.close();
   }
 }
 
-	async function installApiBinding(
-	  page: Page,
-	  label: string,
-	  options: { reloadWhenNativeMissing?: boolean } = {},
-	) {
-	  const cdp = await page.context().newCDPSession(page);
-	  const requests: Array<{ id: string; method: string; params: Record<string, unknown> }> = [];
-	  await cdp.send("Runtime.enable");
-	  cdp.on("Runtime.bindingCalled", (event: { name: string; payload: string }) => {
-	    if (event.name !== NUOMA_OVERLAY_API_BINDING_NAME) {
-	      return;
-	    }
-	    void (async () => {
-	      const request = JSON.parse(event.payload) as {
-	        id: string;
-	        method: string;
-	        params?: Record<string, unknown>;
-	      };
-	      requests.push({ id: request.id, method: request.method, params: request.params ?? {} });
-	      const response =
-	        request.method === "contactSummary"
-	          ? {
-	              ok: true,
-	              data: overlayData(label, request.params ?? {}),
-	            }
-	          : {
-	              ok: true,
-	              data: {
-	                pong: true,
-	                source: "smoke-binding",
-	                observedAtUtc: new Date().toISOString(),
-	              },
-	            };
-	      await cdp.send("Runtime.evaluate", {
-	        expression: `
+async function waitForConversationHeader(page: Page) {
+  await page.waitForFunction(
+    () =>
+      Boolean(
+        document.querySelector("#main header") ||
+        document.querySelector('[data-testid="conversation-header"]'),
+      ),
+    { timeout: 45_000 },
+  );
+  await page.waitForTimeout(1_000);
+}
+
+async function installApiBinding(
+  page: Page,
+  label: string,
+  options: { reloadWhenNativeMissing?: boolean } = {},
+) {
+  const cdp = await page.context().newCDPSession(page);
+  const requests: Array<{ id: string; method: string; params: Record<string, unknown> }> = [];
+  await cdp.send("Runtime.enable");
+  cdp.on("Runtime.bindingCalled", (event: { name: string; payload: string }) => {
+    if (event.name !== NUOMA_OVERLAY_API_BINDING_NAME) {
+      return;
+    }
+    void (async () => {
+      const request = JSON.parse(event.payload) as {
+        id: string;
+        method: string;
+        params?: Record<string, unknown>;
+      };
+      requests.push({ id: request.id, method: request.method, params: request.params ?? {} });
+      const response =
+        request.method === "contactSummary"
+          ? {
+              ok: true,
+              data: overlayData(label, request.params ?? {}),
+            }
+          : {
+              ok: true,
+              data: {
+                pong: true,
+                source: "smoke-binding",
+                observedAtUtc: new Date().toISOString(),
+              },
+            };
+      await cdp.send("Runtime.evaluate", {
+        expression: `
 	          (() => window.__nuomaApiResolve(
 	            ${JSON.stringify(request.id)},
 	            ${JSON.stringify(response)}
 	          ))()
 	        `,
-	        awaitPromise: false,
-	        returnByValue: true,
-	      });
-	    })();
-	  });
-	  await cdp
-	    .send("Runtime.evaluate", {
-	      expression: `
+        awaitPromise: false,
+        returnByValue: true,
+      });
+    })();
+  });
+  await cdp
+    .send("Runtime.evaluate", {
+      expression: `
 	        (() => {
 	          document.getElementById(${JSON.stringify(NUOMA_OVERLAY_ROOT_ID)})?.remove();
           delete window.__nuomaOverlayState;
           delete window.__nuomaOverlayInstalled;
 	          delete window.__nuomaOverlayRefresh;
 	          delete window.__nuomaOverlaySetData;
+	          delete window.__nuomaApiNativeBridge;
 	          delete window.__nuomaApiResolve;
 	          return true;
 	        })()
@@ -199,64 +229,70 @@ async function validateWhatsAppWeb() {
       const message = error instanceof Error ? error.message : String(error);
       if (!message.includes("already exists")) {
         throw error;
-	      }
-	    });
-	  let bindingState = await readApiBindingState(page);
-	  if (bindingState.type !== "function") {
-	    await recreateNativeApiBinding(cdp);
-	    await cdp
-	      .send("Runtime.evaluate", {
-	        expression: `(() => { delete window.${NUOMA_OVERLAY_API_BINDING_NAME}; return true; })()`,
-	        awaitPromise: false,
-	        returnByValue: true,
-	      })
-	      .catch(() => undefined);
-	    await cdp
-	      .send("Runtime.addBinding", { name: NUOMA_OVERLAY_API_BINDING_NAME })
-	      .catch((error: unknown) => {
-	        const message = error instanceof Error ? error.message : String(error);
-	        if (!message.includes("already exists")) {
-	          throw error;
-	        }
-	      });
-	    bindingState = await readApiBindingState(page);
-	  }
-	  if (bindingState.type !== "function" && options.reloadWhenNativeMissing) {
-	    await page.evaluate(() => window.location.reload()).catch(() => undefined);
-	    await page.waitForLoadState("domcontentloaded", { timeout: 15_000 }).catch(() => undefined);
-	    await page.waitForTimeout(5_000);
-	    await cdp.send("Runtime.enable").catch(() => undefined);
-	    await cdp
-	      .send("Runtime.addBinding", { name: NUOMA_OVERLAY_API_BINDING_NAME })
-	      .catch((error: unknown) => {
-	        const message = error instanceof Error ? error.message : String(error);
-	        if (!message.includes("already exists")) {
-	          throw error;
-	        }
-	      });
-	    bindingState = await readApiBindingState(page);
-	  }
-	  if (bindingState.type !== "function") {
-	    throw new Error(`native api binding unavailable before overlay install: ${JSON.stringify(bindingState)}`);
-	  }
-	  return { cdp, requests };
-	}
+      }
+    });
+  let bindingState = await readApiBindingState(page);
+  if (bindingState.type !== "function") {
+    await recreateNativeApiBinding(cdp);
+    await cdp
+      .send("Runtime.evaluate", {
+        expression: `(() => { delete window.${NUOMA_OVERLAY_API_BINDING_NAME}; return true; })()`,
+        awaitPromise: false,
+        returnByValue: true,
+      })
+      .catch(() => undefined);
+    await cdp
+      .send("Runtime.addBinding", { name: NUOMA_OVERLAY_API_BINDING_NAME })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!message.includes("already exists")) {
+          throw error;
+        }
+      });
+    bindingState = await readApiBindingState(page);
+  }
+  if (bindingState.type !== "function" && options.reloadWhenNativeMissing) {
+    await page.evaluate(() => window.location.reload()).catch(() => undefined);
+    await page.waitForLoadState("domcontentloaded", { timeout: 15_000 }).catch(() => undefined);
+    await page.waitForTimeout(5_000);
+    await cdp.send("Runtime.enable").catch(() => undefined);
+    await cdp
+      .send("Runtime.addBinding", { name: NUOMA_OVERLAY_API_BINDING_NAME })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!message.includes("already exists")) {
+          throw error;
+        }
+      });
+    bindingState = await readApiBindingState(page);
+  }
+  if (bindingState.type !== "function") {
+    throw new Error(
+      `native api binding unavailable before overlay install: ${JSON.stringify(bindingState)}`,
+    );
+  }
+  return { cdp, requests };
+}
 
-	async function recreateNativeApiBinding(cdp: CDPSession) {
-	  await cdp.send("Runtime.removeBinding", { name: NUOMA_OVERLAY_API_BINDING_NAME }).catch(() => undefined);
-	}
+async function recreateNativeApiBinding(cdp: CDPSession) {
+  await cdp
+    .send("Runtime.removeBinding", { name: NUOMA_OVERLAY_API_BINDING_NAME })
+    .catch(() => undefined);
+}
 
-	async function readApiBindingState(page: Page) {
-	  return page.evaluate((bindingName) => {
-	    const api = (window as unknown as Record<string, unknown>)[bindingName] as
-	      | { __nuomaManaged?: boolean }
-	      | unknown;
-	    return {
-	      type: typeof api,
-	      managed: Boolean(api && typeof api === "object" && "__nuomaManaged" in api && api.__nuomaManaged),
-	    };
-	  }, NUOMA_OVERLAY_API_BINDING_NAME);
-	}
+async function readApiBindingState(page: Page) {
+  return page.evaluate((bindingName) => {
+    const api = (window as unknown as Record<string, unknown>)[bindingName] as
+      | { __nuomaManaged?: boolean }
+      | unknown;
+    return {
+      type: typeof api,
+      managed: Boolean(
+        api && typeof api === "object" && "__nuomaManaged" in api && api.__nuomaManaged,
+      ),
+    };
+  }, NUOMA_OVERLAY_API_BINDING_NAME);
+}
 
 async function mountOpenAndWaitForApi(page: Page) {
   await page.evaluate(createNuomaOverlayScript());
@@ -271,13 +307,26 @@ async function injectAndReadState(page: Page) {
 
 async function resetInjectAndReadState(page: Page) {
   await page.evaluate((rootId) => {
+    const nativeBridge =
+      typeof (window as unknown as Record<string, unknown>).__nuomaApiNativeBridge === "function"
+        ? (window as unknown as Record<string, unknown>).__nuomaApiNativeBridge
+        : typeof (window as unknown as Record<string, unknown>).__nuomaApi === "function"
+          ? ((window as unknown as Record<string, Function>).__nuomaApi as Function).bind(window)
+          : null;
     document.getElementById(rootId)?.remove();
     delete (window as unknown as { __nuomaOverlayState?: unknown }).__nuomaOverlayState;
     delete (window as unknown as { __nuomaOverlayInstalled?: unknown }).__nuomaOverlayInstalled;
     delete (window as unknown as { __nuomaOverlayRefresh?: unknown }).__nuomaOverlayRefresh;
     delete (window as unknown as { __nuomaOverlaySetData?: unknown }).__nuomaOverlaySetData;
-    delete (window as unknown as { __nuomaOverlayRefreshFromApi?: unknown }).__nuomaOverlayRefreshFromApi;
+    delete (window as unknown as { __nuomaOverlayRefreshFromApi?: unknown })
+      .__nuomaOverlayRefreshFromApi;
+    delete (window as unknown as Record<string, unknown>).__nuomaApi;
     delete (window as unknown as { __nuomaApiResolve?: unknown }).__nuomaApiResolve;
+    if (nativeBridge) {
+      (window as unknown as Record<string, unknown>).__nuomaApiNativeBridge = nativeBridge;
+    } else {
+      delete (window as unknown as Record<string, unknown>).__nuomaApiNativeBridge;
+    }
   }, NUOMA_OVERLAY_ROOT_ID);
   return injectAndReadState(page);
 }
@@ -333,8 +382,11 @@ async function openAndWaitForApi(page: Page) {
     ({ rootId, panelTestId }) => {
       const host = document.getElementById(rootId);
       const panel = host?.shadowRoot?.querySelector(`[data-testid="${panelTestId}"]`);
-      const text = panel?.textContent ?? "";
-      return text.includes("Ponte API") && text.includes("online / contactSummary");
+      return (
+        Boolean(panel) &&
+        host?.getAttribute("data-nuoma-api-status") === "online" &&
+        host?.getAttribute("data-nuoma-api-method") === "contactSummary"
+      );
     },
     { rootId: NUOMA_OVERLAY_ROOT_ID, panelTestId: NUOMA_OVERLAY_PANEL_TEST_ID },
     { timeout: 10_000 },
@@ -352,7 +404,9 @@ async function readPanelState(page: Page) {
         panelVisible: Boolean(panel && rect && rect.width > 300 && rect.height > 300),
         apiStatus: host?.getAttribute("data-nuoma-api-status") ?? "",
         apiMethod: host?.getAttribute("data-nuoma-api-method") ?? "",
-        hasApi: text.includes("Ponte API") && text.includes("online / contactSummary"),
+        hasApi:
+          host?.getAttribute("data-nuoma-api-status") === "online" &&
+          host?.getAttribute("data-nuoma-api-method") === "contactSummary",
         hasSummary: text.includes("Overlay API binding"),
         hasPhone: text.includes("+5531982066263"),
         text,
@@ -364,21 +418,34 @@ async function readPanelState(page: Page) {
 
 function assertPanel(panel: Awaited<ReturnType<typeof readPanelState>>, label: string) {
   const requiresFixtureSummary = label === "fixture";
-  if (!panel.panelVisible || !panel.hasApi || !panel.hasPhone || (requiresFixtureSummary && !panel.hasSummary)) {
+  if (
+    !panel.panelVisible ||
+    !panel.hasApi ||
+    !panel.hasPhone ||
+    (requiresFixtureSummary && !panel.hasSummary)
+  ) {
     throw new Error(`${label} overlay api panel invalid: ${JSON.stringify(panel)}`);
   }
 }
 
 function overlayData(label: string, params: Record<string, unknown>): NuomaOverlayData {
-  const requestedPhone = typeof params.phone === "string" && params.phone ? params.phone : canaryPhone;
+  const requestedPhone =
+    typeof params.phone === "string" && params.phone ? params.phone : canaryPhone;
+  const requestedWaJid =
+    typeof params.waJid === "string" && params.waJid
+      ? params.waJid
+      : `${canaryPhone}@s.whatsapp.net`;
   const requestedPhoneSource =
-    typeof params.phone === "string" && params.phone
-      ? typeof params.phoneSource === "string" && params.phoneSource
-        ? params.phoneSource
-        : "smoke-binding"
-      : "title-conversation";
+    typeof params.waJid === "string" && params.waJid
+      ? "wa-jid"
+      : typeof params.phone === "string" && params.phone
+        ? typeof params.phoneSource === "string" && params.phoneSource
+          ? params.phoneSource
+          : "smoke-binding"
+        : "wa-jid";
   return {
     phone: requestedPhone,
+    waJid: requestedWaJid,
     phoneSource: requestedPhoneSource,
     title: typeof params.title === "string" ? params.title : canaryPhone,
     contact: {

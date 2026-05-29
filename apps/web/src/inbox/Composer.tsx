@@ -45,6 +45,7 @@ interface ComposerProps {
   actionDraft?: MessageActionDraft | null;
   onCreateOptimisticSend?: (input: {
     body: string;
+    clientNonce: string;
     conversationId: number;
   }) => OptimisticMessageResult;
   onClearActionDraft?: () => void;
@@ -54,6 +55,7 @@ interface ComposerProps {
 
 interface VoicePreview {
   blob: Blob;
+  clientNonce: string;
   durationMs: number;
   fileName: string;
   mimeType: string;
@@ -62,6 +64,7 @@ interface VoicePreview {
 }
 
 type RecordingState = "idle" | "recording" | "recorded";
+type ComposerMediaType = "image" | "video" | "document";
 type EmojiCategoryId = "recent" | "faces" | "gestures" | "heart" | "objects" | "symbols";
 
 interface EmojiEntry {
@@ -213,9 +216,7 @@ export function Composer({
   const [quickReplyShortcut, setQuickReplyShortcut] = useState("");
   const [quickReplyCategory, setQuickReplyCategory] = useState("");
   const [quickReplyBody, setQuickReplyBody] = useState("");
-  const [mediaUploading, setMediaUploading] = useState<"image" | "video" | "document" | null>(
-    null,
-  );
+  const [mediaUploading, setMediaUploading] = useState<ComposerMediaType | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -229,6 +230,20 @@ export function Composer({
   const meterFrameRef = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
   const lastActionDraftKindRef = useRef<MessageActionDraft["kind"] | null>(null);
+  const failedTextSendRef = useRef<{
+    body: string;
+    clientNonce: string;
+    conversationId: number;
+  } | null>(null);
+  const failedMediaSendRef = useRef<{
+    caption: string | null;
+    clientNonce: string;
+    conversationId: number;
+    fileLastModified: number;
+    fileName: string;
+    fileSize: number;
+    type: ComposerMediaType;
+  } | null>(null);
 
   const send = trpc.messages.send.useMutation();
 
@@ -323,13 +338,21 @@ export function Composer({
   function submit() {
     if (!conversationId || !text.trim() || send.isPending) return;
     const body = text.trim();
-    const optimistic = onCreateOptimisticSend?.({ conversationId, body });
+    const failedTextSend = failedTextSendRef.current;
+    const clientNonce =
+      failedTextSend?.conversationId === conversationId && failedTextSend.body === body
+        ? failedTextSend.clientNonce
+        : createComposerClientNonce("text");
+    const optimistic = onCreateOptimisticSend?.({ conversationId, body, clientNonce });
     setText("");
     onClearActionDraft?.();
     send.mutate(
-      { conversationId, body },
+      { conversationId, body, clientNonce },
       {
         onSuccess(result) {
+          if (failedTextSendRef.current?.clientNonce === clientNonce) {
+            failedTextSendRef.current = null;
+          }
           if (optimistic && result.job) {
             onOptimisticSendQueued?.(optimistic.clientMutationId, result.job.id);
           }
@@ -342,6 +365,7 @@ export function Composer({
           } else {
             setText(body);
           }
+          failedTextSendRef.current = { body, clientNonce, conversationId };
           toast.push({ title: "Falha ao enviar", description: error.message, variant: "danger" });
         },
       },
@@ -464,6 +488,7 @@ export function Composer({
         }
         replaceVoicePreview({
           blob,
+          clientNonce: createComposerClientNonce("voice"),
           durationMs: elapsed,
           fileName: voiceFileName(blob.type),
           mimeType: blob.type || "audio/webm",
@@ -532,7 +557,11 @@ export function Composer({
         throw new Error(await response.text());
       }
       const mediaAssetId = readUploadedMediaAssetId(await response.json());
-      await sendVoice.mutateAsync({ conversationId, mediaAssetId });
+      await sendVoice.mutateAsync({
+        conversationId,
+        mediaAssetId,
+        clientNonce: voicePreview.clientNonce,
+      });
       clearVoicePreview();
       setRecordingState("idle");
       setRecordingMs(0);
@@ -556,8 +585,19 @@ export function Composer({
     }
   }
 
-  async function uploadComposerMedia(file: File, type: "image" | "video" | "document") {
+  async function uploadComposerMedia(file: File, type: ComposerMediaType) {
     if (!conversationId || mediaUploading || sendMedia.isPending) return;
+    const caption = text.trim() || null;
+    const failedMediaSend = failedMediaSendRef.current;
+    const clientNonce =
+      failedMediaSend?.conversationId === conversationId &&
+      failedMediaSend.type === type &&
+      failedMediaSend.fileName === file.name &&
+      failedMediaSend.fileSize === file.size &&
+      failedMediaSend.fileLastModified === file.lastModified &&
+      failedMediaSend.caption === caption
+        ? failedMediaSend.clientNonce
+        : createComposerClientNonce(type === "document" ? "document" : "media");
     setMediaUploading(type);
     try {
       const formData = new FormData();
@@ -576,8 +616,10 @@ export function Composer({
         throw new Error(await response.text());
       }
       const mediaAssetId = readUploadedMediaAssetId(await response.json());
-      const caption = text.trim() || null;
-      await sendMedia.mutateAsync({ conversationId, mediaAssetId, caption });
+      await sendMedia.mutateAsync({ conversationId, mediaAssetId, caption, clientNonce });
+      if (failedMediaSendRef.current?.clientNonce === clientNonce) {
+        failedMediaSendRef.current = null;
+      }
       if (caption) {
         setText("");
       }
@@ -600,6 +642,15 @@ export function Composer({
         description: error instanceof Error ? error.message : "Não foi possível enfileirar mídia.",
         variant: "danger",
       });
+      failedMediaSendRef.current = {
+        caption,
+        clientNonce,
+        conversationId,
+        fileLastModified: file.lastModified,
+        fileName: file.name,
+        fileSize: file.size,
+        type,
+      };
     } finally {
       setMediaUploading(null);
     }
@@ -1349,6 +1400,13 @@ function voiceFileName(mimeType: string): string {
   const stamp = new Date().toISOString().replace(/\D/g, "").slice(0, 14);
   const extension = mimeType.includes("ogg") ? "ogg" : mimeType.includes("mp4") ? "m4a" : "webm";
   return `nuoma-voice-${stamp}.${extension}`;
+}
+
+function createComposerClientNonce(kind: "text" | "voice" | "media" | "document"): string {
+  const random =
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  return `composer:${kind}:${random}`;
 }
 
 function formatDuration(ms: number): string {

@@ -341,7 +341,9 @@ export const campaignRecipients = sqliteTable(
     contactId: integer("contact_id").references(() => contacts.id, { onDelete: "set null" }),
     phone: text("phone"),
     channel: text("channel", { enum: ["whatsapp", "instagram", "system"] }).notNull(),
-    status: text("status", { enum: ["queued", "running", "completed", "failed", "skipped"] })
+    status: text("status", {
+      enum: ["queued", "running", "completed", "failed", "skipped", "cancelled"],
+    })
       .notNull()
       .default("queued"),
     currentStepId: text("current_step_id"),
@@ -490,10 +492,7 @@ export const chatbotVariantEvents = sqliteTable(
       t.variantId,
       t.eventType,
     ),
-    sourceEventIdx: uniqueIndex("idx_chatbot_variant_events_source").on(
-      t.userId,
-      t.sourceEventId,
-    ),
+    sourceEventIdx: uniqueIndex("idx_chatbot_variant_events_source").on(t.userId, t.sourceEventId),
   }),
 );
 

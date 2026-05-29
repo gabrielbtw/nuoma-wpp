@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { loadApiEnv, loadWorkerEnv } from "./index.js";
+import { LOG_REDACT_PATHS, loadApiEnv, loadWorkerEnv } from "./index.js";
 
 describe("loadApiEnv", () => {
   it("keeps CRM storage local by default", () => {
@@ -58,6 +58,17 @@ describe("loadApiEnv", () => {
   });
 });
 
+describe("LOG_REDACT_PATHS", () => {
+  it("covers common PII and token spellings", () => {
+    expect(LOG_REDACT_PATHS).toContain("*.phone");
+    expect(LOG_REDACT_PATHS).toContain("*.email");
+    expect(LOG_REDACT_PATHS).toContain("*.accessToken");
+    expect(LOG_REDACT_PATHS).toContain("*.access_token");
+    expect(LOG_REDACT_PATHS).toContain("*.secret");
+    expect(LOG_REDACT_PATHS).toContain("req.headers.cookie");
+  });
+});
+
 describe("loadWorkerEnv", () => {
   it("keeps open-chat send reuse disabled by default", () => {
     const env = loadWorkerEnv({
@@ -88,6 +99,13 @@ describe("loadWorkerEnv", () => {
     expect(env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS).toBe(15_000);
     expect(env.WORKER_SEND_STRICT_DELIVERY).toBe(true);
     expect(env.WORKER_IDEMPOTENCY_GUARD_ENABLED).toBe(true);
+    expect(env.WORKER_STALE_CLAIM_TIMEOUT_MS).toBe(10 * 60_000);
+    expect(env.WORKER_INSTAGRAM_SYNC_ENABLED).toBe(false);
+    expect(env.WORKER_INSTAGRAM_SYNC_INTERVAL_MS).toBe(60_000);
+    expect(env.WORKER_INSTAGRAM_SYNC_THREAD_LIMIT).toBe(5);
+    expect(env.WORKER_INSTAGRAM_SYNC_MESSAGE_LIMIT).toBe(20);
+    expect(env.WORKER_INSTAGRAM_SYNC_SCROLL_PASSES).toBe(6);
+    expect(env.IG_WEB_URL).toBe("https://www.instagram.com/direct/inbox/");
   });
 
   it("parses production send policy explicitly", () => {
@@ -100,6 +118,7 @@ describe("loadWorkerEnv", () => {
       WORKER_SEND_CONFIRMATION_TIMEOUT_MS: "5000",
       WORKER_SEND_STRICT_DELIVERY: "false",
       WORKER_IDEMPOTENCY_GUARD_ENABLED: "false",
+      WORKER_STALE_CLAIM_TIMEOUT_MS: "120000",
     });
 
     expect(env.WA_SEND_POLICY_MODE).toBe("production");
@@ -109,6 +128,7 @@ describe("loadWorkerEnv", () => {
     expect(env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS).toBe(5_000);
     expect(env.WORKER_SEND_STRICT_DELIVERY).toBe(false);
     expect(env.WORKER_IDEMPOTENCY_GUARD_ENABLED).toBe(false);
+    expect(env.WORKER_STALE_CLAIM_TIMEOUT_MS).toBe(120_000);
   });
 
   it("allows hosted CDP bind host to differ from the local connect host", () => {
@@ -120,5 +140,23 @@ describe("loadWorkerEnv", () => {
 
     expect(env.CHROMIUM_CDP_HOST).toBe("127.0.0.1");
     expect(env.CHROMIUM_CDP_BIND_HOST).toBe("0.0.0.0");
+  });
+
+  it("parses Instagram sync runtime settings explicitly", () => {
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      WORKER_INSTAGRAM_SYNC_ENABLED: "true",
+      WORKER_INSTAGRAM_SYNC_INTERVAL_MS: "30000",
+      WORKER_INSTAGRAM_SYNC_THREAD_LIMIT: "12",
+      WORKER_INSTAGRAM_SYNC_MESSAGE_LIMIT: "40",
+      WORKER_INSTAGRAM_SYNC_SCROLL_PASSES: "9",
+      IG_WEB_URL: "https://www.instagram.com/direct/inbox/",
+    });
+
+    expect(env.WORKER_INSTAGRAM_SYNC_ENABLED).toBe(true);
+    expect(env.WORKER_INSTAGRAM_SYNC_INTERVAL_MS).toBe(30_000);
+    expect(env.WORKER_INSTAGRAM_SYNC_THREAD_LIMIT).toBe(12);
+    expect(env.WORKER_INSTAGRAM_SYNC_MESSAGE_LIMIT).toBe(40);
+    expect(env.WORKER_INSTAGRAM_SYNC_SCROLL_PASSES).toBe(9);
   });
 });

@@ -10,7 +10,11 @@ import { MessageTimeline } from "../inbox/MessageTimeline.js";
 import { INBOX_CONVERSATION_LIMIT } from "../inbox/conversation-list-config.js";
 import { conversationDisplayTitle } from "../inbox/conversation-display.js";
 import type { MessageActionDraft } from "../inbox/message-action-draft.js";
-import { createOptimisticTextMessage, isOptimisticMessage } from "../inbox/optimistic-message.js";
+import {
+  createOptimisticTextMessage,
+  isOptimisticMessage,
+  optimisticClientMutationId,
+} from "../inbox/optimistic-message.js";
 import { summarizeConversationQueue } from "../inbox/QueueIndicator.js";
 import { type InboxRealtimeState, useInboxEvents } from "../inbox/use-inbox-events.js";
 import { trpc } from "../lib/trpc.js";
@@ -120,12 +124,17 @@ export function InboxPage() {
     });
   }
 
-  function createOptimisticSend(input: { conversationId: number; body: string }) {
+  function createOptimisticSend(input: {
+    conversationId: number;
+    body: string;
+    clientNonce?: string;
+  }) {
     const targetConversation = conversations.data?.conversations.find(
       (item) => item.id === input.conversationId,
     );
     const optimistic = createOptimisticTextMessage({
       body: input.body,
+      clientMutationId: input.clientNonce,
       contactId: targetConversation?.contactId ?? null,
       conversationId: input.conversationId,
     });
@@ -258,15 +267,16 @@ export function InboxPage() {
     }
 
     setRetryingMessageIds((current) => [...current, message.id]);
+    const clientNonce = retryClientNonceForMessage(message);
     const optimisticRetry = isOptimisticMessage(message)
       ? null
-      : createOptimisticSend({ conversationId: message.conversationId, body });
+      : createOptimisticSend({ conversationId: message.conversationId, body, clientNonce });
     if (isOptimisticMessage(message)) {
       markOptimisticMessagePending(message.id);
     }
 
     retrySend.mutate(
-      { conversationId: message.conversationId, body },
+      { conversationId: message.conversationId, body, clientNonce },
       {
         onSuccess(result) {
           setRetryingMessageIds((current) => current.filter((id) => id !== message.id));
@@ -293,22 +303,25 @@ export function InboxPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] min-h-[620px] flex-col gap-3 -mt-2 overflow-hidden">
+    <div className="-mt-1 flex h-[calc(100vh-7rem)] min-h-[620px] flex-col gap-3 overflow-hidden">
       <header
         data-testid="inbox-realtime-header"
-        className="flex min-h-12 flex-wrap items-center justify-between gap-3 rounded-xxl bg-bg-base px-4 py-2.5 shadow-raised-md"
+        className="nuoma-workspace-header botforge-surface flex min-h-14 flex-wrap items-center justify-between gap-3 rounded-lg px-4 py-2.5"
       >
         <div className="min-w-0">
-          <div className="text-sm font-medium text-fg-primary">Inbox</div>
+          <div className="flex items-center gap-2">
+            <p className="botforge-kicker text-brand-cyan">Inbox</p>
+            <Badge variant="cyan">operador</Badge>
+          </div>
           <div className="mt-0.5 truncate font-mono text-[0.65rem] uppercase tracking-widest text-fg-dim">
-            {conversations.data?.conversations.length ?? 0} conversas · realtime SSE
+            {conversations.data?.conversations.length ?? 0} conversas · CRM, notas, anexos e campanhas
           </div>
         </div>
         <RealtimeStatus state={realtime} />
       </header>
       <div
         data-testid="inbox-grid"
-        className="grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_320px]"
+        className="grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_360px]"
       >
         <ConversationList selectedId={selectedId} onSelect={setSelectedId} />
         <div className="flex min-w-0 flex-col gap-3 overflow-hidden">
@@ -346,6 +359,24 @@ export function InboxPage() {
 
 function numericRawValue(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function retryClientNonceForMessage(message: Message): string {
+  const optimisticNonce = isOptimisticMessage(message) ? optimisticClientMutationId(message) : null;
+  if (optimisticNonce) {
+    return optimisticNonce;
+  }
+  if (typeof message.raw?.clientNonce === "string" && message.raw.clientNonce.length >= 8) {
+    return message.raw.clientNonce;
+  }
+  return createInboxRetryClientNonce(message);
+}
+
+function createInboxRetryClientNonce(message: Message): string {
+  const random =
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  return `retry:${message.conversationId}:${message.id}:${random}`;
 }
 
 function RealtimeStatus({ state }: { state: InboxRealtimeState }) {

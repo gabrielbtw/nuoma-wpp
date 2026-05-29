@@ -2,14 +2,39 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import pino from "pino";
 
 import { loadWorkerEnv } from "@nuoma/config";
-import { createRepositories, openDb, runMigrations, type DbHandle } from "@nuoma/db";
+import {
+  createRepositories,
+  openDb,
+  runMigrations,
+  type DbHandle,
+  type Repositories,
+} from "@nuoma/db";
+
+vi.mock("./instagram/assisted.js", async () => {
+  const actual =
+    await vi.importActual<typeof import("./instagram/assisted.js")>("./instagram/assisted.js");
+  return {
+    ...actual,
+    sendInstagramTextViaCdp: vi.fn(async (input) => ({
+      mode: input.mediaPaths?.length ? "instagram-media-message" : "instagram-text-message",
+      username: input.username,
+      threadId: "110051807055981",
+      reason: input.reason,
+      externalId: "ig-mocked-external",
+      pageUrl: "https://www.instagram.com/direct/t/110051807055981/",
+      contentType: input.contentType ?? "text",
+      mediaCount: input.mediaPaths?.length ?? 0,
+    })),
+  };
+});
 
 import { handleJob } from "./job-handlers.js";
 import { createJobLoop } from "./job-loop.js";
+import { sendInstagramTextViaCdp } from "./instagram/assisted.js";
 
 let tempDir: string;
 let db: DbHandle;
@@ -18,6 +43,7 @@ beforeEach(async () => {
   tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "nuoma-v2-worker-"));
   db = openDb(path.join(tempDir, "worker.db"));
   await runMigrations(db);
+  vi.mocked(sendInstagramTextViaCdp).mockClear();
 });
 
 afterEach(async () => {
@@ -73,6 +99,76 @@ describe("worker job loop", () => {
     expect(queued[0]?.type).toBe("send_message");
   });
 
+  it("can claim Instagram send jobs even when WhatsApp sync is disconnected", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-instagram-only",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      IG_SEND_ALLOWED_HANDLES: "gabriell_braga",
+    });
+    const user = await repos.users.create({
+      email: "instagram-only@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel IG",
+      phone: null,
+      email: null,
+      primaryChannel: "instagram",
+      instagramHandle: "gabriell_braga",
+      status: "lead",
+      notes: null,
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "instagram",
+      externalThreadId: "ig:gabriell_braga",
+      title: "@gabriell_braga",
+    });
+    await repos.jobs.create({
+      userId: user.id,
+      type: "send_instagram_message",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        instagramHandle: "gabriell_braga",
+        body: "oi ig",
+        idempotencyKey: "manual:ig-only",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 1,
+    });
+
+    const loop = createJobLoop({
+      env,
+      repos,
+      logger,
+      handlerContext: {
+        env,
+        db,
+        repos,
+        logger,
+        instagram: { metrics: { connected: true } } as never,
+      },
+    });
+
+    const processed = await loop.processOne();
+    const completed = await repos.jobs.list(user.id, "completed");
+
+    expect(processed).toBe(true);
+    expect(completed).toHaveLength(1);
+    expect(sendInstagramTextViaCdp).toHaveBeenCalledWith(
+      expect.objectContaining({ username: "gabriell_braga", text: "oi ig" }),
+    );
+  });
+
   it("does not claim sync jobs when no sync runtime is connected", async () => {
     const repos = createRepositories(db);
     const logger = pino({ level: "silent" });
@@ -115,6 +211,122 @@ describe("worker job loop", () => {
     expect(processed).toBe(false);
     expect(queued).toHaveLength(1);
     expect(queued[0]?.type).toBe("sync_conversation");
+  });
+
+  it("releases stale claimed jobs only with the idempotency guard and does not increment attempts", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const user = await repos.users.create({
+      email: "stale-claim@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const staleClaimedAt = "2026-04-30T11:45:00.000Z";
+    const staleJob = await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "claimed",
+      payload: {
+        conversationId: 1,
+        phone: "5531982066263",
+        body: "claim preso",
+        idempotencyKey: "manual:stale-claim",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      claimedAt: staleClaimedAt,
+      claimedBy: "dead-worker",
+      attempts: 2,
+      maxAttempts: 3,
+    });
+    if (!staleJob) {
+      throw new Error("expected stale send_message job to be created");
+    }
+    const guardedEnv = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-stale-claim",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WORKER_IDEMPOTENCY_GUARD_ENABLED: "true",
+      WORKER_STALE_CLAIM_TIMEOUT_MS: "60000",
+    });
+    const guardedLoop = createJobLoop({
+      env: guardedEnv,
+      repos,
+      logger,
+      handlerContext: {
+        env: guardedEnv,
+        db,
+        repos,
+        logger,
+      },
+    });
+
+    const processed = await guardedLoop.processOne();
+    const released = db.raw.prepare("select status, claimed_at, attempts from jobs where id = ?").get(
+      staleJob.id,
+    ) as { status: string; claimed_at: string | null; attempts: number } | undefined;
+
+    expect(processed).toBe(false);
+    expect(guardedLoop.state.metrics.reaped).toBe(1);
+    expect(released).toEqual({
+      status: "queued",
+      claimed_at: null,
+      attempts: 2,
+    });
+
+    const guardOffJob = await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "claimed",
+      payload: {
+        conversationId: 1,
+        phone: "5531982066263",
+        body: "claim preso sem guard",
+        idempotencyKey: "manual:stale-claim-disabled",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      claimedAt: staleClaimedAt,
+      claimedBy: "dead-worker",
+      attempts: 2,
+      maxAttempts: 3,
+    });
+    if (!guardOffJob) {
+      throw new Error("expected guard-off send_message job to be created");
+    }
+    const guardOffEnv = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-stale-claim-off",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WORKER_IDEMPOTENCY_GUARD_ENABLED: "false",
+      WORKER_STALE_CLAIM_TIMEOUT_MS: "60000",
+    });
+    const guardOffLoop = createJobLoop({
+      env: guardOffEnv,
+      repos,
+      logger,
+      handlerContext: {
+        env: guardOffEnv,
+        db,
+        repos,
+        logger,
+      },
+    });
+
+    await guardOffLoop.processOne();
+    const stillClaimed = db.raw
+      .prepare("select status, claimed_at, attempts from jobs where id = ?")
+      .get(guardOffJob.id) as
+      | { status: string; claimed_at: string | null; attempts: number }
+      | undefined;
+    expect(guardOffLoop.state.metrics.reaped).toBe(0);
+    expect(stillClaimed).toEqual({
+      status: "claimed",
+      claimed_at: staleClaimedAt,
+      attempts: 2,
+    });
   });
 
   it("runs sync_history as a bounded history backfill for one conversation", async () => {
@@ -687,6 +899,368 @@ describe("worker job loop", () => {
     );
     const attempts = await repos.messageDispatchAttempts.listByKey(idempotencyKey);
     expect(attempts.map((attempt) => attempt.phase)).toEqual(["failed", "sent"]);
+  });
+
+  it("sends Instagram campaign image steps and materializes the real Direct thread", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-instagram-media",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      IG_SEND_ALLOWED_HANDLES: "gabriell_braga",
+    });
+    const user = await repos.users.create({
+      email: "instagram-media@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel Braga",
+      phone: null,
+      email: null,
+      primaryChannel: "instagram",
+      instagramHandle: "gabriell_braga",
+      status: "lead",
+      notes: null,
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "instagram",
+      externalThreadId: "ig:gabriell_braga",
+      title: "@gabriell_braga",
+    });
+    const imagePath = path.join(tempDir, "ig-campaign.jpg");
+    await fs.writeFile(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+    const mediaAsset = await repos.mediaAssets.create({
+      userId: user.id,
+      type: "image",
+      fileName: "ig-campaign.jpg",
+      mimeType: "image/jpeg",
+      sha256: "d".repeat(64),
+      sizeBytes: (await fs.stat(imagePath)).size,
+      durationMs: null,
+      storagePath: imagePath,
+    });
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        campaignId: 700,
+        recipientId: 701,
+        conversationId: conversation.id,
+        instagramHandle: "gabriell_braga",
+        phone: null,
+        idempotencyKey: "campaign:ig-media",
+        step: {
+          id: "ig-image",
+          label: "Imagem IG",
+          type: "image",
+          delaySeconds: 0,
+          conditions: [],
+          mediaAssetId: mediaAsset.id,
+          caption: "Legenda IG",
+        },
+        variables: {},
+        isLastStep: true,
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 1,
+    });
+    if (!job) throw new Error("expected instagram campaign_step job");
+
+    await handleJob(job, { env, db, repos, logger });
+
+    expect(sendInstagramTextViaCdp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        username: "gabriell_braga",
+        text: "Legenda IG",
+        mediaPaths: [imagePath],
+        contentType: "image",
+        reason: "campaign_step",
+      }),
+    );
+    const materialized = await repos.conversations.findByExternalThread({
+      userId: user.id,
+      channel: "instagram",
+      externalThreadId: "110051807055981",
+    });
+    expect(materialized).toEqual(expect.objectContaining({ id: conversation.id }));
+    const message = await repos.messages.findByIdempotencyKey({
+      userId: user.id,
+      idempotencyKey: "campaign:ig-media",
+    });
+    expect(message).toEqual(
+      expect.objectContaining({
+        conversationId: conversation.id,
+        contentType: "image",
+        status: "sent",
+        externalId: "ig-mocked-external",
+      }),
+    );
+  });
+
+  it("marks failed Instagram dispatch drafts and clears terminal campaign awaiting metadata", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-instagram-failure",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      IG_SEND_ALLOWED_HANDLES: "gabriell_braga",
+    });
+    vi.mocked(sendInstagramTextViaCdp).mockRejectedValueOnce(new Error("Instagram composer failed"));
+    const user = await repos.users.create({
+      email: "instagram-failure@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "instagram",
+      externalThreadId: "ig:gabriell_braga",
+      title: "@gabriell_braga",
+    });
+    const campaign = await repos.campaigns.create({
+      userId: user.id,
+      name: "IG falha",
+      channel: "instagram",
+      status: "running",
+      evergreen: false,
+      startsAt: null,
+      segment: null,
+      steps: [
+        {
+          id: "ig-text",
+          label: "Texto IG",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Mensagem falha",
+        },
+      ],
+      metadata: {},
+    });
+    const recipient = await repos.campaignRecipients.create({
+      userId: user.id,
+      campaignId: campaign.id,
+      contactId: null,
+      phone: null,
+      channel: "instagram",
+      status: "running",
+      currentStepId: null,
+      lastError: null,
+      metadata: {
+        instagramHandle: "gabriell_braga",
+        awaitingJobId: 0,
+        awaitingStepId: "ig-text",
+        awaitingJobIds: [],
+        awaitingStepIds: ["ig-text"],
+      },
+    });
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        campaignId: campaign.id,
+        recipientId: recipient.id,
+        conversationId: conversation.id,
+        instagramHandle: "gabriell_braga",
+        phone: null,
+        idempotencyKey: "campaign:ig-failure",
+        step: campaign.steps[0],
+        variables: {},
+        isLastStep: true,
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 1,
+    });
+    if (!job) throw new Error("expected instagram failure job");
+    await repos.campaignRecipients.updateState({
+      userId: user.id,
+      id: recipient.id,
+      metadata: {
+        ...recipient.metadata,
+        awaitingJobId: job.id,
+        awaitingJobIds: [job.id],
+      },
+    });
+
+    await expect(handleJob({ ...job, attempts: 1 }, { env, db, repos, logger })).rejects.toThrow(
+      "Instagram composer failed",
+    );
+
+    const message = await repos.messages.findByIdempotencyKey({
+      userId: user.id,
+      idempotencyKey: "campaign:ig-failure",
+    });
+    expect(message).toEqual(expect.objectContaining({ status: "failed", dispatchAttempts: 0 }));
+    const updatedRecipient = await repos.campaignRecipients.findById({
+      userId: user.id,
+      id: recipient.id,
+    });
+    expect(updatedRecipient).toEqual(
+      expect.objectContaining({
+        status: "failed",
+        lastError: "Instagram composer failed",
+        metadata: expect.objectContaining({
+          awaitingJobId: null,
+          awaitingStepId: null,
+          awaitingJobIds: [],
+          awaitingStepIds: [],
+          lastFailureTerminal: true,
+        }),
+      }),
+    );
+  });
+
+  it("does not re-dispatch when a job retries after send but before completion", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-send-crash-proof",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_ALLOWED_PHONE: "5531982066263",
+    });
+    const user = await repos.users.create({
+      email: "send-crash-proof@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      title: "Gabriel Braga Nuoma",
+    });
+    const idempotencyKey = "manual:test-crash-after-send";
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        phone: "5531982066263",
+        body: "crash depois do send",
+        clientNonce: "composer:text:crash-proof",
+        idempotencyKey,
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 3,
+    });
+    if (!job) {
+      throw new Error("expected send_message job to be created");
+    }
+
+    let sendCalls = 0;
+    let failMarkCompletedOnce = true;
+    const flakyRepos: Repositories = {
+      ...repos,
+      jobs: {
+        ...repos.jobs,
+        markCompleted: async (jobId: number) => {
+          if (failMarkCompletedOnce) {
+            failMarkCompletedOnce = false;
+            throw new Error("simulated crash after send before markCompleted");
+          }
+          await repos.jobs.markCompleted(jobId);
+        },
+      },
+    };
+    const loop = createJobLoop({
+      env,
+      repos: flakyRepos,
+      logger,
+      handlerContext: {
+        env,
+        db,
+        repos: flakyRepos,
+        logger,
+        sync: {
+          connected: true,
+          metrics: {} as never,
+          forceConversation: async () => {
+            throw new Error("unexpected force sync");
+          },
+          sendTextMessage: async (input: {
+            conversationId: number;
+            phone: string;
+            body: string;
+            reason?: string;
+          }) => {
+            sendCalls += 1;
+            if (sendCalls > 1) {
+              throw new Error("duplicate CDP send");
+            }
+            return {
+              mode: "text-message" as const,
+              conversationId: input.conversationId,
+              phone: input.phone,
+              reason: input.reason ?? "send_message",
+              navigationMode: "reused-open-chat" as const,
+              externalId: "crash-proof-external",
+              visibleMessageCountBefore: 1,
+              visibleMessageCountAfter: 2,
+              lastExternalIdBefore: "before",
+              lastExternalIdAfter: "crash-proof-external",
+            };
+          },
+          sendVoiceMessage: async () => {
+            throw new Error("unexpected voice send");
+          },
+          sendDocumentMessage: async () => {
+            throw new Error("unexpected document send");
+          },
+          sendMediaMessage: async () => {
+            throw new Error("unexpected media send");
+          },
+          close: async () => {},
+        },
+      },
+    });
+
+    await loop.processOne();
+    expect(loop.state.lastError).toBe("simulated crash after send before markCompleted");
+    expect(sendCalls).toBe(1);
+    db.raw
+      .prepare("update jobs set scheduled_at = ? where id = ?")
+      .run("2026-04-30T12:00:00.000Z", job.id);
+
+    await loop.processOne();
+
+    expect(sendCalls).toBe(1);
+    const storedJob = db.raw.prepare("select status, attempts from jobs where id = ?").get(job.id) as
+      | { status: string; attempts: number }
+      | undefined;
+    expect(storedJob).toEqual({ status: "completed", attempts: 2 });
+    const message = await repos.messages.findByIdempotencyKey({
+      userId: user.id,
+      idempotencyKey,
+    });
+    expect(message).toEqual(
+      expect.objectContaining({
+        idempotencyKey,
+        externalId: "crash-proof-external",
+        status: "sent",
+        dispatchAttempts: 1,
+        raw: expect.objectContaining({
+          clientNonce: "composer:text:crash-proof",
+        }),
+      }),
+    );
+    const attempts = await repos.messageDispatchAttempts.listByKey(idempotencyKey);
+    expect(attempts.map((attempt) => attempt.phase)).toEqual(["sent", "skipped_duplicate"]);
   });
 
   it("does not fail when sync already reconciled the returned external id", async () => {
@@ -1674,7 +2248,14 @@ describe("worker job loop", () => {
       close: async () => {},
     };
 
-    await handleJob(firstJob, { env, db, repos, logger, sync });
+    const loop = createJobLoop({
+      env,
+      repos,
+      logger,
+      handlerContext: { env, db, repos, logger, sync },
+    });
+
+    await expect(loop.processOne()).resolves.toBe(true);
 
     expect(sendCalls).toHaveLength(2);
     expect(ensureCalls).toEqual([
@@ -1715,7 +2296,20 @@ describe("worker job loop", () => {
       ]),
     );
     const jobs = await repos.jobs.list(user.id);
+    expect(jobs.find((job) => job.id === firstJob.id)?.status).toBe("completed");
     expect(jobs.find((job) => job.id === lastJob.id)?.status).toBe("completed");
+    const drainEvents = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.campaign_step.batch_drained",
+    });
+    expect(drainEvents[0]?.payload).toEqual(
+      expect.objectContaining({
+        rootJobId: firstJob.id,
+        campaignBatchId: "batch-temp",
+        drainedJobs: 1,
+        stopped: false,
+      }),
+    );
   });
 
   it("executes temporary messages control steps without sending a message", async () => {

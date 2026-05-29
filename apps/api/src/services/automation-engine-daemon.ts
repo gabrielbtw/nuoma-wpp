@@ -67,9 +67,26 @@ export function createAutomationEngineDaemon(input: {
           userId: input.userId,
           id: message.conversationId,
         });
-        const phone = conversation?.externalThreadId.replace(/\D/g, "") ?? "";
-        if (!conversation || phone.length < 8) {
+        if (!conversation) {
+          result.skipped.push({ messageId: message.id, reason: "conversation_missing" });
+          continue;
+        }
+        const contact = conversation.contactId
+          ? await input.repos.contacts.findById(conversation.contactId)
+          : null;
+        const phone = conversation.channel === "whatsapp" ? conversation.externalThreadId.replace(/\D/g, "") : "";
+        const instagramHandle =
+          conversation.channel === "instagram"
+            ? normalizeInstagramHandle(contact?.instagramHandle) ??
+              normalizeInstagramHandle(conversation.externalThreadId) ??
+              normalizeInstagramHandle(conversation.title)
+            : null;
+        if (conversation.channel === "whatsapp" && phone.length < 8) {
           result.skipped.push({ messageId: message.id, reason: "conversation_phone_missing" });
+          continue;
+        }
+        if (conversation.channel === "instagram" && !instagramHandle) {
+          result.skipped.push({ messageId: message.id, reason: "conversation_instagram_missing" });
           continue;
         }
 
@@ -80,6 +97,7 @@ export function createAutomationEngineDaemon(input: {
             userId: input.userId,
             automationId: automation.id,
             phone,
+            instagramHandle,
             dryRun: false,
             allowedPhone: input.allowedPhone,
             allowedPhones: input.allowedPhones,
@@ -147,6 +165,15 @@ export function createAutomationEngineDaemon(input: {
     },
     tick,
   };
+}
+
+function normalizeInstagramHandle(value: string | null | undefined): string | null {
+  const cleaned = String(value ?? "")
+    .trim()
+    .replace(/^ig:/i, "")
+    .replace(/^@+/, "")
+    .toLowerCase();
+  return /^[a-z0-9._]{1,30}$/.test(cleaned) ? cleaned : null;
 }
 
 function emptyResult(): AutomationEngineTickResult {

@@ -144,7 +144,7 @@ export const campaignRecipientSchema = z.object({
   contactId: idSchema.nullable(),
   phone: z.string().min(8).nullable(),
   channel: channelTypeSchema,
-  status: z.enum(["queued", "running", "completed", "failed", "skipped"]),
+  status: z.enum(["queued", "running", "completed", "failed", "skipped", "cancelled"]),
   currentStepId: z.string().min(1).nullable(),
   lastError: z.string().nullable(),
   metadata: jsonObjectSchema,

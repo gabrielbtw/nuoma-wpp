@@ -115,7 +115,10 @@ async function validateWhatsAppWeb() {
       !state.shadowIsolated ||
       state.buttonLabel !== "Abrir painel Nuoma" ||
       !state.hasBrandButton ||
-      !state.hasBrandMark
+      !state.hasBrandMark ||
+      !state.insideHeader ||
+      state.buttonWidth < 38 ||
+      state.buttonHeight < 38
     ) {
       throw new Error(`WhatsApp overlay invalid state: ${JSON.stringify(state)}`);
     }

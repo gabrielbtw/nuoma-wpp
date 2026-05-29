@@ -125,11 +125,11 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-7 max-w-3xl mx-auto pt-2">
+    <div className="flex min-h-[calc(100vh-6.5rem)] w-full max-w-none flex-col gap-4 pt-0">
       <Animate preset="rise-in">
-        <header>
+        <header className="nuoma-workspace-header">
           <p className="botforge-kicker">Configurações</p>
-          <h1 className="botforge-display mt-2 text-5xl md:text-6xl">
+          <h1 className="botforge-display mt-2 text-3xl md:text-4xl">
             Suas <span className="nuoma-gradient-text">preferências</span>.
           </h1>
         </header>
