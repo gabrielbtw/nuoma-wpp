@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  PROFILE_PHOTO_SEEN_BY_THREAD_CAP,
+  getProfilePhotoSeenByThread,
   parseTemporaryMessagesDuration,
+  setProfilePhotoSeenByThread,
   shouldAllowActiveSendTarget,
   temporaryMessagesUiScript,
   type ActiveSendTargetState,
@@ -16,6 +19,29 @@ const baseState: ActiveSendTargetState = {
   contactInfoPhone: null,
   hasComposer: true,
 };
+
+describe("CDP profile photo seen cache", () => {
+  it("keeps only the 500 most recently used profile-photo entries", () => {
+    const seenByThread = new Map<string, string>();
+
+    for (let index = 0; index < PROFILE_PHOTO_SEEN_BY_THREAD_CAP; index += 1) {
+      setProfilePhotoSeenByThread(seenByThread, `thread-${index}`, `sha-${index}`);
+    }
+
+    expect(seenByThread.size).toBe(PROFILE_PHOTO_SEEN_BY_THREAD_CAP);
+    expect(getProfilePhotoSeenByThread(seenByThread, "thread-0")).toBe("sha-0");
+
+    setProfilePhotoSeenByThread(
+      seenByThread,
+      `thread-${PROFILE_PHOTO_SEEN_BY_THREAD_CAP}`,
+      `sha-${PROFILE_PHOTO_SEEN_BY_THREAD_CAP}`,
+    );
+
+    expect(seenByThread.size).toBe(PROFILE_PHOTO_SEEN_BY_THREAD_CAP);
+    expect(seenByThread.has("thread-0")).toBe(true);
+    expect(seenByThread.has("thread-1")).toBe(false);
+  });
+});
 
 describe("CDP active send target guard", () => {
   it("does not trust stale openChatPhone memory without live WhatsApp evidence", () => {

@@ -34,6 +34,21 @@ afterEach(async () => {
 });
 
 describe("sync event handler", () => {
+  it("removes event listeners on close", async () => {
+    const repos = createRepositories(db);
+    const handler = createSyncEventHandler({
+      repos,
+      logger: pino({ level: "silent" }),
+    });
+
+    handler.events.on("sync:event", () => undefined);
+    expect(handler.events.listenerCount("sync:event")).toBe(1);
+
+    handler.close();
+
+    expect(handler.events.listenerCount("sync:event")).toBe(0);
+  });
+
   it("inserts observed messages idempotently and updates status/deleted flags", async () => {
     const repos = createRepositories(db);
     const user = await repos.users.create({
@@ -391,6 +406,7 @@ describe("sync event handler", () => {
       thread: {
         channel: "whatsapp",
         externalThreadId: "Gabriel Braga Nuoma",
+        waJid: "5531982066263@s.whatsapp.net",
         title: "Gabriel Braga Nuoma",
         phone: null,
         unreadCount: 0,
@@ -437,6 +453,7 @@ describe("sync event handler", () => {
     expect(namedDuplicate).toBeNull();
     expect(updatedCanonical?.title).toBe("Gabriel Braga Nuoma");
     expect(updatedCanonical?.externalThreadId).toBe("5531982066263");
+    expect(updatedCanonical?.waJid).toBe("5531982066263@s.whatsapp.net");
   });
 
   it("does not route forced phone reconciles into the candidate when the active thread reveals another phone", async () => {
@@ -684,6 +701,7 @@ describe("sync event handler", () => {
       thread: {
         channel: "whatsapp",
         externalThreadId: "Gabriel Braga Nuoma",
+        waJid: "5531982066263@s.whatsapp.net",
         title: "Gabriel Braga Nuoma",
         phone: null,
         unreadCount: 0,

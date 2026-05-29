@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { baseEntitySchema, channelTypeSchema, idSchema, isoDateTimeSchema } from "./common.js";
 import { cursorPaginationSchema } from "./pagination.js";
+import { phoneE164Schema, waJidSchema } from "./phone.js";
 
 export const contactStatusSchema = z.enum(["lead", "active", "inactive", "blocked", "archived"]);
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
@@ -9,6 +10,8 @@ const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
 export const contactSchema = baseEntitySchema.extend({
   name: z.string().min(1),
   phone: z.string().min(8).nullable(),
+  phoneE164: phoneE164Schema.nullable(),
+  waJid: waJidSchema.nullable(),
   email: z.string().email().nullable(),
   primaryChannel: channelTypeSchema,
   instagramHandle: z.string().min(1).nullable(),
@@ -26,6 +29,7 @@ export const createContactInputSchema = z.object({
   userId: idSchema,
   name: z.string().min(1),
   phone: z.string().min(8).nullable().optional(),
+  waJid: waJidSchema.nullable().optional(),
   email: z.string().email().nullable().optional(),
   primaryChannel: channelTypeSchema.default("whatsapp"),
   instagramHandle: z.string().min(1).nullable().optional(),
@@ -42,6 +46,7 @@ export const updateContactInputSchema = z.object({
   userId: idSchema,
   name: z.string().min(1).optional(),
   phone: z.string().min(8).nullable().optional(),
+  waJid: waJidSchema.nullable().optional(),
   email: z.string().email().nullable().optional(),
   primaryChannel: channelTypeSchema.optional(),
   instagramHandle: z.string().min(1).nullable().optional(),
@@ -74,6 +79,7 @@ export const searchContactsInputSchema = z.object({
 export const importContactRowSchema = z.object({
   name: z.string().min(1),
   phone: z.string().min(3).nullable().optional(),
+  waJid: waJidSchema.nullable().optional(),
   email: z.string().email().nullable().optional(),
   primaryChannel: channelTypeSchema.default("whatsapp"),
   instagramHandle: z.string().min(1).nullable().optional(),

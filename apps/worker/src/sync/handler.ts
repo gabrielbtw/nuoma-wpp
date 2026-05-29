@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 
 import { CONSTANTS } from "@nuoma/config";
-import { normalizePhone } from "@nuoma/contracts";
+import { normalizePhone, normalizeWaJid } from "@nuoma/contracts";
 import type { Repositories } from "@nuoma/db";
 import type { Logger } from "pino";
 
@@ -39,6 +39,7 @@ export interface SyncEventHandler {
   metrics: SyncHandlerMetrics;
   events: EventEmitter;
   handle: (event: SyncEvent) => Promise<void>;
+  close: () => void;
 }
 
 export function createSyncEventHandler(input: {
@@ -105,6 +106,10 @@ export function createSyncEventHandler(input: {
       input.logger.warn({ error, eventType: event.type }, "sync event handler failed");
       throw error;
     }
+  }
+
+  function close(): void {
+    events.removeAllListeners();
   }
 
   async function handleMessageEvent(event: SyncMessageEvent): Promise<void> {
@@ -382,6 +387,7 @@ export function createSyncEventHandler(input: {
       const updated = await input.repos.conversations.updateObservedById({
         userId,
         id: canonicalConversation.id,
+        waJid: normalizeThreadWaJid(thread),
         title: isUsefulThreadTitle(thread.title) ? thread.title : canonicalConversation.title,
         lastMessageAt: inputPatch.lastMessageAt,
         lastPreview: inputPatch.lastPreview,
@@ -402,6 +408,7 @@ export function createSyncEventHandler(input: {
       const updated = await input.repos.conversations.updateObservedById({
         userId,
         id: existingThread.id,
+        waJid: normalizeThreadWaJid(thread),
         title: isUsefulThreadTitle(thread.title) ? thread.title : existingThread.title,
         lastMessageAt: inputPatch.lastMessageAt,
         lastPreview: inputPatch.lastPreview,
@@ -417,6 +424,7 @@ export function createSyncEventHandler(input: {
       userId,
       channel: thread.channel,
       externalThreadId: thread.externalThreadId,
+      waJid: normalizeThreadWaJid(thread),
       title: isUsefulThreadTitle(thread.title) ? thread.title : thread.externalThreadId,
       lastMessageAt: inputPatch.lastMessageAt,
       lastPreview: inputPatch.lastPreview,
@@ -494,6 +502,7 @@ export function createSyncEventHandler(input: {
     }
 
     const phone = normalizeThreadPhone(thread);
+    const waJid = normalizeThreadWaJid(thread);
     const instagramHandle =
       thread.channel === "instagram"
         ? (sanitizeInstagramHandle(thread.externalThreadId) ??
@@ -502,6 +511,7 @@ export function createSyncEventHandler(input: {
     const existing = await input.repos.contacts.findByIdentity({
       userId,
       phone,
+      waJid,
       instagramHandle,
     });
     if (existing) {
@@ -509,14 +519,15 @@ export function createSyncEventHandler(input: {
     }
 
     const usefulTitle = isUsefulThreadTitle(thread.title) ? thread.title.trim() : null;
-    if (!phone && !instagramHandle && !usefulTitle) {
+    if (!phone && !waJid && !instagramHandle && (thread.channel === "whatsapp" || !usefulTitle)) {
       return null;
     }
 
     return input.repos.contacts.create({
       userId,
-      name: usefulTitle ?? instagramHandle ?? phone ?? thread.externalThreadId,
+      name: usefulTitle ?? instagramHandle ?? phone ?? waJid ?? thread.externalThreadId,
       phone,
+      waJid,
       primaryChannel: thread.channel,
       instagramHandle,
       status: "lead",
@@ -527,6 +538,7 @@ export function createSyncEventHandler(input: {
   async function findCanonicalConversation(thread: SyncThreadRef, reconcileDetails: unknown) {
     const details = asRecord(reconcileDetails);
     const candidatePhone = stringFromUnknown(details?.candidatePhone);
+    const threadWaJid = normalizeThreadWaJid(thread);
     const conversationId = numberFromUnknown(details?.conversationId);
     if (conversationId) {
       const conversation = await input.repos.conversations.findById({
@@ -535,7 +547,9 @@ export function createSyncEventHandler(input: {
       });
       if (conversation && conversation.channel === thread.channel) {
         const expectedPhone =
-          normalizePhone(candidatePhone) ?? normalizePhone(conversation.externalThreadId);
+          normalizePhone(candidatePhone) ??
+          normalizePhone(conversation.waJid) ??
+          normalizePhone(conversation.externalThreadId);
         if (expectedPhone && !hasTrustworthyThreadIdentity(thread)) {
           await recordUntrustedReconcileTarget(thread, expectedPhone, details);
           return null;
@@ -543,6 +557,16 @@ export function createSyncEventHandler(input: {
         if (expectedPhone && (await isReconcileTargetMismatch(thread, expectedPhone, details))) {
           return null;
         }
+        return conversation;
+      }
+    }
+
+    if (threadWaJid) {
+      const conversation = await input.repos.conversations.findByWaJid({
+        userId,
+        waJid: threadWaJid,
+      });
+      if (conversation) {
         return conversation;
       }
     }
@@ -567,14 +591,7 @@ export function createSyncEventHandler(input: {
       }
     }
 
-    if (!isUsefulThreadTitle(thread.title)) {
-      return null;
-    }
-    return input.repos.conversations.findActiveByTitle({
-      userId,
-      channel: thread.channel,
-      title: thread.title,
-    });
+    return null;
   }
 
   async function recordUntrustedReconcileTarget(
@@ -642,6 +659,7 @@ export function createSyncEventHandler(input: {
     metrics,
     events,
     handle,
+    close,
   };
 }
 
@@ -668,10 +686,18 @@ function stringFromUnknown(value: unknown): string | null {
 
 function normalizeThreadPhone(thread: SyncThreadRef): string | null {
   return (
+    normalizePhone(thread.waJid) ??
     normalizePhone(thread.phone) ??
-    normalizePhone(thread.externalThreadId) ??
-    normalizePhone(thread.title)
+    normalizePhone(thread.externalThreadId)
   );
+}
+
+function normalizeThreadWaJid(thread: SyncThreadRef): string | null {
+  return thread.channel === "whatsapp"
+    ? (normalizeWaJid(thread.waJid) ??
+        normalizeWaJid(thread.externalThreadId) ??
+        normalizeWaJid(thread.phone))
+    : null;
 }
 
 function sanitizeInstagramHandle(value: string | null | undefined): string | null {
@@ -683,7 +709,11 @@ function sanitizeInstagramHandle(value: string | null | undefined): string | nul
 }
 
 function hasTrustworthyThreadIdentity(thread: SyncThreadRef): boolean {
-  return Boolean(normalizeThreadPhone(thread) || isUsefulThreadTitle(thread.title));
+  return Boolean(
+    normalizeThreadWaJid(thread) ||
+    normalizeThreadPhone(thread) ||
+    (thread.channel === "instagram" && isUsefulThreadTitle(thread.title)),
+  );
 }
 
 function isUsefulThreadTitle(value: string): boolean {

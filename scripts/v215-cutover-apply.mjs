@@ -263,18 +263,25 @@ function upsertTag(db, userId, row) {
 
 function upsertContact(db, userId, row) {
   const phone = normalizePhone(column(row, "phone"));
+  const phoneE164 = normalizePhoneE164(phone);
+  const waJid = normalizeWaJid(phone);
   const email = nullableText(column(row, "email"));
   const instagram = normalizeInstagram(column(row, "instagram", "instagram_handle"));
-  const existing = findExistingContact(db, userId, { phone, email, instagram });
-  const name = nullableText(column(row, "name")) || phone || instagram || email || `Contato V1 ${row.id}`;
+  const existing = findExistingContact(db, userId, { phone, phoneE164, waJid, email, instagram });
+  const name =
+    nullableText(column(row, "name")) || phone || instagram || email || `Contato V1 ${row.id}`;
   const status = enumValue(statusMap, column(row, "status"), "lead");
   const note = migrationNote("contact", row.id);
-  const lastMessageAt = nullableText(column(row, "last_message_at", "last_incoming_at", "updated_at"));
+  const lastMessageAt = nullableText(
+    column(row, "last_message_at", "last_incoming_at", "updated_at"),
+  );
   if (existing?.id) {
     db.prepare(
       `UPDATE contacts
           SET name = ?,
               phone = COALESCE(?, phone),
+              phone_e164 = COALESCE(?, phone_e164),
+              wa_jid = COALESCE(?, wa_jid),
               email = COALESCE(?, email),
               instagram_handle = COALESCE(?, instagram_handle),
               primary_channel = ?,
@@ -287,6 +294,8 @@ function upsertContact(db, userId, row) {
     ).run(
       name,
       phone,
+      phoneE164,
+      waJid,
       email,
       instagram,
       instagram && !phone ? "instagram" : "whatsapp",
@@ -301,14 +310,16 @@ function upsertContact(db, userId, row) {
   const result = db
     .prepare(
       `INSERT INTO contacts (
-        user_id, name, phone, email, primary_channel, instagram_handle, status, notes,
+        user_id, name, phone, phone_e164, wa_jid, email, primary_channel, instagram_handle, status, notes,
         last_message_at, deleted_at, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
     )
     .run(
       userId,
       name,
       phone,
+      phoneE164,
+      waJid,
       email,
       instagram && !phone ? "instagram" : "whatsapp",
       instagram,
@@ -347,14 +358,18 @@ function upsertConversation(db, userId, row, contactId) {
     normalizePhone(column(row, "external_thread_id", "wa_chat_id")) ||
     textValue(column(row, "external_thread_id", "wa_chat_id")) ||
     `v1:${row.id}`;
+  const waJid = channel === "whatsapp" ? normalizeWaJid(externalThreadId) : null;
   const title = nullableText(column(row, "title")) || externalThreadId;
   const existing = db
-    .prepare("SELECT id FROM conversations WHERE user_id = ? AND channel = ? AND external_thread_id = ?")
+    .prepare(
+      "SELECT id FROM conversations WHERE user_id = ? AND channel = ? AND external_thread_id = ?",
+    )
     .get(userId, channel, externalThreadId);
   if (existing?.id) {
     db.prepare(
       `UPDATE conversations
           SET contact_id = COALESCE(?, contact_id),
+              wa_jid = COALESCE(?, wa_jid),
               title = ?,
               last_message_at = COALESCE(?, last_message_at),
               last_preview = COALESCE(?, last_preview),
@@ -364,6 +379,7 @@ function upsertConversation(db, userId, row, contactId) {
         WHERE id = ?`,
     ).run(
       contactId,
+      waJid,
       title,
       nullableText(column(row, "last_message_at")),
       nullableText(column(row, "last_message_preview", "last_preview")),
@@ -376,16 +392,17 @@ function upsertConversation(db, userId, row, contactId) {
   const result = db
     .prepare(
       `INSERT INTO conversations (
-        user_id, contact_id, channel, external_thread_id, title, last_message_at,
+        user_id, contact_id, channel, external_thread_id, wa_jid, title, last_message_at,
         last_preview, unread_count, is_archived, temporary_messages_until,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?)`,
     )
     .run(
       userId,
       contactId,
       channel,
       externalThreadId,
+      waJid,
       title,
       nullableText(column(row, "last_message_at")),
       nullableText(column(row, "last_message_preview", "last_preview")),
@@ -488,7 +505,13 @@ function upsertCampaignRecipient(db, userId, row, refs) {
 
 function findExistingContact(db, userId, input) {
   if (input.phone) {
-    const row = db.prepare("SELECT * FROM contacts WHERE user_id = ? AND phone = ?").get(userId, input.phone);
+    const row = db
+      .prepare(
+        `SELECT * FROM contacts
+         WHERE user_id = ?
+           AND (phone = ? OR phone_e164 = ? OR wa_jid = ?)`,
+      )
+      .get(userId, input.phone, input.phoneE164, input.waJid);
     if (row) return row;
   }
   if (input.instagram) {
@@ -601,7 +624,19 @@ function textValue(value) {
 
 function normalizePhone(value) {
   const digits = String(value ?? "").replace(/\D/g, "");
-  return digits.length >= 10 ? digits : null;
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith("55")) return digits;
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+  return null;
+}
+
+function normalizePhoneE164(value) {
+  const phone = normalizePhone(value);
+  return phone ? `+${phone}` : null;
+}
+
+function normalizeWaJid(value) {
+  const phone = normalizePhone(String(value ?? "").split("@")[0]);
+  return phone ? `${phone}@s.whatsapp.net` : null;
 }
 
 function normalizeInstagram(value) {

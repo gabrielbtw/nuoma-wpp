@@ -16,11 +16,23 @@ export function createPageBridgeScript(): string {
   if (!window.__nuomaExtensionBridgeInstalled) {
     window.__nuomaExtensionBridgeInstalled = true;
     window.__nuomaExtensionBridgeVersion = ${JSON.stringify(chromeExtensionVersion)};
-    const existingWorkerBridge = typeof window.__nuomaApi === "function";
-    if (!existingWorkerBridge) {
-      window.__nuomaApi = function nuomaChromeExtensionBridge(payload) {
+    const extensionBridge = function nuomaChromeExtensionBridge(payload) {
         window.postMessage({ source: pageSource, type: "overlay-api-request", payload }, "*");
-      };
+    };
+    const existingWorkerBridge = typeof window.__nuomaApi === "function";
+    const existingManagedBridge =
+      window.__nuomaApi &&
+      typeof window.__nuomaApi === "object" &&
+      window.__nuomaApi.__nuomaManaged === true;
+    if (existingWorkerBridge) {
+      window.__nuomaApiNativeBridge = window.__nuomaApi.bind(window);
+    } else {
+      window.__nuomaApiNativeBridge = extensionBridge;
+      if (existingManagedBridge) {
+        window.__nuomaApi.__nuomaBridge = extensionBridge;
+      } else {
+        window.__nuomaApi = extensionBridge;
+      }
     }
     window.addEventListener("message", (event) => {
       if (event.source !== window) {

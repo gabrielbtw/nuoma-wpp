@@ -6,6 +6,7 @@ import type {
   MessageStatus,
   TimestampPrecision,
 } from "@nuoma/contracts";
+import { normalizeWaJid } from "@nuoma/contracts";
 
 export const SYNC_BINDING_NAME = "__nuomaSync";
 
@@ -25,6 +26,7 @@ export type SyncEventType =
 export interface SyncThreadRef {
   channel: Extract<ChannelType, "whatsapp" | "instagram">;
   externalThreadId: string;
+  waJid?: string | null;
   title: string;
   phone: string | null;
   unreadCount: number;
@@ -260,6 +262,10 @@ function parseThread(value: Record<string, unknown>): SyncThreadRef {
   return {
     channel: value.channel,
     externalThreadId: value.externalThreadId,
+    waJid:
+      typeof value.waJid === "string"
+        ? normalizeWaJid(value.waJid)
+        : normalizeWaJid(value.externalThreadId),
     title:
       typeof value.title === "string" && value.title.length > 0
         ? value.title

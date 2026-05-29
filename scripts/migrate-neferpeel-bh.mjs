@@ -29,7 +29,19 @@ function sha256(filePath) {
 
 function normalizePhone(value) {
   const digits = String(value || "").replace(/\D/g, "");
-  return digits.length >= 10 ? digits : null;
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith("55")) return digits;
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+  return null;
+}
+
+function normalizePhoneE164(value) {
+  const phone = normalizePhone(value);
+  return phone ? `+${phone}` : null;
+}
+
+function normalizeWaJid(value) {
+  const phone = normalizePhone(String(value || "").split("@")[0]);
+  return phone ? `${phone}@s.whatsapp.net` : null;
 }
 
 function firstName(name) {
@@ -55,9 +67,16 @@ function getOrCreateTag(db, name, color) {
 function upsertContact(db, lead, tagIds) {
   const phone = normalizePhone(lead.phone);
   if (!phone) return null;
+  const phoneE164 = normalizePhoneE164(phone);
+  const waJid = normalizeWaJid(phone);
   const existing = db
-    .prepare("SELECT id, name FROM contacts WHERE user_id = ? AND phone = ? AND deleted_at IS NULL")
-    .get(userId, phone);
+    .prepare(
+      `SELECT id, name FROM contacts
+       WHERE user_id = ?
+         AND deleted_at IS NULL
+         AND (phone = ? OR phone_e164 = ? OR wa_jid = ?)`,
+    )
+    .get(userId, phone, phoneE164, waJid);
   let contactId;
   if (existing?.id) {
     contactId = Number(existing.id);
@@ -65,14 +84,18 @@ function upsertContact(db, lead, tagIds) {
     const betterName = lead.name && !lead.name.startsWith("+") ? lead.name : currentName;
     db.prepare(
       `UPDATE contacts
-          SET name = ?,
-              primary_channel = 'whatsapp',
+              SET name = ?,
+                  phone_e164 = COALESCE(?, phone_e164),
+                  wa_jid = COALESCE(?, wa_jid),
+                  primary_channel = 'whatsapp',
               status = CASE WHEN status IN ('lead', 'active') THEN status ELSE 'lead' END,
               notes = trim(coalesce(notes, '') || char(10) || ?),
               updated_at = ?
         WHERE id = ?`,
     ).run(
       betterName || phone,
+      phoneE164,
+      waJid,
       `Migrado Neferpeel BH de /nuoma-wpp em ${now}; oldContactId=${lead.id}`,
       now,
       contactId,
@@ -80,13 +103,18 @@ function upsertContact(db, lead, tagIds) {
   } else {
     const result = db
       .prepare(
-        `INSERT INTO contacts (user_id, name, phone, primary_channel, status, notes, last_message_at, created_at, updated_at)
-         VALUES (?, ?, ?, 'whatsapp', 'lead', ?, ?, ?, ?)`,
+        `INSERT INTO contacts (
+           user_id, name, phone, phone_e164, wa_jid, primary_channel, status, notes,
+           last_message_at, created_at, updated_at
+         )
+         VALUES (?, ?, ?, ?, ?, 'whatsapp', 'lead', ?, ?, ?, ?)`,
       )
       .run(
         userId,
         lead.name || phone,
         phone,
+        phoneE164,
+        waJid,
         `Migrado Neferpeel BH de /nuoma-wpp em ${now}; oldContactId=${lead.id}`,
         lead.lastIncomingAt || lead.lastOutgoingAt || null,
         now,

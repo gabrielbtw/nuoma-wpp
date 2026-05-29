@@ -101,6 +101,84 @@ describe("repositories", () => {
     expect(updatedContact?.notes).toBe("Notas persistidas pela sidebar.");
   });
 
+  it("stores and resolves contact phone_e164 from Brazilian phone variants", async () => {
+    const repos = createRepositories(handle);
+    const user = await repos.users.create({
+      email: "phone-e164@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Phone variants",
+      phone: "31982066263",
+      primaryChannel: "whatsapp",
+      status: "active",
+    });
+
+    expect(contact.phone).toBe("31982066263");
+    expect(contact.phoneE164).toBe("+5531982066263");
+    expect(contact.waJid).toBe("5531982066263@s.whatsapp.net");
+
+    await expect(
+      repos.contacts.findByPhone({ userId: user.id, phone: "5531982066263" }),
+    ).resolves.toMatchObject({ id: contact.id, phoneE164: "+5531982066263" });
+    await expect(
+      repos.contacts.findByPhone({ userId: user.id, phone: "+55 31 9 8206-6263" }),
+    ).resolves.toMatchObject({
+      id: contact.id,
+      phoneE164: "+5531982066263",
+      waJid: "5531982066263@s.whatsapp.net",
+    });
+    await expect(
+      repos.contacts.findByIdentity({ userId: user.id, waJid: "5531982066263@c.us" }),
+    ).resolves.toMatchObject({ id: contact.id, waJid: "5531982066263@s.whatsapp.net" });
+
+    const updated = await repos.contacts.update({
+      id: contact.id,
+      userId: user.id,
+      phone: "+55 31 9 8206-6264",
+    });
+    expect(updated?.phoneE164).toBe("+5531982066264");
+    expect(updated?.waJid).toBe("5531982066264@s.whatsapp.net");
+  });
+
+  it("backfills canonical WhatsApp identity for raw SQL contact writes", async () => {
+    const repos = createRepositories(handle);
+    const user = await repos.users.create({
+      email: "raw-sql-identity@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const now = new Date().toISOString();
+
+    const result = handle.raw
+      .prepare(
+        `INSERT INTO contacts
+         (user_id, name, phone, primary_channel, status, created_at, updated_at)
+         VALUES (?, ?, ?, 'whatsapp', 'active', ?, ?)`,
+      )
+      .run(user.id, "Raw SQL", "31982066263", now, now);
+
+    const inserted = await repos.contacts.findById(Number(result.lastInsertRowid));
+    expect(inserted).toMatchObject({
+      phone: "31982066263",
+      phoneE164: "+5531982066263",
+      waJid: "5531982066263@s.whatsapp.net",
+    });
+
+    handle.raw
+      .prepare("UPDATE contacts SET phone = ?, updated_at = ? WHERE id = ?")
+      .run("+55 31 9 8206-6264", now, result.lastInsertRowid);
+
+    const updated = await repos.contacts.findById(Number(result.lastInsertRowid));
+    expect(updated).toMatchObject({
+      phoneE164: "+5531982066264",
+      waJid: "5531982066264@s.whatsapp.net",
+    });
+  });
+
   it("deduplicates captured attachment candidates by conversation, message and asset", async () => {
     const repos = createRepositories(handle);
     const user = await repos.users.create({

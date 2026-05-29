@@ -1,9 +1,11 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 
 import {
   createContactInputSchema,
   importContactsInputSchema,
   normalizePhone,
+  normalizeWaJid,
   searchContactsInputSchema,
   updateContactInputSchema,
   type ImportContactRow,
@@ -25,6 +27,7 @@ const csvHeaderAliases = {
   phone: ["phone", "telefone", "celular", "whatsapp", "wpp"],
   primaryChannel: ["primaryChannel", "primary_channel", "canal"],
   status: ["status", "situacao"],
+  waJid: ["waJid", "wa_jid", "jid", "whatsapp_jid"],
 } as const;
 
 function normalizeEmail(email: string | null | undefined): string | null {
@@ -102,6 +105,7 @@ function parseContactsCsv(
       sourceRow,
       name,
       phone: normalizePhone(findCsvCell(raw, "phone")),
+      waJid: normalizeWaJid(findCsvCell(raw, "waJid")),
       email: normalizeEmail(findCsvCell(raw, "email")),
       instagramHandle: normalizeInstagram(findCsvCell(raw, "instagramHandle")),
       primaryChannel:
@@ -117,6 +121,7 @@ function normalizeImportRows(rows: ImportContactRow[]): ParsedContactRow[] {
     ...row,
     sourceRow: index + 1,
     phone: normalizePhone(row.phone),
+    waJid: normalizeWaJid(row.waJid),
     email: normalizeEmail(row.email),
     instagramHandle: normalizeInstagram(row.instagramHandle),
     notes: row.notes ?? null,
@@ -165,6 +170,20 @@ export const contactsRouter = router({
     }),
 
   create: protectedCsrfProcedure.input(createContactBodySchema).mutation(async ({ ctx, input }) => {
+    const existing = await ctx.repos.contacts.findByIdentity({
+      userId: ctx.user.id,
+      phone: input.phone ?? null,
+      waJid: input.waJid ?? null,
+      email: input.email ?? null,
+      instagramHandle: input.instagramHandle ?? null,
+    });
+    if (existing) {
+      throw new TRPCError({
+        code: "CONFLICT",
+        message: "Já existe um contato com esta identidade.",
+      });
+    }
+
     const contact = await ctx.repos.contacts.create({
       ...input,
       userId: ctx.user.id,
@@ -173,6 +192,27 @@ export const contactsRouter = router({
   }),
 
   update: protectedCsrfProcedure.input(updateContactBodySchema).mutation(async ({ ctx, input }) => {
+    if (
+      input.phone !== undefined ||
+      input.waJid !== undefined ||
+      input.email !== undefined ||
+      input.instagramHandle !== undefined
+    ) {
+      const existing = await ctx.repos.contacts.findByIdentity({
+        userId: ctx.user.id,
+        phone: input.phone ?? null,
+        waJid: input.waJid ?? null,
+        email: input.email ?? null,
+        instagramHandle: input.instagramHandle ?? null,
+      });
+      if (existing && existing.id !== input.id) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Já existe outro contato com esta identidade.",
+        });
+      }
+    }
+
     const contact = await ctx.repos.contacts.update({
       ...input,
       userId: ctx.user.id,
@@ -210,6 +250,7 @@ export const contactsRouter = router({
         const existing = await ctx.repos.contacts.findByIdentity({
           userId: ctx.user.id,
           phone: parsed.data.phone ?? null,
+          waJid: parsed.data.waJid ?? null,
           email: parsed.data.email ?? null,
           instagramHandle: parsed.data.instagramHandle ?? null,
         });
@@ -223,6 +264,7 @@ export const contactsRouter = router({
                 userId: ctx.user.id,
                 name: parsed.data.name,
                 phone: parsed.data.phone ?? existing.phone,
+                waJid: parsed.data.waJid ?? existing.waJid,
                 email: parsed.data.email ?? existing.email,
                 primaryChannel: parsed.data.primaryChannel,
                 instagramHandle: parsed.data.instagramHandle ?? existing.instagramHandle,
@@ -238,7 +280,12 @@ export const contactsRouter = router({
           continue;
         }
 
-        if (!parsed.data.phone && !parsed.data.email && !parsed.data.instagramHandle) {
+        if (
+          !parsed.data.phone &&
+          !parsed.data.waJid &&
+          !parsed.data.email &&
+          !parsed.data.instagramHandle
+        ) {
           errors.push({ row: row.sourceRow, reason: "missing_identity" });
           skipped += 1;
           continue;

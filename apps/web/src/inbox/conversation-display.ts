@@ -1,14 +1,14 @@
 import { normalizePhone, type Conversation } from "@nuoma/contracts";
 
 export function conversationDisplayTitle(conversation: Conversation): string {
-  const phone = normalizePhone(conversation.externalThreadId) ?? normalizePhone(conversation.title);
+  const phone = normalizePhone(conversation.waJid) ?? normalizePhone(conversation.externalThreadId);
   const title = conversation.title.trim();
 
   if (conversation.channel !== "whatsapp") {
     return title || conversation.externalThreadId;
   }
 
-  if (phone && isPotentialContactName(title) && normalizePhone(title) !== phone) {
+  if (phone && isPotentialContactName(title)) {
     return title;
   }
 
@@ -33,7 +33,7 @@ export function conversationSearchText(conversation: Conversation): string {
 }
 
 export function conversationIdentityLine(conversation: Conversation): string {
-  const phone = normalizePhone(conversation.externalThreadId) ?? normalizePhone(conversation.title);
+  const phone = normalizePhone(conversation.waJid) ?? normalizePhone(conversation.externalThreadId);
   if (phone) {
     return formatBrazilianPhone(phone);
   }

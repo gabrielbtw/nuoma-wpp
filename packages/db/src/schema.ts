@@ -47,6 +47,8 @@ export const contacts = sqliteTable(
       .references(() => users.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     phone: text("phone"),
+    phoneE164: text("phone_e164"),
+    waJid: text("wa_jid"),
     email: text("email"),
     primaryChannel: text("primary_channel", { enum: ["whatsapp", "instagram", "system"] })
       .notNull()
@@ -66,6 +68,8 @@ export const contacts = sqliteTable(
   (t) => ({
     userStatusIdx: index("idx_contacts_user_status").on(t.userId, t.status),
     userPhoneIdx: index("idx_contacts_user_phone").on(t.userId, t.phone),
+    userPhoneE164Idx: index("idx_contacts_user_phone_e164").on(t.userId, t.phoneE164),
+    userWaJidIdx: index("idx_contacts_user_wa_jid").on(t.userId, t.waJid),
     userInstagramIdx: index("idx_contacts_user_instagram").on(t.userId, t.instagramHandle),
     userUpdatedIdx: index("idx_contacts_user_updated").on(t.userId, t.updatedAt),
   }),
@@ -119,6 +123,7 @@ export const conversations = sqliteTable(
     contactId: integer("contact_id").references(() => contacts.id, { onDelete: "set null" }),
     channel: text("channel", { enum: ["whatsapp", "instagram", "system"] }).notNull(),
     externalThreadId: text("external_thread_id").notNull(),
+    waJid: text("wa_jid"),
     title: text("title").notNull(),
     lastMessageAt: text("last_message_at"),
     lastPreview: text("last_preview"),
@@ -138,6 +143,7 @@ export const conversations = sqliteTable(
     ),
     userLastMessageIdx: index("idx_conversations_user_last_message").on(t.userId, t.lastMessageAt),
     userContactIdx: index("idx_conversations_user_contact").on(t.userId, t.contactId),
+    userWaJidIdx: index("idx_conversations_user_wa_jid").on(t.userId, t.waJid),
     userProfilePhotoIdx: index("idx_conversations_user_profile_photo").on(
       t.userId,
       t.profilePhotoMediaAssetId,

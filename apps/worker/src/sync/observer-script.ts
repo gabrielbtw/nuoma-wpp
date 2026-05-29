@@ -85,10 +85,12 @@ export function createWhatsAppObserverScript(bindingName = SYNC_BINDING_NAME): s
     const hrefKey = location.href.includes("/send?phone=")
       ? new URL(location.href).searchParams.get("phone")
       : null;
-    const externalThreadId = hrefKey || phone || title;
+    const waJid = currentChatJidFromStore() || normalizeWaJid(hrefKey) || normalizeWaJid(phone);
+    const externalThreadId = waJid || hrefKey || phone || title;
     return {
       channel,
       externalThreadId,
+      waJid,
       title,
       phone,
       unreadCount: 0,
@@ -192,6 +194,34 @@ export function createWhatsAppObserverScript(bindingName = SYNC_BINDING_NAME): s
       return "55" + digits;
     }
     return null;
+  }
+
+  function normalizeWaJid(value) {
+    const text = cleanText(value);
+    if (!text || /@g\\.us$/i.test(text) || /@broadcast$/i.test(text)) {
+      return null;
+    }
+    const phone = normalizePhone(text.split("@")[0] || text);
+    return phone ? phone + "@s.whatsapp.net" : null;
+  }
+
+  function currentChatJidFromStore() {
+    try {
+      const req = window.require;
+      if (typeof req !== "function") {
+        return null;
+      }
+      const Store = req("WAWebCollections");
+      const chats = Store && Store.Chat && (Store.Chat._models || Store.Chat.models || []);
+      const chat = Array.from(chats).find((item) => item && item.active) || null;
+      const rawId =
+        chat &&
+        (chat.id && (chat.id._serialized || chat.id.user || String(chat.id))) ||
+        null;
+      return normalizeWaJid(rawId);
+    } catch {
+      return null;
+    }
   }
 
   function phoneFromText(value) {

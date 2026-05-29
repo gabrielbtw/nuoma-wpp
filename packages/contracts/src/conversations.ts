@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { baseEntitySchema, channelTypeSchema, idSchema, isoDateTimeSchema } from "./common.js";
 import { cursorPaginationSchema } from "./pagination.js";
+import { waJidSchema } from "./phone.js";
 
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
 
@@ -9,6 +10,7 @@ export const conversationSchema = baseEntitySchema.extend({
   contactId: idSchema.nullable(),
   channel: channelTypeSchema,
   externalThreadId: z.string().min(1),
+  waJid: waJidSchema.nullable(),
   title: z.string().min(1),
   lastMessageAt: isoDateTimeSchema.nullable(),
   lastPreview: z.string().nullable(),
@@ -25,6 +27,7 @@ export const createConversationInputSchema = z.object({
   contactId: idSchema.nullable().optional(),
   channel: channelTypeSchema,
   externalThreadId: z.string().min(1),
+  waJid: waJidSchema.nullable().optional(),
   title: z.string().min(1),
   profilePhotoMediaAssetId: idSchema.nullable().optional(),
   profilePhotoSha256: sha256Schema.nullable().optional(),
@@ -35,6 +38,7 @@ export const updateConversationInputSchema = z.object({
   id: idSchema,
   userId: idSchema,
   contactId: idSchema.nullable().optional(),
+  waJid: waJidSchema.nullable().optional(),
   title: z.string().min(1).optional(),
   lastMessageAt: isoDateTimeSchema.nullable().optional(),
   lastPreview: z.string().nullable().optional(),

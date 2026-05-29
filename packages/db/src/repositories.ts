@@ -17,6 +17,8 @@ import {
   messageDispatchAttemptSchema,
   messageSchema,
   normalizePhone,
+  normalizePhoneE164,
+  normalizeWaJid,
   quickReplySchema,
   reminderSchema,
   tagSchema,
@@ -199,13 +201,31 @@ function mapAttendant(row: typeof attendants.$inferSelect): Attendant {
 function mapContact(row: typeof contacts.$inferSelect, tagIds: number[] = []): Contact {
   return contactSchema.parse({
     ...row,
+    phoneE164: row.phoneE164 ?? normalizePhoneE164(row.phone),
+    waJid: row.waJid ?? normalizeWaJid(row.phone),
     tagIds,
   });
+}
+
+function contactPhoneIdentityClause(phone: string) {
+  const phoneE164 = normalizePhoneE164(phone);
+  const phoneDigits = normalizePhone(phone);
+  return or(
+    eq(contacts.phone, phone),
+    phoneDigits ? eq(contacts.phone, phoneDigits) : undefined,
+    phoneE164 ? eq(contacts.phoneE164, phoneE164) : undefined,
+  );
+}
+
+function contactWaJidIdentityClause(waJid: string) {
+  const canonical = normalizeWaJid(waJid);
+  return canonical ? eq(contacts.waJid, canonical) : undefined;
 }
 
 function mapConversation(row: typeof conversations.$inferSelect): Conversation {
   return conversationSchema.parse({
     ...row,
+    waJid: row.waJid ?? normalizeWaJid(row.externalThreadId),
     lastMessageAt: normalizeNullableIsoDateTime(row.lastMessageAt),
     temporaryMessagesUntil: normalizeNullableIsoDateTime(row.temporaryMessagesUntil),
     profilePhotoUpdatedAt: normalizeNullableIsoDateTime(row.profilePhotoUpdatedAt),
@@ -243,8 +263,9 @@ function isDisplayableConversation(conversation: Conversation): boolean {
   const hasWhatsappIdentity =
     conversation.channel !== "whatsapp" ||
     conversation.contactId !== null ||
+    normalizeConversationPhone(conversation.waJid) !== null ||
     normalizeConversationPhone(conversation.externalThreadId) !== null ||
-    normalizeConversationPhone(conversation.title) !== null;
+    conversation.waJid !== null;
   const genericWhatsAppThread =
     (title === "whatsapp" || title === "whatsapp business") &&
     (externalThreadId === "whatsapp" || externalThreadId === "whatsapp business");
@@ -547,6 +568,8 @@ export function createRepositories(handle: DbHandle) {
             userId: input.userId,
             name: input.name,
             phone: input.phone ?? null,
+            phoneE164: input.phoneE164 ?? normalizePhoneE164(input.phone) ?? null,
+            waJid: input.waJid ?? normalizeWaJid(input.phone) ?? null,
             email: input.email ?? null,
             primaryChannel: input.primaryChannel ?? "whatsapp",
             instagramHandle: input.instagramHandle ?? null,
@@ -579,7 +602,7 @@ export function createRepositories(handle: DbHandle) {
         const row = await db
           .select()
           .from(contacts)
-          .where(and(eq(contacts.userId, input.userId), eq(contacts.phone, input.phone)))
+          .where(and(eq(contacts.userId, input.userId), contactPhoneIdentityClause(input.phone)))
           .get();
         return row ? mapContact(row, await tagIdsForContact(row.id)) : null;
       },
@@ -587,11 +610,13 @@ export function createRepositories(handle: DbHandle) {
       async findByIdentity(input: {
         userId: number;
         phone?: string | null;
+        waJid?: string | null;
         email?: string | null;
         instagramHandle?: string | null;
       }): Promise<Contact | null> {
         const identityClauses = [
-          input.phone ? eq(contacts.phone, input.phone) : undefined,
+          input.phone ? contactPhoneIdentityClause(input.phone) : undefined,
+          input.waJid ? contactWaJidIdentityClause(input.waJid) : undefined,
           input.email ? eq(contacts.email, input.email) : undefined,
           input.instagramHandle ? eq(contacts.instagramHandle, input.instagramHandle) : undefined,
         ].filter(Boolean);
@@ -644,8 +669,10 @@ export function createRepositories(handle: DbHandle) {
                     c.id AS id,
                     c.user_id AS userId,
                     c.name AS name,
-                    c.phone AS phone,
-                    c.email AS email,
+            c.phone AS phone,
+            c.phone_e164 AS phoneE164,
+            c.wa_jid AS waJid,
+            c.email AS email,
                     c.primary_channel AS primaryChannel,
                     c.instagram_handle AS instagramHandle,
                     c.status AS status,
@@ -687,6 +714,8 @@ export function createRepositories(handle: DbHandle) {
               or(
                 like(sql`lower(${contacts.name})`, pattern),
                 like(sql`lower(coalesce(${contacts.phone}, ''))`, pattern),
+                like(sql`lower(coalesce(${contacts.phoneE164}, ''))`, pattern),
+                like(sql`lower(coalesce(${contacts.waJid}, ''))`, pattern),
                 like(sql`lower(coalesce(${contacts.email}, ''))`, pattern),
                 like(sql`lower(coalesce(${contacts.instagramHandle}, ''))`, pattern),
                 like(sql`lower(coalesce(${contacts.notes}, ''))`, pattern),
@@ -721,6 +750,8 @@ export function createRepositories(handle: DbHandle) {
             | "name"
             | "notes"
             | "phone"
+            | "phoneE164"
+            | "waJid"
             | "primaryChannel"
             | "profilePhotoMediaAssetId"
             | "profilePhotoSha256"
@@ -730,9 +761,19 @@ export function createRepositories(handle: DbHandle) {
         > & { tagIds?: number[] },
       ): Promise<Contact | null> {
         const { id, userId, tagIds, ...patch } = input;
+        const contactPatch = {
+          ...patch,
+          ...(patch.phone !== undefined && patch.phoneE164 === undefined
+            ? { phoneE164: normalizePhoneE164(patch.phone) }
+            : {}),
+          ...(patch.phone !== undefined && patch.waJid === undefined
+            ? { waJid: normalizeWaJid(patch.phone) }
+            : {}),
+          ...(patch.waJid !== undefined ? { waJid: normalizeWaJid(patch.waJid) } : {}),
+        };
         const [row] = await db
           .update(contacts)
-          .set({ ...patch, updatedAt: nowIso() })
+          .set({ ...contactPatch, updatedAt: nowIso() })
           .where(and(eq(contacts.id, id), eq(contacts.userId, userId)))
           .returning();
         if (!row) return null;
@@ -838,7 +879,15 @@ export function createRepositories(handle: DbHandle) {
 
     conversations: {
       async create(input: NewConversation): Promise<Conversation> {
-        const [row] = await db.insert(conversations).values(input).returning();
+        const [row] = await db
+          .insert(conversations)
+          .values({
+            ...input,
+            waJid:
+              input.waJid ??
+              (input.channel === "whatsapp" ? normalizeWaJid(input.externalThreadId) : null),
+          })
+          .returning();
         return mapConversation(expectRow(row, "conversations.create"));
       },
       async findById(input: { userId: number; id: number }): Promise<Conversation | null> {
@@ -853,6 +902,7 @@ export function createRepositories(handle: DbHandle) {
         userId: number;
         channel: "whatsapp" | "instagram" | "system";
         externalThreadId: string;
+        waJid?: string | null;
         title: string;
         contactId?: number | null;
         lastMessageAt?: string | null;
@@ -866,6 +916,10 @@ export function createRepositories(handle: DbHandle) {
         const hasUnreadCount = input.unreadCount === undefined ? 0 : 1;
         const lastMessageAt = normalizeNullableIsoDateTime(input.lastMessageAt);
         const profilePhotoUpdatedAt = normalizeNullableIsoDateTime(input.profilePhotoUpdatedAt);
+        const waJid =
+          input.channel === "whatsapp"
+            ? normalizeWaJid(input.waJid ?? input.externalThreadId)
+            : null;
 
         handle.raw
           .prepare(
@@ -874,6 +928,7 @@ export function createRepositories(handle: DbHandle) {
                contact_id,
                channel,
                external_thread_id,
+               wa_jid,
                title,
                last_message_at,
                last_preview,
@@ -883,9 +938,10 @@ export function createRepositories(handle: DbHandle) {
                profile_photo_updated_at,
                updated_at
              )
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(user_id, channel, external_thread_id) DO UPDATE SET
                contact_id = COALESCE(excluded.contact_id, contact_id),
+               wa_jid = COALESCE(excluded.wa_jid, wa_jid),
                title = excluded.title,
                last_message_at = COALESCE(excluded.last_message_at, last_message_at),
                last_preview = COALESCE(excluded.last_preview, last_preview),
@@ -903,6 +959,7 @@ export function createRepositories(handle: DbHandle) {
             input.contactId ?? null,
             input.channel,
             input.externalThreadId,
+            waJid,
             input.title || input.externalThreadId,
             lastMessageAt,
             input.lastPreview ?? null,
@@ -945,19 +1002,19 @@ export function createRepositories(handle: DbHandle) {
           .get();
         return row ? mapConversation(row) : null;
       },
-      async findActiveByTitle(input: {
-        userId: number;
-        channel: "whatsapp" | "instagram" | "system";
-        title: string;
-      }): Promise<Conversation | null> {
+      async findByWaJid(input: { userId: number; waJid: string }): Promise<Conversation | null> {
+        const waJid = normalizeWaJid(input.waJid);
+        if (!waJid) {
+          return null;
+        }
         const row = await db
           .select()
           .from(conversations)
           .where(
             and(
               eq(conversations.userId, input.userId),
-              eq(conversations.channel, input.channel),
-              eq(conversations.title, input.title),
+              eq(conversations.channel, "whatsapp"),
+              eq(conversations.waJid, waJid),
               eq(conversations.isArchived, false),
             ),
           )
@@ -969,6 +1026,7 @@ export function createRepositories(handle: DbHandle) {
       async updateObservedById(input: {
         userId: number;
         id: number;
+        waJid?: string | null;
         title?: string | null;
         contactId?: number | null;
         lastMessageAt?: string | null;
@@ -982,6 +1040,7 @@ export function createRepositories(handle: DbHandle) {
           updatedAt: nowIso(),
         };
         if (input.title) patch.title = input.title;
+        if (input.waJid !== undefined) patch.waJid = normalizeWaJid(input.waJid);
         if (input.contactId !== undefined) patch.contactId = input.contactId;
         if (input.lastMessageAt !== undefined) {
           patch.lastMessageAt = normalizeNullableIsoDateTime(input.lastMessageAt);
@@ -1008,6 +1067,7 @@ export function createRepositories(handle: DbHandle) {
         userId: number;
         id: number;
         contactId?: number | null;
+        waJid?: string | null;
         title?: string;
         lastMessageAt?: string | null;
         lastPreview?: string | null;
@@ -1022,6 +1082,7 @@ export function createRepositories(handle: DbHandle) {
           updatedAt: nowIso(),
         };
         if (input.contactId !== undefined) patch.contactId = input.contactId;
+        if (input.waJid !== undefined) patch.waJid = normalizeWaJid(input.waJid);
         if (input.title !== undefined) patch.title = input.title;
         if (input.lastMessageAt !== undefined) {
           patch.lastMessageAt = normalizeNullableIsoDateTime(input.lastMessageAt);
