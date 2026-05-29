@@ -1,5 +1,7 @@
 import { useMemo } from "react";
 
+import NuomaAmbientScene from "./NuomaAmbientScene.js";
+
 type HealthSignal = "active" | "idle" | "error" | "degraded";
 
 interface OptionalCartographicHeroProps {
@@ -99,6 +101,7 @@ export default function OptionalCartographicHero({
     >
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:28px_28px]" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_18%,rgba(210,169,94,0.08),transparent_28%),linear-gradient(135deg,rgba(18,20,26,0.96),rgba(8,9,13,0.98))]" />
+      <NuomaAmbientScene testId="v214a-cartographic-canvas" />
 
       <div className="relative z-10 grid gap-6 p-5 md:grid-cols-[minmax(0,1fr)_20rem] md:p-7">
         <div className="min-w-0">
@@ -109,8 +112,8 @@ export default function OptionalCartographicHero({
             Operação em relevo matte.
           </h2>
           <p className="mt-3 max-w-xl text-sm leading-6 text-fg-muted">
-            API, CDP, workers, fila e DLQ em uma leitura compacta, sem camada 3D e sem
-            alterar guardrails de envio.
+            API, CDP, workers, fila e DLQ em uma leitura compacta para priorizar revisão
+            e capacidade sem alterar guardrails de envio.
           </p>
         </div>
 

@@ -18,6 +18,19 @@ export default defineConfig({
           ) {
             return "vendor-react";
           }
+          if (
+            id.includes("/node_modules/three/") ||
+            id.includes("/node_modules/@react-three/") ||
+            id.includes("/node_modules/react-use-measure/") ||
+            id.includes("/node_modules/suspend-react/") ||
+            id.includes("/node_modules/its-fine/") ||
+            id.includes("/node_modules/zustand/") ||
+            id.includes("/node_modules/base64-js/") ||
+            id.includes("/node_modules/buffer/") ||
+            id.includes("/node_modules/ieee754/")
+          ) {
+            return "vendor-r3f";
+          }
           if (id.includes("@tanstack/")) return "vendor-tanstack";
           if (id.includes("@trpc/") || id.includes("superjson")) return "vendor-trpc";
           if (id.includes("@radix-ui/")) return "vendor-radix";

@@ -219,7 +219,7 @@ export function DashboardPage() {
             </div>
           </div>
 
-          <div className="nuoma-signal-tabs" aria-label="Seções do signal board">
+          <div className="nuoma-signal-tabs" aria-label="Seções do signal board" tabIndex={0}>
             <span className="is-active">Visão Geral</span>
             <span>Sinais</span>
             <span>Audiências</span>
@@ -444,7 +444,7 @@ export function DashboardPage() {
             </aside>
           </div>
 
-          <div className="nuoma-signal-timeline">
+          <div className="nuoma-signal-timeline" tabIndex={0}>
             {[
               "Planejamento",
               "Construção",

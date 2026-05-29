@@ -755,6 +755,24 @@ body:has(.nuoma-concept-app)::before {
   color: #edf6fb;
 }
 
+.nuoma-ambient-scene {
+  position: absolute;
+  top: -5.5rem;
+  right: -8rem;
+  z-index: 1;
+  width: min(58rem, 112vw);
+  height: 28rem;
+  overflow: hidden;
+  opacity: 0.66;
+  pointer-events: none;
+}
+
+.nuoma-ambient-scene canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
 .nuoma-dashboard-v2 .nuoma-workspace-header {
   display: none;
 }
@@ -2665,6 +2683,14 @@ body:has(.nuoma-concept-app)::before {
 }
 
 @media (max-width: 900px) {
+  .nuoma-ambient-scene {
+    top: -3.5rem;
+    right: -14rem;
+    width: 36rem;
+    height: 20rem;
+    opacity: 0.4;
+  }
+
   .nuoma-flow-v2-topbar {
     height: auto;
     grid-template-columns: minmax(0, 1fr);
