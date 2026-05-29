@@ -78,6 +78,7 @@ import {
   systemEvents,
   tags,
   users,
+  workerSendBuckets,
   workerState,
   type NewContact,
   type NewConversation,
@@ -129,7 +130,23 @@ type CreateSendAuditEventRecord = Omit<NewSendAuditEvent, "metadata"> & {
 type SendAuditEventRecord = Omit<typeof sendAuditEvents.$inferSelect, "metadata"> & {
   metadata: JsonObject;
 };
+type WorkerSendBucketRow = typeof workerSendBuckets.$inferSelect;
+type WorkerSendBucketConsumeResult =
+  | {
+      allowed: true;
+      bucketKey: string;
+      tokensRemaining: number;
+      recentAllowedCount: number;
+    }
+  | {
+      allowed: false;
+      bucketKey: string;
+      tokensRemaining: number;
+      recentAllowedCount: number;
+      retryAfterMs: number;
+    };
 type ContactRow = typeof contacts.$inferSelect;
+const SEND_RATE_TOKEN_SCALE = 1_000;
 const serialSendJobTypes: NewJob["type"][] = [
   "send_message",
   "send_instagram_message",
@@ -668,7 +685,12 @@ function nowIso(): string {
 }
 
 function normalizedPhoneSql(valueSql: string): string {
-  const digits = `replace(replace(replace(replace(replace(coalesce(${valueSql}, ''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', '')`;
+  const source = `(CASE
+    WHEN instr(coalesce(${valueSql}, ''), '@') > 0
+      THEN substr(coalesce(${valueSql}, ''), 1, instr(coalesce(${valueSql}, ''), '@') - 1)
+    ELSE coalesce(${valueSql}, '')
+  END)`;
+  const digits = `replace(replace(replace(replace(replace(${source}, ' ', ''), '-', ''), '(', ''), ')', ''), '+', '')`;
   return `(CASE
     WHEN length(${digits}) IN (12, 13) AND substr(${digits}, 1, 2) = '55' THEN ${digits}
     WHEN length(${digits}) IN (10, 11) THEN '55' || ${digits}
@@ -677,7 +699,13 @@ function normalizedPhoneSql(valueSql: string): string {
 }
 
 function normalizedJsonPhoneSql(tableAlias: string): string {
-  return normalizedPhoneSql(`json_extract(${tableAlias}.payload_json, '$.phone')`);
+  return normalizedPhoneSql(
+    `coalesce(
+      json_extract(${tableAlias}.payload_json, '$.waJid'),
+      json_extract(${tableAlias}.payload_json, '$.externalThreadId'),
+      json_extract(${tableAlias}.payload_json, '$.phone')
+    )`,
+  );
 }
 
 function normalizedJsonInstagramHandleSql(tableAlias: string): string {
@@ -686,14 +714,46 @@ function normalizedJsonInstagramHandleSql(tableAlias: string): string {
   return `(CASE WHEN length(${withoutPrefix}) BETWEEN 1 AND 30 THEN ${withoutPrefix} ELSE '' END)`;
 }
 
+function normalizedConversationWhatsappTargetSql(tableAlias: string): string {
+  return normalizedPhoneSql(`(
+    SELECT coalesce(c.wa_jid, c.external_thread_id, ct.wa_jid, ct.phone_e164, ct.phone, '')
+    FROM conversations c
+    LEFT JOIN contacts ct ON ct.id = c.contact_id AND ct.user_id = c.user_id
+    WHERE c.user_id = ${tableAlias}.user_id
+      AND c.id = cast(coalesce(json_extract(${tableAlias}.payload_json, '$.conversationId'), 0) AS integer)
+      AND c.channel = 'whatsapp'
+    LIMIT 1
+  )`);
+}
+
+function normalizedConversationInstagramTargetSql(tableAlias: string): string {
+  const raw = `(SELECT lower(trim(coalesce(c.external_thread_id, ct.instagram_handle, '')))
+    FROM conversations c
+    LEFT JOIN contacts ct ON ct.id = c.contact_id AND ct.user_id = c.user_id
+    WHERE c.user_id = ${tableAlias}.user_id
+      AND c.id = cast(coalesce(json_extract(${tableAlias}.payload_json, '$.conversationId'), 0) AS integer)
+      AND c.channel = 'instagram'
+    LIMIT 1)`;
+  const withoutPrefix = `replace(replace(${raw}, '@', ''), 'ig:', '')`;
+  return `(CASE WHEN length(${withoutPrefix}) BETWEEN 1 AND 128 THEN ${withoutPrefix} ELSE '' END)`;
+}
+
 function normalizedJsonSerialTargetSql(tableAlias: string): string {
   const phone = normalizedJsonPhoneSql(tableAlias);
   const instagramHandle = normalizedJsonInstagramHandleSql(tableAlias);
+  const conversationPhone = normalizedConversationWhatsappTargetSql(tableAlias);
+  const conversationInstagram = normalizedConversationInstagramTargetSql(tableAlias);
   return `(CASE
+    WHEN ${conversationPhone} != '' THEN 'wa:' || ${conversationPhone}
     WHEN ${phone} != '' THEN 'wa:' || ${phone}
+    WHEN ${conversationInstagram} != '' THEN 'ig:' || ${conversationInstagram}
     WHEN ${instagramHandle} != '' THEN 'ig:' || ${instagramHandle}
     ELSE ''
   END)`;
+}
+
+function roundBucketTokens(tokens: number): number {
+  return Math.max(0, Math.round(tokens * 1000) / 1000);
 }
 
 function expectRow<T>(row: T | undefined, context: string): T {
@@ -3469,6 +3529,111 @@ export function createRepositories(handle: DbHandle) {
           .orderBy(desc(sendAuditEvents.occurredAt), desc(sendAuditEvents.id))
           .limit(Math.min(input.limit ?? 100, 500));
         return rows.map(mapSendAuditEvent);
+      },
+    },
+
+    workerSendBuckets: {
+      consume(input: {
+        userId: number;
+        bucketKey: string;
+        rateLimitMax: number;
+        refillWindowMs: number;
+        nowMs?: number;
+      }): WorkerSendBucketConsumeResult {
+        const rateLimitMax = Math.max(1, Math.trunc(input.rateLimitMax));
+        const refillWindowMs = Math.max(1, Math.trunc(input.refillWindowMs));
+        const capacityMilli = rateLimitMax * SEND_RATE_TOKEN_SCALE;
+        const nowMs = Math.max(0, Math.trunc(input.nowMs ?? Date.now()));
+        const nowIsoValue = new Date(nowMs).toISOString();
+        const bucketKey = input.bucketKey.trim();
+
+        const tx = handle.raw.transaction(() => {
+          const existing = handle.raw
+            .prepare(
+              `SELECT
+                 tokens_milli AS tokensMilli,
+                 refilled_at_ms AS refilledAtMs
+               FROM worker_send_buckets
+               WHERE user_id = ? AND bucket_key = ?`,
+            )
+            .get(input.userId, bucketKey) as
+            | Pick<WorkerSendBucketRow, "tokensMilli" | "refilledAtMs">
+            | undefined;
+
+          const existingTokens = existing
+            ? Math.min(capacityMilli, Math.max(0, existing.tokensMilli))
+            : capacityMilli;
+          const elapsedMs = existing ? Math.max(0, nowMs - existing.refilledAtMs) : 0;
+          const refilledTokensMilli = Math.min(
+            capacityMilli,
+            Math.floor(existingTokens + (elapsedMs * capacityMilli) / refillWindowMs),
+          );
+          const allowed = refilledTokensMilli >= SEND_RATE_TOKEN_SCALE;
+          const nextTokensMilli = allowed
+            ? refilledTokensMilli - SEND_RATE_TOKEN_SCALE
+            : refilledTokensMilli;
+
+          handle.raw
+            .prepare(
+              `INSERT INTO worker_send_buckets (
+                 user_id,
+                 bucket_key,
+                 tokens_milli,
+                 rate_limit_max,
+                 refill_window_ms,
+                 refilled_at_ms,
+                 last_seen_at,
+                 updated_at
+               )
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(user_id, bucket_key) DO UPDATE SET
+                 tokens_milli = excluded.tokens_milli,
+                 rate_limit_max = excluded.rate_limit_max,
+                 refill_window_ms = excluded.refill_window_ms,
+                 refilled_at_ms = excluded.refilled_at_ms,
+                 last_seen_at = excluded.last_seen_at,
+                 updated_at = excluded.updated_at`,
+            )
+            .run(
+              input.userId,
+              bucketKey,
+              nextTokensMilli,
+              rateLimitMax,
+              refillWindowMs,
+              nowMs,
+              nowIsoValue,
+              nowIsoValue,
+            );
+
+          const tokensRemaining = roundBucketTokens(nextTokensMilli / SEND_RATE_TOKEN_SCALE);
+          const recentAllowedCount = Math.min(
+            rateLimitMax,
+            Math.max(0, Math.ceil(rateLimitMax - tokensRemaining)),
+          );
+          if (allowed) {
+            return {
+              allowed: true,
+              bucketKey,
+              tokensRemaining,
+              recentAllowedCount,
+            } satisfies WorkerSendBucketConsumeResult;
+          }
+
+          const refillPerMs = capacityMilli / refillWindowMs;
+          const retryAfterMs = Math.max(
+            1,
+            Math.ceil((SEND_RATE_TOKEN_SCALE - nextTokensMilli) / refillPerMs),
+          );
+          return {
+            allowed: false,
+            bucketKey,
+            tokensRemaining,
+            recentAllowedCount,
+            retryAfterMs,
+          } satisfies WorkerSendBucketConsumeResult;
+        });
+
+        return tx.immediate();
       },
     },
 

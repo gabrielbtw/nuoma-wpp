@@ -767,6 +767,208 @@ describe("repositories", () => {
     ]);
   });
 
+  it("keeps WhatsApp sends serial by canonical conversation wa_jid when payload phones are missing or stale", async () => {
+    const repos = createRepositories(handle);
+    const user = await repos.users.create({
+      email: "jobs-wa-jid-serial@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Canonical WA",
+      phone: "+55 31 9 8206-6263",
+      primaryChannel: "whatsapp",
+      status: "active",
+    });
+    const sameConversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263@c.us",
+      title: "Saved display name",
+    });
+    const otherConversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: null,
+      channel: "whatsapp",
+      externalThreadId: "5531999999999@c.us",
+      title: "Other",
+    });
+
+    await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "claimed",
+      payload: {
+        conversationId: sameConversation.id,
+        phone: "11999999999",
+        body: "ativo com phone velho no payload",
+      },
+      priority: 0,
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+    });
+    await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: { conversationId: sameConversation.id },
+      priority: 0,
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+    });
+    await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: { conversationId: otherConversation.id, body: "outro jid" },
+      priority: 1,
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+    });
+
+    const claimed = await repos.jobs.claimDueJobs({
+      workerId: "worker-wa-jid-serial",
+      now: "2026-04-30T12:00:01.000Z",
+      limit: 5,
+    });
+    const stillQueued = await repos.jobs.list(user.id, "queued");
+
+    expect(claimed).toHaveLength(1);
+    expect(claimed[0]?.payload.conversationId).toBe(otherConversation.id);
+    expect(stillQueued).toEqual([
+      expect.objectContaining({
+        type: "campaign_step",
+        payload: expect.objectContaining({ conversationId: sameConversation.id }),
+      }),
+    ]);
+  });
+
+  it("keeps Instagram sends serial by canonical conversation thread when payload handles are absent", async () => {
+    const repos = createRepositories(handle);
+    const user = await repos.users.create({
+      email: "jobs-instagram-thread-serial@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const sameConversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: null,
+      channel: "instagram",
+      externalThreadId: "17841400000000001",
+      title: "@saved_name",
+    });
+    const otherConversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: null,
+      channel: "instagram",
+      externalThreadId: "17841400000000002",
+      title: "@other",
+    });
+
+    await repos.jobs.create({
+      userId: user.id,
+      type: "send_instagram_message",
+      status: "claimed",
+      payload: {
+        conversationId: sameConversation.id,
+        body: "ativo sem handle no payload",
+      },
+      priority: 0,
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+    });
+    await repos.jobs.create({
+      userId: user.id,
+      type: "send_instagram_message",
+      status: "queued",
+      payload: { conversationId: sameConversation.id, body: "mesmo thread" },
+      priority: 0,
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+    });
+    await repos.jobs.create({
+      userId: user.id,
+      type: "send_instagram_message",
+      status: "queued",
+      payload: { conversationId: otherConversation.id, body: "outro thread" },
+      priority: 1,
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+    });
+
+    const claimed = await repos.jobs.claimDueJobs({
+      workerId: "worker-ig-thread-serial",
+      now: "2026-04-30T12:00:01.000Z",
+      limit: 5,
+    });
+    const stillQueued = await repos.jobs.list(user.id, "queued");
+
+    expect(claimed).toHaveLength(1);
+    expect(claimed[0]?.payload.conversationId).toBe(otherConversation.id);
+    expect(stillQueued).toEqual([
+      expect.objectContaining({
+        type: "send_instagram_message",
+        payload: expect.objectContaining({ conversationId: sameConversation.id }),
+      }),
+    ]);
+  });
+
+  it("persists worker send token buckets by user and target", async () => {
+    const repos = createRepositories(handle);
+    const user = await repos.users.create({
+      email: "worker-send-bucket@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+
+    const first = repos.workerSendBuckets.consume({
+      userId: user.id,
+      bucketKey: "wa:5531982066263",
+      rateLimitMax: 1,
+      refillWindowMs: 60_000,
+      nowMs: 1_000,
+    });
+    const blocked = repos.workerSendBuckets.consume({
+      userId: user.id,
+      bucketKey: "wa:5531982066263",
+      rateLimitMax: 1,
+      refillWindowMs: 60_000,
+      nowMs: 1_000,
+    });
+    const otherTarget = repos.workerSendBuckets.consume({
+      userId: user.id,
+      bucketKey: "wa:5531999999999",
+      rateLimitMax: 1,
+      refillWindowMs: 60_000,
+      nowMs: 1_000,
+    });
+    const afterRefill = createRepositories(handle).workerSendBuckets.consume({
+      userId: user.id,
+      bucketKey: "wa:5531982066263",
+      rateLimitMax: 1,
+      refillWindowMs: 60_000,
+      nowMs: 61_000,
+    });
+
+    expect(first).toMatchObject({
+      allowed: true,
+      bucketKey: "wa:5531982066263",
+      tokensRemaining: 0,
+    });
+    expect(blocked).toMatchObject({
+      allowed: false,
+      bucketKey: "wa:5531982066263",
+      tokensRemaining: 0,
+      retryAfterMs: 60_000,
+    });
+    expect(otherTarget).toMatchObject({
+      allowed: true,
+      bucketKey: "wa:5531999999999",
+      tokensRemaining: 0,
+    });
+    expect(afterRefill).toMatchObject({
+      allowed: true,
+      bucketKey: "wa:5531982066263",
+      tokensRemaining: 0,
+    });
+  });
+
   it("normalizes legacy v1 campaign steps instead of crashing campaign lists", async () => {
     const repos = createRepositories(handle);
     const user = await repos.users.create({

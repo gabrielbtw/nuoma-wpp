@@ -622,6 +622,27 @@ export const sendAuditEvents = sqliteTable(
   }),
 );
 
+export const workerSendBuckets = sqliteTable(
+  "worker_send_buckets",
+  {
+    ...id,
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    bucketKey: text("bucket_key").notNull(),
+    tokensMilli: integer("tokens_milli").notNull(),
+    rateLimitMax: integer("rate_limit_max").notNull(),
+    refillWindowMs: integer("refill_window_ms").notNull(),
+    refilledAtMs: integer("refilled_at_ms").notNull(),
+    lastSeenAt: text("last_seen_at").notNull().default(nowIso),
+    updatedAt: text("updated_at").notNull().default(nowIso),
+  },
+  (t) => ({
+    userBucketIdx: uniqueIndex("idx_worker_send_buckets_user_bucket").on(t.userId, t.bucketKey),
+    lastSeenIdx: index("idx_worker_send_buckets_last_seen").on(t.lastSeenAt),
+  }),
+);
+
 export const workerState = sqliteTable(
   "worker_state",
   {
