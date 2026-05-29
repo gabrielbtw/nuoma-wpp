@@ -2484,7 +2484,7 @@ describe("worker job loop", () => {
       expect.objectContaining({
         conversationId: conversation.id,
         phone: "5531982066263",
-        wavPath: audioPath,
+        audioPath: expect.stringMatching(/\.ogg$/),
         reason: "send_voice",
       }),
     ]);
@@ -2500,9 +2500,10 @@ describe("worker job loop", () => {
         navigationMode: "reused-open-chat",
         externalId: "after",
         audio: expect.objectContaining({
-          sampleRate: 48000,
+          mimeType: "audio/ogg; codecs=opus",
+          codec: "opus",
+          sampleRate: 16000,
           channels: 1,
-          bitsPerSample: 16,
         }),
       }),
     );
@@ -3335,7 +3336,7 @@ describe("worker job loop", () => {
       expect.objectContaining({
         conversationId: conversation.id,
         phone: "5531982066263",
-        wavPath: audioPath,
+        audioPath: expect.stringMatching(/\.ogg$/),
         reason: "campaign_step",
       }),
     ]);

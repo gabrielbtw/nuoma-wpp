@@ -305,7 +305,7 @@ export interface SyncSendVoiceMessageInput {
   userId: number;
   conversationId: number;
   phone: string;
-  wavPath: string;
+  audioPath: string;
   durationSecs: number;
   reason?: string;
 }
@@ -1962,8 +1962,12 @@ export async function startSyncEngine(input: {
       throw new Error("send_voice requires a valid WhatsApp phone");
     }
     const reason = voiceInput.reason ?? "send_voice";
-    const wavBase64 = (await fs.readFile(voiceInput.wavPath)).toString("base64");
-    const initScript = voiceRecorderInitScript(wavBase64);
+    const voiceMimeType = audioMimeTypeForPath(voiceInput.audioPath);
+    if (voiceMimeType !== "audio/ogg; codecs=opus") {
+      throw new Error(`send_voice requires OGG/Opus PTT audio, got ${voiceMimeType}`);
+    }
+    const audioBase64 = (await fs.readFile(voiceInput.audioPath)).toString("base64");
+    const initScript = voiceRecorderInitScript(audioBase64);
     const script = await client.Page.addScriptToEvaluateOnNewDocument({ source: initScript });
     const navigationMode = await navigateWhatsAppPhoneForVoice({
       phone,
@@ -1997,26 +2001,18 @@ export async function startSyncEngine(input: {
       let injectionConsumed = false;
       let fallbackReason: string | null = null;
       let deliveryStatus: SyncSendVoiceMessageResult["deliveryStatus"] = "unknown";
-      const voiceMimeType = audioMimeTypeForPath(voiceInput.wavPath);
-      if (voiceMimeType !== "audio/wav") {
-        fallbackReason = `voice_input_not_wav:${voiceMimeType}`;
+      await clickVoiceRecordButton();
+      try {
+        injectionConsumed = await waitForVoiceInjectionConsumed();
+      } catch (error) {
+        fallbackReason = "native_recorder_injection_not_consumed";
+        input.logger.warn(
+          { error },
+          "send_voice native recorder injection did not consume payload",
+        );
         throw new Error(
           `send_voice requires native WhatsApp PTT recording; internal media fallback blocked (${fallbackReason})`,
         );
-      } else {
-        await clickVoiceRecordButton();
-        try {
-          injectionConsumed = await waitForVoiceInjectionConsumed();
-        } catch (error) {
-          fallbackReason = "native_recorder_injection_not_consumed";
-          input.logger.warn(
-            { error },
-            "send_voice native recorder injection did not consume payload",
-          );
-          throw new Error(
-            `send_voice requires native WhatsApp PTT recording; internal media fallback blocked (${fallbackReason})`,
-          );
-        }
       }
       await sleep(recordingMs);
       await clickSendButton();
@@ -3768,7 +3764,7 @@ export async function startSyncEngine(input: {
       "voice override",
       8_000,
       `
-      (() => Boolean(window.__nuomaVoiceWavBase64))()
+      (() => Boolean(window.__nuomaVoiceAudioBase64))()
     `,
     );
   }
@@ -3864,7 +3860,6 @@ export async function startSyncEngine(input: {
           const ariaValueMax = slider ? slider.getAttribute("aria-valuemax") : null;
           const ariaValueText = slider ? slider.getAttribute("aria-valuetext") : null;
           const nativeVoiceEvidence = Boolean(last.querySelector([
-            "audio",
             "span[data-icon='audio-play']",
             "span[data-icon='ptt']",
             "[aria-label*='voz']",
@@ -5649,11 +5644,11 @@ function numberFromUnknown(value: unknown): number | null {
   return Number.isFinite(number) && number >= 0 ? number : null;
 }
 
-function voiceRecorderInitScript(wavBase64: string): string {
+function voiceRecorderInitScript(audioBase64: string): string {
   return `
     (() => {
       const w = window;
-      w.__nuomaVoiceWavBase64 = ${JSON.stringify(wavBase64)};
+      w.__nuomaVoiceAudioBase64 = ${JSON.stringify(audioBase64)};
       w.__nuomaVoiceLastInjection = null;
       w.__nuomaVoiceLastInjectionError = null;
       if (w.__nuomaVoiceInitInstalled) return;
@@ -5712,7 +5707,7 @@ function voiceRecorderInitScript(wavBase64: string): string {
         return audioBuffer;
       };
       navigator.mediaDevices.getUserMedia = async (constraints) => {
-        const b64Data = w.__nuomaVoiceWavBase64;
+        const b64Data = w.__nuomaVoiceAudioBase64;
         if (constraints && constraints.audio && b64Data) {
           try {
             const binaryStr = w.atob(b64Data);
@@ -5721,7 +5716,7 @@ function voiceRecorderInitScript(wavBase64: string): string {
               bytes[index] = binaryStr.charCodeAt(index);
             }
             const AudioCtx = w.AudioContext || w.webkitAudioContext;
-            const audioCtx = new AudioCtx({ sampleRate: 48000 });
+            const audioCtx = new AudioCtx({ sampleRate: 16000 });
             if (audioCtx.state === "suspended") {
               await audioCtx.resume();
             }

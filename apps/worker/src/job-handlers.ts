@@ -1971,7 +1971,7 @@ async function sendVoiceToConversation(
     audioPath: input.audioPath,
     tempDir: path.resolve(process.cwd(), context.env.WORKER_TEMP_DIR),
   });
-  const sendPath = prepared.wavPath;
+  const sendPath = prepared.pttPath;
   const result = await dispatchWithIdempotencyGuard(job, context, {
     idempotencyKey,
     phone: targetPhone,
@@ -1985,7 +1985,7 @@ async function sendVoiceToConversation(
       media: {
         mediaAssetId: input.mediaAssetId ?? null,
         type: "voice",
-        mimeType: "audio/wav",
+        mimeType: prepared.mimeType,
         fileName: path.basename(sendPath),
         sizeBytes: prepared.sizeBytes,
         durationMs: Math.round(prepared.durationSecs * 1000),
@@ -1993,11 +1993,13 @@ async function sendVoiceToConversation(
       raw: {
         clientNonce: stringFromPayload(job.payload.clientNonce),
         sourcePath: prepared.sourcePath,
-        wavPath: prepared.wavPath,
+        pttPath: prepared.pttPath,
+        mimeType: prepared.mimeType,
+        codec: prepared.codec,
+        bitrate: prepared.bitrate,
         sha256: prepared.sha256,
         sampleRate: prepared.sampleRate,
         channels: prepared.channels,
-        bitsPerSample: prepared.bitsPerSample,
       },
     },
     send: () =>
@@ -2005,7 +2007,7 @@ async function sendVoiceToConversation(
         userId: job.userId,
         conversationId: input.conversationId,
         phone: targetPhone,
-        wavPath: sendPath,
+        audioPath: sendPath,
         durationSecs: prepared.durationSecs,
         reason: input.reason,
       }),
@@ -2014,15 +2016,17 @@ async function sendVoiceToConversation(
   return {
     audio: {
       sourcePath: prepared.sourcePath,
-      wavPath: prepared.wavPath,
+      pttPath: prepared.pttPath,
       sendPath,
+      mimeType: prepared.mimeType,
+      codec: prepared.codec,
+      bitrate: prepared.bitrate,
       durationSecs: prepared.durationSecs,
       durationSource: prepared.durationSource,
       sha256: prepared.sha256,
       sizeBytes: prepared.sizeBytes,
       sampleRate: prepared.sampleRate,
       channels: prepared.channels,
-      bitsPerSample: prepared.bitsPerSample,
     },
     ...result,
   };
