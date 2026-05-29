@@ -545,6 +545,81 @@ describe("sync event handler", () => {
     expect(updatedCanonical?.waJid).toBe("5531982066263@s.whatsapp.net");
   });
 
+  it("does not reuse a saved-name external thread when wa_jid identifies a different WhatsApp contact", async () => {
+    const repos = createRepositories(db);
+    const user = await repos.users.create({
+      email: "saved-name-collision@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const decoy = await repos.conversations.upsertObserved({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "Gabriel Braga Nuoma",
+      title: "Gabriel Braga Nuoma",
+      unreadCount: 0,
+    });
+    const handler = createSyncEventHandler({
+      repos,
+      logger: pino({ level: "silent" }),
+      userId: user.id,
+    });
+
+    await handler.handle({
+      type: "message-added",
+      source: "wa-web",
+      observedAtUtc: "2026-04-30T18:47:00.000Z",
+      thread: {
+        channel: "whatsapp",
+        externalThreadId: "Gabriel Braga Nuoma",
+        waJid: "5531982066263@s.whatsapp.net",
+        title: "Gabriel Braga Nuoma",
+        phone: null,
+        unreadCount: 0,
+        fingerprint: null,
+      },
+      message: {
+        externalId: "false_5531982066263@c.us_SAVED_NAME_COLLISION",
+        direction: "inbound",
+        contentType: "text",
+        status: "received",
+        body: "Mensagem do contato correto por wa_jid",
+        displayedAtText: "[15:47, 30/04/2026] Maria: ",
+        waDisplayedAt: null,
+        timestampPrecision: "unknown",
+        messageSecond: null,
+        waInferredSecond: 59,
+        observedAtUtc: "2026-04-30T18:47:00.000Z",
+        raw: {},
+      },
+    });
+
+    const decoyAfter = await repos.conversations.findById({
+      userId: user.id,
+      id: decoy.id,
+    });
+    const canonical = await repos.conversations.findByWaJid({
+      userId: user.id,
+      waJid: "5531982066263@s.whatsapp.net",
+    });
+    const decoyMessages = await repos.messages.listByConversation({
+      userId: user.id,
+      conversationId: decoy.id,
+    });
+    const canonicalMessages = await repos.messages.listByConversation({
+      userId: user.id,
+      conversationId: canonical?.id ?? 0,
+    });
+
+    expect(decoyAfter?.waJid).toBeNull();
+    expect(canonical?.id).not.toBe(decoy.id);
+    expect(canonical?.externalThreadId).toBe("5531982066263@s.whatsapp.net");
+    expect(canonical?.title).toBe("Gabriel Braga Nuoma");
+    expect(decoyMessages).toHaveLength(0);
+    expect(canonicalMessages).toHaveLength(1);
+    expect(canonicalMessages[0]?.body).toBe("Mensagem do contato correto por wa_jid");
+  });
+
   it("does not reconcile a requested WhatsApp conversation that lacks canonical identity", async () => {
     const repos = createRepositories(db);
     const user = await repos.users.create({

@@ -2487,6 +2487,13 @@ describe("api health", () => {
       primaryChannel: "whatsapp",
       notes: "Nao deve entrar no disparo rapido do overlay.",
     });
+    const titleDecoyContact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel Braga Nuoma",
+      phone: "553185596476",
+      primaryChannel: "whatsapp",
+      notes: "Contato salvo com nome igual ao titulo exibido no WhatsApp.",
+    });
     const conversation = await repos.conversations.create({
       userId: user.id,
       contactId: contact.id,
@@ -2496,6 +2503,16 @@ describe("api health", () => {
       title: "Neferpeel",
       lastMessageAt: "2026-05-07T10:00:00.000Z",
       lastPreview: "Resumo do contato",
+    });
+    const titleDecoyConversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: titleDecoyContact.id,
+      channel: "whatsapp",
+      externalThreadId: "553185596476",
+      waJid: "553185596476@s.whatsapp.net",
+      title: "Gabriel Braga Nuoma",
+      lastMessageAt: "2026-05-07T09:59:00.000Z",
+      lastPreview: "Resumo do decoy",
     });
     await repos.messages.insertOrIgnore({
       userId: user.id,
@@ -2507,6 +2524,17 @@ describe("api health", () => {
       status: "received",
       body: "Oi pelo Chrome Extension",
       observedAtUtc: "2026-05-07T10:00:00.000Z",
+    });
+    await repos.messages.insertOrIgnore({
+      userId: user.id,
+      conversationId: titleDecoyConversation.id,
+      contactId: titleDecoyContact.id,
+      externalId: "M38-DECOY-MSG1",
+      direction: "inbound",
+      contentType: "text",
+      status: "received",
+      body: "Mensagem do decoy por titulo",
+      observedAtUtc: "2026-05-07T09:59:00.000Z",
     });
     const campaign = await repos.campaigns.create({
       userId: user.id,
@@ -2685,7 +2713,7 @@ describe("api health", () => {
           id: "m38-summary",
           method: "contactSummary",
           params: {
-            title: "Neferpeel",
+            title: "Gabriel Braga Nuoma",
             waJid: "5531982066263@s.whatsapp.net",
             phoneSource: "unresolved",
             reason: "m38-api-test",
@@ -2709,6 +2737,20 @@ describe("api health", () => {
       expect(summary.json().data.latestMessages[0]).toMatchObject({
         body: "Oi pelo Chrome Extension",
       });
+      expect(summary.json().data.latestMessages).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            body: "Mensagem do decoy por titulo",
+          }),
+        ]),
+      );
+      expect(summary.json().data.conversations).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: titleDecoyConversation.id,
+          }),
+        ]),
+      );
       expect(summary.json().data.automations).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
