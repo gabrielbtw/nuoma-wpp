@@ -327,6 +327,122 @@ describe("repositories", () => {
     expect(duplicateRow?.status).toBe("queued");
   });
 
+  it("does not claim a second serial Instagram send job for a handle already active", async () => {
+    const repos = createRepositories(handle);
+    const user = await repos.users.create({
+      email: "claim-dedupe-instagram@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const active = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "running",
+      payload: {
+        instagramHandle: "gabriell_braga",
+        campaignId: 1,
+        recipientId: 10,
+      },
+      scheduledAt: "2026-05-18T12:00:00.000Z",
+      maxAttempts: 3,
+    });
+    const duplicate = await repos.jobs.create({
+      userId: user.id,
+      type: "send_instagram_message",
+      status: "queued",
+      payload: {
+        instagramHandle: "@GABRIELL_BRAGA",
+        conversationId: 1,
+        body: "duplicado",
+      },
+      scheduledAt: "2026-05-18T12:00:00.000Z",
+      maxAttempts: 3,
+    });
+    const otherHandle = await repos.jobs.create({
+      userId: user.id,
+      type: "send_instagram_message",
+      status: "queued",
+      payload: {
+        instagramHandle: "outro_handle",
+        conversationId: 2,
+        body: "outro",
+      },
+      scheduledAt: "2026-05-18T12:00:00.000Z",
+      maxAttempts: 3,
+    });
+    if (!active || !duplicate || !otherHandle) {
+      throw new Error("expected jobs to be created");
+    }
+
+    const claimed = await repos.jobs.claimDueJobs({
+      workerId: "worker-instagram-dedupe",
+      now: "2026-05-18T12:00:01.000Z",
+      limit: 10,
+    });
+    const duplicateRow = handle.raw
+      .prepare("select status from jobs where id = ?")
+      .get(duplicate.id) as { status: string } | undefined;
+
+    expect(claimed.map((job) => job.id)).toEqual([otherHandle.id]);
+    expect(duplicateRow?.status).toBe("queued");
+  });
+
+  it("tracks active campaign recipient pipelines by Instagram handle", async () => {
+    const repos = createRepositories(handle);
+    const user = await repos.users.create({
+      email: "recipient-pipeline-instagram@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const campaign = await repos.campaigns.create({
+      userId: user.id,
+      name: "IG Pipeline",
+      channel: "instagram",
+      status: "running",
+      evergreen: false,
+      startsAt: null,
+      segment: null,
+      steps: [
+        {
+          id: "step-1",
+          label: "IG",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Oi",
+        },
+      ],
+      metadata: {},
+    });
+    const recipient = await repos.campaignRecipients.create({
+      userId: user.id,
+      campaignId: campaign.id,
+      contactId: null,
+      phone: null,
+      channel: "instagram",
+      status: "queued",
+      currentStepId: null,
+      metadata: { instagramHandle: "gabriell_braga" },
+    });
+
+    const active = await repos.campaignRecipients.findActiveByInstagramHandle({
+      userId: user.id,
+      instagramHandle: "@GABRIELL_BRAGA",
+    });
+    await repos.campaignRecipients.updateState({
+      userId: user.id,
+      id: recipient.id,
+      status: "completed",
+    });
+    const completed = await repos.campaignRecipients.findActiveByInstagramHandle({
+      userId: user.id,
+      instagramHandle: "gabriell_braga",
+    });
+
+    expect(active?.id).toBe(recipient.id);
+    expect(completed).toBeNull();
+  });
+
   it("records and summarizes chatbot variant exposure and conversion events", async () => {
     const repos = createRepositories(handle);
     const user = await repos.users.create({
@@ -617,6 +733,83 @@ describe("repositories", () => {
       expect.objectContaining({
         type: "campaign_step",
         payload: expect.objectContaining({ phone: "5531982066263" }),
+      }),
+    ]);
+  });
+
+  it("normalizes legacy v1 campaign steps instead of crashing campaign lists", async () => {
+    const repos = createRepositories(handle);
+    const user = await repos.users.create({
+      email: "legacy-campaign@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    handle.raw
+      .prepare(
+        `
+        insert into campaigns (
+          user_id,
+          name,
+          status,
+          channel,
+          segment_json,
+          steps_json,
+          evergreen,
+          metadata_json
+        ) values (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      )
+      .run(
+        user.id,
+        "Legacy v1 campaign",
+        "paused",
+        "whatsapp",
+        null,
+        JSON.stringify([
+          {
+            id: "legacy-text-1",
+            type: "text",
+            label: "Step 1",
+            raw: { content: "Ola {{nome}}", wait_minutes: null },
+          },
+          {
+            id: "legacy-wait-1",
+            type: "wait",
+            label: "Step 2",
+            raw: { wait_minutes: 30 },
+          },
+          {
+            id: "legacy-link-1",
+            type: "link",
+            label: "Step 3",
+            raw: { content: "Veja https://nuoma.com.br", wait_minutes: null },
+          },
+          {
+            id: "legacy-tag-1",
+            type: "ADD_TAG",
+            label: "Step 4",
+            raw: { content: "" },
+          },
+        ]),
+        0,
+        "{}",
+      );
+
+    const campaigns = await repos.campaigns.list(user.id);
+    const legacy = campaigns.find((campaign) => campaign.name === "Legacy v1 campaign");
+
+    expect(legacy?.metadata.legacyStepNormalization).toMatchObject({
+      applied: true,
+      originalStepCount: 4,
+      normalizedStepCount: 2,
+    });
+    expect(legacy?.steps).toEqual([
+      expect.objectContaining({ type: "text", delaySeconds: 0, template: "Ola {{nome}}" }),
+      expect.objectContaining({
+        type: "link",
+        delaySeconds: 1800,
+        url: "https://nuoma.com.br/",
+        text: "Veja https://nuoma.com.br",
       }),
     ]);
   });

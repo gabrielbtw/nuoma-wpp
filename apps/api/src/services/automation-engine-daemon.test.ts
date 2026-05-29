@@ -136,6 +136,96 @@ describe("automation engine daemon", () => {
     expect(reminders[0]?.title).toBe("Follow-up");
   });
 
+  it("triggers Instagram inbound automations using instagramHandle identity", async () => {
+    const repos = createRepositories(db);
+    const passwordHash = await argon2.hash("initial-password-123", { type: argon2.argon2id });
+    const user = await repos.users.create({
+      email: "admin-ig@nuoma.local",
+      passwordHash,
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel IG",
+      phone: null,
+      primaryChannel: "instagram",
+      instagramHandle: "gabriell_braga",
+      status: "lead",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "instagram",
+      externalThreadId: "110051807055981",
+      title: "Gabriel IG",
+    });
+    await repos.automations.create({
+      userId: user.id,
+      name: "Resposta IG",
+      category: "Instagram",
+      status: "active",
+      trigger: { type: "message_received", channel: "instagram" },
+      condition: { segment: null, requireWithin24hWindow: true },
+      actions: [
+        {
+          type: "send_step",
+          step: {
+            id: "ig-reply",
+            label: "Resposta IG",
+            type: "text",
+            template: "Oi @{{instagram}}",
+            delaySeconds: 0,
+            conditions: [],
+          },
+        },
+      ],
+      metadata: {},
+    });
+    await repos.messages.create({
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: contact.id,
+      externalId: "IG-IN-1",
+      direction: "inbound",
+      contentType: "text",
+      status: "received",
+      body: "Oi IG",
+      observedAtUtc: "2026-05-04T12:00:00.000Z",
+    });
+
+    const daemon = createAutomationEngineDaemon({
+      repos,
+      logger: pino({ level: "silent" }),
+      enabled: true,
+      userId: user.id,
+      allowedPhone: "5531982066263",
+      intervalMs: 1_000,
+    });
+
+    const result = await daemon.tick();
+    const jobs = await repos.jobs.list(user.id, "queued");
+
+    expect(result).toMatchObject({
+      scannedMessages: 1,
+      automationsEvaluated: 1,
+      triggered: 1,
+      jobsCreated: 1,
+    });
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.payload).toMatchObject({
+      automationId: expect.any(Number),
+      phone: null,
+      instagramHandle: "gabriell_braga",
+      sourceMessageId: 1,
+      variables: {
+        telefone: "",
+        phone: "",
+        instagram: "gabriell_braga",
+        instagramHandle: "gabriell_braga",
+      },
+    });
+  });
+
   it("executes delay, branch target, notify and child automation actions safely", async () => {
     const repos = createRepositories(db);
     const passwordHash = await argon2.hash("initial-password-123", { type: argon2.argon2id });

@@ -3595,6 +3595,40 @@ describe("api health", () => {
         ]),
       );
 
+      const cappedAfterRejected = await trpcCall<{
+        canDispatch: boolean;
+        summary: { acceptedRecipients: number };
+        accepted: Array<{ phone: string | null }>;
+        rejected: Array<{ reason: string }>;
+      }>(
+        app,
+        "POST",
+        "campaigns.remarketingBatchReady",
+        {
+          campaignId: campaign.id,
+          rawPhones: "5531999999999\n5531982066263",
+          allowedPhone: "5531982066263",
+          maxRecipients: 1,
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(cappedAfterRejected.statusCode, JSON.stringify(cappedAfterRejected.error)).toBe(200);
+      expect(cappedAfterRejected.data?.canDispatch).toBe(false);
+      expect(cappedAfterRejected.data?.summary.acceptedRecipients).toBe(1);
+      expect(cappedAfterRejected.data?.accepted).toEqual([
+        expect.objectContaining({ phone: "5531982066263" }),
+      ]);
+      expect(cappedAfterRejected.data?.rejected).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ reason: "not_allowlisted_for_test_execution" }),
+        ]),
+      );
+      expect(cappedAfterRejected.data?.rejected).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ reason: "max_recipients_exceeded" }),
+        ]),
+      );
+
       const ready = await trpcCall<{
         canDispatch: boolean;
         confirmText: string;

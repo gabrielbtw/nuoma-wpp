@@ -13,7 +13,8 @@ interface TriggerAutomationInput {
   repos: Repositories;
   userId: number;
   automationId: number;
-  phone: string;
+  phone?: string | null;
+  instagramHandle?: string | null;
   dryRun?: boolean;
   allowedPhone?: string;
   allowedPhones?: string[];
@@ -32,6 +33,7 @@ export interface TriggerAutomationResult {
   automation: Automation | null;
   contactId: number | null;
   phone: string | null;
+  instagramHandle: string | null;
   eligible: boolean;
   reasons: string[];
   plannedActions: AutomationAction[];
@@ -46,6 +48,9 @@ export async function triggerAutomationForPhone(
 ): Promise<TriggerAutomationResult> {
   const dryRun = input.dryRun ?? true;
   const phone = normalizePhone(input.phone);
+  const instagramHandle = normalizeInstagramHandle(input.instagramHandle);
+  const channel = input.triggerChannel ?? (instagramHandle && !phone ? "instagram" : "whatsapp");
+  const targetKey = channel === "instagram" ? `ig:${instagramHandle ?? ""}` : (phone ?? "");
   const sendPolicyMode = input.sendPolicyMode ?? "test";
   const allowedPhones = parsePhoneList(null, [
     ...(input.allowedPhones ?? []),
@@ -60,6 +65,7 @@ export async function triggerAutomationForPhone(
     automation,
     contactId: null,
     phone,
+    instagramHandle,
     eligible: false,
     reasons: [],
     plannedActions: [],
@@ -72,12 +78,22 @@ export async function triggerAutomationForPhone(
   if (!automation) {
     return { ...base, reasons: ["not_found"] };
   }
-  if (!phone) {
+  if (channel === "instagram" && !instagramHandle) {
+    return { ...base, reasons: ["invalid_instagram"] };
+  }
+  if (channel !== "instagram" && !phone) {
     return { ...base, reasons: ["invalid_phone"] };
   }
 
-  const contact = await input.repos.contacts.findByPhone({ userId: input.userId, phone });
-  const channel = input.triggerChannel ?? contact?.primaryChannel ?? "whatsapp";
+  const contact =
+    channel === "instagram" && instagramHandle
+      ? await input.repos.contacts.findByIdentity({
+          userId: input.userId,
+          instagramHandle,
+        })
+      : phone
+        ? await input.repos.contacts.findByPhone({ userId: input.userId, phone })
+        : null;
   const reasons: string[] = [];
   if (automation.status !== "active") {
     reasons.push("status_not_active");
@@ -94,13 +110,13 @@ export async function triggerAutomationForPhone(
   if (!segmentMatches(automation.condition.segment, contact, channel)) {
     reasons.push("segment_mismatch");
   }
-  if (!dryRun) {
+  if (!dryRun && channel !== "instagram") {
     const decision = evaluateApiRealSendTarget(
       {
         mode: sendPolicyMode,
         allowedPhones,
       },
-      phone,
+      phone ?? "",
     );
     if (!decision.allowed) {
       reasons.push(decision.reason);
@@ -142,9 +158,9 @@ export async function triggerAutomationForPhone(
       })
     : await input.repos.conversations.upsertObserved({
         userId: input.userId,
-        channel: "whatsapp",
-        externalThreadId: phone,
-        title: contact?.name ?? phone,
+        channel,
+        externalThreadId: channel === "instagram" ? `ig:${instagramHandle}` : phone!,
+        title: contact?.name ?? instagramHandle ?? phone!,
         contactId: contact?.id ?? null,
       });
 
@@ -323,17 +339,20 @@ export async function triggerAutomationForPhone(
         conversationId: conversation.id,
         contactId: contact?.id ?? null,
         phone,
+        instagramHandle,
         step: action.step,
         variables: {
-          nome: contact?.name ?? phone,
-          name: contact?.name ?? phone,
-          telefone: phone,
-          phone,
+          nome: contact?.name ?? instagramHandle ?? phone,
+          name: contact?.name ?? instagramHandle ?? phone,
+          telefone: phone ?? "",
+          phone: phone ?? "",
+          instagram: instagramHandle ?? "",
+          instagramHandle: instagramHandle ?? "",
         },
         isLastStep: true,
         sourceMessageId: input.sourceMessageId ?? null,
       },
-      dedupeKey: `automation_trigger:${automation.id}:${phone}:${action.step.id}:${
+      dedupeKey: `automation_trigger:${automation.id}:${targetKey}:${action.step.id}:${
         input.dedupeScope ?? now.toISOString()
       }`,
       scheduledAt,
@@ -354,6 +373,7 @@ export async function triggerAutomationForPhone(
       automationId: automation.id,
       contactId: contact?.id ?? null,
       phone,
+      instagramHandle,
       jobsCreated,
       actionsApplied,
       skippedActions,
@@ -364,6 +384,7 @@ export async function triggerAutomationForPhone(
   return {
     ...base,
     contactId: contact?.id ?? null,
+    instagramHandle,
     eligible: true,
     plannedActions,
     jobsCreated,
@@ -371,4 +392,13 @@ export async function triggerAutomationForPhone(
     skippedActions,
     wouldEnqueueJobs: jobsCreated > 0,
   };
+}
+
+function normalizeInstagramHandle(value: string | null | undefined): string | null {
+  const cleaned = String(value ?? "")
+    .trim()
+    .replace(/^ig:/i, "")
+    .replace(/^@+/, "")
+    .toLowerCase();
+  return /^[a-z0-9._]{1,30}$/.test(cleaned) ? cleaned : null;
 }

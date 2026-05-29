@@ -2,14 +2,39 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import pino from "pino";
 
 import { loadWorkerEnv } from "@nuoma/config";
-import { createRepositories, openDb, runMigrations, type DbHandle, type Repositories } from "@nuoma/db";
+import {
+  createRepositories,
+  openDb,
+  runMigrations,
+  type DbHandle,
+  type Repositories,
+} from "@nuoma/db";
+
+vi.mock("./instagram/assisted.js", async () => {
+  const actual =
+    await vi.importActual<typeof import("./instagram/assisted.js")>("./instagram/assisted.js");
+  return {
+    ...actual,
+    sendInstagramTextViaCdp: vi.fn(async (input) => ({
+      mode: input.mediaPaths?.length ? "instagram-media-message" : "instagram-text-message",
+      username: input.username,
+      threadId: "110051807055981",
+      reason: input.reason,
+      externalId: "ig-mocked-external",
+      pageUrl: "https://www.instagram.com/direct/t/110051807055981/",
+      contentType: input.contentType ?? "text",
+      mediaCount: input.mediaPaths?.length ?? 0,
+    })),
+  };
+});
 
 import { handleJob } from "./job-handlers.js";
 import { createJobLoop } from "./job-loop.js";
+import { sendInstagramTextViaCdp } from "./instagram/assisted.js";
 
 let tempDir: string;
 let db: DbHandle;
@@ -18,6 +43,7 @@ beforeEach(async () => {
   tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "nuoma-v2-worker-"));
   db = openDb(path.join(tempDir, "worker.db"));
   await runMigrations(db);
+  vi.mocked(sendInstagramTextViaCdp).mockClear();
 });
 
 afterEach(async () => {
@@ -71,6 +97,200 @@ describe("worker job loop", () => {
     expect(processed).toBe(false);
     expect(queued).toHaveLength(1);
     expect(queued[0]?.type).toBe("send_message");
+  });
+
+  it("can claim Instagram send jobs even when WhatsApp sync is disconnected", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-instagram-only",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      IG_SEND_ALLOWED_HANDLES: "gabriell_braga",
+    });
+    const user = await repos.users.create({
+      email: "instagram-only@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel IG",
+      phone: null,
+      email: null,
+      primaryChannel: "instagram",
+      instagramHandle: "gabriell_braga",
+      status: "lead",
+      notes: null,
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "instagram",
+      externalThreadId: "ig:gabriell_braga",
+      title: "@gabriell_braga",
+    });
+    await repos.jobs.create({
+      userId: user.id,
+      type: "send_instagram_message",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        instagramHandle: "gabriell_braga",
+        body: "oi ig",
+        idempotencyKey: "manual:ig-only",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 1,
+    });
+
+    const loop = createJobLoop({
+      env,
+      repos,
+      logger,
+      handlerContext: {
+        env,
+        db,
+        repos,
+        logger,
+        instagram: { metrics: { connected: true } } as never,
+      },
+    });
+
+    const processed = await loop.processOne();
+    const completed = await repos.jobs.list(user.id, "completed");
+
+    expect(processed).toBe(true);
+    expect(completed).toHaveLength(1);
+    expect(sendInstagramTextViaCdp).toHaveBeenCalledWith(
+      expect.objectContaining({ username: "gabriell_braga", text: "oi ig" }),
+    );
+  });
+
+  it("drains Instagram campaign batch siblings by handle without a WhatsApp phone", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-instagram-batch-drain",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      IG_SEND_ALLOWED_HANDLES: "gabriell_braga",
+    });
+    const user = await repos.users.create({
+      email: "instagram-batch-drain@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "instagram",
+      externalThreadId: "ig:gabriell_braga",
+      title: "@gabriell_braga",
+    });
+    const basePayload = {
+      campaignId: 301,
+      recipientId: null,
+      conversationId: conversation.id,
+      instagramHandle: "gabriell_braga",
+      phone: null,
+      campaignBatchId: "ig-batch-drain",
+      campaignBatchSize: 2,
+      variables: { nome: "Gabriel" },
+    };
+    const firstJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        ...basePayload,
+        campaignBatchIndex: 0,
+        isLastStep: false,
+        idempotencyKey: "campaign:ig-batch-drain:1",
+        step: {
+          id: "ig-intro",
+          label: "Intro IG",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Oi {{nome}} pelo IG",
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    const nextJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        ...basePayload,
+        campaignBatchIndex: 1,
+        isLastStep: true,
+        idempotencyKey: "campaign:ig-batch-drain:2",
+        step: {
+          id: "ig-follow-up",
+          label: "Follow-up IG",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Segundo toque {{nome}} pelo IG",
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:01.000Z",
+      maxAttempts: 2,
+    });
+    if (!firstJob || !nextJob) {
+      throw new Error("expected Instagram campaign_step jobs to be created");
+    }
+
+    const loop = createJobLoop({
+      env,
+      repos,
+      logger,
+      handlerContext: {
+        env,
+        db,
+        repos,
+        logger,
+        instagram: { metrics: { connected: true } } as never,
+      },
+    });
+
+    await expect(loop.processOne()).resolves.toBe(true);
+
+    expect(sendInstagramTextViaCdp).toHaveBeenCalledTimes(2);
+    expect(sendInstagramTextViaCdp).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ username: "gabriell_braga", text: "Oi Gabriel pelo IG" }),
+    );
+    expect(sendInstagramTextViaCdp).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        username: "gabriell_braga",
+        text: "Segundo toque Gabriel pelo IG",
+      }),
+    );
+    const completed = await repos.jobs.list(user.id, "completed");
+    expect(completed.map((job) => job.id).sort((a, b) => a - b)).toEqual([
+      firstJob.id,
+      nextJob.id,
+    ]);
+    const drainEvents = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.campaign_step.batch_drained",
+    });
+    expect(drainEvents[0]?.payload).toEqual(
+      expect.objectContaining({
+        rootJobId: firstJob.id,
+        campaignBatchId: "ig-batch-drain",
+        drainedJobs: 1,
+        stopped: false,
+      }),
+    );
   });
 
   it("does not claim sync jobs when no sync runtime is connected", async () => {
@@ -803,6 +1023,227 @@ describe("worker job loop", () => {
     );
     const attempts = await repos.messageDispatchAttempts.listByKey(idempotencyKey);
     expect(attempts.map((attempt) => attempt.phase)).toEqual(["failed", "sent"]);
+  });
+
+  it("sends Instagram campaign image steps and materializes the real Direct thread", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-instagram-media",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      IG_SEND_ALLOWED_HANDLES: "gabriell_braga",
+    });
+    const user = await repos.users.create({
+      email: "instagram-media@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel Braga",
+      phone: null,
+      email: null,
+      primaryChannel: "instagram",
+      instagramHandle: "gabriell_braga",
+      status: "lead",
+      notes: null,
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "instagram",
+      externalThreadId: "ig:gabriell_braga",
+      title: "@gabriell_braga",
+    });
+    const imagePath = path.join(tempDir, "ig-campaign.jpg");
+    await fs.writeFile(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+    const mediaAsset = await repos.mediaAssets.create({
+      userId: user.id,
+      type: "image",
+      fileName: "ig-campaign.jpg",
+      mimeType: "image/jpeg",
+      sha256: "d".repeat(64),
+      sizeBytes: (await fs.stat(imagePath)).size,
+      durationMs: null,
+      storagePath: imagePath,
+    });
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        campaignId: 700,
+        recipientId: 701,
+        conversationId: conversation.id,
+        instagramHandle: "gabriell_braga",
+        phone: null,
+        idempotencyKey: "campaign:ig-media",
+        step: {
+          id: "ig-image",
+          label: "Imagem IG",
+          type: "image",
+          delaySeconds: 0,
+          conditions: [],
+          mediaAssetId: mediaAsset.id,
+          caption: "Legenda IG",
+        },
+        variables: {},
+        isLastStep: true,
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 1,
+    });
+    if (!job) throw new Error("expected instagram campaign_step job");
+
+    await handleJob(job, { env, db, repos, logger });
+
+    expect(sendInstagramTextViaCdp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        username: "gabriell_braga",
+        text: "Legenda IG",
+        mediaPaths: [imagePath],
+        contentType: "image",
+        reason: "campaign_step",
+      }),
+    );
+    const materialized = await repos.conversations.findByExternalThread({
+      userId: user.id,
+      channel: "instagram",
+      externalThreadId: "110051807055981",
+    });
+    expect(materialized).toEqual(expect.objectContaining({ id: conversation.id }));
+    const message = await repos.messages.findByIdempotencyKey({
+      userId: user.id,
+      idempotencyKey: "campaign:ig-media",
+    });
+    expect(message).toEqual(
+      expect.objectContaining({
+        conversationId: conversation.id,
+        contentType: "image",
+        status: "sent",
+        externalId: "ig-mocked-external",
+      }),
+    );
+  });
+
+  it("marks failed Instagram dispatch drafts and clears terminal campaign awaiting metadata", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-instagram-failure",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      IG_SEND_ALLOWED_HANDLES: "gabriell_braga",
+    });
+    vi.mocked(sendInstagramTextViaCdp).mockRejectedValueOnce(new Error("Instagram composer failed"));
+    const user = await repos.users.create({
+      email: "instagram-failure@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "instagram",
+      externalThreadId: "ig:gabriell_braga",
+      title: "@gabriell_braga",
+    });
+    const campaign = await repos.campaigns.create({
+      userId: user.id,
+      name: "IG falha",
+      channel: "instagram",
+      status: "running",
+      evergreen: false,
+      startsAt: null,
+      segment: null,
+      steps: [
+        {
+          id: "ig-text",
+          label: "Texto IG",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Mensagem falha",
+        },
+      ],
+      metadata: {},
+    });
+    const recipient = await repos.campaignRecipients.create({
+      userId: user.id,
+      campaignId: campaign.id,
+      contactId: null,
+      phone: null,
+      channel: "instagram",
+      status: "running",
+      currentStepId: null,
+      lastError: null,
+      metadata: {
+        instagramHandle: "gabriell_braga",
+        awaitingJobId: 0,
+        awaitingStepId: "ig-text",
+        awaitingJobIds: [],
+        awaitingStepIds: ["ig-text"],
+      },
+    });
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        campaignId: campaign.id,
+        recipientId: recipient.id,
+        conversationId: conversation.id,
+        instagramHandle: "gabriell_braga",
+        phone: null,
+        idempotencyKey: "campaign:ig-failure",
+        step: campaign.steps[0],
+        variables: {},
+        isLastStep: true,
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 1,
+    });
+    if (!job) throw new Error("expected instagram failure job");
+    await repos.campaignRecipients.updateState({
+      userId: user.id,
+      id: recipient.id,
+      metadata: {
+        ...recipient.metadata,
+        awaitingJobId: job.id,
+        awaitingJobIds: [job.id],
+      },
+    });
+
+    await expect(handleJob({ ...job, attempts: 1 }, { env, db, repos, logger })).rejects.toThrow(
+      "Instagram composer failed",
+    );
+
+    const message = await repos.messages.findByIdempotencyKey({
+      userId: user.id,
+      idempotencyKey: "campaign:ig-failure",
+    });
+    expect(message).toEqual(expect.objectContaining({ status: "failed", dispatchAttempts: 0 }));
+    const updatedRecipient = await repos.campaignRecipients.findById({
+      userId: user.id,
+      id: recipient.id,
+    });
+    expect(updatedRecipient).toEqual(
+      expect.objectContaining({
+        status: "failed",
+        lastError: "Instagram composer failed",
+        metadata: expect.objectContaining({
+          awaitingJobId: null,
+          awaitingStepId: null,
+          awaitingJobIds: [],
+          awaitingStepIds: [],
+          lastFailureTerminal: true,
+        }),
+      }),
+    );
   });
 
   it("does not re-dispatch when a job retries after send but before completion", async () => {
@@ -1931,7 +2372,14 @@ describe("worker job loop", () => {
       close: async () => {},
     };
 
-    await handleJob(firstJob, { env, db, repos, logger, sync });
+    const loop = createJobLoop({
+      env,
+      repos,
+      logger,
+      handlerContext: { env, db, repos, logger, sync },
+    });
+
+    await expect(loop.processOne()).resolves.toBe(true);
 
     expect(sendCalls).toHaveLength(2);
     expect(ensureCalls).toEqual([
@@ -1972,7 +2420,20 @@ describe("worker job loop", () => {
       ]),
     );
     const jobs = await repos.jobs.list(user.id);
+    expect(jobs.find((job) => job.id === firstJob.id)?.status).toBe("completed");
     expect(jobs.find((job) => job.id === lastJob.id)?.status).toBe("completed");
+    const drainEvents = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.campaign_step.batch_drained",
+    });
+    expect(drainEvents[0]?.payload).toEqual(
+      expect.objectContaining({
+        rootJobId: firstJob.id,
+        campaignBatchId: "batch-temp",
+        drainedJobs: 1,
+        stopped: false,
+      }),
+    );
   });
 
   it("executes temporary messages control steps without sending a message", async () => {

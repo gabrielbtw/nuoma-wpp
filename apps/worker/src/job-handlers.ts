@@ -25,7 +25,7 @@ import type {
   SyncEnsureTemporaryMessagesResult,
   SyncTemporaryMessagesDuration,
 } from "./sync/cdp.js";
-import { normalizeInstagramHandle } from "./instagram/assisted.js";
+import { normalizeInstagramHandle, sendInstagramTextViaCdp } from "./instagram/assisted.js";
 import type { InstagramRuntime } from "./instagram/sync.js";
 import { prepareVoiceAudio } from "./voice/audio.js";
 
@@ -69,6 +69,8 @@ export async function handleJob(job: Job, context: JobHandlerContext): Promise<v
       await handleCampaignStepJob(job, context);
       return;
     case "send_instagram_message":
+      await handleSendInstagramMessageJob(job, context);
+      return;
     case "chatbot_reply":
       throw new PermanentJobError(
         `${job.type} is intentionally disabled in V2.5 safe worker base; no message was sent`,
@@ -88,7 +90,36 @@ export async function handleJob(job: Job, context: JobHandlerContext): Promise<v
 
 async function handleCampaignStepJob(job: Job, context: JobHandlerContext): Promise<void> {
   await handleSingleCampaignStepJob(job, context);
-  await drainCampaignStepBatch(job, context);
+  const drainResult = await drainCampaignStepBatch(job, context);
+  if (drainResult.drainedJobs > 0 || drainResult.stopped) {
+    context.logger.info(
+      {
+        jobId: job.id,
+        type: job.type,
+        campaignBatchId: drainResult.campaignBatchId,
+        drainedJobs: drainResult.drainedJobs,
+        stopped: drainResult.stopped,
+        stoppedJobId: drainResult.stoppedJobId,
+        terminal: drainResult.terminal,
+        error: drainResult.error,
+      },
+      "campaign_step batch drain finished",
+    );
+    await context.repos.systemEvents.create({
+      userId: job.userId,
+      type: "sender.campaign_step.batch_drained",
+      severity: drainResult.stopped ? "warn" : "info",
+      payload: JSON.stringify({
+        rootJobId: job.id,
+        campaignBatchId: drainResult.campaignBatchId,
+        drainedJobs: drainResult.drainedJobs,
+        stopped: drainResult.stopped,
+        stoppedJobId: drainResult.stoppedJobId ?? null,
+        terminal: drainResult.terminal ?? null,
+        error: drainResult.error ?? null,
+      }),
+    });
+  }
 }
 
 async function handleSingleCampaignStepJob(job: Job, context: JobHandlerContext): Promise<void> {
@@ -107,6 +138,7 @@ async function handleSingleCampaignStepJob(job: Job, context: JobHandlerContext)
   const campaignId = numberFromPayload(job.payload.campaignId);
   const recipientId = numberFromPayload(job.payload.recipientId);
   const phoneInput = typeof job.payload.phone === "string" ? job.payload.phone : null;
+  const instagramConversation = await isInstagramConversation(job, context, conversationId);
 
   await assertCampaignRecipientCanRun(job, context, recipientId);
 
@@ -120,6 +152,9 @@ async function handleSingleCampaignStepJob(job: Job, context: JobHandlerContext)
 
   try {
     if (step.type === "temporary_messages") {
+      if (instagramConversation) {
+        throw new PermanentJobError("campaign_step temporary_messages is WhatsApp-only");
+      }
       const result = await handleTemporaryMessagesControlStep(job, context, {
         campaignId,
         recipientId,
@@ -141,18 +176,14 @@ async function handleSingleCampaignStepJob(job: Job, context: JobHandlerContext)
         step.type === "text"
           ? renderTemplate(step.template, variables)
           : renderTemplate(`${step.text}\n${step.url}`, variables);
-      const result = await withCampaignTemporaryMessagesAudit(
-        job,
-        context,
-        { campaignId, recipientId, conversationId, phone: phoneInput, step },
-        () =>
-          sendTextToConversation(job, context, {
-            conversationId,
-            phoneInput,
-            body,
-            reason: "campaign_step",
-          }),
-      );
+      const result = await sendCampaignTextStep(job, context, {
+        campaignId,
+        recipientId,
+        conversationId,
+        phone: phoneInput,
+        step,
+        body,
+      });
       await recordCampaignStepCompleted(job, context, {
         campaignId,
         recipientId,
@@ -160,6 +191,10 @@ async function handleSingleCampaignStepJob(job: Job, context: JobHandlerContext)
         result,
       });
       return;
+    }
+
+    if (instagramConversation && step.type !== "image" && step.type !== "video") {
+      throw new PermanentJobError(`campaign_step ${step.type} is not supported for Instagram yet`);
     }
 
     if (step.type === "document") {
@@ -222,28 +257,41 @@ async function handleSingleCampaignStepJob(job: Job, context: JobHandlerContext)
         throw new PermanentJobError(`campaign_step ${step.type} media asset not found`);
       }
 
-      const result = await withCampaignTemporaryMessagesAudit(
-        job,
-        context,
-        { campaignId, recipientId, conversationId, phone: phoneInput, step },
-        () =>
-          sendNativeMediaToConversation(job, context, {
+      const mediaFiles = mediaAssets.map((mediaAsset) => ({
+        mediaPath: resolveMediaStoragePath(mediaAsset.storagePath),
+        fileName: mediaAsset.fileName,
+        mimeType: mediaAsset.mimeType,
+      }));
+      const mediaInput = {
+        conversationId,
+        phoneInput,
+        mediaAssetId: primaryMediaAsset.id,
+        mediaType: step.type,
+        mediaPath: resolveMediaStoragePath(primaryMediaAsset.storagePath),
+        fileName: primaryMediaAsset.fileName,
+        mimeType: primaryMediaAsset.mimeType,
+        files: mediaFiles,
+        caption: renderOptionalTemplate(step.caption, variables),
+        reason: "campaign_step",
+      } satisfies Parameters<typeof sendNativeMediaToConversation>[2];
+      const result = instagramConversation
+        ? await sendInstagramTextToConversation(job, context, {
             conversationId,
-            phoneInput,
-            mediaAssetId: primaryMediaAsset.id,
-            mediaType: step.type,
-            mediaPath: resolveMediaStoragePath(primaryMediaAsset.storagePath),
-            fileName: primaryMediaAsset.fileName,
-            mimeType: primaryMediaAsset.mimeType,
-            files: mediaAssets.map((mediaAsset) => ({
-              mediaPath: resolveMediaStoragePath(mediaAsset.storagePath),
-              fileName: mediaAsset.fileName,
-              mimeType: mediaAsset.mimeType,
-            })),
-            caption: renderOptionalTemplate(step.caption, variables),
+            body: mediaInput.caption ?? "",
+            mediaAssetId: mediaInput.mediaAssetId,
+            mediaType: mediaInput.mediaType,
+            mediaPath: mediaInput.mediaPath,
+            fileName: mediaInput.fileName,
+            mimeType: mediaInput.mimeType,
+            files: mediaInput.files,
             reason: "campaign_step",
-          }),
-      );
+          })
+        : await withCampaignTemporaryMessagesAudit(
+            job,
+            context,
+            { campaignId, recipientId, conversationId, phone: phoneInput, step },
+            () => sendNativeMediaToConversation(job, context, mediaInput),
+          );
       await recordCampaignStepCompleted(job, context, {
         campaignId,
         recipientId,
@@ -306,12 +354,34 @@ async function handleSingleCampaignStepJob(job: Job, context: JobHandlerContext)
   }
 }
 
-async function drainCampaignStepBatch(job: Job, context: JobHandlerContext): Promise<void> {
+interface CampaignBatchDrainResult {
+  campaignBatchId: string | null;
+  drainedJobs: number;
+  stopped: boolean;
+  stoppedJobId?: number;
+  terminal?: boolean;
+  error?: string;
+}
+
+interface CampaignBatchDrainTarget {
+  kind: "phone" | "instagram";
+  value: string;
+}
+
+async function drainCampaignStepBatch(
+  job: Job,
+  context: JobHandlerContext,
+): Promise<CampaignBatchDrainResult> {
   const campaignBatchId = stringFromPayload(job.payload.campaignBatchId);
   const campaignBatchIndex = numberFromPayloadAllowZero(job.payload.campaignBatchIndex);
-  const phone = typeof job.payload.phone === "string" ? normalizePhone(job.payload.phone) : null;
-  if (!campaignBatchId || campaignBatchIndex === null || !phone) {
-    return;
+  const target = campaignBatchDrainTarget(job);
+  const result: CampaignBatchDrainResult = {
+    campaignBatchId,
+    drainedJobs: 0,
+    stopped: false,
+  };
+  if (!campaignBatchId || campaignBatchIndex === null || !target) {
+    return result;
   }
 
   while (true) {
@@ -319,10 +389,10 @@ async function drainCampaignStepBatch(job: Job, context: JobHandlerContext): Pro
       userId: job.userId,
       campaignBatchId,
       afterIndex: campaignBatchIndex,
-      phone,
+      target,
     });
     if (!sibling) {
-      return;
+      return result;
     }
 
     const waitMs = Date.parse(sibling.scheduledAt) - Date.now();
@@ -332,7 +402,13 @@ async function drainCampaignStepBatch(job: Job, context: JobHandlerContext): Pro
 
     const claimed = claimCampaignBatchSibling(context, sibling.id, context.env.WORKER_ID);
     if (!claimed) {
-      return;
+      return {
+        ...result,
+        stopped: true,
+        stoppedJobId: sibling.id,
+        terminal: false,
+        error: "campaign_step_sibling_claim_lost",
+      };
     }
 
     try {
@@ -348,8 +424,15 @@ async function drainCampaignStepBatch(job: Job, context: JobHandlerContext): Pro
           },
           "campaign_step batch sibling completion skipped because ownership was lost",
         );
-        return;
+        return {
+          ...result,
+          stopped: true,
+          stoppedJobId: claimed.id,
+          terminal: false,
+          error: "campaign_step_sibling_ownership_lost",
+        };
       }
+      result.drainedJobs += 1;
       context.logger.info(
         { jobId: claimed.id, type: claimed.type, campaignBatchId },
         "campaign_step batch sibling completed without reopening worker loop",
@@ -381,7 +464,13 @@ async function drainCampaignStepBatch(job: Job, context: JobHandlerContext): Pro
         { jobId: claimed.id, type: claimed.type, campaignBatchId, terminal, error: message },
         "campaign_step batch stopped after sibling failure",
       );
-      return;
+      return {
+        ...result,
+        stopped: true,
+        stoppedJobId: claimed.id,
+        terminal,
+        error: message,
+      };
     }
   }
 }
@@ -392,10 +481,13 @@ function nextQueuedCampaignBatchSibling(
     userId: number;
     campaignBatchId: string;
     afterIndex: number;
-    phone: string;
+    target: CampaignBatchDrainTarget;
   },
 ): Job | null {
-  const jobPhoneExpr = normalizedJsonPhoneSql("payload_json", "$.phone");
+  const jobTargetExpr =
+    input.target.kind === "instagram"
+      ? normalizedJsonInstagramHandleSql("payload_json")
+      : normalizedJsonPhoneSql("payload_json", "$.phone");
   const row = context.db.raw
     .prepare(
       `
@@ -406,15 +498,27 @@ function nextQueuedCampaignBatchSibling(
         and status = 'queued'
         and json_extract(payload_json, '$.campaignBatchId') = ?
         and cast(json_extract(payload_json, '$.campaignBatchIndex') as integer) > ?
-        and ${jobPhoneExpr} = ?
+        and ${jobTargetExpr} = ?
       order by cast(json_extract(payload_json, '$.campaignBatchIndex') as integer) asc, scheduled_at asc, id asc
       limit 1
     `,
     )
-    .get(input.userId, input.campaignBatchId, input.afterIndex, input.phone) as
+    .get(input.userId, input.campaignBatchId, input.afterIndex, input.target.value) as
     | RawJobRow
     | undefined;
   return row ? mapRawJob(row) : null;
+}
+
+function campaignBatchDrainTarget(job: Job): CampaignBatchDrainTarget | null {
+  const phone = typeof job.payload.phone === "string" ? normalizePhone(job.payload.phone) : null;
+  if (phone) {
+    return { kind: "phone", value: phone };
+  }
+  const instagramHandle =
+    normalizeInstagramHandle(stringFromPayload(job.payload.instagramHandle)) ??
+    normalizeInstagramHandle(stringFromPayload(job.payload.username)) ??
+    normalizeInstagramHandle(stringFromPayload(job.payload.recipientNormalizedValue));
+  return instagramHandle ? { kind: "instagram", value: instagramHandle } : null;
 }
 
 function normalizedJsonPhoneSql(jsonColumn: string, jsonPath: string): string {
@@ -424,6 +528,12 @@ function normalizedJsonPhoneSql(jsonColumn: string, jsonPath: string): string {
     WHEN length(${digits}) IN (10, 11) THEN '55' || ${digits}
     ELSE ''
   END)`;
+}
+
+function normalizedJsonInstagramHandleSql(jsonColumn: string): string {
+  const raw = `lower(trim(coalesce(json_extract(${jsonColumn}, '$.instagramHandle'), json_extract(${jsonColumn}, '$.username'), json_extract(${jsonColumn}, '$.recipientNormalizedValue'), '')))`;
+  const withoutPrefix = `replace(replace(${raw}, '@', ''), 'ig:', '')`;
+  return `(CASE WHEN length(${withoutPrefix}) BETWEEN 1 AND 30 THEN ${withoutPrefix} ELSE '' END)`;
 }
 
 function claimCampaignBatchSibling(
@@ -696,6 +806,58 @@ async function handleTemporaryMessagesControlStep(
     });
     throw new PermanentJobError(message);
   }
+}
+
+async function isInstagramConversation(
+  job: Job,
+  context: JobHandlerContext,
+  conversationId: number,
+): Promise<boolean> {
+  const conversation = await context.repos.conversations.findById({
+    userId: job.userId,
+    id: conversationId,
+  });
+  return conversation?.channel === "instagram";
+}
+
+async function sendCampaignTextStep(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    campaignId: number | null;
+    recipientId: number | null;
+    conversationId: number;
+    phone: string | null;
+    step: CampaignStep;
+    body: string;
+  },
+) {
+  if (await isInstagramConversation(job, context, input.conversationId)) {
+    return sendInstagramTextToConversation(job, context, {
+      conversationId: input.conversationId,
+      body: input.body,
+      reason: "campaign_step",
+    });
+  }
+
+  return withCampaignTemporaryMessagesAudit(
+    job,
+    context,
+    {
+      campaignId: input.campaignId,
+      recipientId: input.recipientId,
+      conversationId: input.conversationId,
+      phone: input.phone,
+      step: input.step,
+    },
+    () =>
+      sendTextToConversation(job, context, {
+        conversationId: input.conversationId,
+        phoneInput: input.phone,
+        body: input.body,
+        reason: "campaign_step",
+      }),
+  );
 }
 
 async function assertCampaignRecipientCanRun(
@@ -1070,7 +1232,10 @@ async function handleSendMediaJob(job: Job, context: JobHandlerContext): Promise
   if (!selectedMediaAssetId) {
     throw new PermanentJobError("send_media requires payload.mediaAssetId");
   }
-  const mediaType = job.payload.mediaType;
+  const mediaType =
+    job.payload.mediaType === "image" || job.payload.mediaType === "video"
+      ? job.payload.mediaType
+      : null;
   if (mediaType !== "image" && mediaType !== "video") {
     throw new PermanentJobError("send_media requires payload.mediaType image or video");
   }
@@ -1147,6 +1312,75 @@ async function handleSendVoiceJob(job: Job, context: JobHandlerContext): Promise
   await context.repos.systemEvents.create({
     userId: job.userId,
     type: "sender.voice_message.completed",
+    severity: "info",
+    payload: JSON.stringify({
+      jobId: job.id,
+      ...result,
+    }),
+  });
+}
+
+async function handleSendInstagramMessageJob(job: Job, context: JobHandlerContext): Promise<void> {
+  const conversationId = numberFromPayload(job.payload.conversationId);
+  if (!conversationId) {
+    throw new PermanentJobError("send_instagram_message requires payload.conversationId");
+  }
+  const body = typeof job.payload.body === "string" ? job.payload.body.trim() : "";
+  const mediaAssetId = numberFromPayload(job.payload.mediaAssetId);
+  const rawMediaType = job.payload.mediaType;
+  const mediaType = rawMediaType === "image" || rawMediaType === "video" ? rawMediaType : null;
+  if (!body && !mediaAssetId) {
+    throw new PermanentJobError("send_instagram_message requires text or mediaAssetId");
+  }
+  if (mediaAssetId && !mediaType) {
+    throw new PermanentJobError(
+      "send_instagram_message mediaAssetId requires mediaType image or video",
+    );
+  }
+
+  let media: {
+    mediaAssetId: number;
+    mediaType: "image" | "video";
+    mediaPath: string;
+    fileName: string;
+    mimeType: string;
+  } | null = null;
+  if (mediaAssetId) {
+    const mediaAsset = await context.repos.mediaAssets.findById({
+      userId: job.userId,
+      id: mediaAssetId,
+    });
+    if (!mediaAsset) {
+      throw new PermanentJobError("send_instagram_message media asset not found");
+    }
+    if (!mediaType) {
+      throw new PermanentJobError(
+        "send_instagram_message mediaAssetId requires mediaType image or video",
+      );
+    }
+    assertNativeMediaAsset("send_instagram_message", mediaAsset, mediaType);
+    media = {
+      mediaAssetId: mediaAsset.id,
+      mediaType,
+      mediaPath: resolveMediaStoragePath(mediaAsset.storagePath),
+      fileName: mediaAsset.fileName,
+      mimeType: mediaAsset.mimeType,
+    };
+  }
+
+  const result = await sendInstagramTextToConversation(job, context, {
+    conversationId,
+    body,
+    mediaAssetId: media?.mediaAssetId,
+    mediaType: media?.mediaType,
+    mediaPath: media?.mediaPath,
+    fileName: media?.fileName,
+    mimeType: media?.mimeType,
+    reason: "send_instagram_message",
+  });
+  await context.repos.systemEvents.create({
+    userId: job.userId,
+    type: "sender.instagram_message.completed",
     severity: "info",
     payload: JSON.stringify({
       jobId: job.id,
@@ -1869,6 +2103,124 @@ async function handleSendMessageJob(job: Job, context: JobHandlerContext): Promi
   });
 }
 
+async function sendInstagramTextToConversation(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    conversationId: number;
+    body: string;
+    mediaAssetId?: number | null;
+    mediaType?: "image" | "video";
+    mediaPath?: string | null;
+    fileName?: string | null;
+    mimeType?: string | null;
+    files?: Array<{
+      mediaPath: string;
+      fileName: string;
+      mimeType: string;
+    }>;
+    reason: string;
+  },
+) {
+  const conversation = await context.repos.conversations.findById({
+    userId: job.userId,
+    id: input.conversationId,
+  });
+  if (!conversation) {
+    throw new PermanentJobError("send_instagram_message conversation not found");
+  }
+  if (conversation.channel !== "instagram") {
+    throw new PermanentJobError(
+      `send_instagram_message unsupported channel: ${conversation.channel}`,
+    );
+  }
+
+  const username = await resolveInstagramUsername(job, context, conversation);
+  assertInstagramSendAllowed(context, username);
+
+  const idempotencyKey = extractIdempotencyKeyFromJobPayload(job.payload, job.id);
+  const targetKey = `ig:${username}`;
+  const contentType = input.mediaType ?? "text";
+  const skippedDuplicate = await trySkipExistingDispatch(job, context, {
+    idempotencyKey,
+    phone: targetKey,
+    reason: input.reason,
+    conversationId: input.conversationId,
+    contentType,
+  });
+  if (skippedDuplicate) {
+    return skippedDuplicate;
+  }
+  const mediaFiles = input.files?.length
+    ? input.files
+    : input.mediaPath && input.fileName && input.mimeType
+      ? [{ mediaPath: input.mediaPath, fileName: input.fileName, mimeType: input.mimeType }]
+      : [];
+  for (const file of mediaFiles) {
+    await fs.access(file.mediaPath);
+  }
+
+  const result = await dispatchWithIdempotencyGuard(job, context, {
+    idempotencyKey,
+    phone: targetKey,
+    reason: input.reason,
+    draft: {
+      conversationId: input.conversationId,
+      contactId: conversation.contactId,
+      contentType,
+      body: input.body,
+      mediaAssetId: input.mediaAssetId ?? null,
+      media:
+        mediaFiles.length > 0
+          ? {
+              mediaAssetId: input.mediaAssetId ?? null,
+              type: contentType,
+              mimeType: input.mimeType ?? mediaFiles[0]?.mimeType ?? null,
+              fileName: input.fileName ?? mediaFiles[0]?.fileName ?? null,
+              sizeBytes: null,
+              durationMs: null,
+              files: mediaFiles.map((file) => ({
+                fileName: file.fileName,
+                mimeType: file.mimeType,
+              })),
+            }
+          : null,
+      raw: {
+        bodyLength: input.body.length,
+        clientNonce: stringFromPayload(job.payload.clientNonce),
+        instagramHandle: username,
+        targetKey,
+        mediaPath: input.mediaPath ?? null,
+        mediaCount: mediaFiles.length,
+      },
+    },
+    send: () =>
+      sendInstagramTextViaCdp({
+        env: context.env,
+        username,
+        threadId: conversation.externalThreadId,
+        text: input.body,
+        mediaPaths: mediaFiles.map((file) => file.mediaPath),
+        contentType,
+        reason: input.reason,
+      }),
+  });
+  if (
+    "threadId" in result &&
+    typeof result.threadId === "string" &&
+    result.threadId.trim() &&
+    conversation.externalThreadId !== result.threadId
+  ) {
+    await context.repos.conversations.materializeExternalThread({
+      userId: job.userId,
+      id: input.conversationId,
+      externalThreadId: result.threadId,
+      title: `@${username}`,
+    });
+  }
+  return result;
+}
+
 async function sendTextToConversation(
   job: Job,
   context: JobHandlerContext,
@@ -1935,6 +2287,56 @@ async function sendTextToConversation(
   });
 }
 
+async function resolveInstagramUsername(
+  job: Job,
+  context: JobHandlerContext,
+  conversation: {
+    contactId: number | null;
+    externalThreadId: string;
+    title: string;
+  },
+): Promise<string> {
+  const fromPayload =
+    normalizeInstagramHandle(stringFromPayload(job.payload.instagramHandle)) ??
+    normalizeInstagramHandle(stringFromPayload(job.payload.username)) ??
+    normalizeInstagramHandle(stringFromPayload(job.payload.recipientNormalizedValue));
+  if (fromPayload) {
+    return fromPayload;
+  }
+
+  if (conversation.contactId) {
+    const contact = await context.repos.contacts.findById(conversation.contactId);
+    const fromContact =
+      contact?.userId === job.userId ? normalizeInstagramHandle(contact.instagramHandle) : null;
+    if (fromContact) {
+      return fromContact;
+    }
+  }
+
+  const fromThread =
+    normalizeInstagramHandle(conversation.externalThreadId) ??
+    normalizeInstagramHandle(conversation.title);
+  if (fromThread) {
+    return fromThread;
+  }
+
+  throw new PermanentJobError("send_instagram_message requires instagramHandle or ig thread");
+}
+
+function assertInstagramSendAllowed(context: JobHandlerContext, username: string): void {
+  const allowed = new Set(
+    context.env.IG_SEND_ALLOWED_HANDLES.split(/[\s,;]+/)
+      .map((value) => normalizeInstagramHandle(value))
+      .filter((value): value is string => Boolean(value)),
+  );
+  if (allowed.size === 0) {
+    throw new PermanentJobError("Instagram send blocked: IG_SEND_ALLOWED_HANDLES is empty");
+  }
+  if (!allowed.has(username)) {
+    throw new PermanentJobError(`Instagram send blocked by allowlist: @${username}`);
+  }
+}
+
 async function recordCampaignStepStarted(
   job: Job,
   context: JobHandlerContext,
@@ -1946,6 +2348,7 @@ async function recordCampaignStepStarted(
     step: CampaignStep;
   },
 ): Promise<void> {
+  const targetAudit = campaignJobAuditTarget(job, input.phone);
   await appendCampaignRecipientAudit(job, context, input.recipientId, {
     event: "campaign_step.started",
     source: "worker_campaign_step",
@@ -1955,6 +2358,7 @@ async function recordCampaignStepStarted(
     campaignId: input.campaignId,
     conversationId: input.conversationId,
     phone: input.phone,
+    ...targetAudit,
     stepId: input.step.id,
     stepType: input.step.type,
     attempt: job.attempts,
@@ -1972,6 +2376,7 @@ async function recordCampaignStepStarted(
       recipientId: input.recipientId,
       conversationId: input.conversationId,
       phone: input.phone,
+      ...targetAudit,
       stepId: input.step.id,
       stepType: input.step.type,
       campaignBatchId: stringFromPayload(job.payload.campaignBatchId),
@@ -2001,6 +2406,10 @@ async function recordCampaignStepCompleted(
 ): Promise<void> {
   const variantId = stringFromPayload(job.payload.variantId);
   const variantLabel = stringFromPayload(job.payload.variantLabel);
+  const conversationId = numberFromPayload(job.payload.conversationId);
+  const targetAudit = campaignJobAuditTarget(job, stringFromPayload(job.payload.phone));
+  const isInstagramStep =
+    conversationId !== null ? await isInstagramConversation(job, context, conversationId) : false;
   let result = input.result;
   if (input.recipientId) {
     const recipient = await context.repos.campaignRecipients.findById({
@@ -2012,6 +2421,7 @@ async function recordCampaignStepCompleted(
         recipient.metadata,
       );
       if (
+        !isInstagramStep &&
         input.step.type !== "temporary_messages" &&
         !("lastKnownTemporaryMessagesDuration" in input.result)
       ) {
@@ -2047,6 +2457,8 @@ async function recordCampaignStepCompleted(
             status: job.payload.isLastStep ? "completed" : "running",
             jobId: job.id,
             campaignId: input.campaignId,
+            conversationId,
+            ...targetAudit,
             stepId: input.step.id,
             stepType: input.step.type,
             variantId,
@@ -2078,6 +2490,8 @@ async function recordCampaignStepCompleted(
       jobId: job.id,
       campaignId: input.campaignId,
       recipientId: input.recipientId,
+      conversationId,
+      ...targetAudit,
       stepId: input.step.id,
       stepType: input.step.type,
       variantId,
@@ -2103,6 +2517,7 @@ async function recordCampaignStepFailed(
   },
 ): Promise<void> {
   const message = input.error instanceof Error ? input.error.message : String(input.error);
+  const targetAudit = campaignJobAuditTarget(job, input.phone);
   const isTerminal =
     input.error instanceof PermanentJobError ||
     isTerminalCampaignStepError(message) ||
@@ -2116,6 +2531,14 @@ async function recordCampaignStepFailed(
       id: input.recipientId,
     });
     if (recipient) {
+      const remainingJobIds = isTerminal
+        ? numericPayloadArray(recipient.metadata.awaitingJobIds).filter((jobId) => jobId !== job.id)
+        : numericPayloadArray(recipient.metadata.awaitingJobIds);
+      const remainingStepIds = isTerminal
+        ? stringPayloadArray(recipient.metadata.awaitingStepIds).filter(
+            (stepId) => stepId !== input.step.id,
+          )
+        : stringPayloadArray(recipient.metadata.awaitingStepIds);
       await context.repos.campaignRecipients.updateState({
         userId: job.userId,
         id: recipient.id,
@@ -2131,6 +2554,7 @@ async function recordCampaignStepFailed(
             campaignId: input.campaignId,
             conversationId: input.conversationId,
             phone: input.phone,
+            ...targetAudit,
             stepId: input.step.id,
             stepType: input.step.type,
             attempt: job.attempts,
@@ -2146,6 +2570,14 @@ async function recordCampaignStepFailed(
           lastFailedAt: new Date().toISOString(),
           lastFailureAttempt: job.attempts,
           lastFailureTerminal: isTerminal,
+          ...(isTerminal
+            ? {
+                awaitingJobId: remainingJobIds[0] ?? null,
+                awaitingStepId: remainingStepIds[0] ?? null,
+                awaitingJobIds: remainingJobIds,
+                awaitingStepIds: remainingStepIds,
+              }
+            : {}),
         },
       });
     }
@@ -2161,6 +2593,7 @@ async function recordCampaignStepFailed(
       recipientId: input.recipientId,
       conversationId: input.conversationId,
       phone: input.phone,
+      ...targetAudit,
       stepId: input.step.id,
       stepType: input.step.type,
       campaignBatchId: stringFromPayload(job.payload.campaignBatchId),
@@ -2473,11 +2906,6 @@ async function handleSyncJob(job: Job, context: JobHandlerContext): Promise<void
   }
 
   const phone = typeof job.payload.phone === "string" ? job.payload.phone : null;
-  if ((job.type === "sync_conversation" || job.type === "sync_history") && !conversationId) {
-    throw new PermanentJobError(`${job.type} requires payload.conversationId`);
-  }
-
-  const phone = typeof job.payload.phone === "string" ? job.payload.phone : null;
   const result = await context.sync.forceConversation({
     userId: job.userId,
     conversationId: conversationId ?? undefined,
@@ -2524,6 +2952,22 @@ function numericPayloadArray(value: unknown): number[] {
 
 function stringFromPayload(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function campaignJobAuditTarget(job: Job, phone: string | null): Record<string, string | null> {
+  const instagramHandle =
+    normalizeInstagramHandle(stringFromPayload(job.payload.instagramHandle)) ??
+    normalizeInstagramHandle(stringFromPayload(job.payload.username)) ??
+    normalizeInstagramHandle(stringFromPayload(job.payload.recipientNormalizedValue));
+  const normalizedPhone = normalizePhone(phone ?? stringFromPayload(job.payload.phone));
+  return {
+    targetKey: instagramHandle
+      ? `ig:${instagramHandle}`
+      : normalizedPhone
+        ? `wa:${normalizedPhone}`
+        : null,
+    instagramHandle,
+  };
 }
 
 function booleanFromPayload(value: unknown): boolean | null {

@@ -8,6 +8,7 @@ import {
   idempotencyKey,
   updateMessageInputSchema,
 } from "@nuoma/contracts";
+import type { Repositories } from "@nuoma/db";
 
 import {
   evaluateApiRealSendTarget,
@@ -243,14 +244,17 @@ export const messagesRouter = router({
       if (!conversation) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found" });
       }
-      if (conversation.channel !== "whatsapp") {
+      if (conversation.channel !== "whatsapp" && conversation.channel !== "instagram") {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Media sending can only target WhatsApp conversations in this phase",
+          message: `Media sending does not support ${conversation.channel} conversations`,
         });
       }
-      const phone = normalizePhone(conversation.externalThreadId);
-      assertApiSendAllowed(ctx.env, phone);
+      const phone =
+        conversation.channel === "whatsapp" ? normalizePhone(conversation.externalThreadId) : null;
+      if (conversation.channel === "whatsapp") {
+        assertApiSendAllowed(ctx.env, phone);
+      }
 
       const mediaAsset = await ctx.repos.mediaAssets.findById({
         userId: ctx.user.id,
@@ -265,20 +269,37 @@ export const messagesRouter = router({
           message: `Unsupported composer media type: ${mediaAsset.type}`,
         });
       }
+      if (conversation.channel === "instagram" && mediaAsset.type === "document") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Instagram media sending supports image and video assets only",
+        });
+      }
 
       const dispatchIdempotencyKey = resolveManualIdempotencyKey({
         userId: ctx.user.id,
         conversationId: conversation.id,
         clientNonce: input.clientNonce,
       });
+      const instagramHandle =
+        conversation.channel === "instagram"
+          ? await deriveConversationInstagramHandle(ctx.repos, ctx.user.id, conversation)
+          : null;
 
       const job = await ctx.repos.jobs.create({
         userId: ctx.user.id,
-        type: mediaAsset.type === "document" ? "send_document" : "send_media",
+        type:
+          conversation.channel === "instagram"
+            ? "send_instagram_message"
+            : mediaAsset.type === "document"
+              ? "send_document"
+              : "send_media",
         status: "queued",
         payload: {
           conversationId: conversation.id,
           phone,
+          instagramHandle,
+          body: input.caption?.trim() || "",
           mediaAssetId: mediaAsset.id,
           mediaType: mediaAsset.type,
           caption: input.caption?.trim() || null,
@@ -312,4 +333,31 @@ function assertApiSendAllowed(
       message: `Envio bloqueado pela allowlist da API: ${decision.reason}`,
     });
   }
+}
+
+async function deriveConversationInstagramHandle(
+  repos: Repositories,
+  userId: number,
+  conversation: { contactId: number | null; externalThreadId: string; title: string },
+): Promise<string | null> {
+  if (conversation.contactId) {
+    const contact = await repos.contacts.findById(conversation.contactId);
+    if (contact?.userId === userId) {
+      const fromContact = normalizeInstagramHandle(contact.instagramHandle);
+      if (fromContact) return fromContact;
+    }
+  }
+  return (
+    normalizeInstagramHandle(conversation.externalThreadId) ??
+    normalizeInstagramHandle(conversation.title)
+  );
+}
+
+function normalizeInstagramHandle(value: string | null | undefined): string | null {
+  const cleaned = String(value ?? "")
+    .trim()
+    .replace(/^ig:/i, "")
+    .replace(/^@+/, "")
+    .toLowerCase();
+  return /^[a-z0-9._]{1,30}$/.test(cleaned) ? cleaned : null;
 }

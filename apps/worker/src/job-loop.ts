@@ -12,17 +12,7 @@ import {
   type JobHandlerContext,
 } from "./job-handlers.js";
 
-const syncJobTypes: Job["type"][] = ["sync_conversation", "sync_history", "sync_inbox_force"];
-const sendJobTypes: Job["type"][] = [
-  "send_message",
-  "send_instagram_message",
-  "send_voice",
-  "send_document",
-  "send_media",
-  "campaign_step",
-  "chatbot_reply",
-];
-
+const syncJobTypes: Job["type"][] = ["sync_conversation", "sync_history"];
 export interface WorkerMetrics {
   claimed: number;
   completed: number;
@@ -68,10 +58,24 @@ export function createJobLoop(input: {
   async function processOne(): Promise<boolean> {
     await reapStaleClaims();
 
+    const excludeTypes: Job["type"][] = [];
+    if (!input.handlerContext.sync?.connected) {
+      excludeTypes.push(
+        ...syncJobTypes,
+        "send_message",
+        "send_voice",
+        "send_document",
+        "send_media",
+      );
+    }
+    if (!input.handlerContext.instagram?.metrics.connected) {
+      excludeTypes.push("send_instagram_message");
+    }
+
     const claimed = await input.repos.jobs.claimDueJobs({
       workerId: input.env.WORKER_ID,
       limit: 1,
-      excludeTypes: input.handlerContext.sync?.connected ? [] : [...syncJobTypes, ...sendJobTypes],
+      excludeTypes,
     });
 
     const job = claimed[0];
@@ -106,7 +110,11 @@ export function createJobLoop(input: {
       const message = serializeError(error);
       state.lastError = message;
 
-      if (isPermanentJobError(error) || isNonRetryableSendError(message) || job.attempts >= job.maxAttempts) {
+      if (
+        isPermanentJobError(error) ||
+        isNonRetryableSendError(message) ||
+        job.attempts >= job.maxAttempts
+      ) {
         const moved = await input.repos.jobs.moveToDead({
           jobId: job.id,
           error: message,

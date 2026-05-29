@@ -4,6 +4,7 @@ import {
   attendantSchema,
   attachmentCandidateSchema,
   automationSchema,
+  campaignStepSchema,
   campaignRecipientSchema,
   campaignSchema,
   chatbotVariantEventSchema,
@@ -28,6 +29,7 @@ import {
   type AttachmentCandidate,
   type Automation,
   type Campaign,
+  type CampaignStep,
   type CampaignRecipient,
   type Chatbot,
   type ChatbotRule,
@@ -176,6 +178,184 @@ function decodeArray<T>(value: string | null): T[] {
   return Array.isArray(parsed) ? (parsed as T[]) : [];
 }
 
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function numberValue(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function positiveIntegerValue(value: unknown): number | null {
+  const number = numberValue(value);
+  return number && Number.isInteger(number) && number > 0 ? number : null;
+}
+
+function legacyDelaySeconds(step: Record<string, unknown>, raw: Record<string, unknown>): number {
+  const delaySeconds =
+    numberValue(step.delaySeconds) ??
+    numberValue(step.delay_seconds) ??
+    numberValue(raw.delaySeconds) ??
+    numberValue(raw.delay_seconds);
+  if (delaySeconds !== null) {
+    return Math.max(0, Math.round(delaySeconds));
+  }
+  const waitMinutes =
+    numberValue(step.waitMinutes) ??
+    numberValue(step.wait_minutes) ??
+    numberValue(raw.waitMinutes) ??
+    numberValue(raw.wait_minutes);
+  return waitMinutes !== null ? Math.max(0, Math.round(waitMinutes * 60)) : 0;
+}
+
+function normalizeLegacyCampaignConditions(
+  step: Record<string, unknown>,
+  raw: Record<string, unknown>,
+): CampaignStep["conditions"] {
+  if (Array.isArray(step.conditions)) {
+    const conditions = step.conditions
+      .map((condition) => recordValue(condition))
+      .map((condition) => ({
+        type: stringValue(condition.type),
+        action: stringValue(condition.action),
+        value: stringValue(condition.value) || null,
+        targetStepId: stringValue(condition.targetStepId) || null,
+      }))
+      .filter(
+        (condition) =>
+          ["replied", "has_tag", "channel_is", "outside_window"].includes(condition.type) &&
+          ["exit", "branch", "skip", "wait"].includes(condition.action),
+      );
+    if (conditions.length > 0) {
+      return conditions as CampaignStep["conditions"];
+    }
+  }
+
+  const type = stringValue(raw.condition_type || step.conditionType);
+  const action = stringValue(raw.condition_action || step.conditionAction) || "exit";
+  if (
+    !["replied", "has_tag", "channel_is", "outside_window"].includes(type) ||
+    !["exit", "branch", "skip", "wait"].includes(action)
+  ) {
+    return [];
+  }
+  return [
+    {
+      type,
+      action,
+      value: stringValue(raw.condition_value || step.conditionValue) || null,
+      targetStepId: stringValue(raw.condition_jump_to || step.conditionJumpTo) || null,
+    },
+  ] as CampaignStep["conditions"];
+}
+
+function firstUrlFromText(value: string): string | null {
+  const match = value.match(/https?:\/\/[^\s)]+/i);
+  if (!match) {
+    return null;
+  }
+  try {
+    return new URL(match[0]).toString();
+  } catch {
+    return null;
+  }
+}
+
+function normalizeLegacyCampaignSteps(steps: unknown[]): CampaignStep[] {
+  const normalized: CampaignStep[] = [];
+  let pendingDelaySeconds = 0;
+
+  for (const [index, value] of steps.entries()) {
+    const step = recordValue(value);
+    const raw = recordValue(step.raw);
+    const type = stringValue(step.type || raw.type).toLowerCase();
+    const label = stringValue(step.label) || `Step ${index + 1}`;
+    const id = stringValue(step.id || raw.id) || `legacy-step-${index + 1}`;
+    const delaySeconds = pendingDelaySeconds + legacyDelaySeconds(step, raw);
+    const conditions = normalizeLegacyCampaignConditions(step, raw);
+
+    if (type === "wait") {
+      pendingDelaySeconds += legacyDelaySeconds(step, raw);
+      continue;
+    }
+    if (type === "add_tag") {
+      continue;
+    }
+
+    const content = stringValue(step.template || step.text || step.content || raw.content);
+    const candidateBase = {
+      id,
+      label,
+      delaySeconds,
+      conditions,
+    };
+    const mediaAssetId =
+      positiveIntegerValue(step.mediaAssetId) ?? positiveIntegerValue(raw.media_asset_id);
+    const caption = stringValue(step.caption || raw.caption) || null;
+    let candidate: unknown = null;
+
+    if (type === "text" && content) {
+      candidate = { ...candidateBase, type: "text", template: content };
+    } else if (type === "link") {
+      const url = stringValue(step.url) || firstUrlFromText(content);
+      if (url && content) {
+        candidate = {
+          ...candidateBase,
+          type: "link",
+          url,
+          previewEnabled: typeof step.previewEnabled === "boolean" ? step.previewEnabled : true,
+          text: stringValue(step.text) || content,
+        };
+      }
+    } else if ((type === "voice" || type === "audio") && mediaAssetId) {
+      candidate = { ...candidateBase, type: "voice", mediaAssetId, caption };
+    } else if (type === "document" && mediaAssetId) {
+      candidate = {
+        ...candidateBase,
+        type: "document",
+        mediaAssetId,
+        fileName: stringValue(step.fileName || raw.file_name) || `${id}.pdf`,
+        caption,
+      };
+    } else if ((type === "image" || type === "video") && mediaAssetId) {
+      candidate = { ...candidateBase, type, mediaAssetId, caption };
+    }
+
+    if (!candidate && content && (type === "audio" || type === "image" || type === "video")) {
+      candidate = {
+        ...candidateBase,
+        type: "text",
+        template: `[midia legada indisponivel] ${content}`,
+      };
+    }
+
+    const parsed = campaignStepSchema.safeParse(candidate);
+    if (parsed.success) {
+      normalized.push(parsed.data);
+      pendingDelaySeconds = 0;
+    }
+  }
+
+  return normalized.length > 0
+    ? normalized
+    : [
+        {
+          id: "legacy-unsupported",
+          label: "Campanha legada sem steps executaveis",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Campanha legada precisa de revisao antes de reativar.",
+        },
+      ];
+}
+
 function mapUser(row: typeof users.$inferSelect): UserRecord {
   const parsed = userSchema.parse({
     id: row.id,
@@ -289,9 +469,10 @@ function normalizeCampaignPipelinePhone(value: string | null | undefined): strin
   return normalizePhone(value);
 }
 
-function normalizeCampaignPipelineInstagramHandle(value: unknown): string | null {
+function normalizeCampaignPipelineInstagram(value: unknown): string | null {
   const cleaned = String(value ?? "")
     .trim()
+    .replace(/^ig:/i, "")
     .replace(/^@+/, "")
     .toLowerCase();
   return /^[a-z0-9._]{1,30}$/.test(cleaned) ? cleaned : null;
@@ -301,6 +482,7 @@ function campaignActivePipelineKey(input: {
   channel: typeof campaignRecipients.$inferSelect.channel;
   phone?: string | null | undefined;
   instagramHandle?: unknown;
+  metadata?: JsonObject | null | undefined;
   status?: typeof campaignRecipients.$inferSelect.status | undefined;
 }): string | null {
   if (!activeCampaignRecipientStatuses.includes(input.status ?? "queued")) {
@@ -311,7 +493,12 @@ function campaignActivePipelineKey(input: {
     return phone ? `whatsapp:${phone}` : null;
   }
   if (input.channel === "instagram") {
-    const instagramHandle = normalizeCampaignPipelineInstagramHandle(input.instagramHandle);
+    const metadata = input.metadata && typeof input.metadata === "object" ? input.metadata : {};
+    const instagramHandle = normalizeCampaignPipelineInstagram(
+      input.instagramHandle ??
+        (typeof metadata.instagramHandle === "string" ? metadata.instagramHandle : null) ??
+        (typeof metadata.instagram === "string" ? metadata.instagram : null),
+    );
     return instagramHandle ? `instagram:${instagramHandle}` : null;
   }
   return null;
@@ -356,11 +543,29 @@ function mapMessageDispatchAttempt(
 }
 
 function mapCampaign(row: typeof campaigns.$inferSelect): Campaign {
-  return campaignSchema.parse({
+  const campaign = {
     ...row,
     segment: decodeNullableJsonObject(row.segment),
     steps: decodeArray(row.steps),
     metadata: decodeJsonObject(row.metadata),
+  };
+  const parsed = campaignSchema.safeParse(campaign);
+  if (parsed.success) {
+    return parsed.data;
+  }
+
+  const normalizedSteps = normalizeLegacyCampaignSteps(campaign.steps);
+  return campaignSchema.parse({
+    ...campaign,
+    steps: normalizedSteps,
+    metadata: {
+      ...campaign.metadata,
+      legacyStepNormalization: {
+        applied: true,
+        originalStepCount: campaign.steps.length,
+        normalizedStepCount: normalizedSteps.length,
+      },
+    },
   });
 }
 
@@ -458,6 +663,22 @@ function normalizedPhoneSql(valueSql: string): string {
 
 function normalizedJsonPhoneSql(tableAlias: string): string {
   return normalizedPhoneSql(`json_extract(${tableAlias}.payload_json, '$.phone')`);
+}
+
+function normalizedJsonInstagramHandleSql(tableAlias: string): string {
+  const raw = `lower(trim(coalesce(json_extract(${tableAlias}.payload_json, '$.instagramHandle'), json_extract(${tableAlias}.payload_json, '$.username'), json_extract(${tableAlias}.payload_json, '$.recipientNormalizedValue'), '')))`;
+  const withoutPrefix = `replace(replace(${raw}, '@', ''), 'ig:', '')`;
+  return `(CASE WHEN length(${withoutPrefix}) BETWEEN 1 AND 30 THEN ${withoutPrefix} ELSE '' END)`;
+}
+
+function normalizedJsonSerialTargetSql(tableAlias: string): string {
+  const phone = normalizedJsonPhoneSql(tableAlias);
+  const instagramHandle = normalizedJsonInstagramHandleSql(tableAlias);
+  return `(CASE
+    WHEN ${phone} != '' THEN 'wa:' || ${phone}
+    WHEN ${instagramHandle} != '' THEN 'ig:' || ${instagramHandle}
+    ELSE ''
+  END)`;
 }
 
 function expectRow<T>(row: T | undefined, context: string): T {
@@ -659,6 +880,7 @@ export function createRepositories(handle: DbHandle) {
           .select()
           .from(contacts)
           .where(and(...clauses))
+          .orderBy(desc(contacts.id))
           .limit(input.limit ?? 50);
         return Promise.all(
           rows.map(async (row) => mapContact(row, await tagIdsForContact(row.id))),
@@ -1121,6 +1343,48 @@ export function createRepositories(handle: DbHandle) {
           .where(and(eq(conversations.userId, input.userId), eq(conversations.id, input.id)))
           .returning();
         return row ? mapConversation(row) : null;
+      },
+
+      async materializeExternalThread(input: {
+        userId: number;
+        id: number;
+        externalThreadId: string;
+        title?: string | null;
+      }): Promise<Conversation | null> {
+        const existing = await db
+          .select()
+          .from(conversations)
+          .where(
+            and(
+              eq(conversations.userId, input.userId),
+              eq(conversations.channel, "instagram"),
+              eq(conversations.externalThreadId, input.externalThreadId),
+            ),
+          )
+          .get();
+        if (existing && existing.id !== input.id) {
+          const updatedAt = nowIso();
+          await db
+            .update(messages)
+            .set({ conversationId: existing.id, updatedAt })
+            .where(and(eq(messages.userId, input.userId), eq(messages.conversationId, input.id)));
+          await db
+            .update(conversations)
+            .set({ isArchived: true, updatedAt })
+            .where(and(eq(conversations.userId, input.userId), eq(conversations.id, input.id)));
+          return mapConversation(existing);
+        }
+
+        const [row] = await db
+          .update(conversations)
+          .set({
+            externalThreadId: input.externalThreadId,
+            ...(input.title ? { title: input.title } : {}),
+            updatedAt: nowIso(),
+          })
+          .where(and(eq(conversations.userId, input.userId), eq(conversations.id, input.id)))
+          .returning();
+        return row ? mapConversation(row) : existing ? mapConversation(existing) : null;
       },
 
       async updateProfilePhoto(input: {
@@ -1890,7 +2154,11 @@ export function createRepositories(handle: DbHandle) {
         return row ? mapCampaign(row) : null;
       },
       async list(userId: number): Promise<Campaign[]> {
-        const rows = await db.select().from(campaigns).where(eq(campaigns.userId, userId));
+        const rows = await db
+          .select()
+          .from(campaigns)
+          .where(eq(campaigns.userId, userId))
+          .orderBy(desc(campaigns.id));
         return rows.map(mapCampaign);
       },
       async update(input: {
@@ -2421,12 +2689,13 @@ export function createRepositories(handle: DbHandle) {
               ? `AND type NOT IN (${excludeTypes.map(() => "?").join(", ")})`
               : "";
           const sendTypePlaceholders = serialSendJobTypes.map(() => "?").join(", ");
+          const jobTargetExpr = normalizedJsonSerialTargetSql("jobs");
+          const activeTargetExpr = normalizedJsonSerialTargetSql("active_jobs");
           const jobPhoneExpr = normalizedJsonPhoneSql("jobs");
-          const activePhoneExpr = normalizedJsonPhoneSql("active_jobs");
           const candidateRecipientPhoneExpr = normalizedPhoneSql("candidate_recipients.phone");
           const rows = handle.raw
             .prepare(
-              `SELECT id, ${jobPhoneExpr} AS phone_key FROM jobs
+              `SELECT id, ${jobTargetExpr} AS target_key FROM jobs
                WHERE status = 'queued' AND scheduled_at <= ?
                ${typeFilter}
                AND NOT (
@@ -2466,14 +2735,14 @@ export function createRepositories(handle: DbHandle) {
                )
                AND NOT (
                  type IN (${sendTypePlaceholders})
-                 AND ${jobPhoneExpr} != ''
+                 AND ${jobTargetExpr} != ''
                  AND EXISTS (
                    SELECT 1
                    FROM jobs active_jobs
                    WHERE active_jobs.id != jobs.id
                      AND active_jobs.status IN ('claimed', 'running')
                      AND active_jobs.type IN (${sendTypePlaceholders})
-                     AND ${activePhoneExpr} = ${jobPhoneExpr}
+                     AND ${activeTargetExpr} = ${jobTargetExpr}
                  )
                )
                ORDER BY priority ASC, scheduled_at ASC, id ASC
@@ -2481,17 +2750,17 @@ export function createRepositories(handle: DbHandle) {
             )
             .all(
               ...[now, ...excludeTypes, ...serialSendJobTypes, ...serialSendJobTypes, limit],
-            ) as Array<{ id: number; phone_key: string | null }>;
+            ) as Array<{ id: number; target_key: string | null }>;
 
-          const selectedRows: Array<{ id: number; phone_key: string | null }> = [];
-          const selectedPhoneKeys = new Set<string>();
+          const selectedRows: Array<{ id: number; target_key: string | null }> = [];
+          const selectedTargetKeys = new Set<string>();
           for (const row of rows) {
-            const phoneKey = row.phone_key ?? "";
-            if (phoneKey && selectedPhoneKeys.has(phoneKey)) {
+            const targetKey = row.target_key ?? "";
+            if (targetKey && selectedTargetKeys.has(targetKey)) {
               continue;
             }
-            if (phoneKey) {
-              selectedPhoneKeys.add(phoneKey);
+            if (targetKey) {
+              selectedTargetKeys.add(targetKey);
             }
             selectedRows.push(row);
             if (selectedRows.length >= limit) {
