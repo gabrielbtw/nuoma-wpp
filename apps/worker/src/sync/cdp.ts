@@ -416,40 +416,58 @@ export async function startSyncEngine(input: {
   const profilePhotoSeenByThread = new Map<string, string>();
   try {
     const target = await selectSyncTarget(input.env);
-    client = await CDP({
-      host: input.env.CHROMIUM_CDP_HOST,
-      port: input.env.CHROMIUM_CDP_PORT,
-      target,
-    });
-
-    await client.Runtime.enable();
-    await client.Page.enable();
-    await client.Runtime.removeBinding({ name: NUOMA_OVERLAY_API_BINDING_NAME }).catch(
-      () => undefined,
+    client = await withTimeout(
+      CDP({
+        host: input.env.CHROMIUM_CDP_HOST,
+        port: input.env.CHROMIUM_CDP_PORT,
+        target,
+      }),
+      5_000,
+      "CDP sync target attach timed out",
     );
-    await client.Runtime.evaluate({
-      expression: `
-        (() => {
-          delete window.${NUOMA_OVERLAY_API_BINDING_NAME};
-          delete window.${NUOMA_OVERLAY_NATIVE_BRIDGE_NAME};
-          delete window.__nuomaApiResolve;
-          if (window.__nuomaOverlayState && typeof window.__nuomaOverlayState === "object") {
-            window.__nuomaOverlayState.apiBridge = null;
-            window.__nuomaOverlayState.apiPending = {};
-            window.__nuomaOverlayState.apiInFlight = false;
-            window.__nuomaOverlayState.apiStatus = "offline";
-            window.__nuomaOverlayState.apiLastMethod = "";
-            window.__nuomaOverlayState.apiLastError = "";
-          }
-          return true;
-        })()
-      `,
-      awaitPromise: false,
-      returnByValue: true,
-      includeCommandLineAPI: false,
-    }).catch(() => undefined);
-    await client.Runtime.addBinding({ name: SYNC_BINDING_NAME });
-    await client.Runtime.addBinding({ name: NUOMA_OVERLAY_API_BINDING_NAME });
+
+    await withTimeout(client.Runtime.enable(), 5_000, "CDP Runtime.enable timed out");
+    await withTimeout(client.Page.enable(), 5_000, "CDP Page.enable timed out");
+    await withTimeout(
+      client.Runtime.removeBinding({ name: NUOMA_OVERLAY_API_BINDING_NAME }),
+      5_000,
+      "CDP overlay binding cleanup timed out",
+    ).catch(() => undefined);
+    await withTimeout(
+      client.Runtime.evaluate({
+        expression: `
+          (() => {
+            delete window.${NUOMA_OVERLAY_API_BINDING_NAME};
+            delete window.${NUOMA_OVERLAY_NATIVE_BRIDGE_NAME};
+            delete window.__nuomaApiResolve;
+            if (window.__nuomaOverlayState && typeof window.__nuomaOverlayState === "object") {
+              window.__nuomaOverlayState.apiBridge = null;
+              window.__nuomaOverlayState.apiPending = {};
+              window.__nuomaOverlayState.apiInFlight = false;
+              window.__nuomaOverlayState.apiStatus = "offline";
+              window.__nuomaOverlayState.apiLastMethod = "";
+              window.__nuomaOverlayState.apiLastError = "";
+            }
+            return true;
+          })()
+        `,
+        awaitPromise: false,
+        returnByValue: true,
+        includeCommandLineAPI: false,
+      }),
+      5_000,
+      "CDP overlay binding cleanup evaluate timed out",
+    ).catch(() => undefined);
+    await withTimeout(
+      client.Runtime.addBinding({ name: SYNC_BINDING_NAME }),
+      5_000,
+      "CDP sync binding add timed out",
+    );
+    await withTimeout(
+      client.Runtime.addBinding({ name: NUOMA_OVERLAY_API_BINDING_NAME }),
+      5_000,
+      "CDP overlay binding add timed out",
+    );
     const overlayBridgePrelude = `
       (() => {
         if (typeof window.${NUOMA_OVERLAY_API_BINDING_NAME} === "function") {
@@ -504,24 +522,48 @@ export async function startSyncEngine(input: {
       input.logger.warn("sync engine CDP disconnected");
     });
 
-    await client.Page.addScriptToEvaluateOnNewDocument({ source: observerSource });
-    await client.Page.addScriptToEvaluateOnNewDocument({ source: overlayBridgePrelude });
-    await client.Page.addScriptToEvaluateOnNewDocument({ source: overlaySource });
-    await client.Runtime.evaluate({
-      expression: observerSource,
-      awaitPromise: false,
-      includeCommandLineAPI: false,
-    });
-    await client.Runtime.evaluate({
-      expression: overlayBridgePrelude,
-      awaitPromise: false,
-      includeCommandLineAPI: false,
-    });
-    await client.Runtime.evaluate({
-      expression: overlaySource,
-      awaitPromise: false,
-      includeCommandLineAPI: false,
-    });
+    await withTimeout(
+      client.Page.addScriptToEvaluateOnNewDocument({ source: observerSource }),
+      5_000,
+      "CDP observer preload timed out",
+    );
+    await withTimeout(
+      client.Page.addScriptToEvaluateOnNewDocument({ source: overlayBridgePrelude }),
+      5_000,
+      "CDP overlay bridge preload timed out",
+    );
+    await withTimeout(
+      client.Page.addScriptToEvaluateOnNewDocument({ source: overlaySource }),
+      5_000,
+      "CDP overlay preload timed out",
+    );
+    await withTimeout(
+      client.Runtime.evaluate({
+        expression: observerSource,
+        awaitPromise: false,
+        includeCommandLineAPI: false,
+      }),
+      10_000,
+      "CDP observer injection timed out",
+    );
+    await withTimeout(
+      client.Runtime.evaluate({
+        expression: overlayBridgePrelude,
+        awaitPromise: false,
+        includeCommandLineAPI: false,
+      }),
+      5_000,
+      "CDP overlay bridge injection timed out",
+    );
+    await withTimeout(
+      client.Runtime.evaluate({
+        expression: overlaySource,
+        awaitPromise: false,
+        includeCommandLineAPI: false,
+      }),
+      10_000,
+      "CDP overlay injection timed out",
+    );
     metrics.connected = true;
     input.logger.info(
       {
@@ -1326,7 +1368,7 @@ export async function startSyncEngine(input: {
     reason: string;
   }) {
     const waJid = normalizeWaJid(inputSnapshot.waJid ?? inputSnapshot.phone);
-    let phone = inputSnapshot.phone ?? normalizePhone(waJid);
+    let phone = normalizePhone(inputSnapshot.phone) ?? normalizePhone(waJid);
     const title = stringValue(inputSnapshot.title);
     const identityConversation = waJid
       ? await input.repos.conversations.findByWaJid({
@@ -1417,6 +1459,7 @@ export async function startSyncEngine(input: {
 
     return {
       phone,
+      waJid,
       phoneSource,
       title,
       contact: contact
@@ -4534,29 +4577,37 @@ async function scoreSyncTarget(env: WorkerEnv, target: CDP.Target): Promise<numb
   } else if (target.url.includes("web.whatsapp.com")) {
     score += 10;
   }
-  const targetClient = await CDP({
-    host: env.CHROMIUM_CDP_HOST,
-    port: env.CHROMIUM_CDP_PORT,
-    target,
-  }).catch(() => null);
+  const targetClient = await withTimeout(
+    CDP({
+      host: env.CHROMIUM_CDP_HOST,
+      port: env.CHROMIUM_CDP_PORT,
+      target,
+    }),
+    5_000,
+    "CDP target attach timed out",
+  ).catch(() => null);
   if (!targetClient) {
     return score;
   }
   try {
-    const result = await targetClient.Runtime.evaluate({
-      expression: `
-        (() => ({
-          href: location.href,
-          title: document.title,
-          body: String(document.body?.innerText || "").slice(0, 2000),
-          hasComposer: Boolean(document.querySelector("#main footer [contenteditable='true'], footer [contenteditable='true']")),
-          hasChatList: Boolean(document.querySelector("[aria-label='Lista de conversas'], [aria-label='Chat list'], #pane-side"))
-        }))()
-      `,
-      awaitPromise: false,
-      returnByValue: true,
-      includeCommandLineAPI: false,
-    });
+    const result = await withTimeout(
+      targetClient.Runtime.evaluate({
+        expression: `
+          (() => ({
+            href: location.href,
+            title: document.title,
+            body: String(document.body?.innerText || "").slice(0, 2000),
+            hasComposer: Boolean(document.querySelector("#main footer [contenteditable='true'], footer [contenteditable='true']")),
+            hasChatList: Boolean(document.querySelector("[aria-label='Lista de conversas'], [aria-label='Chat list'], #pane-side"))
+          }))()
+        `,
+        awaitPromise: false,
+        returnByValue: true,
+        includeCommandLineAPI: false,
+      }),
+      5_000,
+      "CDP target scoring timed out",
+    );
     const value = result.result.value;
     if (!isRecord(value)) {
       return score;
@@ -4584,7 +4635,23 @@ async function scoreSyncTarget(env: WorkerEnv, target: CDP.Target): Promise<numb
     }
     return score;
   } finally {
-    await targetClient.close().catch(() => null);
+    await withTimeout(targetClient.close(), 2_000, "CDP target close timed out").catch(() => null);
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeout: NodeJS.Timeout | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
   }
 }
 

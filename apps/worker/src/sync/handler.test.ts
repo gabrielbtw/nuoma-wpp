@@ -160,6 +160,95 @@ describe("sync event handler", () => {
     expect(handler.metrics.syncEventLatencyMsLast).toEqual(expect.any(Number));
   });
 
+  it("updates status and deletion for saved-contact WhatsApp threads by wa_jid", async () => {
+    const repos = createRepositories(db);
+    const user = await repos.users.create({
+      email: "saved-contact-status@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const handler = createSyncEventHandler({
+      repos,
+      logger: pino({ level: "silent" }),
+      userId: user.id,
+    });
+    const canonicalThread: SyncThreadRef = {
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      waJid: "5531982066263@s.whatsapp.net",
+      title: "5531982066263",
+      phone: "5531982066263",
+      unreadCount: 0,
+      fingerprint: null,
+    };
+    const savedContactThread: SyncThreadRef = {
+      channel: "whatsapp",
+      externalThreadId: "Gabriel Braga Nuoma",
+      waJid: "5531982066263@s.whatsapp.net",
+      title: "Gabriel Braga Nuoma",
+      phone: null,
+      unreadCount: 0,
+      fingerprint: null,
+    };
+
+    await handler.handle({
+      type: "message-added",
+      source: "wa-web",
+      observedAtUtc: "2026-04-30T18:34:42.123Z",
+      thread: canonicalThread,
+      message: {
+        externalId: "false_5531982066263@c.us_STATUS",
+        direction: "inbound",
+        contentType: "text",
+        status: "received",
+        body: "Oi com status",
+        displayedAtText: "[15:34, 30/04/2026] Maria: ",
+        waDisplayedAt: null,
+        timestampPrecision: "unknown",
+        messageSecond: null,
+        waInferredSecond: 59,
+        observedAtUtc: "2026-04-30T18:34:42.123Z",
+        raw: { source: "test" },
+      },
+    });
+    await handler.handle({
+      type: "delivery-status",
+      source: "wa-web",
+      observedAtUtc: "2026-04-30T18:35:00.000Z",
+      thread: savedContactThread,
+      externalId: "false_5531982066263@c.us_STATUS",
+      status: "read",
+    });
+    await handler.handle({
+      type: "message-removed",
+      source: "wa-web",
+      observedAtUtc: "2026-04-30T18:36:00.000Z",
+      thread: savedContactThread,
+      externalId: "false_5531982066263@c.us_STATUS",
+    });
+
+    const canonical = await repos.conversations.findByWaJid({
+      userId: user.id,
+      waJid: "5531982066263@s.whatsapp.net",
+    });
+    const namedDuplicate = await repos.conversations.findByExternalThread({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "Gabriel Braga Nuoma",
+    });
+    const messages = await repos.messages.listByConversation({
+      userId: user.id,
+      conversationId: canonical?.id ?? 0,
+    });
+
+    expect(namedDuplicate).toBeNull();
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.status).toBe("read");
+    expect(messages[0]?.deletedAt).toBe("2026-04-30T18:36:00.000Z");
+    expect(handler.metrics.statusesUpdated).toBe(1);
+    expect(handler.metrics.messagesDeleted).toBe(1);
+  });
+
   it("counts messages inserted by forced reconcile as safety-net pickups", async () => {
     const repos = createRepositories(db);
     const user = await repos.users.create({

@@ -179,6 +179,36 @@ describe("repositories", () => {
     });
   });
 
+  it("resolves legacy raw SQL WhatsApp conversations by wa_jid", async () => {
+    const repos = createRepositories(handle);
+    const user = await repos.users.create({
+      email: "legacy-conversation-wa-jid@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const now = new Date().toISOString();
+
+    const result = handle.raw
+      .prepare(
+        `INSERT INTO conversations
+         (user_id, channel, external_thread_id, title, last_message_at, created_at, updated_at)
+         VALUES (?, 'whatsapp', ?, ?, ?, ?, ?)`,
+      )
+      .run(user.id, "5531982066263", "Legacy raw conversation", now, now, now);
+
+    const byWaJid = await repos.conversations.findByWaJid({
+      userId: user.id,
+      waJid: "5531982066263@s.whatsapp.net",
+    });
+    const byLegacyCUs = await repos.conversations.findByWaJid({
+      userId: user.id,
+      waJid: "5531982066263@c.us",
+    });
+
+    expect(byWaJid?.id).toBe(Number(result.lastInsertRowid));
+    expect(byLegacyCUs?.id).toBe(Number(result.lastInsertRowid));
+  });
+
   it("deduplicates captured attachment candidates by conversation, message and asset", async () => {
     const repos = createRepositories(handle);
     const user = await repos.users.create({

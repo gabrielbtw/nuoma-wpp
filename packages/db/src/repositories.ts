@@ -1242,6 +1242,12 @@ export function createRepositories(handle: DbHandle) {
         if (!waJid) {
           return null;
         }
+        const phone = normalizePhone(waJid);
+        const externalThreadCandidates = [
+          phone,
+          phone ? `${phone}@c.us` : null,
+          phone ? `${phone}@s.whatsapp.net` : null,
+        ].filter((value): value is string => Boolean(value));
         const row = await db
           .select()
           .from(conversations)
@@ -1249,7 +1255,10 @@ export function createRepositories(handle: DbHandle) {
             and(
               eq(conversations.userId, input.userId),
               eq(conversations.channel, "whatsapp"),
-              eq(conversations.waJid, waJid),
+              or(
+                eq(conversations.waJid, waJid),
+                inArray(conversations.externalThreadId, externalThreadCandidates),
+              ),
               eq(conversations.isArchived, false),
             ),
           )

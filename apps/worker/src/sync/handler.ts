@@ -676,6 +676,35 @@ export function createSyncEventHandler(input: {
   }
 
   async function findConversation(thread: SyncThreadRef) {
+    if (thread.channel === "whatsapp") {
+      const waJid = normalizeThreadWaJid(thread);
+      if (waJid) {
+        const conversation = await input.repos.conversations.findByWaJid({ userId, waJid });
+        if (conversation) {
+          return conversation;
+        }
+      }
+
+      const phone = normalizeThreadPhone(thread);
+      if (phone) {
+        const candidates = [phone, `${phone}@c.us`, `${phone}@s.whatsapp.net`];
+        for (const externalThreadId of candidates) {
+          const conversation = await input.repos.conversations.findByExternalThread({
+            userId,
+            channel: thread.channel,
+            externalThreadId,
+          });
+          if (conversation) {
+            return conversation;
+          }
+        }
+      }
+
+      if (!normalizeWaJid(thread.externalThreadId) && !normalizePhone(thread.externalThreadId)) {
+        return null;
+      }
+    }
+
     return input.repos.conversations.findByExternalThread({
       userId,
       channel: thread.channel,
