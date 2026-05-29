@@ -1340,6 +1340,10 @@ function FlowStudioInspector({
   onOpenCampaignTab?: (tab: CampaignWorkspaceTab) => void;
 }) {
   const readyCount = readyChecks.filter((check) => check.ok).length;
+  const failedChecks = readyChecks.filter((check) => !check.ok);
+  const validationIssueCount = failedChecks.length;
+  const isFlowValid = validationIssueCount === 0;
+  const validationStatus = isFlowValid ? "valid" : "invalid";
   const estimatedAudience = csvPreview?.validCount
     ? csvPreview.validCount.toLocaleString("pt-BR")
     : "28.450";
@@ -1347,15 +1351,42 @@ function FlowStudioInspector({
     <aside className="nuoma-flow-v2-inspector" data-active-tab={activeTab}>
       <h2>Resumo e validação</h2>
 
-      <section className="nuoma-flow-v2-inspector-card nuoma-flow-v2-valid-card">
+      <section
+        className="nuoma-flow-v2-inspector-card nuoma-flow-v2-valid-card"
+        data-testid="campaign-flow-validation-card"
+        data-status={validationStatus}
+      >
         <div className="nuoma-flow-v2-card-head">
-          <span className="nuoma-flow-v2-card-icon is-success">
-            <CheckCircle2 className="h-4 w-4" />
+          <span className={cn("nuoma-flow-v2-card-icon", isFlowValid ? "is-success" : "is-warning")}>
+            {isFlowValid ? (
+              <CheckCircle2 className="h-4 w-4" />
+            ) : (
+              <AlertTriangle className="h-4 w-4" />
+            )}
           </span>
           <div>
-            <strong>Fluxo válido</strong>
-            <span>Tudo pronto para ativação.</span>
+            <strong>{isFlowValid ? "Fluxo válido" : "Fluxo com pendências"}</strong>
+            <span>
+              {isFlowValid
+                ? "Tudo pronto para ativação."
+                : `${validationIssueCount} item(ns) precisam de revisão.`}
+            </span>
           </div>
+        </div>
+        <div className="mt-3 grid gap-2 text-xs">
+          {readyChecks.map((check) => (
+            <div
+              key={check.label}
+              className="flex items-center justify-between gap-3"
+              data-testid="campaign-flow-validation-check"
+              data-ok={check.ok ? "true" : "false"}
+            >
+              <span className="text-fg-muted">{check.label}</span>
+              <Badge variant={check.ok ? "success" : "warning"}>
+                {check.ok ? "ok" : "revisar"}
+              </Badge>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -1426,11 +1457,22 @@ function FlowStudioInspector({
           <div>
             <strong>Possíveis alertas</strong>
           </div>
-          <span>1 alerta</span>
+          <span>{validationIssueCount} alerta(s)</span>
         </div>
         <div className="nuoma-flow-v2-alert-copy">
-          <strong>Aguardar 12 horas</strong>
-          <p>Tempo de espera longo pode impactar engajamento.</p>
+          <strong>{isFlowValid ? "Sem bloqueios críticos" : "Revise antes de ativar"}</strong>
+          <p>
+            {isFlowValid
+              ? "O fluxo pode seguir para revisão de disparo."
+              : "Corrija os itens abaixo antes de salvar ou ativar."}
+          </p>
+          {failedChecks.length > 0 ? (
+            <ul>
+              {failedChecks.map((check) => (
+                <li key={check.label}>{check.label}</li>
+              ))}
+            </ul>
+          ) : null}
           {stepBuildError ? <p>{stepBuildError}</p> : null}
           <button type="button">Saiba mais</button>
         </div>
@@ -2410,13 +2452,21 @@ function StepEditor({
           Este tipo não dispara no Instagram.
         </div>
       ) : null}
-      <StepBody value={value} onChange={onChange} />
+      <StepBody index={index} value={value} onChange={onChange} />
       <StepConditions value={value} stepOptions={stepOptions} onChange={onChange} />
     </div>
   );
 }
 
-function StepBody({ value, onChange }: { value: StepDraft; onChange: (value: StepDraft) => void }) {
+function StepBody({
+  index,
+  value,
+  onChange,
+}: {
+  index: number;
+  value: StepDraft;
+  onChange: (value: StepDraft) => void;
+}) {
   if (value.type === "temporary_messages") {
     return (
       <div className="mt-3 rounded-lg bg-bg-deep/70 p-3 shadow-pressed-sm">
@@ -2461,6 +2511,7 @@ function StepBody({ value, onChange }: { value: StepDraft; onChange: (value: Ste
     return (
       <LabeledField label="Mensagem" className="mt-3">
         <Textarea
+          data-testid={`campaign-step-message-${index + 1}`}
           rows={3}
           value={value.template}
           placeholder="Olá {{nome}}, tudo bem?"
