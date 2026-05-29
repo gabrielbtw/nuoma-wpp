@@ -90,6 +90,12 @@ const workerSchema = baseSchema.extend({
     .default(15_000),
   WORKER_SEND_STRICT_DELIVERY: booleanFromEnv.default(true),
   WORKER_IDEMPOTENCY_GUARD_ENABLED: booleanFromEnv.default(true),
+  WORKER_STALE_CLAIM_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(60_000)
+    .max(60 * 60_000)
+    .default(10 * 60_000),
   WA_SEND_POLICY_MODE: z.enum(["test", "production"]).default("test"),
   WA_SEND_ALLOWED_PHONES: z.string().default(""),
   WA_SEND_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).default(60_000),

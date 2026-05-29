@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import pino from "pino";
 
 import { loadWorkerEnv } from "@nuoma/config";
-import { createRepositories, openDb, runMigrations, type DbHandle } from "@nuoma/db";
+import { createRepositories, openDb, runMigrations, type DbHandle, type Repositories } from "@nuoma/db";
 
 import { handleJob } from "./job-handlers.js";
 import { createJobLoop } from "./job-loop.js";
@@ -115,6 +115,122 @@ describe("worker job loop", () => {
     expect(processed).toBe(false);
     expect(queued).toHaveLength(1);
     expect(queued[0]?.type).toBe("sync_conversation");
+  });
+
+  it("releases stale claimed jobs only with the idempotency guard and does not increment attempts", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const user = await repos.users.create({
+      email: "stale-claim@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const staleClaimedAt = "2026-04-30T11:45:00.000Z";
+    const staleJob = await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "claimed",
+      payload: {
+        conversationId: 1,
+        phone: "5531982066263",
+        body: "claim preso",
+        idempotencyKey: "manual:stale-claim",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      claimedAt: staleClaimedAt,
+      claimedBy: "dead-worker",
+      attempts: 2,
+      maxAttempts: 3,
+    });
+    if (!staleJob) {
+      throw new Error("expected stale send_message job to be created");
+    }
+    const guardedEnv = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-stale-claim",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WORKER_IDEMPOTENCY_GUARD_ENABLED: "true",
+      WORKER_STALE_CLAIM_TIMEOUT_MS: "60000",
+    });
+    const guardedLoop = createJobLoop({
+      env: guardedEnv,
+      repos,
+      logger,
+      handlerContext: {
+        env: guardedEnv,
+        db,
+        repos,
+        logger,
+      },
+    });
+
+    const processed = await guardedLoop.processOne();
+    const released = db.raw.prepare("select status, claimed_at, attempts from jobs where id = ?").get(
+      staleJob.id,
+    ) as { status: string; claimed_at: string | null; attempts: number } | undefined;
+
+    expect(processed).toBe(false);
+    expect(guardedLoop.state.metrics.reaped).toBe(1);
+    expect(released).toEqual({
+      status: "queued",
+      claimed_at: null,
+      attempts: 2,
+    });
+
+    const guardOffJob = await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "claimed",
+      payload: {
+        conversationId: 1,
+        phone: "5531982066263",
+        body: "claim preso sem guard",
+        idempotencyKey: "manual:stale-claim-disabled",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      claimedAt: staleClaimedAt,
+      claimedBy: "dead-worker",
+      attempts: 2,
+      maxAttempts: 3,
+    });
+    if (!guardOffJob) {
+      throw new Error("expected guard-off send_message job to be created");
+    }
+    const guardOffEnv = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-stale-claim-off",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WORKER_IDEMPOTENCY_GUARD_ENABLED: "false",
+      WORKER_STALE_CLAIM_TIMEOUT_MS: "60000",
+    });
+    const guardOffLoop = createJobLoop({
+      env: guardOffEnv,
+      repos,
+      logger,
+      handlerContext: {
+        env: guardOffEnv,
+        db,
+        repos,
+        logger,
+      },
+    });
+
+    await guardOffLoop.processOne();
+    const stillClaimed = db.raw
+      .prepare("select status, claimed_at, attempts from jobs where id = ?")
+      .get(guardOffJob.id) as
+      | { status: string; claimed_at: string | null; attempts: number }
+      | undefined;
+    expect(guardOffLoop.state.metrics.reaped).toBe(0);
+    expect(stillClaimed).toEqual({
+      status: "claimed",
+      claimed_at: staleClaimedAt,
+      attempts: 2,
+    });
   });
 
   it("runs sync_history as a bounded history backfill for one conversation", async () => {
@@ -687,6 +803,147 @@ describe("worker job loop", () => {
     );
     const attempts = await repos.messageDispatchAttempts.listByKey(idempotencyKey);
     expect(attempts.map((attempt) => attempt.phase)).toEqual(["failed", "sent"]);
+  });
+
+  it("does not re-dispatch when a job retries after send but before completion", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-send-crash-proof",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_ALLOWED_PHONE: "5531982066263",
+    });
+    const user = await repos.users.create({
+      email: "send-crash-proof@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      title: "Gabriel Braga Nuoma",
+    });
+    const idempotencyKey = "manual:test-crash-after-send";
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        phone: "5531982066263",
+        body: "crash depois do send",
+        clientNonce: "composer:text:crash-proof",
+        idempotencyKey,
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 3,
+    });
+    if (!job) {
+      throw new Error("expected send_message job to be created");
+    }
+
+    let sendCalls = 0;
+    let failMarkCompletedOnce = true;
+    const flakyRepos: Repositories = {
+      ...repos,
+      jobs: {
+        ...repos.jobs,
+        markCompleted: async (jobId: number) => {
+          if (failMarkCompletedOnce) {
+            failMarkCompletedOnce = false;
+            throw new Error("simulated crash after send before markCompleted");
+          }
+          await repos.jobs.markCompleted(jobId);
+        },
+      },
+    };
+    const loop = createJobLoop({
+      env,
+      repos: flakyRepos,
+      logger,
+      handlerContext: {
+        env,
+        db,
+        repos: flakyRepos,
+        logger,
+        sync: {
+          connected: true,
+          metrics: {} as never,
+          forceConversation: async () => {
+            throw new Error("unexpected force sync");
+          },
+          sendTextMessage: async (input: {
+            conversationId: number;
+            phone: string;
+            body: string;
+            reason?: string;
+          }) => {
+            sendCalls += 1;
+            if (sendCalls > 1) {
+              throw new Error("duplicate CDP send");
+            }
+            return {
+              mode: "text-message" as const,
+              conversationId: input.conversationId,
+              phone: input.phone,
+              reason: input.reason ?? "send_message",
+              navigationMode: "reused-open-chat" as const,
+              externalId: "crash-proof-external",
+              visibleMessageCountBefore: 1,
+              visibleMessageCountAfter: 2,
+              lastExternalIdBefore: "before",
+              lastExternalIdAfter: "crash-proof-external",
+            };
+          },
+          sendVoiceMessage: async () => {
+            throw new Error("unexpected voice send");
+          },
+          sendDocumentMessage: async () => {
+            throw new Error("unexpected document send");
+          },
+          sendMediaMessage: async () => {
+            throw new Error("unexpected media send");
+          },
+          close: async () => {},
+        },
+      },
+    });
+
+    await loop.processOne();
+    expect(loop.state.lastError).toBe("simulated crash after send before markCompleted");
+    expect(sendCalls).toBe(1);
+    db.raw
+      .prepare("update jobs set scheduled_at = ? where id = ?")
+      .run("2026-04-30T12:00:00.000Z", job.id);
+
+    await loop.processOne();
+
+    expect(sendCalls).toBe(1);
+    const storedJob = db.raw.prepare("select status, attempts from jobs where id = ?").get(job.id) as
+      | { status: string; attempts: number }
+      | undefined;
+    expect(storedJob).toEqual({ status: "completed", attempts: 2 });
+    const message = await repos.messages.findByIdempotencyKey({
+      userId: user.id,
+      idempotencyKey,
+    });
+    expect(message).toEqual(
+      expect.objectContaining({
+        idempotencyKey,
+        externalId: "crash-proof-external",
+        status: "sent",
+        dispatchAttempts: 1,
+        raw: expect.objectContaining({
+          clientNonce: "composer:text:crash-proof",
+        }),
+      }),
+    );
+    const attempts = await repos.messageDispatchAttempts.listByKey(idempotencyKey);
+    expect(attempts.map((attempt) => attempt.phase)).toEqual(["sent", "skipped_duplicate"]);
   });
 
   it("does not fail when sync already reconciled the returned external id", async () => {

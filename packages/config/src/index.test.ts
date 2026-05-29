@@ -88,6 +88,7 @@ describe("loadWorkerEnv", () => {
     expect(env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS).toBe(15_000);
     expect(env.WORKER_SEND_STRICT_DELIVERY).toBe(true);
     expect(env.WORKER_IDEMPOTENCY_GUARD_ENABLED).toBe(true);
+    expect(env.WORKER_STALE_CLAIM_TIMEOUT_MS).toBe(10 * 60_000);
   });
 
   it("parses production send policy explicitly", () => {
@@ -100,6 +101,7 @@ describe("loadWorkerEnv", () => {
       WORKER_SEND_CONFIRMATION_TIMEOUT_MS: "5000",
       WORKER_SEND_STRICT_DELIVERY: "false",
       WORKER_IDEMPOTENCY_GUARD_ENABLED: "false",
+      WORKER_STALE_CLAIM_TIMEOUT_MS: "120000",
     });
 
     expect(env.WA_SEND_POLICY_MODE).toBe("production");
@@ -109,6 +111,7 @@ describe("loadWorkerEnv", () => {
     expect(env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS).toBe(5_000);
     expect(env.WORKER_SEND_STRICT_DELIVERY).toBe(false);
     expect(env.WORKER_IDEMPOTENCY_GUARD_ENABLED).toBe(false);
+    expect(env.WORKER_STALE_CLAIM_TIMEOUT_MS).toBe(120_000);
   });
 
   it("allows hosted CDP bind host to differ from the local connect host", () => {

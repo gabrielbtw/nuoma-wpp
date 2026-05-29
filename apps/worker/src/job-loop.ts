@@ -30,6 +30,7 @@ export interface WorkerMetrics {
   dead: number;
   emptyPolls: number;
   errors: number;
+  reaped: number;
 }
 
 export interface JobLoopState {
@@ -59,11 +60,14 @@ export function createJobLoop(input: {
       dead: 0,
       emptyPolls: 0,
       errors: 0,
+      reaped: 0,
     },
     lastError: null,
   };
 
   async function processOne(): Promise<boolean> {
+    await reapStaleClaims();
+
     const claimed = await input.repos.jobs.claimDueJobs({
       workerId: input.env.WORKER_ID,
       limit: 1,
@@ -117,6 +121,28 @@ export function createJobLoop(input: {
     } finally {
       state.currentJobId = null;
     }
+  }
+
+  async function reapStaleClaims(): Promise<void> {
+    if (!input.env.WORKER_IDEMPOTENCY_GUARD_ENABLED) {
+      return;
+    }
+    const result = await input.repos.jobs.releaseStaleClaims({
+      staleAfterMs: input.env.WORKER_STALE_CLAIM_TIMEOUT_MS,
+      limit: 50,
+    });
+    if (result.released === 0) {
+      return;
+    }
+    state.metrics.reaped += result.released;
+    input.logger.warn(
+      {
+        released: result.released,
+        staleAfterMs: result.staleAfterMs,
+        cutoff: result.cutoff,
+      },
+      "stale job claims released for retry",
+    );
   }
 
   async function runUntilStopped(shouldStop: () => boolean): Promise<void> {

@@ -2561,6 +2561,65 @@ export function createRepositories(handle: DbHandle) {
           .where(eq(jobs.id, input.jobId));
       },
 
+      async releaseStaleClaims(input: {
+        staleAfterMs: number;
+        now?: Date;
+        limit?: number;
+      }): Promise<{
+        released: number;
+        cutoff: string;
+        now: string;
+        staleAfterMs: number;
+      }> {
+        const nowDate = input.now ?? new Date();
+        const now = nowDate.toISOString();
+        const cutoff = new Date(nowDate.getTime() - input.staleAfterMs).toISOString();
+        const limit = input.limit ?? 50;
+        const rows = handle.raw
+          .prepare(
+            `
+            SELECT id
+            FROM jobs
+            WHERE status IN ('claimed', 'running')
+              AND claimed_at IS NOT NULL
+              AND claimed_at <= ?
+            ORDER BY claimed_at ASC, id ASC
+            LIMIT ?
+          `,
+          )
+          .all(cutoff, limit) as Array<{ id: number }>;
+        if (rows.length === 0) {
+          return { released: 0, cutoff, now, staleAfterMs: input.staleAfterMs };
+        }
+
+        const placeholders = rows.map(() => "?").join(", ");
+        const result = handle.raw
+          .prepare(
+            `
+            UPDATE jobs
+            SET status = 'queued',
+                claimed_at = NULL,
+                claimed_by = NULL,
+                scheduled_at = ?,
+                last_error = ?,
+                updated_at = ?
+            WHERE id IN (${placeholders})
+          `,
+          )
+          .run(
+            now,
+            `stale claim reaped after ${input.staleAfterMs}ms`,
+            now,
+            ...rows.map((row) => row.id),
+          );
+        return {
+          released: result.changes,
+          cutoff,
+          now,
+          staleAfterMs: input.staleAfterMs,
+        };
+      },
+
       async moveToDead(input: { jobId: number; error: string }): Promise<void> {
         const job = await db.select().from(jobs).where(eq(jobs.id, input.jobId)).get();
         if (!job) {
