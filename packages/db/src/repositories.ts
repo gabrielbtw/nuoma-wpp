@@ -1697,6 +1697,26 @@ export function createRepositories(handle: DbHandle) {
           .limit(input.limit ?? 100);
         return rows.map(mapMessage);
       },
+      async findLatestInboundByConversation(input: {
+        userId: number;
+        conversationId: number;
+      }): Promise<Message | null> {
+        const row = await db
+          .select()
+          .from(messages)
+          .where(
+            and(
+              eq(messages.userId, input.userId),
+              eq(messages.conversationId, input.conversationId),
+              eq(messages.direction, "inbound"),
+              isNull(messages.deletedAt),
+            ),
+          )
+          .orderBy(desc(messages.observedAtUtc), desc(messages.id))
+          .limit(1)
+          .get();
+        return row ? mapMessage(row) : null;
+      },
       async update(input: {
         id: number;
         userId: number;

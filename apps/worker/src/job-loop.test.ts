@@ -132,6 +132,11 @@ describe("worker job loop", () => {
       externalThreadId: "ig:gabriell_braga",
       title: "@gabriell_braga",
     });
+    await seedInstagramInbound(repos, {
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: contact.id,
+    });
     await repos.jobs.create({
       userId: user.id,
       type: "send_instagram_message",
@@ -169,6 +174,107 @@ describe("worker job loop", () => {
     );
   });
 
+  it("blocks Instagram sends outside the 24h inbound window before CDP dispatch", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-instagram-24h",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      IG_SEND_ALLOWED_HANDLES: "gabriell_braga",
+    });
+    const user = await repos.users.create({
+      email: "instagram-24h@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel IG 24h",
+      phone: null,
+      email: null,
+      primaryChannel: "instagram",
+      instagramHandle: "gabriell_braga",
+      status: "lead",
+      notes: null,
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "instagram",
+      externalThreadId: "ig:gabriell_braga",
+      title: "@gabriell_braga",
+    });
+    await seedInstagramInbound(repos, {
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: contact.id,
+      observedAtUtc: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
+    });
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "send_instagram_message",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        instagramHandle: "gabriell_braga",
+        body: "fora da janela",
+        idempotencyKey: "manual:ig-24h-block",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 1,
+    });
+    if (!job) throw new Error("expected instagram 24h job");
+
+    await expect(
+      handleJob(job, {
+        env,
+        db,
+        repos,
+        logger,
+        instagram: { metrics: { connected: true } } as never,
+      }),
+    ).rejects.toThrow("outside the 24h window");
+
+    expect(sendInstagramTextViaCdp).not.toHaveBeenCalled();
+    await expect(
+      repos.messages.findByIdempotencyKey({
+        userId: user.id,
+        idempotencyKey: "manual:ig-24h-block",
+      }),
+    ).resolves.toBeNull();
+    const events = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.instagram_24h_window.blocked",
+    });
+    expect(events[0]?.payload).toEqual(
+      expect.objectContaining({
+        jobId: job.id,
+        jobType: "send_instagram_message",
+        conversationId: conversation.id,
+        contactId: contact.id,
+        instagramHandle: "gabriell_braga",
+        reason: "instagram_24h_window_expired",
+      }),
+    );
+    const audit = await repos.sendAuditEvents.list({
+      userId: user.id,
+      jobId: job.id,
+      phase: "policy_block",
+    });
+    expect(audit).toEqual([
+      expect.objectContaining({
+        channel: "instagram",
+        conversationId: conversation.id,
+        contactId: contact.id,
+        workerId: "worker-instagram-24h",
+        errorCode: "instagram_24h_window_expired",
+      }),
+    ]);
+  });
+
   it("drains Instagram campaign batch siblings by handle without a WhatsApp phone", async () => {
     const repos = createRepositories(db);
     const logger = pino({ level: "silent" });
@@ -190,6 +296,11 @@ describe("worker job loop", () => {
       channel: "instagram",
       externalThreadId: "ig:gabriell_braga",
       title: "@gabriell_braga",
+    });
+    await seedInstagramInbound(repos, {
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: null,
     });
     const basePayload = {
       campaignId: 301,
@@ -1216,6 +1327,11 @@ describe("worker job loop", () => {
       externalThreadId: "ig:gabriell_braga",
       title: "@gabriell_braga",
     });
+    await seedInstagramInbound(repos, {
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: contact.id,
+    });
     const imagePath = path.join(tempDir, "ig-campaign.jpg");
     await fs.writeFile(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
     const mediaAsset = await repos.mediaAssets.create({
@@ -1309,6 +1425,11 @@ describe("worker job loop", () => {
       channel: "instagram",
       externalThreadId: "ig:gabriell_braga",
       title: "@gabriell_braga",
+    });
+    await seedInstagramInbound(repos, {
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: null,
     });
     const campaign = await repos.campaigns.create({
       userId: user.id,
@@ -4083,6 +4204,38 @@ describe("worker job loop", () => {
     );
   });
 });
+
+async function seedInstagramInbound(
+  repos: Repositories,
+  input: {
+    userId: number;
+    conversationId: number;
+    contactId: number | null;
+    observedAtUtc?: string;
+  },
+) {
+  const observedAtUtc = input.observedAtUtc ?? new Date().toISOString();
+  return repos.messages.create({
+    userId: input.userId,
+    conversationId: input.conversationId,
+    contactId: input.contactId,
+    externalId: `ig-inbound-${input.conversationId}-${Date.parse(observedAtUtc)}`,
+    direction: "inbound",
+    contentType: "text",
+    status: "received",
+    body: "Inbound Instagram message",
+    mediaAssetId: null,
+    media: null,
+    quotedMessageId: null,
+    waDisplayedAt: null,
+    timestampPrecision: "second",
+    messageSecond: null,
+    waInferredSecond: null,
+    observedAtUtc,
+    raw: { source: "job-loop-test" },
+    idempotencyKey: null,
+  });
+}
 
 function createTestWav(durationSecs: number): Buffer {
   const sampleRate = 48_000;

@@ -45,6 +45,8 @@ export class PermanentJobError extends Error {
   }
 }
 
+const INSTAGRAM_SEND_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 export async function handleJob(job: Job, context: JobHandlerContext): Promise<void> {
   switch (job.type) {
     case "backup":
@@ -2297,6 +2299,11 @@ async function sendInstagramTextToConversation(
 
   const username = await resolveInstagramUsername(job, context, conversation);
   assertInstagramSendAllowed(context, username);
+  await assertInstagramConversationWithinSendWindow(job, context, {
+    conversationId: conversation.id,
+    contactId: conversation.contactId,
+    username,
+  });
 
   const idempotencyKey = extractIdempotencyKeyFromJobPayload(job.payload, job.id);
   const targetKey = `ig:${username}`;
@@ -2495,6 +2502,69 @@ function assertInstagramSendAllowed(context: JobHandlerContext, username: string
   if (!allowed.has(username)) {
     throw new PermanentJobError(`Instagram send blocked by allowlist: @${username}`);
   }
+}
+
+async function assertInstagramConversationWithinSendWindow(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    conversationId: number;
+    contactId: number | null;
+    username: string;
+  },
+): Promise<void> {
+  const latestInbound = await context.repos.messages.findLatestInboundByConversation({
+    userId: job.userId,
+    conversationId: input.conversationId,
+  });
+  const observedAtUtc = latestInbound?.observedAtUtc ?? null;
+  const observedAtMs = observedAtUtc ? Date.parse(observedAtUtc) : Number.NaN;
+  const nowMs = Date.now();
+  const withinWindow = Number.isFinite(observedAtMs)
+    ? nowMs - observedAtMs <= INSTAGRAM_SEND_WINDOW_MS
+    : false;
+  if (withinWindow) {
+    return;
+  }
+
+  const errorCode = latestInbound ? "instagram_24h_window_expired" : "instagram_24h_window_missing";
+  const errorMessage = latestInbound
+    ? "Instagram send blocked: last inbound message is outside the 24h window"
+    : "Instagram send blocked: no inbound message found for 24h window";
+  await context.repos.systemEvents.create({
+    userId: job.userId,
+    type: "sender.instagram_24h_window.blocked",
+    severity: "warn",
+    payload: JSON.stringify({
+      jobId: job.id,
+      jobType: job.type,
+      conversationId: input.conversationId,
+      contactId: input.contactId,
+      instagramHandle: input.username,
+      latestInboundMessageId: latestInbound?.id ?? null,
+      latestInboundObservedAtUtc: observedAtUtc,
+      sendWindowMs: INSTAGRAM_SEND_WINDOW_MS,
+      reason: errorCode,
+    }),
+  });
+  await recordStructuredSendAudit(job, context, {
+    phase: "policy_block",
+    channel: "instagram",
+    campaignId: numberFromPayload(job.payload.campaignId),
+    contactId: input.contactId,
+    conversationId: input.conversationId,
+    latencyMs: null,
+    errorCode,
+    errorMessage,
+    metadata: {
+      idempotencyKey: stringFromPayload(job.payload.idempotencyKey),
+      instagramHandle: input.username,
+      latestInboundMessageId: latestInbound?.id ?? null,
+      latestInboundObservedAtUtc: observedAtUtc,
+      sendWindowMs: INSTAGRAM_SEND_WINDOW_MS,
+    },
+  });
+  throw new PermanentJobError(`${errorMessage}: @${input.username}`);
 }
 
 async function recordCampaignStepStarted(
