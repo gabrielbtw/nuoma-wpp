@@ -9,6 +9,7 @@ import {
   handleJob,
   isPermanentJobError,
   isSendJobType,
+  retryAfterMsForJobError,
   type JobHandlerContext,
 } from "./job-handlers.js";
 
@@ -132,12 +133,14 @@ export function createJobLoop(input: {
         return true;
       }
 
-      const scheduledAt = nextRetryAt(job).toISOString();
+      const retryAfterMs = retryAfterMsForJobError(error);
+      const scheduledAt = nextRetryAt(job, retryAfterMs).toISOString();
       const released = await input.repos.jobs.releaseForRetry({
         jobId: job.id,
         error: message,
         scheduledAt,
         workerId: input.env.WORKER_ID,
+        preserveAttempt: retryAfterMs !== null,
       });
       if (released) {
         state.metrics.retried += 1;
@@ -205,8 +208,11 @@ function isNonRetryableSendError(message: string): boolean {
   return /^WhatsApp rejected target phone:/i.test(message);
 }
 
-function nextRetryAt(job: Job): Date {
+function nextRetryAt(job: Job, retryAfterMs?: number | null): Date {
   const now = Date.now();
+  if (retryAfterMs !== null && retryAfterMs !== undefined) {
+    return new Date(now + Math.max(0, retryAfterMs));
+  }
   if (isSendJobType(job.type)) {
     return new Date(now + 60_000);
   }

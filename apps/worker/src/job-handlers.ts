@@ -45,6 +45,16 @@ export class PermanentJobError extends Error {
   }
 }
 
+export class RetryAfterJobError extends Error {
+  readonly retryAfterMs: number;
+
+  constructor(message: string, retryAfterMs: number) {
+    super(message);
+    this.name = "RetryAfterJobError";
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
 const INSTAGRAM_SEND_WINDOW_MS = 24 * 60 * 60 * 1000;
 const MAX_SEND_RATE_BUCKETS = 1_000;
 
@@ -480,11 +490,16 @@ async function drainCampaignStepBatch(
           await cancelCampaignBatchSiblingJobs(claimed, context, message);
         }
       } else {
+        const retryAfterMs = retryAfterMsForJobError(error);
         await context.repos.jobs.releaseForRetry({
           jobId: claimed.id,
           error: message,
-          scheduledAt: nextCampaignStepRetryAt(claimed).toISOString(),
+          scheduledAt:
+            retryAfterMs !== null
+              ? new Date(Date.now() + retryAfterMs).toISOString()
+              : nextCampaignStepRetryAt(claimed).toISOString(),
           workerId: context.env.WORKER_ID,
+          preserveAttempt: retryAfterMs !== null,
         });
       }
       context.logger.warn(
@@ -2976,7 +2991,10 @@ async function enforceSendPolicy(
       rateLimitTokensRemaining: rateLimit.tokensRemaining,
       rateLimitRetryAfterMs: rateLimit.retryAfterMs,
     });
-    throw new PermanentJobError(`${jobType} blocked: ${rateLimit.reason}`);
+    throw new RetryAfterJobError(
+      `${jobType} paced: ${rateLimit.reason}; retry after ${rateLimit.retryAfterMs}ms`,
+      rateLimit.retryAfterMs,
+    );
   }
 
   await recordSendPolicyDecision(job, context, {
@@ -3590,6 +3608,15 @@ async function handleBackupJob(job: Job, context: JobHandlerContext): Promise<vo
 
 export function isPermanentJobError(error: unknown): boolean {
   return error instanceof PermanentJobError;
+}
+
+export function retryAfterMsForJobError(error: unknown): number | null {
+  if (!(error instanceof RetryAfterJobError)) {
+    return null;
+  }
+  return Number.isFinite(error.retryAfterMs) && error.retryAfterMs > 0
+    ? Math.ceil(error.retryAfterMs)
+    : 0;
 }
 
 export function isSendJobType(type: JobType): boolean {

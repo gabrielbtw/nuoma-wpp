@@ -2261,10 +2261,137 @@ describe("worker job loop", () => {
         reason: "send_rate_limit_exceeded",
         rateLimitMode: "token_bucket",
         rateLimitBucketKey: "wa:5531999999999",
-        rateLimitTokensRemaining: 0,
         recentAllowedCount: 1,
       }),
     );
+    expect(Number(blockedEvents[0]?.payload.rateLimitTokensRemaining)).toBeLessThan(1);
+    expect(Number(blockedEvents[0]?.payload.rateLimitRetryAfterMs)).toBeGreaterThan(0);
+  });
+
+  it("requeues paced WhatsApp sends instead of sending them to DLQ", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-send-rate-requeue",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_POLICY_MODE: "production",
+      WA_SEND_ALLOWED_PHONES: "5531999999999",
+      WA_SEND_RATE_LIMIT_MAX: "1",
+      WA_SEND_RATE_LIMIT_WINDOW_MS: "60000",
+    });
+    const user = await repos.users.create({
+      email: "send-policy-requeue@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531999999999",
+      title: "Contato paced requeue",
+    });
+    const firstJob = await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        phone: "5531999999999",
+        body: "primeiro envio no bucket",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    const secondJob = await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        phone: "5531999999999",
+        body: "segundo envio deve aguardar bucket",
+      },
+      scheduledAt: "2026-04-30T12:00:01.000Z",
+      maxAttempts: 2,
+    });
+    if (!firstJob || !secondJob) {
+      throw new Error("expected paced send_message jobs to be created");
+    }
+    const calls: unknown[] = [];
+    const sync = {
+      connected: true,
+      metrics: {} as never,
+      forceConversation: async () => {
+        throw new Error("unexpected force sync");
+      },
+      sendTextMessage: async (input: {
+        phone: string;
+        body: string;
+        conversationId: number;
+        reason?: string;
+      }) => {
+        calls.push(input);
+        return {
+          mode: "text-message" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "send_message",
+          navigationMode: "navigated" as const,
+          externalId: `paced-after-${calls.length}`,
+          visibleMessageCountBefore: calls.length,
+          visibleMessageCountAfter: calls.length + 1,
+          lastExternalIdBefore: "paced-before",
+          lastExternalIdAfter: `paced-after-${calls.length}`,
+        };
+      },
+      sendVoiceMessage: async () => {
+        throw new Error("unexpected voice send");
+      },
+      sendDocumentMessage: async () => {
+        throw new Error("unexpected document send");
+      },
+      sendMediaMessage: async () => {
+        throw new Error("unexpected media send");
+      },
+      close: async () => {},
+    };
+    const loop = createJobLoop({
+      env,
+      repos,
+      logger,
+      handlerContext: {
+        env,
+        db,
+        repos,
+        logger,
+        sync,
+      },
+    });
+
+    await expect(loop.processOne()).resolves.toBe(true);
+    await expect(loop.processOne()).resolves.toBe(true);
+
+    expect(calls).toHaveLength(1);
+    expect(loop.state.metrics.dead).toBe(0);
+    expect(loop.state.metrics.retried).toBe(1);
+    const secondStored = db.raw
+      .prepare("SELECT status, attempts, scheduled_at, last_error FROM jobs WHERE id = ?")
+      .get(secondJob.id) as
+      | { status: string; attempts: number; scheduled_at: string; last_error: string | null }
+      | undefined;
+    expect(secondStored).toEqual(
+      expect.objectContaining({
+        status: "queued",
+        attempts: 0,
+      }),
+    );
+    expect(secondStored?.last_error).toContain("send_rate_limit_exceeded");
+    expect(Date.parse(secondStored?.scheduled_at ?? "")).toBeGreaterThan(Date.now());
+    const deadJobs = await repos.jobs.listDead(user.id);
+    expect(deadJobs).toEqual([]);
   });
 
   it("keeps WhatsApp send rate buckets isolated per target phone", async () => {

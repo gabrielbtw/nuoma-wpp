@@ -2946,8 +2946,12 @@ export function createRepositories(handle: DbHandle) {
         error: string;
         scheduledAt: string;
         workerId?: string;
+        preserveAttempt?: boolean;
       }): Promise<boolean> {
         const updatedAt = nowIso();
+        const attemptPatch = input.preserveAttempt
+          ? "attempts = CASE WHEN attempts > 0 THEN attempts - 1 ELSE 0 END,"
+          : "";
         const result = input.workerId
           ? handle.raw
               .prepare(
@@ -2956,6 +2960,7 @@ export function createRepositories(handle: DbHandle) {
                      claimed_at = NULL,
                      claimed_by = NULL,
                      scheduled_at = ?,
+                     ${attemptPatch}
                      last_error = ?,
                      updated_at = ?
                  WHERE id = ?
@@ -2970,6 +2975,7 @@ export function createRepositories(handle: DbHandle) {
                      claimed_at = NULL,
                      claimed_by = NULL,
                      scheduled_at = ?,
+                     ${attemptPatch}
                      last_error = ?,
                      updated_at = ?
                  WHERE id = ?
