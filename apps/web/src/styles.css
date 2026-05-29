@@ -749,7 +749,7 @@ body:has(.nuoma-concept-app)::before {
   --signal-border: rgba(92, 112, 129, 0.28);
   --signal-border-soft: rgba(92, 112, 129, 0.17);
   --signal-cyan: rgb(var(--color-brand-teal));
-  --signal-green: #25d36b;
+  --signal-green: rgb(var(--color-brand-green));
   --signal-amber: rgb(var(--color-brand-blue));
   --signal-red: #ef5c5c;
   color: #edf6fb;
@@ -770,7 +770,7 @@ body:has(.nuoma-concept-app)::before {
   border-radius: 0.55rem;
   background:
     radial-gradient(circle at 8% 0%, rgba(var(--color-brand-teal), 0.07), transparent 28rem),
-    radial-gradient(circle at 100% 100%, rgba(214, 162, 60, 0.04), transparent 25rem),
+    radial-gradient(circle at 100% 100%, rgba(var(--color-brand-blue), 0.04), transparent 25rem),
     var(--signal-bg);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
 }
@@ -953,7 +953,7 @@ body:has(.nuoma-concept-app)::before {
 .nuoma-signal-legend .warning,
 .nuoma-readiness-list .is-attention,
 .nuoma-signal-name i[data-tone="atenção"] {
-  background: rgba(214, 162, 60, 0.2);
+  background: rgba(var(--color-brand-blue), 0.2);
   color: var(--signal-amber);
 }
 
@@ -1179,7 +1179,11 @@ body:has(.nuoma-concept-app)::before {
 
 .nuoma-safe-check button {
   border-color: rgba(var(--color-brand-teal), 0.46);
-  background: linear-gradient(180deg, #2fe5f7, #19bfd3);
+  background: linear-gradient(
+    180deg,
+    rgb(var(--color-brand-teal-soft)),
+    rgb(var(--color-brand-teal))
+  );
   color: #031017;
   font-weight: 760;
 }
@@ -1736,8 +1740,8 @@ body:has(.nuoma-concept-app)::before {
   --flow-v2-border: rgba(92, 112, 129, 0.28);
   --flow-v2-border-soft: rgba(92, 112, 129, 0.18);
   --flow-v2-cyan: rgb(var(--color-brand-teal));
-  --flow-v2-cyan-strong: #28e5fb;
-  --flow-v2-green: #25d36b;
+  --flow-v2-cyan-strong: rgb(var(--color-brand-teal));
+  --flow-v2-green: rgb(var(--color-brand-green));
   --flow-v2-gold: rgb(var(--color-brand-blue));
   --flow-v2-text: #eef6fb;
   --flow-v2-muted: #a8b4c1;
@@ -1911,7 +1915,7 @@ body:has(.nuoma-concept-app)::before {
   min-width: 0.82rem;
   place-items: center;
   border-radius: 999px;
-  background: #f2683d;
+  background: rgb(var(--color-semantic-danger));
   color: #ffffff;
   font-size: 0.55rem;
   font-weight: 700;
@@ -2192,7 +2196,7 @@ body:has(.nuoma-concept-app)::before {
 }
 
 .nuoma-flow-v2-handle-small circle {
-  fill: #c29b57;
+  fill: rgb(var(--color-brand-blue));
   stroke: #1b2026;
 }
 
@@ -2229,12 +2233,12 @@ body:has(.nuoma-concept-app)::before {
 
 .nuoma-flow-v2-node-wa .nuoma-flow-v2-node-icon {
   background: rgba(37, 211, 107, 0.14);
-  color: #25d36b;
+  color: rgb(var(--color-brand-green));
 }
 
 .nuoma-flow-v2-node-ig .nuoma-flow-v2-node-icon {
   background: rgba(238, 69, 150, 0.14);
-  color: #f04f9f;
+  color: rgb(var(--color-semantic-danger));
 }
 
 .nuoma-flow-v2-node-neutral .nuoma-flow-v2-node-icon {
@@ -2351,13 +2355,13 @@ body:has(.nuoma-concept-app)::before {
 .nuoma-flow-v2-branch-yes {
   border-color: rgba(37, 211, 107, 0.34);
   background: rgba(37, 211, 107, 0.13);
-  color: #36df7a;
+  color: rgb(var(--color-brand-green-soft));
 }
 
 .nuoma-flow-v2-branch-no {
-  border-color: rgba(214, 162, 60, 0.5);
-  background: rgba(214, 162, 60, 0.14);
-  color: #e0ad45;
+  border-color: rgba(var(--color-brand-blue), 0.5);
+  background: rgba(var(--color-brand-blue), 0.14);
+  color: rgb(var(--color-brand-blue-soft));
 }
 
 .nuoma-flow-v2-minimap {
@@ -2504,11 +2508,11 @@ body:has(.nuoma-concept-app)::before {
 
 .nuoma-flow-v2-card-icon.is-success {
   background: rgba(37, 211, 107, 0.14);
-  color: #25d36b;
+  color: rgb(var(--color-brand-green));
 }
 
 .nuoma-flow-v2-card-icon.is-warning {
-  background: rgba(214, 162, 60, 0.14);
+  background: rgba(var(--color-brand-blue), 0.14);
   color: rgb(var(--color-brand-blue));
 }
 
@@ -2584,7 +2588,7 @@ body:has(.nuoma-concept-app)::before {
 }
 
 .nuoma-flow-v2-audience-foot strong {
-  color: #25d36b;
+  color: rgb(var(--color-brand-green));
   font-size: 0.68rem;
 }
 
@@ -3528,7 +3532,7 @@ body:has(.nuoma-concept-app)::before {
   border-radius: 0.5rem;
   background: rgba(37, 211, 107, 0.12);
   padding: 0.85rem;
-  color: #25d36b;
+  color: rgb(var(--color-brand-green));
 }
 
 .nuoma-contact-health strong {
@@ -3641,7 +3645,7 @@ body:has(.nuoma-concept-app)::before {
 }
 
 .nuoma-jobs-stat[data-tone="green"] {
-  --jobs-tone: #25d36b;
+  --jobs-tone: rgb(var(--color-brand-green));
 }
 
 .nuoma-jobs-stat[data-tone="amber"] {
@@ -3788,7 +3792,7 @@ body:has(.nuoma-concept-app)::before {
 
 .nuoma-jobs-gates b {
   margin-left: auto;
-  color: #25d36b;
+  color: rgb(var(--color-brand-green));
   font-family: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
   font-size: 0.72rem;
 }
@@ -3826,7 +3830,7 @@ body:has(.nuoma-concept-app)::before {
 }
 
 .nuoma-jobs-timeline .is-done::before {
-  background: #25d36b;
+  background: rgb(var(--color-brand-green));
 }
 
 .nuoma-jobs-timeline .is-alert::before {
@@ -3914,7 +3918,7 @@ body:has(.nuoma-concept-app)::before {
 }
 
 .nuoma-settings-gates b {
-  color: #25d36b;
+  color: rgb(var(--color-brand-green));
   font-family: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
   font-size: 0.72rem;
 }
@@ -4067,7 +4071,7 @@ body:has(.nuoma-concept-app)::before {
 
 .nuoma-automation-icon.is-green {
   background: rgba(37, 211, 107, 0.13);
-  color: #25d36b;
+  color: rgb(var(--color-brand-green));
 }
 
 .nuoma-automation-probe {
@@ -4145,7 +4149,7 @@ body:has(.nuoma-concept-app)::before {
 }
 
 .nuoma-automation-gates b {
-  color: #25d36b;
+  color: rgb(var(--color-brand-green));
   font-family: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
   font-size: 0.72rem;
 }
@@ -4463,7 +4467,7 @@ body:has(.nuoma-concept-app)::before {
 }
 
 .nuoma-implementation-column[data-status="partial"] {
-  border-top-color: rgba(214, 162, 60, 0.72);
+  border-top-color: rgba(var(--color-brand-blue), 0.72);
 }
 
 .nuoma-implementation-column-head {
@@ -4558,7 +4562,7 @@ body:has(.nuoma-concept-app)::before {
 }
 
 [data-testid="inbox-grid"] .text-semantic-success {
-  color: #38f28a !important;
+  color: rgb(var(--color-brand-green-soft)) !important;
 }
 
 [data-testid="inbox-grid"] button[class*="bg-bg-surface"] span,
@@ -4581,16 +4585,16 @@ body:has(.nuoma-concept-app)::before {
 }
 
 .nuoma-contacts-v2 .text-brand-cyan {
-  color: #7ff6ff !important;
+  color: rgb(var(--color-brand-teal-soft)) !important;
 }
 
 .nuoma-contacts-v2 .text-semantic-success {
-  color: #74f7a8 !important;
+  color: rgb(var(--color-brand-green-soft)) !important;
 }
 
 .nuoma-contacts-v2 .text-semantic-warning,
 .nuoma-jobs-board .text-semantic-warning {
-  color: #ffd27a !important;
+  color: rgb(var(--color-brand-blue-soft)) !important;
 }
 
 .nuoma-contacts-v2 .bg-bg-base.text-brand-cyan,
@@ -4601,16 +4605,16 @@ body:has(.nuoma-concept-app)::before {
 }
 
 .nuoma-contacts-v2 .bg-bg-base.text-brand-cyan {
-  background: #7ff6ff !important;
+  background: rgb(var(--color-brand-teal-soft)) !important;
 }
 
 .nuoma-contacts-v2 .bg-bg-base.text-semantic-success {
-  background: #74f7a8 !important;
+  background: rgb(var(--color-brand-green-soft)) !important;
 }
 
 .nuoma-contacts-v2 .bg-bg-base.text-semantic-warning,
 .nuoma-jobs-board .bg-bg-base.text-semantic-warning {
-  background: #ffd27a !important;
+  background: rgb(var(--color-brand-blue-soft)) !important;
 }
 
 .nuoma-contacts-v2 button[role="radio"] {

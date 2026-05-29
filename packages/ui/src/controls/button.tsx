@@ -3,13 +3,7 @@ import { forwardRef, type ReactNode } from "react";
 
 import { cn } from "../utils/cn.js";
 
-export type ButtonVariant =
-  | "primary"
-  | "secondary"
-  | "ghost"
-  | "danger"
-  | "soft"
-  | "accent";
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "soft" | "accent";
 export type ButtonSize = "xs" | "sm" | "md" | "lg";
 
 export interface ButtonProps extends HTMLMotionProps<"button"> {
@@ -25,12 +19,11 @@ const VARIANTS: Record<ButtonVariant, string> = {
     "bg-bg-elevated/82 text-fg-primary shadow-raised-sm hover:shadow-raised-md active:shadow-pressed-sm",
   secondary:
     "bg-bg-surface/72 text-fg-muted shadow-raised-sm hover:text-fg-primary hover:shadow-raised-md active:shadow-pressed-sm",
-  soft:
-    "bg-bg-surface/54 text-fg-muted shadow-flat hover:shadow-raised-sm hover:text-fg-primary active:shadow-pressed-sm",
+  soft: "bg-bg-surface/54 text-fg-muted shadow-flat hover:shadow-raised-sm hover:text-fg-primary active:shadow-pressed-sm",
   ghost:
     "bg-transparent text-fg-muted hover:bg-bg-surface hover:shadow-raised-sm hover:text-fg-primary active:shadow-pressed-sm",
   accent:
-    "bg-brand-gold text-bg-deep shadow-raised-sm hover:shadow-glow-gold active:shadow-pressed-sm",
+    "bg-brand-gold text-fg-primary shadow-raised-sm hover:shadow-glow-gold active:shadow-pressed-sm",
   danger:
     "bg-bg-elevated text-semantic-danger shadow-raised-sm hover:shadow-glow-danger active:shadow-pressed-sm",
 };
@@ -91,12 +84,7 @@ Button.displayName = "Button";
 
 function Spinner() {
   return (
-    <svg
-      className="animate-spin h-3.5 w-3.5"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
+    <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
       <path
         d="M22 12a10 10 0 0 1-10 10"

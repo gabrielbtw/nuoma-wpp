@@ -50,8 +50,9 @@ state. As of 2026-05-26, the active local changes are intentionally broad:
   PWA metadata, component inventory and operational screen polish;
 - the worker/CDP layer has active changes around overlay injection, sync,
   browser handling and send job execution;
-- tracked M30.3 proof files under `data/` were removed from Git tracking with
-  `git rm --cached`, but remain preserved locally;
+- M30.3 proof files under `data/` still exist as operational evidence; the
+  retention policy preserves them and any tracked `data/**` files until a human
+  explicitly removes them from Git tracking with `git rm --cached`;
 - generated docs/build artifacts should stay out of version control.
 
 Treat uncommitted code as part of the current project state when documenting or
@@ -129,67 +130,76 @@ checkboxes below parseable.
 ## Feito
 
 - [x] **V2.1 Foundations** - Turborepo/npm workspaces, TypeScript configs,
-  package graph, root scripts and base README.
+      package graph, root scripts and base README.
 - [x] **V2.2-V2.4 Domain/API/Auth** - Contracts, API health, SQLite/Drizzle,
-  repositories, auth with Argon2id/JWT/httpOnly cookies and authenticated shell.
+      repositories, auth with Argon2id/JWT/httpOnly cookies and authenticated shell.
 - [x] **V2.5 Sender runtime** - Durable queue, DLQ, guarded WhatsApp text,
-  media and native voice sending, audit events and safe claim behavior.
+      media and native voice sending, audit events and safe claim behavior.
 - [x] **V2.6 Sync engine** - CDP observer, forced reconcile, bounded history,
-  inbound/outbound message persistence and timestamp policy.
+      inbound/outbound message persistence and timestamp policy.
 - [x] **V2.7 API surface/storage** - Main routers, safe CRUDs, uploads and
-  storage surfaces for product screens.
+      storage surfaces for product screens.
 - [x] **V2.8 Base visual** - DS Nuoma 2026, responsive shell, settings and
-  component inventory.
+      component inventory.
 - [x] **V2.9 Inbox** - Realtime inbox, timeline, virtualization, media cards,
-  composer and sync status.
+      composer and sync status.
 - [x] **V2.10 Campaigns, automations and chatbots** - Builders, dry-run,
-  triggers, safe dispatch preparation and operational UI.
+      triggers, safe dispatch preparation and operational UI.
 - [x] **V2.11 WhatsApp overlay and real smokes** - Shadow DOM overlay, current
-  phone detection, `window.__nuomaApi`, mutation guards and real smoke evidence.
+      phone detection, `window.__nuomaApi`, mutation guards and real smoke evidence.
 - [x] **V2.12 Minimum remote CDP rendering** - CDP screenshot path, short
-  session flow and diagnostics.
+      session flow and diagnostics.
 - [x] **V2.13 Global stream** - `/api/events` channels for inbox and system
-  updates.
+      updates.
 - [x] **V2.14 Local-first operation** - SQLite backup, optional browser-profile
-  backup, restore/preflight and runtime scripts.
+      backup, restore/preflight and runtime scripts.
 - [x] **V2.14a Optional visual layer** - Appearance toggle for the cartographic
-  R3F hero without changing product permissions or send flows.
+      R3F hero without changing product permissions or send flows.
 - [x] **V2.15 V1-to-V2 migration/cutover** - Non-destructive preflight and
-  explicitly confirmed cutover tooling.
+      explicitly confirmed cutover tooling.
 - [x] **Remarketing seguro** - Strong dry-run, textual confirmation, allowlists,
-  status/channel checks, suppression, duplicate checks and audit trail.
+      status/channel checks, suppression, duplicate checks and audit trail.
 - [x] **Remarketing em lote real** - Whole-batch validation before creating
-  recipients/jobs, `DISPARAR LOTE <n>` confirmation and M30.3 hard gate.
+      recipients/jobs, `DISPARAR LOTE <n>` confirmation and M30.3 hard gate.
 - [x] **M30.3 Real 24h WhatsApp context** - Worker opens/reuses the correct chat,
-  validates temporary-message state and preserves proof evidence.
+      validates temporary-message state and preserves proof evidence.
 - [x] **M37 Evidence Center** - `/evidence` lists reports, screenshots and
-  `evidence.json` files from local evidence directories.
+      `evidence.json` files from local evidence directories.
 - [x] **M38 Chrome Extension Companion** - MV3 workspace, content/background
-  bridge, overlay API and guarded campaign run for the current WhatsApp phone.
+      bridge, overlay API and guarded campaign run for the current WhatsApp phone.
 - [x] **M40 Campaign blocking UX** - Campaign screens expose blocking causes
-  before real dispatch.
+      before real dispatch.
+- [x] **P1 Artifact retention policy** - `scripts/artifact-retention.mjs` audits
+      generated artifacts by default, preserves runtime DB/profile/evidence paths
+      and requires `ARTIFACT_RETENTION_CONFIRM=SIM` before deletion.
+- [x] **P2 Product-confidence tests** - Focused API/worker/static smokes cover
+      campaign button guardrails, overlay mutation/M30.3 gates, production canary
+      allowlists, retention defaults and Safari/go-live external gates.
 
 ## Parcial
 
 - [~] **M39 Safari Extension Companion** - Workspace and wrapper pipeline exist,
   generated from the Chrome companion. Real Safari acceptance remains pending
   until full Xcode and `safari-web-extension-converter` are available locally.
+- [~] **P0 Hosted go-live confirmation** - Local preflight exists through
+  `npm run go-live:canary:preflight` and the guarded proof runner exists through
+  `npm run go-live:canary:run`, but the actual hosted canary send and post-send
+  proof are still pending.
+- [~] **P3 Admin/product backlog** - Contact filtering, overlay empty-contact
+  actions and shell runtime badges backed by `system.metrics` are implemented;
+  broader non-critical admin reporting/operator polish remains after go-live.
+- [~] **P4 Real Safari acceptance gate** - `npm run safari:acceptance:gate`
+  records the Xcode/converter/proof blockers, but real Safari acceptance still
+  depends on full Xcode and manual Safari enablement.
 
 ## Falta
 
-- [ ] **P0 Hosted go-live confirmation** - Preserve WhatsApp profile, configure
-  API/worker send policies, restrict allowlists to the canary phone, verify no
-  active campaign-step residue, run local validation and capture hosted proof.
-- [ ] **P1 Artifact retention policy** - Keep local runtime artifacts ignored,
-  preserve real evidence, and define cleanup rules for backups/tmp files.
-- [ ] **P2 Product-confidence tests** - Add focused coverage for campaign button
-  execution, overlay mutation guard/idempotency, no-empty-allowlist production
-  failure, blocked campaign statuses and M30.3 temporary-message gating.
-- [ ] **P3 Admin/product backlog** - Finish non-critical admin polish, filtering,
-  reporting and operator ergonomics after go-live.
+- [ ] **Hosted canary proof** - Run one hosted campaign-by-button canary with
+      only the approved phone allowlisted, confirm jobs/audit completion, confirm no
+      active campaign-step residue and archive the proof file.
 - [ ] **P4 Real Safari acceptance** - Install/activate full Xcode, run converter,
-  open generated project, enable extension in Safari and capture proof on
-  `https://web.whatsapp.com/`.
+      open generated project, enable extension in Safari and capture proof on
+      `https://web.whatsapp.com/`.
 
 ## Fluxos Principais
 
@@ -396,16 +406,20 @@ Expected coverage rules:
 - Browser/screenshot evidence should be written to ignored paths such as
   `output/` or `data/`, then summarized here if it becomes product policy.
 
-## Design System Nuoma 2026
+## Design System Nuoma V3
 
-Canonical product visual system: DS Nuoma 2026.
+Canonical product visual system: DS Nuoma V3.
 
 Direction:
 
 - dark graphite operational surfaces;
 - Geist and Geist Mono typography;
-- restrained gold and cyan accents;
+- green/blue palette only: deep green for primary action, petroleum/steel blue
+  for structure and command surfaces, muted teal for focus/live/verified state;
+- no yellow, gold, bronze, orange, neon glow or purple gradients in product UI;
 - compact, scannable CRM layouts;
+- tables, filters, pagination, text fields, textareas, number inputs, overlays
+  and drawers must come from the shared component system whenever possible;
 - no OpenAI/Codex brand colors, logos or typography in Nuoma product UI.
 
 Use repo surfaces before adding styles:
@@ -415,6 +429,9 @@ Use repo surfaces before adding styles:
 - `packages/ui/src/primitives`
 - `packages/ui/src/controls`
 - `packages/ui/src/display`
+- `packages/ui/src/display/data-table.tsx`
+- `packages/ui/src/display/filter-bar.tsx`
+- `packages/ui/src/display/pagination.tsx`
 - `apps/web/src/styles.css`
 
 Component policy:
@@ -422,8 +439,12 @@ Component policy:
 - Prefer `@nuoma/ui` primitives/components over local ad hoc widgets.
 - Avoid one-off hex palettes in app screens unless tokens are intentionally
   updated.
-- Do not use the exploratory screen concepts as policy until promoted here or
-  to implementation backlog.
+- Current V3 visual references live under `data/design-system-v3/concepts/`;
+  `04-green-blue-component-board.png` and `05-green-blue-workspace.png` are the
+  active references for the green/blue direction.
+- Run `npm run test:design-system-v3` after changing tokens or shared UI
+  exports. It blocks known neon/yellow/gold legacy literals from returning in
+  the central design-system surfaces.
 - Optional R3F/cartographic visuals must remain preference-gated and must not
   change permissions, guardrails or core workflow.
 
@@ -487,10 +508,9 @@ Security rules:
 Highest-priority remaining work:
 
 - Run a controlled hosted canary for campaign-by-button.
-- Add focused automated tests for the campaign button/overlay real dispatch
-  guardrails listed above.
 - Finish Safari real acceptance with full Xcode tooling.
-- Define retention rules for `data/backups` and `data/tmp`.
+- Keep running `npm run test:product-confidence` and `npm run test:artifact-retention`
+  before changing real-send guardrails or artifact cleanup rules.
 - Keep product docs in this single README until there is an explicit decision to
   split again.
 
@@ -512,6 +532,46 @@ Regenerable/local artifacts should stay ignored and out of version control:
 - `apps/*/dist`
 - `apps/web/dist`
 - ad hoc exports such as `nuoma-design-system.html`
+
+Current cleanup tooling:
+
+- audit: `npm run artifacts:retention:audit`
+- apply: `ARTIFACT_RETENTION_CONFIRM=SIM npm run artifacts:retention:apply`
+- smoke: `npm run test:artifact-retention`
+
+## Go-live Canary Proof
+
+Local readiness can be checked without sending:
+
+```bash
+npm run go-live:canary:preflight -- \
+  --env-file .env.hosted \
+  --canary 5531982066263 \
+  --require-hosted-proof
+```
+
+The hosted canary runner logs in through tRPC, validates campaign readiness,
+runs a dry-run first, and only sends when the exact confirmation phrase is
+provided:
+
+```bash
+npm run go-live:canary:run -- \
+  --env-file .env.hosted \
+  --api https://YOUR_HOSTED_API_ORIGIN \
+  --email operator@example.com \
+  --campaign-id 123 \
+  --phone 5531982066263 \
+  --require-send \
+  --confirm-send "ENVIAR CANARIO 5531982066263"
+```
+
+Required hosted variables are documented in `.env.hosted.example` under
+`GO_LIVE_*`. Do not broaden `API_SEND_ALLOWED_PHONES` or
+`WA_SEND_ALLOWED_PHONES` before this proof passes for one canary phone.
+
+The proof is complete only when the generated JSON shows a completed
+`sender.campaign_step.completed` event, no active canary campaign-step jobs, and
+the canary recipient in final `completed` state.
 
 Preserve locally:
 

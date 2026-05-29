@@ -151,8 +151,8 @@ const RANKING = [
 ];
 
 const STATUS_SPLIT = [
-  { name: "Entregue", value: 62, color: "rgb(120 202 220)" },
-  { name: "Na fila", value: 24, color: "rgb(215 178 101)" },
+  { name: "Entregue", value: 62, color: "rgb(91 155 173)" },
+  { name: "Na fila", value: 24, color: "rgb(86 143 189)" },
   { name: "Falhou", value: 14, color: "rgb(211 100 100)" },
 ];
 
@@ -181,8 +181,8 @@ export function DevComponentsPage() {
     <div className="mx-auto flex max-w-6xl flex-col gap-16 pb-20 pt-2">
       <Animate preset="rise-in">
         <header className="flex flex-col gap-5 border-b border-border-subtle/40 pb-10">
-          <p className="botforge-kicker flex items-center gap-2">
-            <span className="h-px w-5 bg-brand-cyan" />
+          <p className="botforge-kicker flex items-center gap-2 text-fg-muted">
+            <span className="h-px w-5 bg-brand-teal" />
             Nuoma · Design System · v2026.1
           </p>
           <h1 className="botforge-display text-3xl md:text-4xl">
@@ -369,7 +369,7 @@ export function DevComponentsPage() {
             <Input placeholder="Token da API" monospace />
           </Field>
           <Field label="Número" description="Stepper padronizado para quantidades e limites.">
-            <NumberInput defaultValue={1250} min={0} step={50} />
+            <NumberInput aria-label="Quantidade" defaultValue={1250} min={0} step={50} />
           </Field>
           <Field label="Canal">
             <Select defaultValue="wa">
@@ -741,7 +741,9 @@ function Stat({ num, label }: { num: string; label: string }) {
   return (
     <div className="flex flex-col gap-1">
       <span className="botforge-display text-2xl tabular-nums">{num}</span>
-      <span className="font-mono text-[0.7rem] uppercase tracking-wider text-fg-dim">{label}</span>
+      <span className="font-mono text-[0.7rem] uppercase tracking-wider text-fg-muted">
+        {label}
+      </span>
     </div>
   );
 }

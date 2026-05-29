@@ -25,8 +25,8 @@ const VARIANTS: Record<BadgeVariant, string> = {
   danger: "text-semantic-danger shadow-pressed-sm",
   wa: "text-channel-whatsapp shadow-pressed-sm",
   ig: "text-channel-instagram shadow-pressed-sm",
-  violet: "text-brand-violet shadow-pressed-sm",
-  cyan: "text-brand-cyan shadow-pressed-sm",
+  violet: "[color:rgb(var(--color-brand-blue-soft))] shadow-pressed-sm",
+  cyan: "[color:rgb(var(--color-brand-teal-soft))] shadow-pressed-sm",
 };
 
 export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(

@@ -30,10 +30,9 @@ import {
 } from "recharts";
 
 const VAR_NAMES = {
-  cyan: "--color-brand-cyan",
-  gold: "--color-brand-gold",
-  whatsapp: "--color-channel-whatsapp",
-  violet: "--color-brand-violet",
+  teal: "--color-brand-teal",
+  blue: "--color-brand-blue",
+  green: "--color-brand-green",
   danger: "--color-semantic-danger",
   success: "--color-semantic-success",
   warning: "--color-semantic-warning",
@@ -44,10 +43,9 @@ const VAR_NAMES = {
 } as const;
 
 const FALLBACK = {
-  cyan: "rgb(91 155 173)",
-  gold: "rgb(75 119 154)",
-  whatsapp: "rgb(35 168 102)",
-  violet: "rgb(75 119 154)",
+  teal: "rgb(91 155 173)",
+  blue: "rgb(75 119 154)",
+  green: "rgb(35 168 102)",
   danger: "rgb(211 100 100)",
   success: "rgb(35 168 102)",
   warning: "rgb(86 143 189)",
@@ -76,14 +74,7 @@ export function useChartPalette(): ChartPalette {
     ) as Record<keyof typeof VAR_NAMES, string>;
     return {
       ...colors,
-      series: [
-        colors.cyan,
-        colors.gold,
-        colors.whatsapp,
-        colors.violet,
-        colors.danger,
-        colors.warning,
-      ],
+      series: [colors.teal, colors.blue, colors.green, colors.warning, colors.danger],
     };
   }, [resolved]);
 }
@@ -126,8 +117,8 @@ export function LineAreaChart({ data, xKey, series, height = 280 }: LineAreaChar
       <AreaChart data={data} margin={{ top: 8, right: 12, bottom: 4, left: -12 }}>
         <defs>
           <linearGradient id="nuoma-area" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={palette.cyan} stopOpacity={0.24} />
-            <stop offset="100%" stopColor={palette.cyan} stopOpacity={0.01} />
+            <stop offset="0%" stopColor={palette.teal} stopOpacity={0.24} />
+            <stop offset="100%" stopColor={palette.teal} stopOpacity={0.01} />
           </linearGradient>
         </defs>
         <CartesianGrid stroke={palette.grid} strokeOpacity={0.4} vertical={false} />
@@ -211,7 +202,7 @@ export function HorizontalBarChart({ data, height = 280 }: HorizontalBarChartPro
   const palette = useChartPalette();
   const tip = useTooltipStyle(palette);
   const colorFor = (value: number) =>
-    value >= 85 ? palette.cyan : value >= 70 ? palette.gold : palette.warning;
+    value >= 85 ? palette.teal : value >= 70 ? palette.blue : palette.warning;
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 12 }}>
@@ -294,8 +285,8 @@ export function GaugeChart({ value, max = 100, label, height = 280 }: GaugeChart
         >
           <defs>
             <linearGradient id="nuoma-gauge" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor={palette.gold} />
-              <stop offset="100%" stopColor={palette.cyan} />
+              <stop offset="0%" stopColor={palette.blue} />
+              <stop offset="100%" stopColor={palette.teal} />
             </linearGradient>
           </defs>
           <PolarAngleAxis type="number" domain={[0, max]} tick={false} />
@@ -353,7 +344,7 @@ export function ScatterPlot({ data, xLabel, yLabel, height = 280 }: ScatterPlotP
         />
         <ZAxis type="number" dataKey="z" range={[40, 420]} />
         <Tooltip {...tip} cursor={{ strokeDasharray: "4 4", stroke: palette.grid }} />
-        <Scatter data={data} fill={palette.cyan} fillOpacity={0.62} />
+        <Scatter data={data} fill={palette.teal} fillOpacity={0.62} />
       </ScatterChart>
     </ResponsiveContainer>
   );
