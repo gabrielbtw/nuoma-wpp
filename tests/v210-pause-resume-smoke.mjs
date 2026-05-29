@@ -4,6 +4,8 @@ import { chromium } from "playwright";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
+import { backfillSmokeWhatsappIdentity } from "./helpers/contact-identity.mjs";
+
 const webUrl = process.env.WEB_URL ?? "http://127.0.0.1:3002";
 const apiUrl = process.env.API_URL ?? "http://127.0.0.1:3001";
 const email = process.env.SMOKE_EMAIL ?? "admin@nuoma.local";
@@ -255,6 +257,19 @@ function preserveCanaryConversationTitle(title) {
           updated_at = excluded.updated_at
       `,
     ).run({ phone: canaryPhone, title, nowIso });
+    const conversation = db
+      .prepare(
+        "SELECT id FROM conversations WHERE user_id = 1 AND channel = 'whatsapp' AND external_thread_id = ?",
+      )
+      .get(canaryPhone);
+    if (conversation?.id) {
+      backfillSmokeWhatsappIdentity(db, {
+        userId: 1,
+        phone: canaryPhone,
+        conversationId: Number(conversation.id),
+        now: nowIso,
+      });
+    }
   } finally {
     db.close();
   }

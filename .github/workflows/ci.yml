@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - nuoma-wpp-v2
       - "if-01/**"
       - "codex/**"
   pull_request:
