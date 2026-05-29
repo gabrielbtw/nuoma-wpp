@@ -2454,6 +2454,11 @@ async function sendInstagramTextToConversation(
   for (const file of mediaFiles) {
     await fs.access(file.mediaPath);
   }
+  await enforceInstagramSendRateLimit(job, context, {
+    username,
+    conversationId: input.conversationId,
+    contactId: conversation.contactId,
+  });
 
   const result = await dispatchWithIdempotencyGuard(job, context, {
     idempotencyKey,
@@ -2629,6 +2634,114 @@ function assertInstagramSendAllowed(context: JobHandlerContext, username: string
   }
   if (!allowed.has(username)) {
     throw new PermanentJobError(`Instagram send blocked by allowlist: @${username}`);
+  }
+}
+
+async function enforceInstagramSendRateLimit(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    username: string;
+    conversationId: number;
+    contactId: number | null;
+  },
+): Promise<void> {
+  const bucketKey = `ig:${input.username}`;
+  const result = context.repos.workerSendBuckets.consume({
+    userId: job.userId,
+    bucketKey,
+    rateLimitMax: context.env.IG_SEND_RATE_LIMIT_MAX,
+    refillWindowMs: context.env.IG_SEND_RATE_LIMIT_WINDOW_MS,
+  });
+  if (result.allowed) {
+    await recordInstagramSendPolicyDecision(job, context, {
+      input,
+      decision: "allowed",
+      reason: "eligible",
+      bucketKey: result.bucketKey,
+      tokensRemaining: result.tokensRemaining,
+      recentAllowedCount: result.recentAllowedCount,
+      retryAfterMs: null,
+    });
+    return;
+  }
+
+  await recordInstagramSendPolicyDecision(job, context, {
+    input,
+    decision: "blocked",
+    reason: "send_rate_limit_exceeded",
+    bucketKey: result.bucketKey,
+    tokensRemaining: result.tokensRemaining,
+    recentAllowedCount: result.recentAllowedCount,
+    retryAfterMs: result.retryAfterMs,
+  });
+  throw new RetryAfterJobError(
+    `send_instagram_message paced: send_rate_limit_exceeded; retry after ${result.retryAfterMs}ms`,
+    result.retryAfterMs,
+  );
+}
+
+async function recordInstagramSendPolicyDecision(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    input: {
+      username: string;
+      conversationId: number;
+      contactId: number | null;
+    };
+    decision: "allowed" | "blocked";
+    reason: string;
+    bucketKey: string;
+    tokensRemaining: number;
+    recentAllowedCount: number;
+    retryAfterMs: number | null;
+  },
+): Promise<void> {
+  await context.repos.systemEvents.create({
+    userId: job.userId,
+    type: `sender.instagram_send_policy.${input.decision}`,
+    severity: input.decision === "allowed" ? "info" : "warn",
+    payload: JSON.stringify({
+      jobId: job.id,
+      jobType: job.type,
+      conversationId: input.input.conversationId,
+      contactId: input.input.contactId,
+      instagramHandle: input.input.username,
+      decision: input.decision,
+      reason: input.reason,
+      rateLimitWindowMs: context.env.IG_SEND_RATE_LIMIT_WINDOW_MS,
+      rateLimitMax: context.env.IG_SEND_RATE_LIMIT_MAX,
+      rateLimitMode: "token_bucket",
+      rateLimitBucketKey: input.bucketKey,
+      rateLimitTokensRemaining: input.tokensRemaining,
+      rateLimitRetryAfterMs: input.retryAfterMs,
+      recentAllowedCount: input.recentAllowedCount,
+    }),
+  });
+
+  if (input.decision === "blocked") {
+    await recordStructuredSendAudit(job, context, {
+      phase: "policy_block",
+      channel: "instagram",
+      campaignId: numberFromPayload(job.payload.campaignId),
+      contactId: input.input.contactId,
+      conversationId: input.input.conversationId,
+      latencyMs: null,
+      errorCode: input.reason,
+      errorMessage: "send_instagram_message blocked by worker send pacing",
+      metadata: {
+        idempotencyKey: stringFromPayload(job.payload.idempotencyKey),
+        instagramHandle: input.input.username,
+        rateLimitWindowMs: context.env.IG_SEND_RATE_LIMIT_WINDOW_MS,
+        rateLimitMax: context.env.IG_SEND_RATE_LIMIT_MAX,
+        rateLimitMode: "token_bucket",
+        rateLimitBucketKey: input.bucketKey,
+        rateLimitTokensRemaining: input.tokensRemaining,
+        rateLimitRetryAfterMs: input.retryAfterMs,
+        recentAllowedCount: input.recentAllowedCount,
+      },
+    });
   }
 }
 

@@ -275,6 +275,128 @@ describe("worker job loop", () => {
     ]);
   });
 
+  it("paces Instagram sends with a token bucket per handle before CDP dispatch", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-instagram-token-bucket",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      IG_SEND_ALLOWED_HANDLES: "gabriell_braga",
+      IG_SEND_RATE_LIMIT_MAX: "1",
+      IG_SEND_RATE_LIMIT_WINDOW_MS: "60000",
+    });
+    const user = await repos.users.create({
+      email: "instagram-token-bucket@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel IG pacing",
+      phone: null,
+      email: null,
+      primaryChannel: "instagram",
+      instagramHandle: "gabriell_braga",
+      status: "lead",
+      notes: null,
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "instagram",
+      externalThreadId: "ig:gabriell_braga",
+      title: "@gabriell_braga",
+    });
+    await seedInstagramInbound(repos, {
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: contact.id,
+    });
+    const firstJob = await repos.jobs.create({
+      userId: user.id,
+      type: "send_instagram_message",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        instagramHandle: "gabriell_braga",
+        body: "primeiro IG no bucket",
+        idempotencyKey: "manual:ig-token-first",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    const secondJob = await repos.jobs.create({
+      userId: user.id,
+      type: "send_instagram_message",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        instagramHandle: "gabriell_braga",
+        body: "segundo IG deve aguardar",
+        idempotencyKey: "manual:ig-token-second",
+      },
+      scheduledAt: "2026-04-30T12:00:01.000Z",
+      maxAttempts: 2,
+    });
+    if (!firstJob || !secondJob) {
+      throw new Error("expected instagram token bucket jobs");
+    }
+
+    const context = {
+      env,
+      db,
+      repos,
+      logger,
+      instagram: { metrics: { connected: true } } as never,
+    };
+    await handleJob(firstJob, context);
+    await expect(handleJob(secondJob, context)).rejects.toThrow("send_rate_limit_exceeded");
+
+    expect(sendInstagramTextViaCdp).toHaveBeenCalledTimes(1);
+    expect(sendInstagramTextViaCdp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        username: "gabriell_braga",
+        text: "primeiro IG no bucket",
+      }),
+    );
+    const blockedEvents = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.instagram_send_policy.blocked",
+    });
+    expect(blockedEvents[0]?.payload).toEqual(
+      expect.objectContaining({
+        jobId: secondJob.id,
+        jobType: "send_instagram_message",
+        conversationId: conversation.id,
+        contactId: contact.id,
+        instagramHandle: "gabriell_braga",
+        reason: "send_rate_limit_exceeded",
+        rateLimitMode: "token_bucket",
+        rateLimitBucketKey: "ig:gabriell_braga",
+        recentAllowedCount: 1,
+      }),
+    );
+    expect(Number(blockedEvents[0]?.payload.rateLimitTokensRemaining)).toBeLessThan(1);
+    expect(Number(blockedEvents[0]?.payload.rateLimitRetryAfterMs)).toBeGreaterThan(0);
+    const audit = await repos.sendAuditEvents.list({
+      userId: user.id,
+      jobId: secondJob.id,
+      phase: "policy_block",
+    });
+    expect(audit).toEqual([
+      expect.objectContaining({
+        channel: "instagram",
+        conversationId: conversation.id,
+        contactId: contact.id,
+        workerId: "worker-instagram-token-bucket",
+        errorCode: "send_rate_limit_exceeded",
+      }),
+    ]);
+  });
+
   it("drains Instagram campaign batch siblings by handle without a WhatsApp phone", async () => {
     const repos = createRepositories(db);
     const logger = pino({ level: "silent" });
