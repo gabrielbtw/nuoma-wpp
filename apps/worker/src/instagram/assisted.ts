@@ -140,8 +140,10 @@ async function openInstagramThreadOrComposer(
       waitUntil: "domcontentloaded",
       timeout: 45_000,
     });
-    await page.waitForTimeout(1_200);
-    if (await hasInstagramComposer(page)) {
+    if (
+      (await waitForInstagramComposer(page, 10_000, false)) ||
+      (await waitForInstagramMediaUploadInput(page, 4_000))
+    ) {
       return;
     }
   }
@@ -181,6 +183,12 @@ async function hasInstagramComposer(page: Page): Promise<boolean> {
   );
 }
 
+async function hasInstagramMediaUploadInput(page: Page): Promise<boolean> {
+  return page.evaluate<boolean>(
+    `(() => Boolean(document.querySelector("input[type='file']")))()`,
+  );
+}
+
 async function waitForInstagramComposer(
   page: Page,
   timeoutMs = 15_000,
@@ -197,6 +205,17 @@ async function waitForInstagramComposer(
     return false;
   }
   throw new Error("Instagram composer did not open for selected recipient");
+}
+
+async function waitForInstagramMediaUploadInput(page: Page, timeoutMs = 10_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await hasInstagramMediaUploadInput(page)) {
+      return true;
+    }
+    await sleep(400);
+  }
+  return false;
 }
 
 async function clickBestInstagramRecipientCandidate(
@@ -441,12 +460,51 @@ async function replaceInstagramRichComposerText(
 }
 
 async function uploadInstagramMedia(page: Page, mediaPaths: string[]): Promise<void> {
-  const fileInput = page.locator("input[type='file']").last();
-  if ((await fileInput.count()) === 0) {
+  if (!(await waitForInstagramMediaUploadInput(page, 5_000))) {
+    await clickInstagramMediaUploadAffordance(page);
+  }
+  if (!(await waitForInstagramMediaUploadInput(page, 10_000))) {
     throw new Error("Instagram media upload input was not found");
   }
+  const fileInput = page.locator("input[type='file']").last();
   await fileInput.setInputFiles(mediaPaths);
   await page.waitForTimeout(1_600);
+}
+
+async function clickInstagramMediaUploadAffordance(page: Page): Promise<void> {
+  const clicked = await page.evaluate<boolean>(
+    `(() => {
+    const labels = [
+      "add photo or video",
+      "adicionar foto ou vídeo",
+      "adicionar foto ou video",
+      "photo or video",
+      "foto ou vídeo",
+      "foto ou video",
+      "media",
+    ];
+    const nodes = Array.from(document.querySelectorAll("button, div[role='button'], svg[aria-label]"))
+      .filter((node) => node instanceof HTMLElement || node instanceof SVGElement)
+      .reverse();
+    const target = nodes.find((node) => {
+      const text = String(node.textContent ?? "").replace(/\\s+/g, " ").trim().toLowerCase();
+      const aria = String(node.getAttribute("aria-label") ?? "")
+        .replace(/\\s+/g, " ")
+        .trim()
+        .toLowerCase();
+      return labels.some((label) => text.includes(label) || aria.includes(label));
+    });
+    const clickable = target?.closest("button, div[role='button']") ?? target;
+    if (!(clickable instanceof HTMLElement || clickable instanceof SVGElement)) {
+      return false;
+    }
+    clickable.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+    return true;
+  })()`,
+  );
+  if (clicked) {
+    await page.waitForTimeout(800);
+  }
 }
 
 async function clickInstagramSend(page: Page): Promise<void> {
