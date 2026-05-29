@@ -97,7 +97,15 @@
     "clean": "turbo run clean && rm -rf .turbo node_modules",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "simple-git-hooks"
+    "prepare": "simple-git-hooks",
+    "test:artifact-retention": "node tests/artifact-retention-policy-smoke.mjs",
+    "test:go-live-preflight": "node tests/go-live-canary-preflight-smoke.mjs",
+    "artifacts:retention:audit": "node scripts/artifact-retention.mjs",
+    "artifacts:retention:apply": "node scripts/artifact-retention.mjs --apply",
+    "go-live:canary:preflight": "node scripts/go-live-canary-preflight.mjs",
+    "go-live:canary:run": "node scripts/go-live-hosted-canary.mjs",
+    "safari:acceptance:preflight": "node scripts/safari-acceptance-preflight.mjs",
+    "safari:acceptance:gate": "node scripts/safari-acceptance-preflight.mjs --require-proof"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
