@@ -1474,7 +1474,29 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
   }
 
   function candidatePhoneFromElement(element) {
-    return bestPhoneFromElement(element);
+    const values = [];
+    const collect = (node) => {
+      if (!node || !node.getAttribute) {
+        return;
+      }
+      values.push(node.getAttribute("data-id"));
+      values.push(node.getAttribute("data-pre-plain-text"));
+      values.push(node.getAttribute("href"));
+    };
+    collect(element);
+    const descendants = Array.from(
+      element.querySelectorAll('[data-id], [data-pre-plain-text], a[href], [href]'),
+    );
+    for (const node of descendants) {
+      collect(node);
+    }
+    for (const value of values) {
+      const waJid = normalizeWaJid(value);
+      if (waJid) {
+        return normalizePhone(waJid);
+      }
+    }
+    return bestPhoneFromValues(values);
   }
 
   function rowLooksActive(row) {

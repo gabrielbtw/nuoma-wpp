@@ -284,6 +284,73 @@ describe("Nuoma WhatsApp overlay injection", () => {
     }
   }, 30_000);
 
+  it("does not infer identity from active sidebar display text alone", async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+
+    try {
+      await page.setContent(`
+        <!doctype html>
+        <html lang="pt-BR">
+          <body>
+            <section id="pane-side" role="list" aria-label="Conversas">
+              <div role="listitem" aria-selected="true" data-testid="cell-frame-container">
+                <span title="31982066263">31982066263</span>
+              </div>
+            </section>
+            <section id="main">
+              <header style="position: relative; min-height: 64px">
+                <span title="Gabriel Braga Nuoma">Gabriel Braga Nuoma</span>
+              </header>
+              <div data-id="false_3EB0OPAQUE_M34">
+                <span class="selectable-text">Mensagem sem telefone no id visivel.</span>
+              </div>
+            </section>
+          </body>
+        </html>
+      `);
+      await page.evaluate(createNuomaOverlayScript());
+
+      const state = await page.evaluate(
+        ({ rootId, panelTestId }) => {
+          const refreshState = (
+            window as unknown as {
+              __nuomaOverlayRefresh: () => {
+                mounted: boolean;
+                phone: string;
+                phoneSource: string;
+                title: string;
+              };
+            }
+          ).__nuomaOverlayRefresh();
+          const host = document.getElementById(rootId);
+          host?.shadowRoot?.querySelector<HTMLButtonElement>("[data-nuoma-fab]")?.click();
+          const panelText =
+            host?.shadowRoot?.querySelector(`[data-testid="${panelTestId}"]`)?.textContent ?? "";
+          return {
+            ...refreshState,
+            hostPhone: host?.getAttribute("data-nuoma-thread-phone"),
+            hostPhoneSource: host?.getAttribute("data-nuoma-phone-source"),
+            panelText,
+          };
+        },
+        { rootId: NUOMA_OVERLAY_ROOT_ID, panelTestId: NUOMA_OVERLAY_PANEL_TEST_ID },
+      );
+
+      expect(state).toMatchObject({
+        mounted: true,
+        phone: "",
+        phoneSource: "unresolved",
+        title: "Gabriel Braga Nuoma",
+        hostPhone: "",
+        hostPhoneSource: "unresolved",
+      });
+      expect(state.panelText).toContain("Telefone nao identificado");
+    } finally {
+      await browser.close();
+    }
+  }, 30_000);
+
   it("moves focus into the panel and closes with Escape", async () => {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
