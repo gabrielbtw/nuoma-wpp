@@ -2487,6 +2487,7 @@ describe("api health", () => {
         },
       ],
       metadata: {
+        overlayEnabled: true,
         temporaryMessages: {
           enabled: true,
           beforeSendDuration: "24h",
@@ -2510,6 +2511,34 @@ describe("api health", () => {
           template: "Oi {{contact.name}}, posso te ajudar por aqui?",
         },
       ],
+      metadata: {
+        overlayEnabled: true,
+      },
+    });
+    const campaignOverlayDisabled = await repos.campaigns.create({
+      userId: user.id,
+      name: "Campanha Overlay Desligado",
+      status: "running",
+      channel: "whatsapp",
+      steps: [
+        {
+          id: "intro",
+          label: "Intro",
+          delaySeconds: 0,
+          conditions: [],
+          type: "text",
+          template: "Nao deve aparecer no overlay.",
+        },
+      ],
+      metadata: {
+        overlayEnabled: false,
+        temporaryMessages: {
+          enabled: true,
+          beforeSendDuration: "24h",
+          afterCompletionDuration: "90d",
+          restoreOnFailure: true,
+        },
+      },
     });
     const automation = await repos.automations.create({
       userId: user.id,
@@ -2531,7 +2560,29 @@ describe("api health", () => {
           },
         },
       ],
-      metadata: {},
+      metadata: { overlayEnabled: true },
+    });
+    const automationOverlayDisabled = await repos.automations.create({
+      userId: user.id,
+      name: "Automacao Overlay Desligado",
+      category: "Overlay",
+      status: "active",
+      trigger: { type: "message_received", channel: "whatsapp" },
+      condition: { segment: null, requireWithin24hWindow: false },
+      actions: [
+        {
+          type: "send_step",
+          step: {
+            id: "auto-disabled",
+            label: "Auto disabled",
+            delaySeconds: 0,
+            conditions: [],
+            type: "text",
+            template: "Nao deve aparecer no overlay.",
+          },
+        },
+      ],
+      metadata: { overlayEnabled: false },
     });
 
     const app = await buildApiApp({
@@ -2625,8 +2676,17 @@ describe("api health", () => {
           expect.objectContaining({
             id: automation.id,
             name: "Automacao Overlay",
+            overlayEnabled: true,
             eligible: true,
             canDispatchReal: true,
+          }),
+        ]),
+      );
+      expect(summary.json().data.automations).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: automationOverlayDisabled.id,
+            name: "Automacao Overlay Desligado",
           }),
         ]),
       );
@@ -2635,13 +2695,23 @@ describe("api health", () => {
           expect.objectContaining({
             id: campaign.id,
             name: "Campanha Overlay",
+            overlayEnabled: true,
             eligible: true,
           }),
           expect.objectContaining({
             id: campaignWithoutM303.id,
             name: "Campanha Overlay Sem M30.3",
+            overlayEnabled: true,
             eligible: false,
             reasons: expect.arrayContaining(["temporary_messages_audit_only"]),
+          }),
+        ]),
+      );
+      expect(summary.json().data.campaigns).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: campaignOverlayDisabled.id,
+            name: "Campanha Overlay Desligado",
           }),
         ]),
       );
@@ -2701,6 +2771,37 @@ describe("api health", () => {
       expect(blockedMissingM303.json()).toMatchObject({
         ok: false,
         error: { code: "temporary_messages_audit_only" },
+      });
+
+      const blockedOverlayNo = await app.inject({
+        method: "POST",
+        url: "/api/extension/overlay",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${accessToken}`,
+        },
+        payload: {
+          id: "m38-run-campaign-overlay-no",
+          method: "runCampaignForPhone",
+          params: {
+            campaignId: campaignOverlayDisabled.id,
+            phone: "31982066263",
+            waJid: "5531982066263@s.whatsapp.net",
+            phoneSource: "wa-jid",
+            reason: "m38-api-test",
+          },
+          mutation: {
+            nonce: "overlay-nonce-disabled",
+            idempotencyKey: "overlay-key-disabled",
+            confirmed: true,
+          },
+          version: "v2.11.7-m35-m38-extension",
+        },
+      });
+      expect(blockedOverlayNo.statusCode).toBe(200);
+      expect(blockedOverlayNo.json()).toMatchObject({
+        ok: false,
+        error: { code: "overlay_not_enabled" },
       });
 
       const runCampaign = await app.inject({
@@ -2831,6 +2932,37 @@ describe("api health", () => {
       expect((automationJobs[0]?.payload as { phone?: string } | undefined)?.phone).toBe(
         "5531982066263",
       );
+
+      const blockedAutomationOverlayNo = await app.inject({
+        method: "POST",
+        url: "/api/extension/overlay",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${accessToken}`,
+        },
+        payload: {
+          id: "m38-run-automation-overlay-no",
+          method: "runAutomationForPhone",
+          params: {
+            automationId: automationOverlayDisabled.id,
+            phone: "31982066263",
+            waJid: "5531982066263@s.whatsapp.net",
+            phoneSource: "wa-jid",
+            reason: "m38-api-test",
+          },
+          mutation: {
+            nonce: "overlay-automation-disabled-nonce",
+            idempotencyKey: "overlay-automation-disabled-key",
+            confirmed: true,
+          },
+          version: "v2.11.7-m35-m38-extension",
+        },
+      });
+      expect(blockedAutomationOverlayNo.statusCode).toBe(200);
+      expect(blockedAutomationOverlayNo.json()).toMatchObject({
+        ok: false,
+        error: { code: "overlay_not_enabled" },
+      });
 
       const mutation = await app.inject({
         method: "POST",

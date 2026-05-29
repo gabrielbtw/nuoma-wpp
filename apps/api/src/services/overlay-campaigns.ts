@@ -6,6 +6,7 @@ import {
 import type { Repositories } from "@nuoma/db";
 
 import { runCampaignSchedulerTick } from "./campaign-scheduler.js";
+import { isOverlayEnabled } from "./overlay-eligibility.js";
 import { evaluateApiRealSendTarget, normalizePhone, type ApiSendPolicy } from "./send-policy.js";
 
 export interface OverlayCampaignOption {
@@ -15,6 +16,7 @@ export interface OverlayCampaignOption {
   channel: Campaign["channel"];
   stepsCount: number;
   firstStepType: Campaign["steps"][number]["type"] | null;
+  overlayEnabled: boolean;
   eligible: boolean;
   reasons: string[];
   canDispatchReal: boolean;
@@ -46,7 +48,7 @@ export async function listOverlayCampaignOptions(input: {
     : null;
   const campaigns = await input.repos.campaigns.list(input.userId);
   const evaluated = await Promise.all(
-    campaigns.map(async (campaign) => {
+    campaigns.filter((campaign) => isOverlayEnabled(campaign.metadata)).map(async (campaign) => {
       const existingRecipients = await input.repos.campaignRecipients.listByCampaign({
         userId: input.userId,
         campaignId: campaign.id,
@@ -103,6 +105,9 @@ export async function runOverlayCampaignNow(input: {
   });
   if (!campaign) {
     return blockedRun(null, phone, "campaign_not_found");
+  }
+  if (!isOverlayEnabled(campaign.metadata)) {
+    return blockedRun(campaign, phone, "overlay_not_enabled");
   }
   const replay = replayOverlayRun(campaign, phone, input.idempotencyKey);
   if (replay) {
@@ -280,6 +285,7 @@ function evaluateOverlayCampaign(input: {
   );
 
   if (!isRunnableManualCampaign(input.campaign)) reasons.push("status_not_runnable");
+  if (!isOverlayEnabled(input.campaign.metadata)) reasons.push("overlay_not_enabled");
   if (hasLegacyStepNormalization(input.campaign)) reasons.push("legacy_campaign_steps_need_review");
   if (input.campaign.channel !== "whatsapp") reasons.push("channel_not_supported");
   if (!phone) reasons.push("invalid_phone");
@@ -309,6 +315,7 @@ function evaluateOverlayCampaign(input: {
     channel: input.campaign.channel,
     stepsCount: input.campaign.steps.length,
     firstStepType: firstStep?.type ?? null,
+    overlayEnabled: isOverlayEnabled(input.campaign.metadata),
     eligible,
     reasons,
     canDispatchReal: eligible && sendDecision.allowed,
