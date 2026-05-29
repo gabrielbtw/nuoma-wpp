@@ -85,7 +85,6 @@ export async function handleJob(job: Job, context: JobHandlerContext): Promise<v
 
 async function handleCampaignStepJob(job: Job, context: JobHandlerContext): Promise<void> {
   await handleSingleCampaignStepJob(job, context);
-  await context.repos.jobs.markCompleted(job.id);
   await drainCampaignStepBatch(job, context);
 }
 
@@ -335,7 +334,19 @@ async function drainCampaignStepBatch(job: Job, context: JobHandlerContext): Pro
 
     try {
       await handleSingleCampaignStepJob(claimed, context);
-      await context.repos.jobs.markCompleted(claimed.id);
+      const completed = await context.repos.jobs.markCompleted(claimed.id, context.env.WORKER_ID);
+      if (!completed) {
+        context.logger.warn(
+          {
+            jobId: claimed.id,
+            type: claimed.type,
+            campaignBatchId,
+            workerId: context.env.WORKER_ID,
+          },
+          "campaign_step batch sibling completion skipped because ownership was lost",
+        );
+        return;
+      }
       context.logger.info(
         { jobId: claimed.id, type: claimed.type, campaignBatchId },
         "campaign_step batch sibling completed without reopening worker loop",
@@ -347,13 +358,20 @@ async function drainCampaignStepBatch(job: Job, context: JobHandlerContext): Pro
         isTerminalCampaignStepError(message) ||
         claimed.attempts >= claimed.maxAttempts;
       if (terminal) {
-        await context.repos.jobs.moveToDead({ jobId: claimed.id, error: message });
-        await cancelCampaignBatchSiblingJobs(claimed, context, message);
+        const moved = await context.repos.jobs.moveToDead({
+          jobId: claimed.id,
+          error: message,
+          workerId: context.env.WORKER_ID,
+        });
+        if (moved) {
+          await cancelCampaignBatchSiblingJobs(claimed, context, message);
+        }
       } else {
         await context.repos.jobs.releaseForRetry({
           jobId: claimed.id,
           error: message,
           scheduledAt: nextCampaignStepRetryAt(claimed).toISOString(),
+          workerId: context.env.WORKER_ID,
         });
       }
       context.logger.warn(

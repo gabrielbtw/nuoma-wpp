@@ -90,7 +90,14 @@ export function createJobLoop(input: {
 
     try {
       await handleJob(job, input.handlerContext);
-      await input.repos.jobs.markCompleted(job.id);
+      const completed = await input.repos.jobs.markCompleted(job.id, input.env.WORKER_ID);
+      if (!completed) {
+        input.logger.warn(
+          { jobId: job.id, type: job.type, workerId: input.env.WORKER_ID },
+          "job completion skipped because ownership was lost",
+        );
+        return true;
+      }
       state.metrics.completed += 1;
       input.logger.info({ jobId: job.id, type: job.type }, "job completed");
       return true;
@@ -100,23 +107,48 @@ export function createJobLoop(input: {
       state.lastError = message;
 
       if (isPermanentJobError(error) || isNonRetryableSendError(message) || job.attempts >= job.maxAttempts) {
-        await input.repos.jobs.moveToDead({ jobId: job.id, error: message });
-        state.metrics.dead += 1;
-        input.logger.warn({ jobId: job.id, type: job.type, error: message }, "job moved to DLQ");
+        const moved = await input.repos.jobs.moveToDead({
+          jobId: job.id,
+          error: message,
+          workerId: input.env.WORKER_ID,
+        });
+        if (moved) {
+          state.metrics.dead += 1;
+          input.logger.warn({ jobId: job.id, type: job.type, error: message }, "job moved to DLQ");
+        } else {
+          input.logger.warn(
+            { jobId: job.id, type: job.type, error: message, workerId: input.env.WORKER_ID },
+            "job DLQ transition skipped because ownership was lost",
+          );
+        }
         return true;
       }
 
       const scheduledAt = nextRetryAt(job).toISOString();
-      await input.repos.jobs.releaseForRetry({
+      const released = await input.repos.jobs.releaseForRetry({
         jobId: job.id,
         error: message,
         scheduledAt,
+        workerId: input.env.WORKER_ID,
       });
-      state.metrics.retried += 1;
-      input.logger.warn(
-        { jobId: job.id, type: job.type, scheduledAt, error: message },
-        "job released for retry",
-      );
+      if (released) {
+        state.metrics.retried += 1;
+        input.logger.warn(
+          { jobId: job.id, type: job.type, scheduledAt, error: message },
+          "job released for retry",
+        );
+      } else {
+        input.logger.warn(
+          {
+            jobId: job.id,
+            type: job.type,
+            scheduledAt,
+            error: message,
+            workerId: input.env.WORKER_ID,
+          },
+          "job retry release skipped because ownership was lost",
+        );
+      }
       return true;
     } finally {
       state.currentJobId = null;

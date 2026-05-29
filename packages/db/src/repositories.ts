@@ -2532,33 +2532,69 @@ export function createRepositories(handle: DbHandle) {
           .map(mapJob);
       },
 
-      async markCompleted(jobId: number): Promise<void> {
-        await db
-          .update(jobs)
-          .set({
-            status: "completed",
-            completedAt: nowIso(),
-            updatedAt: nowIso(),
-          })
-          .where(eq(jobs.id, jobId));
+      async markCompleted(jobId: number, workerId?: string): Promise<boolean> {
+        const completedAt = nowIso();
+        const result = workerId
+          ? handle.raw
+              .prepare(
+                `UPDATE jobs
+                 SET status = 'completed',
+                     completed_at = ?,
+                     updated_at = ?
+                 WHERE id = ?
+                   AND status IN ('claimed', 'running')
+                   AND claimed_by = ?`,
+              )
+              .run(completedAt, completedAt, jobId, workerId)
+          : handle.raw
+              .prepare(
+                `UPDATE jobs
+                 SET status = 'completed',
+                     completed_at = ?,
+                     updated_at = ?
+                 WHERE id = ?
+                   AND status IN ('claimed', 'running')`,
+              )
+              .run(completedAt, completedAt, jobId);
+        return result.changes > 0;
       },
 
       async releaseForRetry(input: {
         jobId: number;
         error: string;
         scheduledAt: string;
-      }): Promise<void> {
-        await db
-          .update(jobs)
-          .set({
-            status: "queued",
-            claimedAt: null,
-            claimedBy: null,
-            scheduledAt: input.scheduledAt,
-            lastError: input.error,
-            updatedAt: nowIso(),
-          })
-          .where(eq(jobs.id, input.jobId));
+        workerId?: string;
+      }): Promise<boolean> {
+        const updatedAt = nowIso();
+        const result = input.workerId
+          ? handle.raw
+              .prepare(
+                `UPDATE jobs
+                 SET status = 'queued',
+                     claimed_at = NULL,
+                     claimed_by = NULL,
+                     scheduled_at = ?,
+                     last_error = ?,
+                     updated_at = ?
+                 WHERE id = ?
+                   AND status IN ('claimed', 'running')
+                   AND claimed_by = ?`,
+              )
+              .run(input.scheduledAt, input.error, updatedAt, input.jobId, input.workerId)
+          : handle.raw
+              .prepare(
+                `UPDATE jobs
+                 SET status = 'queued',
+                     claimed_at = NULL,
+                     claimed_by = NULL,
+                     scheduled_at = ?,
+                     last_error = ?,
+                     updated_at = ?
+                 WHERE id = ?
+                   AND status IN ('claimed', 'running')`,
+              )
+              .run(input.scheduledAt, input.error, updatedAt, input.jobId);
+        return result.changes > 0;
       },
 
       async releaseStaleClaims(input: {
@@ -2620,10 +2656,49 @@ export function createRepositories(handle: DbHandle) {
         };
       },
 
-      async moveToDead(input: { jobId: number; error: string }): Promise<void> {
-        const job = await db.select().from(jobs).where(eq(jobs.id, input.jobId)).get();
+      async moveToDead(input: { jobId: number; error: string; workerId?: string }): Promise<boolean> {
+        const job = await db
+          .select()
+          .from(jobs)
+          .where(
+            and(
+              eq(jobs.id, input.jobId),
+              inArray(jobs.status, ["claimed", "running"]),
+              input.workerId ? eq(jobs.claimedBy, input.workerId) : undefined,
+            ),
+          )
+          .get();
         if (!job) {
-          return;
+          return false;
+        }
+
+        const completedAt = nowIso();
+        const result = input.workerId
+          ? handle.raw
+              .prepare(
+                `UPDATE jobs
+                 SET status = 'failed',
+                     last_error = ?,
+                     completed_at = ?,
+                     updated_at = ?
+                 WHERE id = ?
+                   AND status IN ('claimed', 'running')
+                   AND claimed_by = ?`,
+              )
+              .run(input.error, completedAt, completedAt, job.id, input.workerId)
+          : handle.raw
+              .prepare(
+                `UPDATE jobs
+                 SET status = 'failed',
+                     last_error = ?,
+                     completed_at = ?,
+                     updated_at = ?
+                 WHERE id = ?
+                   AND status IN ('claimed', 'running')`,
+              )
+              .run(input.error, completedAt, completedAt, job.id);
+        if (result.changes === 0) {
+          return false;
         }
 
         await db.insert(jobsDead).values({
@@ -2635,15 +2710,7 @@ export function createRepositories(handle: DbHandle) {
           attempts: job.attempts,
           lastError: input.error,
         } satisfies NewJobDead);
-        await db
-          .update(jobs)
-          .set({
-            status: "failed",
-            lastError: input.error,
-            completedAt: nowIso(),
-            updatedAt: nowIso(),
-          })
-          .where(eq(jobs.id, job.id));
+        return true;
       },
 
       async listDead(userId: number, limit = 100): Promise<DeadJob[]> {

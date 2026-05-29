@@ -992,6 +992,78 @@ describe("repositories", () => {
     expect([...workerA, ...workerB].every((job) => job.status === "claimed")).toBe(true);
   });
 
+  it("prevents stale workers from overwriting a newer job claim", async () => {
+    const repos = createRepositories(handle);
+    const user = await repos.users.create({
+      email: "claim-owner@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: 1,
+        phone: "5531982066263",
+        body: "ownership",
+        idempotencyKey: "manual:claim-owner",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 3,
+    });
+    if (!job) {
+      throw new Error("expected job to be created");
+    }
+
+    const [workerAClaim] = await repos.jobs.claimDueJobs({
+      workerId: "worker-a",
+      now: "2026-04-30T12:00:01.000Z",
+    });
+    expect(workerAClaim?.id).toBe(job.id);
+    const workerAState = handle.raw
+      .prepare("SELECT claimed_at FROM jobs WHERE id = ?")
+      .get(job.id) as { claimed_at: string } | undefined;
+    const reaperNow = new Date(
+      Date.parse(workerAState?.claimed_at ?? new Date().toISOString()) + 2,
+    );
+
+    await repos.jobs.releaseStaleClaims({
+      staleAfterMs: 1,
+      now: reaperNow,
+    });
+    const [workerBClaim] = await repos.jobs.claimDueJobs({
+      workerId: "worker-b",
+      now: reaperNow.toISOString(),
+    });
+    expect(workerBClaim?.id).toBe(job.id);
+
+    await expect(repos.jobs.markCompleted(job.id, "worker-a")).resolves.toBe(false);
+    await expect(
+      repos.jobs.releaseForRetry({
+        jobId: job.id,
+        error: "late retry",
+        scheduledAt: "2026-04-30T12:05:00.000Z",
+        workerId: "worker-a",
+      }),
+    ).resolves.toBe(false);
+    await expect(
+      repos.jobs.moveToDead({ jobId: job.id, error: "late dead", workerId: "worker-a" }),
+    ).resolves.toBe(false);
+    await expect(repos.jobs.countDead(user.id)).resolves.toBe(0);
+
+    const stillOwnedByB = handle.raw
+      .prepare("SELECT status, claimed_by FROM jobs WHERE id = ?")
+      .get(job.id) as { status: string; claimed_by: string | null } | undefined;
+    expect(stillOwnedByB).toEqual({ status: "claimed", claimed_by: "worker-b" });
+
+    await expect(repos.jobs.markCompleted(job.id, "worker-b")).resolves.toBe(true);
+    const completed = handle.raw
+      .prepare("SELECT status, claimed_by FROM jobs WHERE id = ?")
+      .get(job.id) as { status: string; claimed_by: string | null } | undefined;
+    expect(completed).toEqual({ status: "completed", claimed_by: "worker-b" });
+  });
+
   it("moves exhausted jobs to DLQ and retries them manually", async () => {
     const repos = createRepositories(handle);
     const user = await repos.users.create({

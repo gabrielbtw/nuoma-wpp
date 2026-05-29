@@ -852,12 +852,12 @@ describe("worker job loop", () => {
       ...repos,
       jobs: {
         ...repos.jobs,
-        markCompleted: async (jobId: number) => {
+        markCompleted: async (jobId: number, workerId?: string) => {
           if (failMarkCompletedOnce) {
             failMarkCompletedOnce = false;
             throw new Error("simulated crash after send before markCompleted");
           }
-          await repos.jobs.markCompleted(jobId);
+          return repos.jobs.markCompleted(jobId, workerId);
         },
       },
     };
