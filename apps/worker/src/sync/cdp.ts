@@ -62,6 +62,30 @@ export interface SyncEngineRuntime {
 }
 
 type CdpClient = CDP.Client;
+type CdpEventListener = (...args: unknown[]) => void;
+
+export type RegisteredCdpListener = {
+  event: string;
+  listener: CdpEventListener | null;
+};
+
+type RemovableCdpClient = {
+  removeListener: (event: string, listener: CdpEventListener) => unknown;
+};
+
+export function removeCdpClientListeners(
+  client: RemovableCdpClient | null,
+  listeners: RegisteredCdpListener[],
+): void {
+  if (!client) {
+    return;
+  }
+  for (const { event, listener } of listeners) {
+    if (listener) {
+      client.removeListener(event, listener);
+    }
+  }
+}
 export const PROFILE_PHOTO_SEEN_BY_THREAD_CAP = 500;
 
 export function getProfilePhotoSeenByThread(
@@ -413,9 +437,24 @@ export async function startSyncEngine(input: {
   let overlayApiQueue: Promise<void> = Promise.resolve();
   let reconcileQueue: Promise<void> = Promise.resolve();
   let reconcileTimer: NodeJS.Timeout | null = null;
+  let runtimeBindingCalledListener: CdpEventListener | null = null;
+  let pageJavascriptDialogOpeningListener: CdpEventListener | null = null;
+  let disconnectListener: CdpEventListener | null = null;
   let openChatPhone: string | null = null;
   let openChatPhoneNavigatedAtMs = 0;
   const profilePhotoSeenByThread = new Map<string, string>();
+
+  function removeClientListeners(): void {
+    removeCdpClientListeners(client as RemovableCdpClient | null, [
+      { event: "Runtime.bindingCalled", listener: runtimeBindingCalledListener },
+      { event: "Page.javascriptDialogOpening", listener: pageJavascriptDialogOpeningListener },
+      { event: "disconnect", listener: disconnectListener },
+    ]);
+    runtimeBindingCalledListener = null;
+    pageJavascriptDialogOpeningListener = null;
+    disconnectListener = null;
+  }
+
   try {
     const target = await selectSyncTarget(input.env);
     client = await withTimeout(
@@ -479,7 +518,8 @@ export async function startSyncEngine(input: {
       })()
     `;
 
-    client.on("Runtime.bindingCalled", (params: { name: string; payload: string }) => {
+    runtimeBindingCalledListener = (paramsValue: unknown) => {
+      const params = paramsValue as { name: string; payload: string };
       if (params.name === NUOMA_OVERLAY_API_BINDING_NAME) {
         metrics.overlayApiCalls += 1;
         const payload = params.payload;
@@ -504,8 +544,11 @@ export async function startSyncEngine(input: {
           metrics.lastError = serializeError(error);
           input.logger.warn({ error }, "sync binding queue failed");
         });
-    });
-    client.on("Page.javascriptDialogOpening", (params: { type?: string; message?: string }) => {
+    };
+    client.on("Runtime.bindingCalled", runtimeBindingCalledListener);
+
+    pageJavascriptDialogOpeningListener = (paramsValue: unknown) => {
+      const params = paramsValue as { type?: string; message?: string };
       void client?.Page.handleJavaScriptDialog({ accept: true }).catch((error: unknown) => {
         metrics.lastError = serializeError(error);
         input.logger.warn({ error }, "failed to auto-accept WhatsApp browser dialog");
@@ -517,12 +560,15 @@ export async function startSyncEngine(input: {
         },
         "WhatsApp browser dialog auto-accepted",
       );
-    });
-    client.on("disconnect", () => {
+    };
+    client.on("Page.javascriptDialogOpening", pageJavascriptDialogOpeningListener);
+
+    disconnectListener = () => {
       metrics.connected = false;
       metrics.lastError = "CDP disconnected";
       input.logger.warn("sync engine CDP disconnected");
-    });
+    };
+    client.on("disconnect", disconnectListener);
 
     await withTimeout(
       client.Page.addScriptToEvaluateOnNewDocument({ source: observerSource }),
@@ -595,6 +641,7 @@ export async function startSyncEngine(input: {
     metrics.connected = false;
     metrics.lastError = serializeError(error);
     input.logger.warn({ error }, "sync engine CDP startup failed");
+    removeClientListeners();
     await client?.close().catch((closeError: unknown) => {
       input.logger.warn({ closeError }, "sync engine CDP close after startup failure failed");
     });
@@ -1820,10 +1867,11 @@ export async function startSyncEngine(input: {
     if (!client || !process.env.M303_BEFORE_SEND_SCREENSHOT_PATH) {
       return null;
     }
+    const currentClient = client;
     const proofPath = path.isAbsolute(process.env.M303_BEFORE_SEND_SCREENSHOT_PATH)
       ? process.env.M303_BEFORE_SEND_SCREENSHOT_PATH
       : path.resolve(process.cwd(), process.env.M303_BEFORE_SEND_SCREENSHOT_PATH);
-    const proof = await client.Runtime.evaluate({
+    const proof = await currentClient.Runtime.evaluate({
       expression: temporaryMessagesProofScript(duration),
       awaitPromise: true,
       returnByValue: true,
@@ -1845,8 +1893,8 @@ export async function startSyncEngine(input: {
     const shouldCaptureCdpScreenshot = process.env.M303_CAPTURE_CDP_SCREENSHOT === "true";
     const screenshotData = shouldCaptureCdpScreenshot
       ? await Promise.race([
-          client.Page.enable().then(() =>
-            client.Page.captureScreenshot({ format: "png", fromSurface: true }),
+          currentClient.Page.enable().then(() =>
+            currentClient.Page.captureScreenshot({ format: "png", fromSurface: true }),
           ),
           new Promise<null>((resolve) => setTimeout(() => resolve(null), 5_000)),
         ]).catch(() => null)
@@ -4507,9 +4555,12 @@ export async function startSyncEngine(input: {
     close: async () => {
       if (reconcileTimer) {
         clearInterval(reconcileTimer);
+        reconcileTimer = null;
       }
+      removeClientListeners();
       handler.close();
       await client?.close();
+      client = null;
       metrics.connected = false;
     },
   };

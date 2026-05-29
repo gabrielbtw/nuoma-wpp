@@ -5,6 +5,7 @@ import {
   getProfilePhotoSeenByThread,
   isReadyChatState,
   parseTemporaryMessagesDuration,
+  removeCdpClientListeners,
   setProfilePhotoSeenByThread,
   shouldAllowActiveSendTarget,
   temporaryMessagesUiScript,
@@ -20,6 +21,30 @@ const baseState: ActiveSendTargetState = {
   contactInfoPhone: null,
   hasComposer: true,
 };
+
+describe("CDP listener cleanup", () => {
+  it("removes registered listeners and ignores null placeholders", () => {
+    const removed: Array<[string, (...args: unknown[]) => void]> = [];
+    const fakeClient = {
+      removeListener(event: string, listener: (...args: unknown[]) => void) {
+        removed.push([event, listener]);
+      },
+    };
+    const runtimeListener = () => undefined;
+    const dialogListener = () => undefined;
+
+    removeCdpClientListeners(fakeClient, [
+      { event: "Runtime.bindingCalled", listener: runtimeListener },
+      { event: "Page.javascriptDialogOpening", listener: dialogListener },
+      { event: "disconnect", listener: null },
+    ]);
+
+    expect(removed).toEqual([
+      ["Runtime.bindingCalled", runtimeListener],
+      ["Page.javascriptDialogOpening", dialogListener],
+    ]);
+  });
+});
 
 describe("CDP profile photo seen cache", () => {
   it("keeps only the 500 most recently used profile-photo entries", () => {
