@@ -40,6 +40,7 @@ export interface NuomaOverlayData {
     triggerChannel?: string | null;
     actionsCount?: number;
     sendStepsCount?: number;
+    overlayEnabled?: boolean;
     eligible?: boolean;
     reasons?: string[];
     wouldEnqueueJobs?: boolean;
@@ -52,6 +53,7 @@ export interface NuomaOverlayData {
     channel?: string | null;
     stepsCount?: number;
     firstStepType?: string | null;
+    overlayEnabled?: boolean;
     eligible?: boolean;
     reasons?: string[];
     canDispatchReal?: boolean;
@@ -2322,6 +2324,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         const meta = document.createElement("div");
         meta.className = "nuoma-campaign-meta";
         meta.appendChild(campaignChip(campaign.eligible ? "elegivel" : "bloqueada", campaign.eligible ? "ok" : "blocked"));
+        meta.appendChild(campaignChip(campaign.overlayEnabled ? "overlay sim" : "overlay nao", campaign.overlayEnabled ? "ok" : "blocked"));
         meta.appendChild(campaignChip(text(campaign.status) || "status", ""));
         meta.appendChild(campaignChip(String(campaign.stepsCount || 0) + " step(s)", ""));
         if (campaign.firstStepType) {
@@ -2396,6 +2399,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         const meta = document.createElement("div");
         meta.className = "nuoma-campaign-meta";
         meta.appendChild(campaignChip(automation.eligible ? "elegivel" : "bloqueada", automation.eligible ? "ok" : "blocked"));
+        meta.appendChild(campaignChip(automation.overlayEnabled ? "overlay sim" : "overlay nao", automation.overlayEnabled ? "ok" : "blocked"));
         meta.appendChild(campaignChip(text(automation.status) || "status", ""));
         meta.appendChild(campaignChip(String(automation.actionsCount || 0) + " acao(oes)", ""));
         if (automation.wouldEnqueueJobs) {
