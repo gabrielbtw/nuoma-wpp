@@ -16,11 +16,36 @@ const now = new Date().toISOString();
 const dryRun = process.argv.includes("--dry-run");
 
 const oldMedia = [
-  { type: "voice", fileName: "A1BH.ogg", mimeType: "audio/ogg", source: "storage/uploads/media/automation/neferpeel-bh/A1BH.ogg" },
-  { type: "image", fileName: "foto1.jpg", mimeType: "image/jpeg", source: "storage/uploads/media/automation/neferpeel-bh/foto1.jpg" },
-  { type: "image", fileName: "foto2.jpg", mimeType: "image/jpeg", source: "storage/uploads/media/automation/neferpeel-bh/foto2.jpg" },
-  { type: "image", fileName: "foto3.jpg", mimeType: "image/jpeg", source: "storage/uploads/media/automation/neferpeel-bh/foto3.jpg" },
-  { type: "image", fileName: "foto4.jpg", mimeType: "image/jpeg", source: "storage/uploads/media/automation/neferpeel-bh/foto4.jpg" },
+  {
+    type: "voice",
+    fileName: "A1BH.ogg",
+    mimeType: "audio/ogg",
+    source: "storage/uploads/media/automation/neferpeel-bh/A1BH.ogg",
+  },
+  {
+    type: "image",
+    fileName: "foto1.jpg",
+    mimeType: "image/jpeg",
+    source: "storage/uploads/media/automation/neferpeel-bh/foto1.jpg",
+  },
+  {
+    type: "image",
+    fileName: "foto2.jpg",
+    mimeType: "image/jpeg",
+    source: "storage/uploads/media/automation/neferpeel-bh/foto2.jpg",
+  },
+  {
+    type: "image",
+    fileName: "foto3.jpg",
+    mimeType: "image/jpeg",
+    source: "storage/uploads/media/automation/neferpeel-bh/foto3.jpg",
+  },
+  {
+    type: "image",
+    fileName: "foto4.jpg",
+    mimeType: "image/jpeg",
+    source: "storage/uploads/media/automation/neferpeel-bh/foto4.jpg",
+  },
 ];
 
 function sha256(filePath) {
@@ -229,7 +254,10 @@ try {
           leads: leads.length,
           uniqueRecipients: uniqueLeads.length,
           duplicatePhones: [...duplicatePhones],
-          media: oldMedia.map((item) => ({ ...item, exists: fs.existsSync(path.join(oldRoot, item.source)) })),
+          media: oldMedia.map((item) => ({
+            ...item,
+            exists: fs.existsSync(path.join(oldRoot, item.source)),
+          })),
         },
         null,
         2,
@@ -239,7 +267,9 @@ try {
   }
 
   const tx = db.transaction(() => {
-    const assetIds = Object.fromEntries(oldMedia.map((item) => [item.fileName, upsertMediaAsset(db, item)]));
+    const assetIds = Object.fromEntries(
+      oldMedia.map((item) => [item.fileName, upsertMediaAsset(db, item)]),
+    );
     const leadTagId = getOrCreateTag(db, "neferpeel-lead-bh", "#3ddc97");
     const semRespostaTagId = getOrCreateTag(db, "neferpeel-sem-resposta", "#3ddc97");
     const migratedTagId = getOrCreateTag(db, "migrado-neferpeel-bh", "#8b5cf6");
@@ -277,7 +307,9 @@ try {
         delaySeconds: 5,
         conditions: [],
         mediaAssetId: assetIds["foto1.jpg"],
-        mediaAssetIds: ["foto1.jpg", "foto2.jpg", "foto3.jpg", "foto4.jpg"].map((name) => assetIds[name]),
+        mediaAssetIds: ["foto1.jpg", "foto2.jpg", "foto3.jpg", "foto4.jpg"].map(
+          (name) => assetIds[name],
+        ),
         caption: null,
       },
       {
@@ -286,7 +318,8 @@ try {
         type: "text",
         delaySeconds: 3,
         conditions: [],
-        template: "Olha essa transformação em apenas 15 dias! 😍\n\nNo áudio acima eu expliquei sobre o Neferpeel, ficou alguma dúvida?",
+        template:
+          "Olha essa transformação em apenas 15 dias! 😍\n\nNo áudio acima eu expliquei sobre o Neferpeel, ficou alguma dúvida?",
       },
     ];
 
@@ -327,7 +360,9 @@ try {
 
     let recipients = 0;
     for (const lead of uniqueLeads) {
-      const tags = lead.semResposta ? [leadTagId, semRespostaTagId, migratedTagId] : [leadTagId, migratedTagId];
+      const tags = lead.semResposta
+        ? [leadTagId, semRespostaTagId, migratedTagId]
+        : [leadTagId, migratedTagId];
       const contactId = upsertContact(db, lead, tags);
       if (!contactId) continue;
       db.prepare(
@@ -346,7 +381,9 @@ try {
             primeiro_nome: firstName(lead.name),
           },
           sourceContactId: lead.id,
-          sourceTags: lead.semResposta ? ["neferpeel-lead-bh", "neferpeel-sem-resposta"] : ["neferpeel-lead-bh"],
+          sourceTags: lead.semResposta
+            ? ["neferpeel-lead-bh", "neferpeel-sem-resposta"]
+            : ["neferpeel-lead-bh"],
           migratedAt: now,
         }),
         now,

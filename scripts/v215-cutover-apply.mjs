@@ -111,7 +111,13 @@ async function main() {
     }
 
     if (!apply) {
-      printSummary({ mode, status: "ready", blockers, counts: source.counts, backup: "not_created" });
+      printSummary({
+        mode,
+        status: "ready",
+        blockers,
+        counts: source.counts,
+        backup: "not_created",
+      });
       return;
     }
 
@@ -247,9 +253,15 @@ function applyCutover(input) {
 function upsertTag(db, userId, row) {
   const name = textValue(column(row, "name")) || `v1-tag-${row.id}`;
   const color = textValue(column(row, "color")) || "#3ddc97";
-  const existing = db.prepare("SELECT id FROM tags WHERE user_id = ? AND name = ?").get(userId, name);
+  const existing = db
+    .prepare("SELECT id FROM tags WHERE user_id = ? AND name = ?")
+    .get(userId, name);
   if (existing?.id) {
-    db.prepare("UPDATE tags SET color = ?, updated_at = ? WHERE id = ?").run(color, nowIso(), existing.id);
+    db.prepare("UPDATE tags SET color = ?, updated_at = ? WHERE id = ?").run(
+      color,
+      nowIso(),
+      existing.id,
+    );
     return Number(existing.id);
   }
   const result = db
@@ -334,9 +346,12 @@ function upsertContact(db, userId, row) {
 
 function upsertMediaAsset(db, userId, row) {
   const sha = textValue(column(row, "sha256")) || `v1-${row.id}`;
-  const existing = db.prepare("SELECT id FROM media_assets WHERE user_id = ? AND sha256 = ?").get(userId, sha);
+  const existing = db
+    .prepare("SELECT id FROM media_assets WHERE user_id = ? AND sha256 = ?")
+    .get(userId, sha);
   const type = mediaType(column(row, "category", "type", "content_type"));
-  const fileName = textValue(column(row, "original_name", "file_name", "safe_name")) || `media-${row.id}`;
+  const fileName =
+    textValue(column(row, "original_name", "file_name", "safe_name")) || `media-${row.id}`;
   const mimeType = textValue(column(row, "mime_type")) || "application/octet-stream";
   const sizeBytes = Number(column(row, "size_bytes")) || 0;
   const storagePath = textValue(column(row, "storage_path")) || `v1-media/${fileName}`;
@@ -348,7 +363,18 @@ function upsertMediaAsset(db, userId, row) {
         storage_path, source_url, deleted_at, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL, ?, ?)`,
     )
-    .run(userId, type, fileName, mimeType, sha, sizeBytes, storagePath, `nuoma-wpp:v1:${row.id}`, nowIso(), nowIso());
+    .run(
+      userId,
+      type,
+      fileName,
+      mimeType,
+      sha,
+      sizeBytes,
+      storagePath,
+      `nuoma-wpp:v1:${row.id}`,
+      nowIso(),
+      nowIso(),
+    );
   return Number(result.lastInsertRowid);
 }
 
@@ -454,7 +480,10 @@ function upsertCampaign(db, userId, row, steps) {
     source: "v1",
     raw: step,
   }));
-  const metadata = JSON.stringify({ v1: { sourceCampaignId: sourceId }, migratedBy: "v215-cutover-apply" });
+  const metadata = JSON.stringify({
+    v1: { sourceCampaignId: sourceId },
+    migratedBy: "v215-cutover-apply",
+  });
   if (existing?.id) {
     db.prepare(
       `UPDATE campaigns
@@ -479,7 +508,10 @@ function upsertCampaignRecipient(db, userId, row, refs) {
   const existing = findImportedRecipient(db, refs.campaignId, sourceId);
   const status = enumValue(recipientStatusMap, column(row, "status"), "queued");
   const phone = normalizePhone(column(row, "phone")) || nullableText(column(row, "phone"));
-  const metadata = JSON.stringify({ v1: { sourceRecipientId: sourceId }, migratedBy: "v215-cutover-apply" });
+  const metadata = JSON.stringify({
+    v1: { sourceRecipientId: sourceId },
+    migratedBy: "v215-cutover-apply",
+  });
   if (existing?.id) {
     db.prepare(
       `UPDATE campaign_recipients
@@ -521,7 +553,9 @@ function findExistingContact(db, userId, input) {
     if (row) return row;
   }
   if (input.email) {
-    const row = db.prepare("SELECT * FROM contacts WHERE user_id = ? AND email = ?").get(userId, input.email);
+    const row = db
+      .prepare("SELECT * FROM contacts WHERE user_id = ? AND email = ?")
+      .get(userId, input.email);
     if (row) return row;
   }
   return null;
@@ -558,7 +592,10 @@ function writeSystemEvent(db, userId, type, severity, payload) {
 
 async function createPreCutoverBackup(dbPath, backupDir) {
   fs.mkdirSync(backupDir, { recursive: true });
-  const backupPath = path.join(backupDir, `pre-v215-cutover-${nowIso().replaceAll(":", "-").replaceAll(".", "-")}.db`);
+  const backupPath = path.join(
+    backupDir,
+    `pre-v215-cutover-${nowIso().replaceAll(":", "-").replaceAll(".", "-")}.db`,
+  );
   const db = new Database(dbPath, { readonly: true, fileMustExist: true });
   try {
     await db.backup(backupPath);
@@ -581,7 +618,9 @@ function selectAll(db, table) {
 }
 
 function tableExists(db, table) {
-  return Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(table));
+  return Boolean(
+    db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(table),
+  );
 }
 
 function countIfTable(db, tables, table) {
@@ -660,7 +699,8 @@ function mediaType(value) {
 
 function messageStatus(value, direction) {
   const status = String(value ?? "").toLowerCase();
-  if (["pending", "sent", "delivered", "read", "failed", "received"].includes(status)) return status;
+  if (["pending", "sent", "delivered", "read", "failed", "received"].includes(status))
+    return status;
   return direction === "inbound" ? "received" : "sent";
 }
 
