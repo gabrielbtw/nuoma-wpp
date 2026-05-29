@@ -98,13 +98,18 @@ describe("conversation identity backfill", () => {
     ];
 
     for (const [index, testCase] of cases.entries()) {
+      const caseUser = await repos.users.create({
+        email: `conversation-identity-${index}@nuoma.local`,
+        passwordHash: "hash",
+        role: "admin",
+      });
       const result = handle.raw
         .prepare(
           `INSERT INTO conversations
            (user_id, channel, external_thread_id, title, created_at, updated_at)
            VALUES (?, 'whatsapp', ?, ?, ?, ?)`,
         )
-        .run(user.id, testCase.raw, `Raw SQL conversation ${index}`, now, now);
+        .run(caseUser.id, testCase.raw, `Raw SQL conversation ${index}`, now, now);
 
       const rawRow = handle.raw
         .prepare("SELECT external_thread_id, wa_jid FROM conversations WHERE id = ?")
@@ -118,18 +123,22 @@ describe("conversation identity backfill", () => {
       });
     }
 
-    const updatedId = handle.raw
-      .prepare("SELECT id FROM conversations WHERE external_thread_id = ?")
-      .get("31982066263") as { id: number };
+    const result = handle.raw
+      .prepare(
+        `INSERT INTO conversations
+         (user_id, channel, external_thread_id, title, created_at, updated_at)
+         VALUES (?, 'whatsapp', ?, 'Raw SQL update target', ?, ?)`,
+      )
+      .run(user.id, "31982066264", now, now);
     handle.raw
       .prepare("UPDATE conversations SET external_thread_id = ?, updated_at = ? WHERE id = ?")
-      .run("+55 31 9 8206-6264", now, updatedId.id);
+      .run("+55 31 9 8206-6265", now, result.lastInsertRowid);
 
     const updatedRow = handle.raw
       .prepare("SELECT wa_jid FROM conversations WHERE id = ?")
-      .get(updatedId.id) as { wa_jid: string | null } | undefined;
+      .get(result.lastInsertRowid) as { wa_jid: string | null } | undefined;
     expect(updatedRow).toEqual({
-      wa_jid: "5531982066264@s.whatsapp.net",
+      wa_jid: "5531982066265@s.whatsapp.net",
     });
   });
 
@@ -169,6 +178,98 @@ describe("conversation identity backfill", () => {
         external_thread_id: "5531982066263@c.us",
         wa_jid: "5531982066263@s.whatsapp.net",
       });
+    } finally {
+      legacyHandle.close();
+    }
+  });
+
+  it("archives duplicate active WhatsApp conversations before enforcing wa_jid uniqueness", async () => {
+    const before0015Migrations = await copyMigrationsThrough(14);
+    const legacyHandle = openDb(path.join(tempDir, "duplicate-conversation.db"));
+    try {
+      await runMigrations(legacyHandle, before0015Migrations);
+      const repos = createRepositories(legacyHandle);
+      const user = await repos.users.create({
+        email: "duplicate-conversation-identity@nuoma.local",
+        passwordHash: "hash",
+        role: "admin",
+      });
+      const now = new Date().toISOString();
+      const older = legacyHandle.raw
+        .prepare(
+          `INSERT INTO conversations
+           (user_id, channel, external_thread_id, title, last_message_at, created_at, updated_at)
+           VALUES (?, 'whatsapp', ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          user.id,
+          "5531982066263@c.us",
+          "Older duplicate",
+          "2026-04-30T12:00:00.000Z",
+          now,
+          now,
+        );
+      const newer = legacyHandle.raw
+        .prepare(
+          `INSERT INTO conversations
+           (user_id, channel, external_thread_id, title, last_message_at, created_at, updated_at)
+           VALUES (?, 'whatsapp', ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          user.id,
+          "5531982066263@s.whatsapp.net",
+          "Newer duplicate",
+          "2026-04-30T12:05:00.000Z",
+          now,
+          now,
+        );
+
+      await runMigrations(legacyHandle, path.resolve(import.meta.dirname, "./migrations"));
+
+      const rows = legacyHandle.raw
+        .prepare(
+          `SELECT id, wa_jid, is_archived
+           FROM conversations
+           WHERE id IN (?, ?)
+           ORDER BY id`,
+        )
+        .all(older.lastInsertRowid, newer.lastInsertRowid) as Array<{
+        id: number;
+        wa_jid: string | null;
+        is_archived: number;
+      }>;
+
+      expect(rows).toEqual([
+        {
+          id: Number(older.lastInsertRowid),
+          wa_jid: "5531982066263@s.whatsapp.net",
+          is_archived: 1,
+        },
+        {
+          id: Number(newer.lastInsertRowid),
+          wa_jid: "5531982066263@s.whatsapp.net",
+          is_archived: 0,
+        },
+      ]);
+      expect(() =>
+        legacyHandle.raw
+          .prepare(
+            `INSERT INTO conversations
+             (user_id, channel, external_thread_id, title, created_at, updated_at)
+             VALUES (?, 'whatsapp', ?, 'Third active duplicate', ?, ?)`,
+          )
+          .run(user.id, "5531982066263", now, now),
+      ).toThrow(/UNIQUE constraint failed/i);
+
+      expect(() =>
+        legacyHandle.raw
+          .prepare(
+            `INSERT INTO conversations
+             (user_id, channel, external_thread_id, wa_jid, title, is_archived, created_at, updated_at)
+             VALUES (?, 'whatsapp', ?, ?, 'Archived duplicate', 1, ?, ?)`,
+          )
+          .run(user.id, "legacy-archived-thread", "5531982066263@s.whatsapp.net", now, now),
+      ).not.toThrow();
     } finally {
       legacyHandle.close();
     }

@@ -144,6 +144,11 @@ export const conversations = sqliteTable(
     userLastMessageIdx: index("idx_conversations_user_last_message").on(t.userId, t.lastMessageAt),
     userContactIdx: index("idx_conversations_user_contact").on(t.userId, t.contactId),
     userWaJidIdx: index("idx_conversations_user_wa_jid").on(t.userId, t.waJid),
+    userActiveWaJidIdx: uniqueIndex("idx_conversations_user_wa_jid_active")
+      .on(t.userId, t.waJid)
+      .where(
+        sql`${t.channel} = 'whatsapp' AND ${t.waJid} IS NOT NULL AND trim(${t.waJid}) != '' AND ${t.isArchived} = 0`,
+      ),
     userProfilePhotoIdx: index("idx_conversations_user_profile_photo").on(
       t.userId,
       t.profilePhotoMediaAssetId,

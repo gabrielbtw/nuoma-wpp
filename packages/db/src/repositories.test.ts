@@ -1052,6 +1052,53 @@ describe("repositories", () => {
     expect(conversation?.externalThreadId).toBe("5531982066263");
   });
 
+  it("upserts observed WhatsApp conversations by canonical wa_jid", async () => {
+    const repos = createRepositories(handle);
+    const user = await repos.users.create({
+      email: "conversation-wa-jid-upsert@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+
+    const first = await repos.conversations.upsertObserved({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      title: "Primeira captura",
+      lastMessageAt: "2026-04-30T12:00:00.000Z",
+      lastPreview: "primeira",
+      unreadCount: 1,
+    });
+    const second = await repos.conversations.upsertObserved({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263@c.us",
+      title: "Segunda captura",
+      lastMessageAt: "2026-04-30T12:05:00.000Z",
+      lastPreview: "segunda",
+      unreadCount: 2,
+    });
+
+    const conversations = await repos.conversations.list(user.id);
+    const byWaJid = await repos.conversations.findByWaJid({
+      userId: user.id,
+      waJid: "5531982066263@c.us",
+    });
+
+    expect(second.id).toBe(first.id);
+    expect(conversations).toHaveLength(1);
+    expect(conversations[0]).toEqual(
+      expect.objectContaining({
+        id: first.id,
+        waJid: "5531982066263@s.whatsapp.net",
+        title: "Segunda captura",
+        lastPreview: "segunda",
+        unreadCount: 2,
+      }),
+    );
+    expect(byWaJid?.id).toBe(first.id);
+  });
+
   it("normalizes legacy swapped day/month conversation timestamps", async () => {
     const repos = createRepositories(handle);
     const user = await repos.users.create({

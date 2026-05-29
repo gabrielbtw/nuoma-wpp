@@ -1170,6 +1170,49 @@ export function createRepositories(handle: DbHandle) {
           input.channel === "whatsapp"
             ? normalizeWaJid(input.waJid ?? input.externalThreadId)
             : null;
+        if (input.channel === "whatsapp" && waJid) {
+          const existingByWaJid = await db
+            .select()
+            .from(conversations)
+            .where(
+              and(
+                eq(conversations.userId, input.userId),
+                eq(conversations.channel, "whatsapp"),
+                eq(conversations.waJid, waJid),
+                eq(conversations.isArchived, false),
+              ),
+            )
+            .orderBy(desc(conversations.lastMessageAt), desc(conversations.id))
+            .limit(1)
+            .get();
+          if (existingByWaJid && existingByWaJid.externalThreadId !== input.externalThreadId) {
+            const [row] = await db
+              .update(conversations)
+              .set({
+                contactId: input.contactId ?? existingByWaJid.contactId,
+                waJid,
+                title: input.title || existingByWaJid.title,
+                lastMessageAt: lastMessageAt ?? existingByWaJid.lastMessageAt,
+                lastPreview: input.lastPreview ?? existingByWaJid.lastPreview,
+                unreadCount: input.unreadCount ?? existingByWaJid.unreadCount,
+                profilePhotoMediaAssetId:
+                  input.profilePhotoMediaAssetId ?? existingByWaJid.profilePhotoMediaAssetId,
+                profilePhotoSha256:
+                  input.profilePhotoSha256 ?? existingByWaJid.profilePhotoSha256,
+                profilePhotoUpdatedAt:
+                  profilePhotoUpdatedAt ?? existingByWaJid.profilePhotoUpdatedAt,
+                updatedAt,
+              })
+              .where(
+                and(
+                  eq(conversations.userId, input.userId),
+                  eq(conversations.id, existingByWaJid.id),
+                ),
+              )
+              .returning();
+            return mapConversation(expectRow(row, "conversations.upsertObserved.waJid"));
+          }
+        }
 
         handle.raw
           .prepare(
