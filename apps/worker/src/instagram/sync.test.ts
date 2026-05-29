@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { parseInstagramDisplayedTimestamp, stableInstagramMessageExternalId } from "./sync.js";
+import {
+  parseInstagramDisplayedTimestamp,
+  shouldSkipInstagramSyncedOutgoingDuplicate,
+  stableInstagramMessageExternalId,
+} from "./sync.js";
 
 describe("Instagram sync helpers", () => {
   it("keeps stable explicit external ids and hashes positional browser ids", () => {
@@ -49,5 +53,43 @@ describe("Instagram sync helpers", () => {
     expect(parseInstagramDisplayedTimestamp("Visto: Há 6 h", "2026-05-29T18:30:00.000Z")).toBe(
       null,
     );
+  });
+
+  it("skips synced outgoing duplicates already created by dispatch", () => {
+    const existingMessages = [
+      {
+        direction: "outbound" as const,
+        status: "sent" as const,
+        body: "ig video media smoke",
+        contentType: "video" as const,
+        mediaAssetId: 5604,
+        observedAtUtc: "2026-05-29T10:40:00.000Z",
+      },
+    ];
+
+    expect(
+      shouldSkipInstagramSyncedOutgoingDuplicate({
+        message: {
+          direction: "outgoing",
+          body: "ig video media smoke",
+          contentType: "text",
+          sentAt: "2026-05-29T10:41:00.000Z",
+        },
+        existingMessages,
+        syncedAt: "2026-05-29T10:42:00.000Z",
+      }),
+    ).toBe(true);
+    expect(
+      shouldSkipInstagramSyncedOutgoingDuplicate({
+        message: {
+          direction: "outgoing",
+          body: "",
+          contentType: "video",
+          sentAt: "2026-05-29T10:41:00.000Z",
+        },
+        existingMessages,
+        syncedAt: "2026-05-29T10:42:00.000Z",
+      }),
+    ).toBe(true);
   });
 });

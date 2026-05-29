@@ -3,7 +3,11 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
 import { CONSTANTS, type WorkerEnv } from "@nuoma/config";
-import type { MessageContentType, MessageDirection, TimestampPrecision } from "@nuoma/contracts";
+import type {
+  MessageContentType,
+  MessageDirection,
+  TimestampPrecision,
+} from "@nuoma/contracts";
 import type { Repositories } from "@nuoma/db";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import type { Logger } from "pino";
@@ -85,7 +89,7 @@ interface InstagramThreadSnapshot {
   messages: InstagramThreadMessageSnapshot[];
 }
 
-interface InstagramThreadMessageSnapshot {
+export interface InstagramThreadMessageSnapshot {
   externalId: string | null;
   direction: "incoming" | "outgoing";
   body: string;
@@ -467,7 +471,23 @@ async function persistInstagramThreads(input: {
       unreadCount: thread.unreadCount,
     });
 
+    const recentMessages = await input.repos.messages.listByConversation({
+      userId: input.userId,
+      conversationId: conversation.id,
+      limit: 200,
+      includeDeleted: false,
+    });
+
     for (const [index, message] of thread.messages.entries()) {
+      if (
+        shouldSkipInstagramSyncedOutgoingDuplicate({
+          message,
+          existingMessages: recentMessages,
+          syncedAt,
+        })
+      ) {
+        continue;
+      }
       const externalId = stableInstagramMessageExternalId(thread, index, message);
       const inserted = await input.repos.messages.insertOrIgnore({
         userId: input.userId,
@@ -495,6 +515,7 @@ async function persistInstagramThreads(input: {
         },
       });
       if (inserted) {
+        recentMessages.unshift(inserted);
         importedMessages += 1;
         if (message.direction === "incoming") {
           importedIncomingMessages += 1;
@@ -819,6 +840,20 @@ async function scrapeOpenInstagramThread(
         text: clean(anchor.textContent),
       }))
       .filter((entry) => entry.href);
+    const sidebar =
+      document.querySelector("[aria-label='Lista de tópicos']") ??
+      document.querySelector("[aria-label='Threads']") ??
+      document.querySelector("[aria-label='Chats']");
+    const sidebarRect = sidebar?.getBoundingClientRect();
+    const chatLeft =
+      sidebarRect && sidebarRect.width > 0 ? sidebarRect.right - 4 : window.innerWidth * 0.35;
+    const isThreadPaneRect = (rect) =>
+      rect.width > 0 &&
+      rect.height > 0 &&
+      rect.bottom > 0 &&
+      rect.top < window.innerHeight &&
+      rect.right > chatLeft &&
+      rect.left >= chatLeft - 12;
     const relativeTimePattern = /^(há\\s*)?(\\d+\\s*(s|min|m|h|d|sem|w|hr|hrs|days?|weeks?|months?|meses?|mês|hora|horas|dia|dias|semana|semanas|minuto|minutos|segundo|segundos)|hoje|ontem|yesterday|today|just now|agora)$/i;
     const receiptStatusPattern = /^(visto|seen|enviado|sent|entregue|delivered|visualizado|read)(:|\\b)/i;
     const isReceiptOrTime = (text) => {
@@ -847,7 +882,7 @@ async function scrapeOpenInstagramThread(
         const element = node;
         const text = clean(element.getAttribute("datetime") || element.textContent);
         const rect = element.getBoundingClientRect();
-        if (!text || rect.width <= 0 || rect.height <= 0 || !relativeTimePattern.test(text)) {
+        if (!text || !isThreadPaneRect(rect) || !relativeTimePattern.test(text)) {
           return null;
         }
         return { text, top: rect.top };
@@ -869,7 +904,7 @@ async function scrapeOpenInstagramThread(
         const element = node;
         const text = clean(element.textContent);
         const rect = element.getBoundingClientRect();
-        if (!text || rect.width <= 0 || rect.height <= 0 || isReceiptOrTime(text)) {
+        if (!text || !isThreadPaneRect(rect) || rect.top < 70 || isReceiptOrTime(text)) {
           return null;
         }
         return {
@@ -885,7 +920,7 @@ async function scrapeOpenInstagramThread(
       .map((node) => {
         const element = node;
         const rect = element.getBoundingClientRect();
-        if (rect.width < 80 || rect.height < 40) {
+        if (!isThreadPaneRect(rect) || rect.width < 80 || rect.height < 40) {
           return null;
         }
         const alt = clean(element.getAttribute("alt"));
@@ -1009,6 +1044,51 @@ function resolveInstagramThreadParticipant(input: {
     username: fallback,
     displayName: fallback ? null : input.fallbackTitle?.trim() || null,
   };
+}
+
+export function shouldSkipInstagramSyncedOutgoingDuplicate(input: {
+  message: Pick<InstagramThreadMessageSnapshot, "direction" | "body" | "contentType" | "sentAt">;
+  existingMessages: Array<{
+    direction: MessageDirection;
+    status: string;
+    body: string | null;
+    contentType: MessageContentType;
+    mediaAssetId?: number | null;
+    observedAtUtc: string;
+  }>;
+  syncedAt: string;
+}): boolean {
+  if (input.message.direction !== "outgoing") {
+    return false;
+  }
+  const body = input.message.body.replace(/\s+/g, " ").trim();
+  const messageMs = Date.parse(input.message.sentAt ?? input.syncedAt);
+  for (const existing of input.existingMessages) {
+    if (existing.direction !== "outbound" || existing.status === "failed") {
+      continue;
+    }
+    const existingMs = Date.parse(existing.observedAtUtc);
+    if (
+      Number.isFinite(messageMs) &&
+      Number.isFinite(existingMs) &&
+      Math.abs(existingMs - messageMs) > 36 * 60 * 60 * 1000
+    ) {
+      continue;
+    }
+    const existingBody = String(existing.body ?? "").replace(/\s+/g, " ").trim();
+    if (body && existingBody === body) {
+      return true;
+    }
+    if (
+      !body &&
+      input.message.contentType !== "text" &&
+      existing.contentType === input.message.contentType &&
+      existing.mediaAssetId !== null
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function parseInstagramDisplayedTimestamp(
