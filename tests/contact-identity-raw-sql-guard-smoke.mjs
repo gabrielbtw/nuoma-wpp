@@ -3,8 +3,16 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const scanRoots = ["scripts", "tests"];
-const allowedV1Fixtures = new Map([
+const scanRoots = ["packages/db/src", "scripts", "tests"];
+const allowedRawSqlFixtures = new Map([
+  [
+    "packages/db/src/contact-identity-backfill.test.ts",
+    "DB trigger test intentionally omits identity columns to prove automatic backfill.",
+  ],
+  [
+    "packages/db/src/repositories.test.ts",
+    "Repository test intentionally omits identity columns to prove raw SQL backfill.",
+  ],
   [
     "tests/v215-cutover-preflight-smoke.ts",
     "V1 fixture only; preflight does not write V2 contacts.",
@@ -30,7 +38,7 @@ for (const relativePath of files) {
   contactInsertFiles.push(relativePath);
   const hasIdentityColumns = phoneE164Pattern.test(source) && waJidPattern.test(source);
   const hasBackfill = backfillPattern.test(source);
-  const allowedReason = allowedV1Fixtures.get(relativePath);
+  const allowedReason = allowedRawSqlFixtures.get(relativePath);
   if (!hasIdentityColumns && !hasBackfill && !allowedReason) {
     violations.push(relativePath);
   }
@@ -53,7 +61,7 @@ console.log(
     "contact-identity-raw-sql-guard",
     `scanned=${files.length}`,
     `contactInsertFiles=${contactInsertFiles.length}`,
-    `allowedV1Fixtures=${allowedV1Fixtures.size}`,
+    `allowedRawSqlFixtures=${allowedRawSqlFixtures.size}`,
     "status=ok",
   ].join("|"),
 );
