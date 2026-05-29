@@ -15,8 +15,11 @@ import {
   MiniMap,
   Position,
   ReactFlow,
+  useEdgesState,
+  useNodesState,
   type Edge,
   type Node,
+  type OnNodeDrag,
   type NodeProps,
   type NodeTypes,
 } from "@xyflow/react";
@@ -58,7 +61,15 @@ import {
   ZoomIn,
 } from "lucide-react";
 import { gsap } from "gsap";
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 import {
   Badge,
@@ -565,6 +576,22 @@ export function CampaignFlowBuilder({
     });
   }
 
+  function reorderStepsFromCanvas(orderedStepIds: string[]) {
+    setSteps((current) => {
+      const byId = new Map(current.map((step) => [step.id, step]));
+      const ordered = orderedStepIds
+        .map((stepId) => byId.get(stepId))
+        .filter((step): step is StepDraft => Boolean(step));
+      const missing = current.filter((step) => !orderedStepIds.includes(step.id));
+      const next = [...ordered, ...missing];
+      if (next.length !== current.length) {
+        return current;
+      }
+      const changed = next.some((step, index) => step.id !== current[index]?.id);
+      return changed ? next : current;
+    });
+  }
+
   async function loadCsvFile(file: File | null) {
     if (!file) return;
     const text = await file.text();
@@ -703,6 +730,7 @@ export function CampaignFlowBuilder({
               abEnabled={abEnabled}
               onOpenSteps={() => setActiveTab("steps")}
               onOpenPreview={() => setActiveTab("preview")}
+              onReorderSteps={reorderStepsFromCanvas}
             />
 
             <div className="nuoma-flow-v2-editor-panels" aria-label="Edição funcional do fluxo">
@@ -920,6 +948,7 @@ function CampaignFlowCanvasBoard({
   abEnabled,
   onOpenSteps,
   onOpenPreview,
+  onReorderSteps,
 }: {
   steps: StepDraft[];
   channel: ChannelType;
@@ -929,8 +958,9 @@ function CampaignFlowCanvasBoard({
   abEnabled: boolean;
   onOpenSteps: () => void;
   onOpenPreview: () => void;
+  onReorderSteps: (orderedStepIds: string[]) => void;
 }) {
-  const { nodes, edges } = useMemo(
+  const graph = useMemo(
     () =>
       buildCampaignFlowGraph({
         steps,
@@ -943,6 +973,25 @@ function CampaignFlowCanvasBoard({
       }),
     [abEnabled, channel, csvPreview, evergreen, onOpenSteps, segmentEnabled, steps],
   );
+  const [nodes, setNodes, onNodesChange] = useNodesState<CampaignCanvasNode>(graph.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(graph.edges);
+
+  useEffect(() => {
+    setNodes(graph.nodes);
+    setEdges(graph.edges);
+  }, [graph.edges, graph.nodes, setEdges, setNodes]);
+
+  const handleNodeDragStop = useCallback<OnNodeDrag<CampaignCanvasNode>>(
+    (_event, _node, currentNodes) => {
+      const orderedStepIds = currentNodes
+        .filter((node) => node.data.kind === "step" || node.data.kind === "branch")
+        .sort((a, b) => a.position.y - b.position.y)
+        .map((node) => node.id);
+      onReorderSteps(orderedStepIds);
+    },
+    [onReorderSteps],
+  );
+
   return (
     <div className="nuoma-flow-v2-board" data-testid="campaign-flow-canvas-board">
       <div className="nuoma-flow-v2-board-toolbar" aria-label="Ferramentas do canvas">
@@ -981,8 +1030,8 @@ function CampaignFlowCanvasBoard({
         </button>
         <button
           type="button"
-          aria-label="Edição visual preserva o modo lista"
-          title="Edição visual preserva o modo lista"
+          aria-label="Arraste nós para reordenar steps"
+          title="Arraste nós para reordenar steps"
         >
           <LockKeyhole className="h-4 w-4" />
         </button>
@@ -993,6 +1042,9 @@ function CampaignFlowCanvasBoard({
           nodes={nodes}
           edges={edges}
           nodeTypes={campaignFlowNodeTypes}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeDragStop={handleNodeDragStop}
           fitView
           fitViewOptions={{ padding: 0.24, includeHiddenNodes: false }}
           minZoom={0.45}
