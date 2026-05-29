@@ -40,6 +40,7 @@ async function main() {
     assert(counts.campaigns === 1, `campaigns mismatch ${JSON.stringify(counts)}`);
     assert(counts.recipients === 1, `recipients mismatch ${JSON.stringify(counts)}`);
     assert(counts.events === 1, `event mismatch ${JSON.stringify(counts)}`);
+    assertWhatsappIdentity(readWhatsappIdentity(v2DbPath), "first apply");
 
     const applyAgain = runScript({ v1DbPath, v2DbPath, backupDir, mode: "apply", confirm: true });
     assert(applyAgain.includes("status=applied"), applyAgain);
@@ -49,6 +50,7 @@ async function main() {
     assert(afterSecondApply.messages === 2, `messages not idempotent ${JSON.stringify(afterSecondApply)}`);
     assert(afterSecondApply.campaigns === 1, `campaigns not idempotent ${JSON.stringify(afterSecondApply)}`);
     assert(afterSecondApply.recipients === 1, `recipients not idempotent ${JSON.stringify(afterSecondApply)}`);
+    assertWhatsappIdentity(readWhatsappIdentity(v2DbPath), "second apply");
 
     console.log("v215-cutover-apply-smoke|dryRun=ok|apply=ok|idempotent=ok|status=closed");
   } finally {
@@ -235,6 +237,55 @@ function readV2Counts(dbPath: string) {
   } finally {
     db.close();
   }
+}
+
+function readWhatsappIdentity(dbPath: string) {
+  const db = new Database(dbPath, { readonly: true });
+  try {
+    const contact = db
+      .prepare(
+        `SELECT phone, phone_e164 AS phoneE164, wa_jid AS waJid
+         FROM contacts
+         WHERE user_id = 1 AND name = 'Gabriel'`,
+      )
+      .get() as { phone: string | null; phoneE164: string | null; waJid: string | null } | undefined;
+    const conversation = db
+      .prepare(
+        `SELECT external_thread_id AS externalThreadId, wa_jid AS waJid
+         FROM conversations
+         WHERE user_id = 1 AND channel = 'whatsapp' AND title = 'Gabriel'`,
+      )
+      .get() as { externalThreadId: string; waJid: string | null } | undefined;
+    return { contact, conversation };
+  } finally {
+    db.close();
+  }
+}
+
+function assertWhatsappIdentity(
+  proof: ReturnType<typeof readWhatsappIdentity>,
+  phase: string,
+): void {
+  assert(
+    proof.contact?.phone === "5531982066263",
+    `${phase} contact phone mismatch ${JSON.stringify(proof)}`,
+  );
+  assert(
+    proof.contact.phoneE164 === "+5531982066263",
+    `${phase} contact phone_e164 mismatch ${JSON.stringify(proof)}`,
+  );
+  assert(
+    proof.contact.waJid === "5531982066263@s.whatsapp.net",
+    `${phase} contact wa_jid mismatch ${JSON.stringify(proof)}`,
+  );
+  assert(
+    proof.conversation?.externalThreadId === "5531982066263",
+    `${phase} conversation external_thread_id mismatch ${JSON.stringify(proof)}`,
+  );
+  assert(
+    proof.conversation.waJid === "5531982066263@s.whatsapp.net",
+    `${phase} conversation wa_jid mismatch ${JSON.stringify(proof)}`,
+  );
 }
 
 function scalar(db: Database.Database, sql: string) {
