@@ -1,4 +1,5 @@
-import { createHash } from "node:crypto";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
 import { z } from "zod";
 
 import { idSchema } from "./common.js";
@@ -62,7 +63,7 @@ export function idempotencyKey(input: IdempotencyKeyInput): string {
   // Canonical serialization so equivalent inputs hash identically regardless
   // of property declaration order.
   const canonical = JSON.stringify(input, Object.keys(input).sort());
-  const digest = createHash("sha256").update(canonical).digest("hex").slice(0, 16);
+  const digest = bytesToHex(sha256(utf8ToBytes(canonical))).slice(0, 16);
   return `${input.kind}:${digest}`;
 }
 
