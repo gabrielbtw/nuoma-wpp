@@ -2992,7 +2992,7 @@ body:has(.nuoma-concept-app)::before {
   font-size: 0.64rem;
   letter-spacing: 0;
   text-transform: uppercase;
-  color: rgb(var(--color-brand-gold));
+  color: rgb(var(--color-brand-blue-soft));
 }
 
 .botforge-grid {

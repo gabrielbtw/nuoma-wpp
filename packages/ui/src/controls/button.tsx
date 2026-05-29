@@ -23,7 +23,7 @@ const VARIANTS: Record<ButtonVariant, string> = {
   ghost:
     "bg-transparent text-fg-muted hover:bg-bg-surface hover:shadow-raised-sm hover:text-fg-primary active:shadow-pressed-sm",
   accent:
-    "bg-brand-gold text-fg-primary shadow-raised-sm hover:shadow-glow-gold active:shadow-pressed-sm",
+    "bg-brand-gold text-white shadow-raised-sm hover:shadow-glow-gold active:shadow-pressed-sm",
   danger:
     "bg-bg-elevated text-semantic-danger shadow-raised-sm hover:shadow-glow-danger active:shadow-pressed-sm",
 };

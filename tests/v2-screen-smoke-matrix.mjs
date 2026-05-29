@@ -100,7 +100,7 @@ const routes = [
     version: "V2.8",
     name: "Componentes visuais",
     path: "/dev/components",
-    waitText: "Componentes",
+    waitText: "Sistema de Cores",
     file: "12-v28-components.png",
     details: "Inventario visual do design system Cartographic Operations.",
   },
@@ -140,7 +140,8 @@ async function main() {
       const waitWarning = await waitForRouteSignal(page, route);
       const extra = route.action ? await route.action(page, fixture) : null;
       const screenshotPath = path.join(outputDir, route.file);
-      await page.waitForTimeout(300);
+      await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
+      await page.waitForTimeout(700);
       const blocking = await blockingA11yViolations(page);
       await page.screenshot({ path: screenshotPath, fullPage: true });
       report.push({
