@@ -92,6 +92,13 @@
       "when": 1779984000000,
       "tag": "0012_whatsapp_jid_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1779987600000,
+      "tag": "0013_send_audit_events",
+      "breakpoints": true
     }
   ]
 }

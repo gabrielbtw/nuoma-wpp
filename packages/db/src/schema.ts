@@ -567,6 +567,56 @@ export const jobsDead = sqliteTable(
   }),
 );
 
+export const sendAuditEvents = sqliteTable(
+  "send_audit_events",
+  {
+    ...id,
+    occurredAt: text("occurred_at").notNull().default(nowIso),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    campaignId: integer("campaign_id").references(() => campaigns.id, { onDelete: "set null" }),
+    contactId: integer("contact_id").references(() => contacts.id, { onDelete: "set null" }),
+    conversationId: integer("conversation_id").references(() => conversations.id, {
+      onDelete: "set null",
+    }),
+    messageId: integer("message_id").references(() => messages.id, { onDelete: "set null" }),
+    jobId: integer("job_id").references(() => jobs.id, { onDelete: "set null" }),
+    channel: text("channel", { enum: ["whatsapp", "instagram", "system"] }).notNull(),
+    phase: text("phase", {
+      enum: [
+        "queued",
+        "dispatching",
+        "sent",
+        "delivered",
+        "read",
+        "failed",
+        "duplicate",
+        "policy_block",
+      ],
+    }).notNull(),
+    latencyMs: integer("latency_ms"),
+    errorCode: text("error_code"),
+    errorMessage: text("error_message"),
+    payloadHash: text("payload_hash"),
+    workerId: text("worker_id"),
+    metadata: text("metadata_json").notNull().default("{}"),
+  },
+  (t) => ({
+    campaignOccurredIdx: index("idx_send_audit_campaign_occurred").on(
+      t.campaignId,
+      t.occurredAt,
+    ),
+    contactOccurredIdx: index("idx_send_audit_contact_occurred").on(t.contactId, t.occurredAt),
+    userPhaseOccurredIdx: index("idx_send_audit_user_phase_occurred").on(
+      t.userId,
+      t.phase,
+      t.occurredAt,
+    ),
+    jobIdx: index("idx_send_audit_job").on(t.jobId),
+  }),
+);
+
 export const workerState = sqliteTable(
   "worker_state",
   {
@@ -766,6 +816,8 @@ export type Message = typeof messages.$inferSelect;
 export type NewMessage = typeof messages.$inferInsert;
 export type MessageDispatchAttempt = typeof messageDispatchAttempts.$inferSelect;
 export type NewMessageDispatchAttempt = typeof messageDispatchAttempts.$inferInsert;
+export type SendAuditEvent = typeof sendAuditEvents.$inferSelect;
+export type NewSendAuditEvent = typeof sendAuditEvents.$inferInsert;
 export type AttachmentCandidate = typeof attachmentCandidates.$inferSelect;
 export type NewAttachmentCandidate = typeof attachmentCandidates.$inferInsert;
 export type ChatbotVariantEvent = typeof chatbotVariantEvents.$inferSelect;

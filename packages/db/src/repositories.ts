@@ -74,6 +74,7 @@ import {
   refreshSessions,
   reminders,
   schedulerLocks,
+  sendAuditEvents,
   systemEvents,
   tags,
   users,
@@ -86,6 +87,7 @@ import {
   type NewJobDead,
   type NewMessage,
   type NewMessageDispatchAttempt,
+  type NewSendAuditEvent,
   type NewQuickReply,
   type NewUser,
 } from "./schema.js";
@@ -120,6 +122,12 @@ type CreateAttachmentCandidateRecord = Omit<NewAttachmentCandidate, "metadata"> 
 };
 type CreateChatbotVariantEventRecord = Omit<NewChatbotVariantEvent, "metadata"> & {
   metadata?: JsonObject;
+};
+type CreateSendAuditEventRecord = Omit<NewSendAuditEvent, "metadata"> & {
+  metadata?: JsonObject;
+};
+type SendAuditEventRecord = Omit<typeof sendAuditEvents.$inferSelect, "metadata"> & {
+  metadata: JsonObject;
 };
 type ContactRow = typeof contacts.$inferSelect;
 const serialSendJobTypes: NewJob["type"][] = [
@@ -637,6 +645,13 @@ function mapSystemEvent(row: typeof systemEvents.$inferSelect) {
   return {
     ...row,
     payload: decodeJsonObject(row.payload),
+  };
+}
+
+function mapSendAuditEvent(row: typeof sendAuditEvents.$inferSelect): SendAuditEventRecord {
+  return {
+    ...row,
+    metadata: decodeJsonObject(row.metadata),
   };
 }
 
@@ -3324,6 +3339,47 @@ export function createRepositories(handle: DbHandle) {
     auditLogs: {
       async create(input: typeof auditLogs.$inferInsert): Promise<void> {
         await db.insert(auditLogs).values(input);
+      },
+    },
+
+    sendAuditEvents: {
+      async create(input: CreateSendAuditEventRecord): Promise<SendAuditEventRecord> {
+        const values: NewSendAuditEvent = {
+          ...input,
+          metadata: encodeJson(input.metadata),
+        };
+        const [row] = await db.insert(sendAuditEvents).values(values).returning();
+        return mapSendAuditEvent(expectRow(row, "sendAuditEvents.create"));
+      },
+      async list(input: {
+        userId: number;
+        campaignId?: number;
+        contactId?: number;
+        conversationId?: number;
+        jobId?: number;
+        phase?: NewSendAuditEvent["phase"];
+        limit?: number;
+      }): Promise<SendAuditEventRecord[]> {
+        const clauses = [
+          eq(sendAuditEvents.userId, input.userId),
+          input.campaignId !== undefined
+            ? eq(sendAuditEvents.campaignId, input.campaignId)
+            : undefined,
+          input.contactId !== undefined ? eq(sendAuditEvents.contactId, input.contactId) : undefined,
+          input.conversationId !== undefined
+            ? eq(sendAuditEvents.conversationId, input.conversationId)
+            : undefined,
+          input.jobId !== undefined ? eq(sendAuditEvents.jobId, input.jobId) : undefined,
+          input.phase ? eq(sendAuditEvents.phase, input.phase) : undefined,
+        ].filter(Boolean);
+
+        const rows = await db
+          .select()
+          .from(sendAuditEvents)
+          .where(and(...clauses))
+          .orderBy(desc(sendAuditEvents.occurredAt), desc(sendAuditEvents.id))
+          .limit(Math.min(input.limit ?? 100, 500));
+        return rows.map(mapSendAuditEvent);
       },
     },
 

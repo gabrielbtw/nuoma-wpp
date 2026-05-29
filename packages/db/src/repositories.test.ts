@@ -1771,4 +1771,67 @@ describe("repositories", () => {
     expect(stored[0]?.error).toBe("boom");
     expect(stored[0]?.finishedAt).not.toBeNull();
   });
+
+  it("records structured send audit events with metadata filters", async () => {
+    const repos = createRepositories(handle);
+    const user = await repos.users.create({
+      email: "send-audit@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Audit target",
+      phone: "31982066263",
+      primaryChannel: "whatsapp",
+      status: "active",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263@c.us",
+      title: "Audit target",
+    });
+
+    const dispatching = await repos.sendAuditEvents.create({
+      userId: user.id,
+      contactId: contact.id,
+      conversationId: conversation.id,
+      channel: "whatsapp",
+      phase: "dispatching",
+      workerId: "worker-audit",
+      payloadHash: "payload-sha",
+      metadata: { idempotencyKey: "manual:audit", source: "test" },
+    });
+    await repos.sendAuditEvents.create({
+      userId: user.id,
+      contactId: contact.id,
+      conversationId: conversation.id,
+      channel: "whatsapp",
+      phase: "sent",
+      latencyMs: 321,
+      workerId: "worker-audit",
+      metadata: { idempotencyKey: "manual:audit" },
+    });
+
+    expect(dispatching.phase).toBe("dispatching");
+    expect(dispatching.metadata).toEqual({ idempotencyKey: "manual:audit", source: "test" });
+
+    const sent = await repos.sendAuditEvents.list({
+      userId: user.id,
+      contactId: contact.id,
+      phase: "sent",
+    });
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toEqual(
+      expect.objectContaining({
+        channel: "whatsapp",
+        phase: "sent",
+        latencyMs: 321,
+        workerId: "worker-audit",
+        metadata: { idempotencyKey: "manual:audit" },
+      }),
+    );
+  });
 });
