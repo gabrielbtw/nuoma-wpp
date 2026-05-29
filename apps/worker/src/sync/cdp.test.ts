@@ -81,7 +81,6 @@ describe("CDP active send target guard", () => {
         openChatPhoneNavigatedAtMs: nowMs - 60_000,
         nowMs,
         allowedSelfChatPhones: [],
-        expectedTitle: null,
       }),
     ).toBe(false);
   });
@@ -97,7 +96,6 @@ describe("CDP active send target guard", () => {
         openChatPhoneNavigatedAtMs: nowMs - 5_000,
         nowMs,
         allowedSelfChatPhones: [],
-        expectedTitle: null,
       }),
     ).toBe(false);
   });
@@ -114,7 +112,6 @@ describe("CDP active send target guard", () => {
         openChatPhoneNavigatedAtMs: 0,
         nowMs: 1_000_000,
         allowedSelfChatPhones: [],
-        expectedTitle: null,
       }),
     ).toBe(true);
   });
@@ -131,7 +128,6 @@ describe("CDP active send target guard", () => {
         openChatPhoneNavigatedAtMs: 995_000,
         nowMs: 1_000_000,
         allowedSelfChatPhones: [],
-        expectedTitle: "gabriel braga nuoma",
       }),
     ).toBe(true);
   });
@@ -149,7 +145,6 @@ describe("CDP active send target guard", () => {
         openChatPhoneNavigatedAtMs: 0,
         nowMs: 1_000_000,
         allowedSelfChatPhones: [],
-        expectedTitle: null,
       }),
     ).toBe(true);
   });
@@ -167,7 +162,6 @@ describe("CDP active send target guard", () => {
         openChatPhoneNavigatedAtMs: 0,
         nowMs: 1_000_000,
         allowedSelfChatPhones: [],
-        expectedTitle: "5407 bh",
       }),
     ).toBe(true);
   });
@@ -185,7 +179,6 @@ describe("CDP active send target guard", () => {
         openChatPhoneNavigatedAtMs: 0,
         nowMs: 1_000_000,
         allowedSelfChatPhones: [],
-        expectedTitle: null,
       }),
     ).toBe(true);
   });
@@ -202,7 +195,6 @@ describe("CDP active send target guard", () => {
         openChatPhoneNavigatedAtMs: 0,
         nowMs: 1_000_000,
         allowedSelfChatPhones: [],
-        expectedTitle: null,
       }),
     ).toBe(false);
   });
@@ -220,7 +212,6 @@ describe("CDP active send target guard", () => {
         openChatPhoneNavigatedAtMs: 995_000,
         nowMs: 1_000_000,
         allowedSelfChatPhones: [],
-        expectedTitle: "7732 bh",
       }),
     ).toBe(true);
   });
@@ -234,7 +225,6 @@ describe("CDP active send target guard", () => {
         openChatPhoneNavigatedAtMs: 995_000,
         nowMs: 1_000_000,
         allowedSelfChatPhones: [],
-        expectedTitle: "gabriel braga nuoma",
       }),
     ).toBe(false);
   });
@@ -248,7 +238,6 @@ describe("CDP active send target guard", () => {
         openChatPhoneNavigatedAtMs: 995_000,
         nowMs: 1_000_000,
         allowedSelfChatPhones: ["5531982066263"],
-        expectedTitle: "gabriel braga nuoma",
       }),
     ).toBe(false);
   });
@@ -262,7 +251,6 @@ describe("CDP active send target guard", () => {
         openChatPhoneNavigatedAtMs: 0,
         nowMs: 1_000_000,
         allowedSelfChatPhones: ["5531982066263"],
-        expectedTitle: "gabriel braga nuoma",
       }),
     ).toBe(false);
   });
@@ -282,12 +270,11 @@ describe("CDP active send target guard", () => {
         openChatPhoneNavigatedAtMs: 995_000,
         nowMs: 1_000_000,
         allowedSelfChatPhones: [],
-        expectedTitle: "gabriel braga nuoma",
       }),
     ).toBe(false);
   });
 
-  it("blocks when /send phone matches but the active WhatsApp title is another saved contact", () => {
+  it("allows when /send phone matches even if the active WhatsApp title is another saved contact", () => {
     expect(
       shouldAllowActiveSendTarget({
         expectedPhone: "5531982066263",
@@ -301,9 +288,8 @@ describe("CDP active send target guard", () => {
         openChatPhoneNavigatedAtMs: 995_000,
         nowMs: 1_000_000,
         allowedSelfChatPhones: [],
-        expectedTitle: "gabriel braga nuoma",
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 });
 

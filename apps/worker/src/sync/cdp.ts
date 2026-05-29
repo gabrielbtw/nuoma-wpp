@@ -4168,7 +4168,6 @@ export async function startSyncEngine(input: {
       return false;
     }
     const state = await readActiveSendTargetState();
-    const expectedTitle = await expectedSendTargetTitle(userId, conversationId);
     const allowedSelfChatPhones = parseAllowedSendPhones(input.env);
     const canReuse = shouldAllowActiveSendTarget({
       expectedPhone: normalizedPhone,
@@ -4177,7 +4176,6 @@ export async function startSyncEngine(input: {
       openChatPhoneNavigatedAtMs,
       nowMs: Date.now(),
       allowedSelfChatPhones,
-      expectedTitle,
     });
     if (!canReuse) {
       openChatPhone = null;
@@ -4198,10 +4196,6 @@ export async function startSyncEngine(input: {
     if (!client) {
       throw new Error(`${assertInput.operation} blocked: sync engine is not connected`);
     }
-    const expectedTitle = await expectedSendTargetTitle(
-      assertInput.userId,
-      assertInput.conversationId,
-    );
     const allowedSelfChatPhones = parseAllowedSendPhones(input.env);
     const deadline = Date.now() + 25_000;
     let state = await readActiveSendTargetState();
@@ -4215,7 +4209,6 @@ export async function startSyncEngine(input: {
           openChatPhoneNavigatedAtMs,
           nowMs: Date.now(),
           allowedSelfChatPhones,
-          expectedTitle,
           requireLivePhoneEvidence: assertInput.requireLivePhoneEvidence,
         })
       ) {
@@ -4235,21 +4228,8 @@ export async function startSyncEngine(input: {
     openChatPhone = null;
     openChatPhoneNavigatedAtMs = 0;
     throw new Error(
-      `${assertInput.operation} blocked: active WhatsApp chat does not match target phone ${assertInput.expectedPhone}; hrefPhone=${state.hrefPhone ?? "none"} titlePhone=${state.titlePhone ?? "none"} overlayPhone=${state.overlayPhone ?? "none"} contactInfoPhone=${state.contactInfoPhone ?? "none"} expectedTitle=${JSON.stringify(expectedTitle)} title=${JSON.stringify(state.title)} href=${JSON.stringify(state.href)}`,
+      `${assertInput.operation} blocked: active WhatsApp chat does not match target phone ${assertInput.expectedPhone}; hrefPhone=${state.hrefPhone ?? "none"} titlePhone=${state.titlePhone ?? "none"} overlayPhone=${state.overlayPhone ?? "none"} contactInfoPhone=${state.contactInfoPhone ?? "none"} title=${JSON.stringify(state.title)} href=${JSON.stringify(state.href)}`,
     );
-  }
-
-  async function expectedSendTargetTitle(
-    userId: number,
-    conversationId: number,
-  ): Promise<string | null> {
-    const expectedConversation = await input.repos.conversations.findById({
-      userId,
-      id: conversationId,
-    });
-    return isUsefulSendTitle(expectedConversation?.title ?? null)
-      ? normalizeTitle(expectedConversation?.title ?? "")
-      : null;
   }
 
   async function readActiveSendTargetState(): Promise<ActiveSendTargetState> {
@@ -4568,42 +4548,23 @@ export function shouldAllowActiveSendTarget(input: {
   openChatPhoneNavigatedAtMs: number;
   nowMs: number;
   allowedSelfChatPhones: string[];
-  expectedTitle: string | null;
   recentNavigationGraceMs?: number;
   requireLivePhoneEvidence?: boolean;
 }): boolean {
   if (!input.state.hasComposer) {
     return false;
   }
-  const normalizedTitle = normalizeTitle(input.state.title);
-  const hasExpectedTitleMatch = Boolean(
-    input.expectedTitle &&
-    (normalizedTitle === input.expectedTitle ||
-      normalizedTitle.startsWith(`${input.expectedTitle} `)),
-  );
   const recentNavigationGraceMs = input.recentNavigationGraceMs ?? 45_000;
   const hasRecentNavigationEvidence =
     phonesMatchForSendTarget(input.openChatPhone, input.expectedPhone) &&
     input.nowMs - input.openChatPhoneNavigatedAtMs >= 0 &&
-    input.nowMs - input.openChatPhoneNavigatedAtMs <= recentNavigationGraceMs &&
-    (!input.expectedTitle ||
-      isSyntheticImportedSendTitle(input.expectedTitle) ||
-      hasExpectedTitleMatch);
+    input.nowMs - input.openChatPhoneNavigatedAtMs <= recentNavigationGraceMs;
   const livePhoneMismatch =
     (Boolean(input.state.hrefPhone) &&
       !phonesMatchForSendTarget(input.state.hrefPhone, input.expectedPhone)) ||
     (Boolean(input.state.contactInfoPhone) &&
       !phonesMatchForSendTarget(input.state.contactInfoPhone, input.expectedPhone));
   if (livePhoneMismatch) {
-    return false;
-  }
-  if (
-    input.expectedTitle &&
-    !hasRecentNavigationEvidence &&
-    isUsefulSendTitle(input.state.title) &&
-    normalizedTitle !== input.expectedTitle &&
-    !normalizedTitle.startsWith(`${input.expectedTitle} `)
-  ) {
     return false;
   }
   const hasLivePhoneEvidence =
@@ -4620,7 +4581,6 @@ export function shouldAllowActiveSendTarget(input: {
       expectedPhone: input.expectedPhone,
       allowedPhones: input.allowedSelfChatPhones,
       title: input.state.title,
-      expectedTitle: input.expectedTitle,
     })
   );
 }
@@ -5889,10 +5849,6 @@ function isUsefulSendTitle(value: string | null): boolean {
   );
 }
 
-function isSyntheticImportedSendTitle(value: string | null): boolean {
-  return /^\d{4}\s+bh$/.test(normalizeTitle(value ?? ""));
-}
-
 function phonesMatchForSendTarget(actual: string | null, expected: string): boolean {
   if (!actual) {
     return false;
@@ -5934,22 +5890,17 @@ function isAllowedSelfChatTarget(input: {
   expectedPhone: string;
   allowedPhones: string[];
   title: string;
-  expectedTitle: string | null;
 }): boolean {
   if (!input.allowedPhones.includes(input.expectedPhone)) {
     return false;
   }
   const title = normalizeTitle(input.title);
-  const expectedTitle = normalizeTitle(input.expectedTitle ?? "");
   return (
     title === "mensagens para mim" ||
     title === "message yourself" ||
     title.includes("(voce)") ||
     title.includes("(você)") ||
-    title.includes("(you)") ||
-    expectedTitle.includes("(voce)") ||
-    expectedTitle.includes("(você)") ||
-    expectedTitle.includes("(you)")
+    title.includes("(you)")
   );
 }
 
