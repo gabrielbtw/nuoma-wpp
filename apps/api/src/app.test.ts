@@ -2822,6 +2822,37 @@ describe("api health", () => {
         error: { code: "mutation_guard_required" },
       });
 
+      const mismatchedIdentity = await app.inject({
+        method: "POST",
+        url: "/api/extension/overlay",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${accessToken}`,
+        },
+        payload: {
+          id: "m38-run-campaign-identity-mismatch",
+          method: "runCampaignForPhone",
+          params: {
+            campaignId: campaign.id,
+            phone: "553185596476",
+            waJid: "5531982066263@s.whatsapp.net",
+            phoneSource: "wa-jid",
+            reason: "m38-api-test",
+          },
+          mutation: {
+            nonce: "overlay-nonce-mismatch",
+            idempotencyKey: "overlay-key-mismatch",
+            confirmed: true,
+          },
+          version: "v2.11.7-m35-m38-extension",
+        },
+      });
+      expect(mismatchedIdentity.statusCode).toBe(400);
+      expect(mismatchedIdentity.json()).toMatchObject({
+        ok: false,
+        error: { code: "overlay_thread_mismatch" },
+      });
+
       const blockedMissingM303 = await app.inject({
         method: "POST",
         url: "/api/extension/overlay",
