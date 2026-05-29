@@ -3104,7 +3104,7 @@ async function handleSyncJob(job: Job, context: JobHandlerContext): Promise<void
   await context.repos.systemEvents.create({
     userId: job.userId,
     type: "sync.force_conversation.completed",
-    severity: result.mode === "unsupported" ? "warn" : "info",
+    severity: result.mode === "unsupported" || result.mode === "unresolved" ? "warn" : "info",
     payload: JSON.stringify({
       jobId: job.id,
       ...result,

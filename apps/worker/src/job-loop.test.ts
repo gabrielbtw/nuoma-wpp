@@ -540,6 +540,85 @@ describe("worker job loop", () => {
     ]);
   });
 
+  it("records unresolved force-conversation syncs as warning events", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-history-unresolved",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+    });
+    const user = await repos.users.create({
+      email: "history-unresolved@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "Gabriel Braga Nuoma",
+      title: "Gabriel Braga Nuoma",
+    });
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "sync_history",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    if (!job) {
+      throw new Error("expected sync_history job to be created");
+    }
+
+    await handleJob(job, {
+      env,
+      db,
+      repos,
+      logger,
+      sync: {
+        connected: true,
+        metrics: {} as never,
+        forceConversation: async (input) => ({
+          mode: "unresolved",
+          conversationId: input.conversationId ?? null,
+          phone: null,
+          reason: input.reason ?? "sync.forceConversation",
+        }),
+        sendTextMessage: async () => {
+          throw new Error("unexpected send");
+        },
+        sendVoiceMessage: async () => {
+          throw new Error("unexpected voice send");
+        },
+        sendDocumentMessage: async () => {
+          throw new Error("unexpected document send");
+        },
+        sendMediaMessage: async () => {
+          throw new Error("unexpected media send");
+        },
+        close: async () => {},
+      },
+    });
+
+    const events = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sync.force_conversation.completed",
+    });
+    expect(events[0]?.severity).toBe("warn");
+    expect(events[0]?.payload).toEqual(
+      expect.objectContaining({
+        jobId: job.id,
+        mode: "unresolved",
+        conversationId: conversation.id,
+      }),
+    );
+  });
+
   it("sends text only when the target phone matches the allowlist", async () => {
     const repos = createRepositories(db);
     const logger = pino({ level: "silent" });

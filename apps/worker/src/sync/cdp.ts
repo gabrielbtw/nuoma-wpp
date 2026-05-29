@@ -109,7 +109,7 @@ export interface SyncForceConversationInput {
 }
 
 export interface SyncForceConversationResult {
-  mode: "active-chat" | "phone-navigation" | "unsupported";
+  mode: "active-chat" | "phone-navigation" | "unsupported" | "unresolved";
   conversationId: number | null;
   phone: string | null;
   reason: string;
@@ -1621,6 +1621,27 @@ export async function startSyncEngine(input: {
       });
       return {
         mode: "unsupported",
+        conversationId: conversation.id,
+        phone: null,
+        reason,
+      };
+    }
+
+    if (conversation && !phone) {
+      await input.repos.systemEvents.create({
+        userId: forceInput.userId,
+        type: "sync.force_conversation.missing_identity",
+        severity: "warn",
+        payload: JSON.stringify({
+          conversationId: conversation.id,
+          channel: conversation.channel,
+          externalThreadId: conversation.externalThreadId,
+          waJid: conversation.waJid,
+          reason,
+        }),
+      });
+      return {
+        mode: "unresolved",
         conversationId: conversation.id,
         phone: null,
         reason,

@@ -591,6 +591,10 @@ export function createSyncEventHandler(input: {
           normalizePhone(candidatePhone) ??
           normalizePhone(conversation.waJid) ??
           normalizePhone(conversation.externalThreadId);
+        if (!expectedPhone && thread.channel === "whatsapp") {
+          await recordMissingCanonicalReconcileTarget(thread, conversation.id, details);
+          return null;
+        }
         if (expectedPhone && !hasTrustworthyThreadIdentity(thread)) {
           await recordUntrustedReconcileTarget(thread, expectedPhone, details);
           return null;
@@ -646,6 +650,23 @@ export function createSyncEventHandler(input: {
       severity: "warn",
       payload: JSON.stringify({
         expectedPhone,
+        thread,
+        details: details ?? {},
+      }),
+    });
+  }
+
+  async function recordMissingCanonicalReconcileTarget(
+    thread: SyncThreadRef,
+    conversationId: number,
+    details: Record<string, unknown> | null,
+  ): Promise<void> {
+    await input.repos.systemEvents.create({
+      userId,
+      type: "sync.reconcile_target_missing_identity",
+      severity: "warn",
+      payload: JSON.stringify({
+        conversationId,
         thread,
         details: details ?? {},
       }),

@@ -545,6 +545,88 @@ describe("sync event handler", () => {
     expect(updatedCanonical?.waJid).toBe("5531982066263@s.whatsapp.net");
   });
 
+  it("does not reconcile a requested WhatsApp conversation that lacks canonical identity", async () => {
+    const repos = createRepositories(db);
+    const user = await repos.users.create({
+      email: "missing-canonical-reconcile@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const legacy = await repos.conversations.upsertObserved({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "Gabriel Braga Nuoma",
+      title: "Gabriel Braga Nuoma",
+      unreadCount: 0,
+    });
+    const handler = createSyncEventHandler({
+      repos,
+      logger: pino({ level: "silent" }),
+      userId: user.id,
+    });
+
+    await handler.handle({
+      type: "message-added",
+      source: "wa-web",
+      observedAtUtc: "2026-04-30T18:46:00.000Z",
+      thread: {
+        channel: "whatsapp",
+        externalThreadId: "5531982066263@s.whatsapp.net",
+        waJid: "5531982066263@s.whatsapp.net",
+        title: "Gabriel Braga Nuoma",
+        phone: null,
+        unreadCount: 0,
+        fingerprint: null,
+      },
+      message: {
+        externalId: "false_5531982066263@c.us_MISSING_IDENTITY",
+        direction: "inbound",
+        contentType: "text",
+        status: "received",
+        body: "Mensagem com conversa legada sem JID",
+        displayedAtText: "[15:46, 30/04/2026] Maria: ",
+        waDisplayedAt: null,
+        timestampPrecision: "unknown",
+        messageSecond: null,
+        waInferredSecond: 59,
+        observedAtUtc: "2026-04-30T18:46:00.000Z",
+        raw: {
+          reconcileReason: "sync.forceConversation",
+          reconcileDetails: {
+            conversationId: legacy.id,
+          },
+        },
+      },
+    });
+
+    const legacyMessages = await repos.messages.listByConversation({
+      userId: user.id,
+      conversationId: legacy.id,
+    });
+    const canonical = await repos.conversations.findByWaJid({
+      userId: user.id,
+      waJid: "5531982066263@s.whatsapp.net",
+    });
+    const canonicalMessages = await repos.messages.listByConversation({
+      userId: user.id,
+      conversationId: canonical?.id ?? 0,
+    });
+    const missingIdentityEvents = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sync.reconcile_target_missing_identity",
+    });
+
+    expect(legacyMessages).toHaveLength(0);
+    expect(canonical?.externalThreadId).toBe("5531982066263@s.whatsapp.net");
+    expect(canonicalMessages).toHaveLength(1);
+    expect(canonicalMessages[0]?.body).toBe("Mensagem com conversa legada sem JID");
+    expect(missingIdentityEvents[0]?.payload).toEqual(
+      expect.objectContaining({
+        conversationId: legacy.id,
+      }),
+    );
+  });
+
   it("does not route forced phone reconciles into the candidate when the active thread reveals another phone", async () => {
     const repos = createRepositories(db);
     const user = await repos.users.create({

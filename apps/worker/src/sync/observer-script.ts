@@ -86,7 +86,7 @@ export function createWhatsAppObserverScript(bindingName = SYNC_BINDING_NAME): s
       : null;
     const hrefPhone = normalizePhone(hrefKey);
     const waJid = currentChatJidFromStore() || normalizeWaJid(hrefKey);
-    const phone = hrefPhone || normalizePhone(waJid) || normalizePhone(title);
+    const phone = hrefPhone || normalizePhone(waJid);
     const externalThreadId = waJid || hrefPhone || hrefKey || "unknown-whatsapp-thread";
     return {
       channel,
@@ -972,8 +972,9 @@ export function createWhatsAppObserverScript(bindingName = SYNC_BINDING_NAME): s
       if (!title || title === "WhatsApp" || title.includes("Clique para conversar") || !isChatTitleCandidate(title)) {
         continue;
       }
-      const phone = phoneFromText(title) || phoneFromText(text);
-      const unreadText = cleanText(text.replace(title, " "));
+      const rowTextWithoutTitle = cleanText(text.replace(title, " "));
+      const phone = phoneFromText(rowTextWithoutTitle);
+      const unreadText = rowTextWithoutTitle;
       const unreadMatch =
         unreadText.match(/(?:^|\\D)(\\d+)\\s+mensagens? não lidas/i) ||
         unreadText.match(/(?:^|\\D)(\\d+)\\s+unread messages?/i);

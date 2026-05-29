@@ -130,6 +130,64 @@ describe("WhatsApp observer script", () => {
     expect(reconcileEvent?.details.visibleMessageCount).toBe(3);
   }, 30_000);
 
+  it("does not derive active thread phone from a phone-looking saved contact title", async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    const events: unknown[] = [];
+
+    try {
+      await page.exposeFunction("__nuomaSync", (payload: string) => {
+        events.push(JSON.parse(payload) as unknown);
+      });
+      await page.setContent(`
+        <main id="app">
+          <section id="pane-side"><div>31982066263 Oi 15:34</div></section>
+          <section id="main">
+            <header><span title="31982066263">31982066263</span></header>
+            <span>Hoje</span>
+            <div data-id="3EBTITLEONLY">
+              <div class="copyable-text" data-pre-plain-text="[15:34, 30/04/2026] Maria: ">
+                <span class="selectable-text">Oi</span>
+              </div>
+            </div>
+          </section>
+        </main>
+      `);
+      await page.evaluate(createWhatsAppObserverScript());
+      await page.waitForFunction("Boolean(globalThis.__nuomaSyncObserverInstalled)");
+      await page.evaluate(() => {
+        (
+          globalThis as unknown as {
+            __nuomaSyncReconcile: (reason: string, details: Record<string, unknown>) => void;
+          }
+        ).__nuomaSyncReconcile("test-phone-looking-title", {});
+      });
+      await page.waitForTimeout(250);
+    } finally {
+      await browser.close();
+    }
+
+    const reconcileEvent = events.find(
+      (
+        event,
+      ): event is {
+        type: string;
+        thread: {
+          externalThreadId: string;
+          phone: string | null;
+          title: string;
+          waJid?: string | null;
+        };
+        details: { reason: string };
+      } => isReconcileEvent(event) && event.details.reason === "test-phone-looking-title",
+    );
+
+    expect(reconcileEvent?.thread.title).toBe("31982066263");
+    expect(reconcileEvent?.thread.phone).toBeNull();
+    expect(reconcileEvent?.thread.waJid).toBeNull();
+    expect(reconcileEvent?.thread.externalThreadId).toBe("unknown-whatsapp-thread");
+  }, 30_000);
+
   it("can reconcile visible sidebar chats without using the composer", async () => {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
@@ -143,20 +201,22 @@ describe("WhatsApp observer script", () => {
         <main id="app">
           <section id="pane-side">
             <div role="listitem" data-testid="cell-frame-container" onclick="
-              document.querySelector('#main header span').setAttribute('title', '5531982066263');
-              document.querySelector('#main header span').textContent = '5531982066263';
+              window.__activeChatId = '5531982066263@c.us';
+              document.querySelector('#main header span').setAttribute('title', 'Cliente Um');
+              document.querySelector('#main header span').textContent = 'Cliente Um';
               document.querySelector('#main [data-id]').setAttribute('data-id', 'false_5531982066263@c.us_MSG1');
               document.querySelector('#main .selectable-text').textContent = 'Oi';
-            "><span title="5531982066263">5531982066263</span><span>Oi</span><span>15:34</span></div>
+            "><span title="Cliente Um">Cliente Um</span><span>telefone 5531982066263 Oi</span><span>15:34</span></div>
             <div role="listitem" data-testid="cell-frame-container" onclick="
-              document.querySelector('#main header span').setAttribute('title', '5531999999999');
-              document.querySelector('#main header span').textContent = '5531999999999';
+              window.__activeChatId = '5531999999999@c.us';
+              document.querySelector('#main header span').setAttribute('title', 'Cliente Dois');
+              document.querySelector('#main header span').textContent = 'Cliente Dois';
               document.querySelector('#main [data-id]').setAttribute('data-id', 'false_5531999999999@c.us_MSG2');
               document.querySelector('#main .selectable-text').textContent = 'Novo chat';
-            "><span title="5531999999999">5531999999999</span><span>Novo chat</span><span>15:35</span></div>
+            "><span title="Cliente Dois">Cliente Dois</span><span>telefone 5531999999999 Novo chat</span><span>15:35</span></div>
           </section>
           <section id="main">
-            <header><span title="5531982066263">5531982066263</span></header>
+            <header><span title="Cliente Um">Cliente Um</span></header>
             <span>Hoje</span>
             <div data-id="false_5531982066263@c.us_MSG1">
               <div class="copyable-text" data-pre-plain-text="[15:34, 30/04/2026] Maria: ">
@@ -167,6 +227,26 @@ describe("WhatsApp observer script", () => {
           </section>
         </main>
       `);
+      await page.evaluate(() => {
+        const runtime = globalThis as unknown as {
+          __activeChatId: string;
+          require: (name: string) => unknown;
+        };
+        runtime.__activeChatId = "5531982066263@c.us";
+        runtime.require = (name: string) => {
+          if (name !== "WAWebCollections") return null;
+          return {
+            Chat: {
+              models: [
+                {
+                  active: true,
+                  id: { _serialized: runtime.__activeChatId },
+                },
+              ],
+            },
+          };
+        };
+      });
       await page.evaluate(createWhatsAppObserverScript());
       await page.waitForFunction("Boolean(globalThis.__nuomaSyncObserverInstalled)");
       const result = await page.evaluate(() =>
@@ -521,8 +601,8 @@ describe("WhatsApp observer script", () => {
         }),
         expect.objectContaining({
           title: "5531999999999",
-          phone: "5531999999999",
-          kind: "phone",
+          phone: null,
+          kind: "named",
           unreadCount: 2,
         }),
       ]);
@@ -670,6 +750,33 @@ function isRemovedEvent(event: unknown): boolean {
     event !== null &&
     "type" in event &&
     (event as { type: unknown }).type === "message-removed"
+  );
+}
+
+function isReconcileEvent(event: unknown): event is {
+  type: string;
+  thread: {
+    externalThreadId: string;
+    phone: string | null;
+    title: string;
+    waJid?: string | null;
+  };
+  details: { reason: string };
+} {
+  if (typeof event !== "object" || event === null || !("type" in event) || !("thread" in event)) {
+    return false;
+  }
+  const thread = (event as { thread: unknown }).thread;
+  const details = (event as { details?: unknown }).details;
+  return (
+    (event as { type: unknown }).type === "reconcile-snapshot" &&
+    typeof thread === "object" &&
+    thread !== null &&
+    typeof (thread as { externalThreadId?: unknown }).externalThreadId === "string" &&
+    typeof (thread as { title?: unknown }).title === "string" &&
+    typeof details === "object" &&
+    details !== null &&
+    typeof (details as { reason?: unknown }).reason === "string"
   );
 }
 
