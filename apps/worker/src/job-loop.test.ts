@@ -2259,8 +2259,137 @@ describe("worker job loop", () => {
       expect.objectContaining({
         jobId: secondJob.id,
         reason: "send_rate_limit_exceeded",
+        rateLimitMode: "token_bucket",
+        rateLimitBucketKey: "wa:5531999999999",
+        rateLimitTokensRemaining: 0,
         recentAllowedCount: 1,
       }),
+    );
+  });
+
+  it("keeps WhatsApp send rate buckets isolated per target phone", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-send-token-bucket",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_POLICY_MODE: "production",
+      WA_SEND_ALLOWED_PHONES: "5531999999999,5531988888888",
+      WA_SEND_RATE_LIMIT_MAX: "1",
+      WA_SEND_RATE_LIMIT_WINDOW_MS: "60000",
+    });
+    const user = await repos.users.create({
+      email: "send-policy-token-bucket@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const firstConversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531999999999",
+      title: "Contato token bucket A",
+    });
+    const secondConversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531988888888",
+      title: "Contato token bucket B",
+    });
+    const firstJob = await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: firstConversation.id,
+        phone: "5531999999999",
+        body: "primeiro bucket",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    const secondJob = await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: secondConversation.id,
+        phone: "5531988888888",
+        body: "segundo bucket",
+      },
+      scheduledAt: "2026-04-30T12:00:01.000Z",
+      maxAttempts: 2,
+    });
+    if (!firstJob || !secondJob) {
+      throw new Error("expected token bucket jobs to be created");
+    }
+    const calls: unknown[] = [];
+    const sync = {
+      connected: true,
+      metrics: {} as never,
+      forceConversation: async () => {
+        throw new Error("unexpected force sync");
+      },
+      sendTextMessage: async (input: {
+        phone: string;
+        body: string;
+        conversationId: number;
+        reason?: string;
+      }) => {
+        calls.push(input);
+        return {
+          mode: "text-message" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "send_message",
+          navigationMode: "navigated" as const,
+          externalId: `bucket-after-${calls.length}`,
+          visibleMessageCountBefore: calls.length,
+          visibleMessageCountAfter: calls.length + 1,
+          lastExternalIdBefore: "bucket-before",
+          lastExternalIdAfter: `bucket-after-${calls.length}`,
+        };
+      },
+      sendVoiceMessage: async () => {
+        throw new Error("unexpected voice send");
+      },
+      sendDocumentMessage: async () => {
+        throw new Error("unexpected document send");
+      },
+      sendMediaMessage: async () => {
+        throw new Error("unexpected media send");
+      },
+      close: async () => {},
+    };
+
+    await handleJob(firstJob, { env, db, repos, logger, sync });
+    await handleJob(secondJob, { env, db, repos, logger, sync });
+
+    expect(calls).toEqual([
+      expect.objectContaining({ phone: "5531999999999" }),
+      expect.objectContaining({ phone: "5531988888888" }),
+    ]);
+    const allowedEvents = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.send_policy.allowed",
+    });
+    expect(allowedEvents.map((event) => event.payload)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          jobId: firstJob.id,
+          rateLimitMode: "token_bucket",
+          rateLimitBucketKey: "wa:5531999999999",
+          rateLimitTokensRemaining: 0,
+        }),
+        expect.objectContaining({
+          jobId: secondJob.id,
+          rateLimitMode: "token_bucket",
+          rateLimitBucketKey: "wa:5531988888888",
+          rateLimitTokensRemaining: 0,
+        }),
+      ]),
     );
   });
 

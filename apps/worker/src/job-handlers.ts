@@ -46,6 +46,31 @@ export class PermanentJobError extends Error {
 }
 
 const INSTAGRAM_SEND_WINDOW_MS = 24 * 60 * 60 * 1000;
+const MAX_SEND_RATE_BUCKETS = 1_000;
+
+interface SendRateBucket {
+  tokens: number;
+  refilledAtMs: number;
+  lastSeenAtMs: number;
+}
+
+type SendRateLimitResult =
+  | {
+      allowed: true;
+      recentAllowedCount: number;
+      bucketKey: string;
+      tokensRemaining: number;
+    }
+  | {
+      allowed: false;
+      reason: string;
+      recentAllowedCount: number;
+      bucketKey: string;
+      tokensRemaining: number;
+      retryAfterMs: number;
+    };
+
+const sendRateBuckets = new Map<string, SendRateBucket>();
 
 export async function handleJob(job: Job, context: JobHandlerContext): Promise<void> {
   switch (job.type) {
@@ -2934,7 +2959,7 @@ async function enforceSendPolicy(
     throw new PermanentJobError(`${jobType} blocked: ${eligibility.reason} (${phone})`);
   }
 
-  const rateLimit = await evaluateSendRateLimit(job, context, policy);
+  const rateLimit = evaluateSendRateLimit(job, context, policy, phone);
   if (!rateLimit.allowed) {
     await recordSendPolicyDecision(job, context, {
       jobType,
@@ -2943,6 +2968,9 @@ async function enforceSendPolicy(
       decision: "blocked",
       reason: rateLimit.reason,
       recentAllowedCount: rateLimit.recentAllowedCount,
+      rateLimitBucketKey: rateLimit.bucketKey,
+      rateLimitTokensRemaining: rateLimit.tokensRemaining,
+      rateLimitRetryAfterMs: rateLimit.retryAfterMs,
     });
     throw new PermanentJobError(`${jobType} blocked: ${rateLimit.reason}`);
   }
@@ -2954,6 +2982,9 @@ async function enforceSendPolicy(
     decision: "allowed",
     reason: "eligible",
     recentAllowedCount: rateLimit.recentAllowedCount,
+    rateLimitBucketKey: rateLimit.bucketKey,
+    rateLimitTokensRemaining: rateLimit.tokensRemaining,
+    rateLimitRetryAfterMs: null,
   });
 
   return phone;
@@ -3000,30 +3031,83 @@ function evaluateWorkerSendEligibility(
   return { allowed: true };
 }
 
-async function evaluateSendRateLimit(
+function evaluateSendRateLimit(
   job: Job,
   context: JobHandlerContext,
   policy: WorkerSendPolicy,
-): Promise<
-  | { allowed: true; recentAllowedCount: number }
-  | { allowed: false; reason: string; recentAllowedCount: number }
-> {
-  const since = Date.now() - policy.rateLimitWindowMs;
-  const recentAllowedEvents = await context.repos.systemEvents.list({
-    userId: job.userId,
-    type: "sender.send_policy.allowed",
-    limit: Math.max(policy.rateLimitMax + 25, 100),
-  });
-  const recentAllowedCount = recentAllowedEvents.filter((event) => {
-    const timestamp = Date.parse(event.createdAt);
-    return Number.isFinite(timestamp) && timestamp >= since;
-  }).length;
+  phone: string,
+): SendRateLimitResult {
+  const nowMs = Date.now();
+  const bucketKey = `wa:${phone}`;
+  const internalKey = `${context.db.url}:${job.userId}:${bucketKey}`;
+  const refillPerMs = policy.rateLimitMax / policy.rateLimitWindowMs;
+  const existing = sendRateBuckets.get(internalKey);
+  const elapsedMs = existing ? Math.max(0, nowMs - existing.refilledAtMs) : 0;
+  const refilledTokens = Math.min(
+    policy.rateLimitMax,
+    (existing?.tokens ?? policy.rateLimitMax) + elapsedMs * refillPerMs,
+  );
 
-  if (recentAllowedCount >= policy.rateLimitMax) {
-    return { allowed: false, reason: "send_rate_limit_exceeded", recentAllowedCount };
+  if (refilledTokens < 1) {
+    const retryAfterMs = Math.ceil((1 - refilledTokens) / refillPerMs);
+    sendRateBuckets.set(internalKey, {
+      tokens: refilledTokens,
+      refilledAtMs: nowMs,
+      lastSeenAtMs: nowMs,
+    });
+    pruneSendRateBuckets(nowMs, policy.rateLimitWindowMs);
+    return {
+      allowed: false,
+      reason: "send_rate_limit_exceeded",
+      recentAllowedCount: Math.min(
+        policy.rateLimitMax,
+        Math.ceil(policy.rateLimitMax - refilledTokens),
+      ),
+      bucketKey,
+      tokensRemaining: roundBucketTokens(refilledTokens),
+      retryAfterMs,
+    };
   }
 
-  return { allowed: true, recentAllowedCount };
+  const tokensRemaining = refilledTokens - 1;
+  sendRateBuckets.set(internalKey, {
+    tokens: tokensRemaining,
+    refilledAtMs: nowMs,
+    lastSeenAtMs: nowMs,
+  });
+  pruneSendRateBuckets(nowMs, policy.rateLimitWindowMs);
+  return {
+    allowed: true,
+    recentAllowedCount: Math.min(
+      policy.rateLimitMax,
+      Math.ceil(policy.rateLimitMax - tokensRemaining),
+    ),
+    bucketKey,
+    tokensRemaining: roundBucketTokens(tokensRemaining),
+  };
+}
+
+function pruneSendRateBuckets(nowMs: number, windowMs: number): void {
+  if (sendRateBuckets.size <= MAX_SEND_RATE_BUCKETS) {
+    return;
+  }
+  const staleAfterMs = Math.max(windowMs * 2, 60_000);
+  for (const [key, bucket] of sendRateBuckets) {
+    if (nowMs - bucket.lastSeenAtMs > staleAfterMs) {
+      sendRateBuckets.delete(key);
+    }
+  }
+  while (sendRateBuckets.size > MAX_SEND_RATE_BUCKETS) {
+    const oldestKey = sendRateBuckets.keys().next().value;
+    if (!oldestKey) {
+      return;
+    }
+    sendRateBuckets.delete(oldestKey);
+  }
+}
+
+function roundBucketTokens(tokens: number): number {
+  return Math.max(0, Math.round(tokens * 1000) / 1000);
 }
 
 async function recordSendPolicyDecision(
@@ -3036,6 +3120,9 @@ async function recordSendPolicyDecision(
     decision: "allowed" | "blocked";
     reason: string;
     recentAllowedCount?: number;
+    rateLimitBucketKey?: string | null;
+    rateLimitTokensRemaining?: number | null;
+    rateLimitRetryAfterMs?: number | null;
   },
 ): Promise<void> {
   await context.repos.systemEvents.create({
@@ -3052,6 +3139,10 @@ async function recordSendPolicyDecision(
       allowedPhonesCount: input.policy.allowedPhones.length,
       rateLimitWindowMs: input.policy.rateLimitWindowMs,
       rateLimitMax: input.policy.rateLimitMax,
+      rateLimitMode: "token_bucket",
+      rateLimitBucketKey: input.rateLimitBucketKey ?? null,
+      rateLimitTokensRemaining: input.rateLimitTokensRemaining ?? null,
+      rateLimitRetryAfterMs: input.rateLimitRetryAfterMs ?? null,
       recentAllowedCount: input.recentAllowedCount ?? null,
     }),
   });
@@ -3072,6 +3163,10 @@ async function recordSendPolicyDecision(
         allowedPhonesCount: input.policy.allowedPhones.length,
         rateLimitWindowMs: input.policy.rateLimitWindowMs,
         rateLimitMax: input.policy.rateLimitMax,
+        rateLimitMode: "token_bucket",
+        rateLimitBucketKey: input.rateLimitBucketKey ?? null,
+        rateLimitTokensRemaining: input.rateLimitTokensRemaining ?? null,
+        rateLimitRetryAfterMs: input.rateLimitRetryAfterMs ?? null,
         recentAllowedCount: input.recentAllowedCount ?? null,
       },
     });
