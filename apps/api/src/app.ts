@@ -4,7 +4,7 @@ import rateLimit from "@fastify/rate-limit";
 import { fastifyTRPCPlugin } from "@trpc/server/adapters/fastify";
 import Fastify, { type FastifyInstance } from "fastify";
 
-import { CONSTANTS, type ApiEnv } from "@nuoma/config";
+import { CONSTANTS, LOG_REDACT_PATHS, type ApiEnv } from "@nuoma/config";
 import { healthResponseSchema, type HealthResponse } from "@nuoma/contracts";
 import { createRepositories, openDb, runMigrations, type DbHandle } from "@nuoma/db";
 
@@ -37,6 +37,10 @@ export async function buildApiApp(options: ApiAppOptions): Promise<FastifyInstan
   const app = Fastify({
     logger: {
       level: options.env.API_LOG_LEVEL,
+      redact: {
+        paths: [...LOG_REDACT_PATHS],
+        censor: "[REDACTED]",
+      },
     },
   });
 

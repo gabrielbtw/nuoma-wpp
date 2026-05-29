@@ -1,6 +1,6 @@
 import { setTimeout as sleep } from "node:timers/promises";
 
-import { loadWorkerEnv, CONSTANTS } from "@nuoma/config";
+import { loadWorkerEnv, CONSTANTS, LOG_REDACT_PATHS } from "@nuoma/config";
 import { createRepositories, openDb, runMigrations } from "@nuoma/db";
 import pino from "pino";
 
@@ -9,7 +9,14 @@ import { createJobLoop } from "./job-loop.js";
 import { startSyncEngine } from "./sync/cdp.js";
 
 const env = loadWorkerEnv();
-const logger = pino({ name: CONSTANTS.workerServiceName, level: "info" });
+const logger = pino({
+  name: CONSTANTS.workerServiceName,
+  level: "info",
+  redact: {
+    paths: [...LOG_REDACT_PATHS],
+    censor: "[REDACTED]",
+  },
+});
 const db = openDb(env.DATABASE_URL);
 await runMigrations(db);
 const repos = createRepositories(db);

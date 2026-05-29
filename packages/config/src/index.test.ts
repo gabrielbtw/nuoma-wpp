@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { loadApiEnv, loadWorkerEnv } from "./index.js";
+import { LOG_REDACT_PATHS, loadApiEnv, loadWorkerEnv } from "./index.js";
 
 describe("loadApiEnv", () => {
   it("keeps CRM storage local by default", () => {
@@ -55,6 +55,17 @@ describe("loadApiEnv", () => {
     expect(env.API_STREAMING_CDP_PORT).toBe(9333);
     expect(env.API_STREAMING_TARGET_URL_MATCH).toBe("example.test");
     expect(env.API_STREAMING_TIMEOUT_MS).toBe(1500);
+  });
+});
+
+describe("LOG_REDACT_PATHS", () => {
+  it("covers common PII and token spellings", () => {
+    expect(LOG_REDACT_PATHS).toContain("*.phone");
+    expect(LOG_REDACT_PATHS).toContain("*.email");
+    expect(LOG_REDACT_PATHS).toContain("*.accessToken");
+    expect(LOG_REDACT_PATHS).toContain("*.access_token");
+    expect(LOG_REDACT_PATHS).toContain("*.secret");
+    expect(LOG_REDACT_PATHS).toContain("req.headers.cookie");
   });
 });
 
