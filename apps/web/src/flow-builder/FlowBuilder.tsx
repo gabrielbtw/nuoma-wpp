@@ -8,6 +8,20 @@ import type {
   SegmentCondition,
 } from "@nuoma/contracts";
 import {
+  Background,
+  Controls,
+  Handle,
+  MarkerType,
+  MiniMap,
+  Position,
+  ReactFlow,
+  type Edge,
+  type Node,
+  type NodeProps,
+  type NodeTypes,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
@@ -23,11 +37,9 @@ import {
   GitBranch,
   HelpCircle,
   Image,
-  Instagram,
   Link2,
   LockKeyhole,
   Maximize2,
-  MessageCircle,
   Mic,
   Minimize2,
   MousePointer2,
@@ -36,7 +48,6 @@ import {
   PlayCircle,
   Plus,
   Route,
-  Scan,
   Search,
   Send,
   ShieldCheck,
@@ -45,7 +56,6 @@ import {
   Users,
   Video,
   ZoomIn,
-  ZoomOut,
 } from "lucide-react";
 import { gsap } from "gsap";
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -920,270 +930,336 @@ function CampaignFlowCanvasBoard({
   onOpenSteps: () => void;
   onOpenPreview: () => void;
 }) {
-  const firstStep = steps[0] ?? null;
-  const secondStep = steps[1] ?? null;
-  const reengagementStep = steps[2] ?? firstStep;
-  const audienceLabel = csvPreview
-    ? `${csvPreview.validCount} contatos elegíveis`
-    : segmentEnabled
-      ? "Segmento ativo"
-      : "Todos que entram";
-  const primaryTitle =
-    firstStep?.label && firstStep.label !== "Step 1" ? firstStep.label : "Mensagem";
-  const primaryBody =
-    channel === "instagram"
-      ? "Confira a coleção no Instagram."
-      : "Confira nossa nova coleção de inverno. Peças selecionadas com 20% off.";
-  const offerBody = secondStep
-    ? stepDraftCanvasSummary(secondStep)
-    : "Como você mostrou interesse, aqui vai um benefício exclusivo: 15% off extra.";
-  const reengageBody = abEnabled
-    ? "Variante B ativa para reengajar quem não respondeu."
-    : stepDraftCanvasSummary(reengagementStep);
+  const { nodes, edges } = useMemo(
+    () =>
+      buildCampaignFlowGraph({
+        steps,
+        channel,
+        evergreen,
+        csvPreview,
+        segmentEnabled,
+        abEnabled,
+        onOpenSteps,
+      }),
+    [abEnabled, channel, csvPreview, evergreen, onOpenSteps, segmentEnabled, steps],
+  );
   return (
     <div className="nuoma-flow-v2-board" data-testid="campaign-flow-canvas-board">
       <div className="nuoma-flow-v2-board-toolbar" aria-label="Ferramentas do canvas">
-        <button type="button" aria-label="Selecionar" className="is-active">
+        <button type="button" aria-label="Selecionar" className="is-active" title="Selecionar">
           <MousePointer2 className="h-4 w-4" />
         </button>
-        <button type="button" aria-label="Selecionar área">
-          <Scan className="h-4 w-4" />
+        <button
+          type="button"
+          aria-label="Editar passos"
+          title="Editar passos"
+          onClick={onOpenSteps}
+        >
+          <Route className="h-4 w-4" />
         </button>
-        <button type="button" aria-label="Ajustar tela">
+        <button type="button" aria-label="Ajustar tela" title="Ajustar tela">
           <Maximize2 className="h-4 w-4" />
         </button>
         <span className="nuoma-flow-v2-toolbar-divider" />
-        <button type="button" aria-label="Reduzir zoom">
+        <button type="button" aria-label="Reduzir zoom" title="Reduzir zoom">
           <Minimize2 className="h-4 w-4" />
         </button>
         <button type="button" aria-label="Zoom atual" className="nuoma-flow-v2-zoom-label">
-          100%
+          fit
         </button>
-        <button type="button" aria-label="Aumentar zoom">
+        <button type="button" aria-label="Aumentar zoom" title="Aumentar zoom">
           <ZoomIn className="h-4 w-4" />
         </button>
         <span className="nuoma-flow-v2-toolbar-divider" />
-        <button type="button" aria-label="Tela cheia" onClick={onOpenPreview}>
+        <button
+          type="button"
+          aria-label="Abrir preview"
+          title="Abrir preview"
+          onClick={onOpenPreview}
+        >
           <PanelRight className="h-4 w-4" />
         </button>
-        <button type="button" aria-label="Centralizar fluxo">
-          <Route className="h-4 w-4" />
-        </button>
-      </div>
-
-      <svg
-        className="nuoma-flow-v2-lines"
-        viewBox="0 0 960 760"
-        preserveAspectRatio="none"
-        aria-hidden="true"
-      >
-        <path d="M142 176 L142 238" />
-        <path d="M142 404 L142 486" />
-        <path d="M238 324 C285 324 286 343 303 343" />
-        <path d="M480 344 C535 344 515 245 560 245" />
-        <path d="M480 414 C535 414 515 610 560 610" />
-        <path d="M645 316 L645 382" />
-        <path d="M730 245 C780 245 770 494 805 494" />
-        <path d="M730 610 C780 610 770 494 805 494" />
-        <path d="M730 432 C772 432 770 494 805 494" />
-        <FlowConnectorHandle x={142} y={208} />
-        <FlowConnectorHandle x={142} y={444} />
-        <FlowConnectorHandle x={238} y={324} small />
-        <FlowConnectorHandle x={303} y={343} small />
-        <FlowConnectorHandle x={480} y={344} />
-        <FlowConnectorHandle x={480} y={414} />
-        <FlowConnectorHandle x={645} y={350} />
-        <FlowConnectorHandle x={730} y={245} small />
-        <FlowConnectorHandle x={730} y={610} small />
-        <FlowConnectorHandle x={805} y={494} small />
-      </svg>
-
-      <FlowCanvasNode
-        className="nuoma-flow-v2-node-start"
-        icon={<PlayCircle className="h-4 w-4" />}
-        title="Início"
-        meta={`Entrada do fluxo\n${audienceLabel}`}
-        tone="cyan"
-      />
-
-      <FlowCanvasNode
-        className="nuoma-flow-v2-node-primary"
-        icon={
-          channel === "instagram" ? (
-            <Instagram className="h-4 w-4" />
-          ) : (
-            <MessageCircle className="h-4 w-4" />
-          )
-        }
-        title={primaryTitle}
-        meta="Nova coleção de inverno"
-        tone={channel === "instagram" ? "ig" : "wa"}
-        thumbnail="/assets/flow-studio/thumb-primary.png"
-      >
-        <span className="nuoma-flow-v2-node-caption">{primaryBody}</span>
-      </FlowCanvasNode>
-
-      <FlowCanvasNode
-        className="nuoma-flow-v2-node-wait-left"
-        icon={<Clock className="h-4 w-4" />}
-        title="Aguardar"
-        meta={
-          evergreen
-            ? "Aguardar 1 dia\nPróximo passo automático"
-            : "Aguardar 1 dia\nPróximo passo após o período de espera."
-        }
-        tone="cyan"
-      />
-
-      <div className="nuoma-flow-v2-node nuoma-flow-v2-node-condition">
-        <div className="nuoma-flow-v2-node-head">
-          <span className="nuoma-flow-v2-node-icon">
-            <GitBranch className="h-4 w-4" />
-          </span>
-          <div>
-            <div className="nuoma-flow-v2-node-title">Condição</div>
-            <div className="nuoma-flow-v2-node-meta">Interagiu com a mensagem?</div>
-          </div>
-        </div>
         <button
           type="button"
-          className="nuoma-flow-v2-branch nuoma-flow-v2-branch-yes"
-          onClick={onOpenSteps}
+          aria-label="Edição visual preserva o modo lista"
+          title="Edição visual preserva o modo lista"
         >
-          <span>Sim</span>
-          <span>Continuar</span>
-        </button>
-        <button
-          type="button"
-          className="nuoma-flow-v2-branch nuoma-flow-v2-branch-no"
-          onClick={onOpenSteps}
-        >
-          <span>Não</span>
-          <span>Seguir outro caminho</span>
-        </button>
-      </div>
-
-      <FlowCanvasNode
-        className="nuoma-flow-v2-node-secondary"
-        icon={<MessageCircle className="h-4 w-4" />}
-        title="Mensagem"
-        meta="Oferta especial"
-        tone="wa"
-        thumbnail="/assets/flow-studio/thumb-offer.png"
-      >
-        <span className="nuoma-flow-v2-node-caption">{offerBody}</span>
-      </FlowCanvasNode>
-
-      <FlowCanvasNode
-        className="nuoma-flow-v2-node-wait-right"
-        icon={<Clock className="h-4 w-4" />}
-        title="Aguardar"
-        meta={"Aguardar 12 horas\nPróximo passo após o período de espera."}
-        tone="cyan"
-      />
-
-      <FlowCanvasNode
-        className="nuoma-flow-v2-node-reengage"
-        icon={<Instagram className="h-4 w-4" />}
-        title="Mensagem"
-        meta="Reengajamento"
-        tone="ig"
-        thumbnail="/assets/flow-studio/thumb-reengage.png"
-      >
-        <span className="nuoma-flow-v2-node-caption">
-          {reengageBody ||
-            "Ainda tem peças incríveis te esperando. Que tal dar uma espiada de novo?"}
-        </span>
-      </FlowCanvasNode>
-
-      <FlowCanvasNode
-        className="nuoma-flow-v2-node-end"
-        icon={<Flag className="h-4 w-4" />}
-        title="Fim"
-        meta={"Saída do fluxo\nEncerrar jornada"}
-        tone="neutral"
-      />
-
-      <div className="nuoma-flow-v2-minimap" aria-hidden="true">
-        <div className="nuoma-flow-v2-minimap-screen">
-          <span className="a" />
-          <span className="b" />
-          <span className="c" />
-          <span className="d" />
-          <span className="e" />
-        </div>
-        <div className="nuoma-flow-v2-minimap-controls">
           <LockKeyhole className="h-4 w-4" />
-          <ZoomOut className="h-4 w-4" />
-          <ZoomIn className="h-4 w-4" />
-          <Maximize2 className="h-4 w-4" />
-        </div>
+        </button>
+      </div>
+
+      <div className="nuoma-flow-v2-reactflow" data-testid="campaign-xyflow-canvas">
+        <ReactFlow<CampaignCanvasNode, Edge>
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={campaignFlowNodeTypes}
+          fitView
+          fitViewOptions={{ padding: 0.24, includeHiddenNodes: false }}
+          minZoom={0.45}
+          maxZoom={1.35}
+          nodesDraggable
+          nodesConnectable={false}
+          elementsSelectable
+          panOnScroll
+          preventScrolling={false}
+        >
+          <Background color="rgba(133, 160, 176, 0.22)" gap={28} size={1.15} />
+          <MiniMap
+            pannable
+            zoomable
+            className="nuoma-flow-v2-xy-minimap"
+            nodeColor={(node) => flowToneColor((node as CampaignCanvasNode).data.tone)}
+          />
+          <Controls className="nuoma-flow-v2-xy-controls" showInteractive={false} />
+        </ReactFlow>
       </div>
     </div>
   );
 }
 
-function FlowConnectorHandle({ x, y, small = false }: { x: number; y: number; small?: boolean }) {
-  const radius = small ? 5 : 8;
-  const arm = small ? 3 : 4;
-  return (
-    <g className={cn("nuoma-flow-v2-handle", small && "nuoma-flow-v2-handle-small")}>
-      <circle cx={x} cy={y} r={radius} />
-      <path d={`M${x - arm} ${y}H${x + arm}M${x} ${y - arm}V${y + arm}`} />
-    </g>
-  );
-}
+type CampaignCanvasTone = "cyan" | "wa" | "ig" | "violet" | "neutral" | "danger";
 
-function FlowCanvasNode({
-  className,
-  icon,
-  title,
-  meta,
-  tone,
-  thumbnail,
-  children,
-}: {
-  className: string;
-  icon: ReactNode;
-  title: string;
+type CampaignCanvasNodeData = {
+  label: string;
   meta: string;
-  tone: "cyan" | "wa" | "ig" | "violet" | "neutral";
-  thumbnail?: string;
-  children?: ReactNode;
-}) {
+  summary: string;
+  iconType: BuilderStepType | "start" | "end" | "branch";
+  tone: CampaignCanvasTone;
+  kind: "start" | "step" | "branch" | "end";
+  conditionCount?: number;
+  onOpenSteps?: () => void;
+};
+
+type CampaignCanvasNode = Node<CampaignCanvasNodeData, "campaignCanvas">;
+
+const campaignFlowNodeTypes: NodeTypes = {
+  campaignCanvas: CampaignFlowNode,
+};
+
+function CampaignFlowNode({ data }: NodeProps<CampaignCanvasNode>) {
+  const Icon = flowCanvasIcon(data.iconType);
+  const isStart = data.kind === "start";
+  const isEnd = data.kind === "end";
   return (
-    <div className={cn("nuoma-flow-v2-node", `nuoma-flow-v2-node-${tone}`, className)}>
-      <div className="nuoma-flow-v2-node-head">
-        <span className="nuoma-flow-v2-node-icon">{icon}</span>
+    <div
+      className={cn(
+        "nuoma-flow-v2-xy-node",
+        `nuoma-flow-v2-xy-node-${data.tone}`,
+        data.kind === "branch" && "nuoma-flow-v2-xy-node-branch",
+      )}
+      onDoubleClick={data.onOpenSteps}
+    >
+      {!isStart ? <Handle type="target" position={Position.Left} /> : null}
+      <div className="nuoma-flow-v2-xy-node-head">
+        <span className="nuoma-flow-v2-xy-node-icon">
+          <Icon className="h-4 w-4" />
+        </span>
         <div className="min-w-0">
-          <div className="nuoma-flow-v2-node-title">{title}</div>
-          <div className="nuoma-flow-v2-node-meta">
-            {meta.split("\n").map((line) => (
+          <div className="nuoma-flow-v2-xy-node-title">{data.label}</div>
+          <div className="nuoma-flow-v2-xy-node-meta">
+            {data.meta.split("\n").map((line) => (
               <span key={line}>{line}</span>
             ))}
           </div>
         </div>
       </div>
-      {thumbnail ? (
-        <div className="nuoma-flow-v2-node-media">
-          <img src={thumbnail} alt="" />
-          <div>{children}</div>
+      <div className="nuoma-flow-v2-xy-node-summary">{data.summary}</div>
+      {data.kind === "branch" ? (
+        <div className="nuoma-flow-v2-xy-branch-row">
+          <button type="button" className="nodrag" onClick={data.onOpenSteps}>
+            Sim
+          </button>
+          <button type="button" className="nodrag" onClick={data.onOpenSteps}>
+            Não
+          </button>
         </div>
-      ) : (
-        children
-      )}
+      ) : data.conditionCount ? (
+        <button
+          type="button"
+          className="nuoma-flow-v2-xy-condition nodrag"
+          onClick={data.onOpenSteps}
+        >
+          {data.conditionCount} regra(s)
+        </button>
+      ) : null}
+      {!isEnd ? <Handle type="source" position={Position.Right} /> : null}
     </div>
   );
 }
 
-function stepDraftCanvasSummary(step: StepDraft | null) {
-  if (!step) return "Como você mostrou interesse, aqui vai um benefício exclusivo.";
+function buildCampaignFlowGraph(inputGraph: {
+  steps: StepDraft[];
+  channel: ChannelType;
+  evergreen: boolean;
+  csvPreview: CsvPreviewResult | null;
+  segmentEnabled: boolean;
+  abEnabled: boolean;
+  onOpenSteps: () => void;
+}): { nodes: CampaignCanvasNode[]; edges: Edge[] } {
+  const rowGap = 142;
+  const stepX = 360;
+  const startY = Math.max(70, (Math.min(inputGraph.steps.length, 4) * rowGap) / 2 - 42);
+  const nodes: CampaignCanvasNode[] = [
+    {
+      id: "start",
+      type: "campaignCanvas",
+      position: { x: 36, y: startY },
+      data: {
+        label: "Início",
+        meta: `Entrada do fluxo\n${campaignAudienceLabel(inputGraph)}`,
+        summary: `${inputGraph.channel} · ${inputGraph.evergreen ? "evergreen" : "manual"} · A/B ${inputGraph.abEnabled ? "on" : "off"}`,
+        iconType: "start",
+        tone: "cyan",
+        kind: "start",
+        onOpenSteps: inputGraph.onOpenSteps,
+      },
+    },
+  ];
+
+  const stepIds = new Set(inputGraph.steps.map((step) => step.id));
+  inputGraph.steps.forEach((step, index) => {
+    const hasBranch = step.conditions.some((condition) => condition.action === "branch");
+    nodes.push({
+      id: step.id,
+      type: "campaignCanvas",
+      position: { x: stepX, y: index * rowGap + 36 },
+      data: {
+        label: step.label || `Step ${index + 1}`,
+        meta: `${step.type} · delay ${step.delaySeconds || 0}s`,
+        summary: stepDraftCanvasSummary(step),
+        iconType: hasBranch ? "branch" : step.type,
+        tone: stepTone(step, inputGraph.channel, hasBranch),
+        kind: hasBranch ? "branch" : "step",
+        conditionCount: step.conditions.length || undefined,
+        onOpenSteps: inputGraph.onOpenSteps,
+      },
+    });
+  });
+
+  nodes.push({
+    id: "end",
+    type: "campaignCanvas",
+    position: { x: 720, y: Math.max(36, inputGraph.steps.length * rowGap - 80) },
+    data: {
+      label: "Fim",
+      meta: "Saída do fluxo\nEncerrar jornada",
+      summary: "Finaliza o contato atual antes do próximo contato na fila.",
+      iconType: "end",
+      tone: "neutral",
+      kind: "end",
+      onOpenSteps: inputGraph.onOpenSteps,
+    },
+  });
+
+  const edges: Edge[] = [];
+  const markerEnd = { type: MarkerType.ArrowClosed, color: "rgba(157, 177, 188, 0.82)" };
+  const defaultEdge = {
+    type: "smoothstep",
+    markerEnd,
+    style: { stroke: "rgba(157, 177, 188, 0.72)", strokeWidth: 2 },
+  };
+  const firstStep = inputGraph.steps[0];
+  edges.push({
+    id: firstStep ? "start-to-first" : "start-to-end",
+    source: "start",
+    target: firstStep?.id ?? "end",
+    ...defaultEdge,
+  });
+
+  inputGraph.steps.forEach((step, index) => {
+    const nextStep = inputGraph.steps[index + 1];
+    edges.push({
+      id: `${step.id}-next`,
+      source: step.id,
+      target: nextStep?.id ?? "end",
+      label: nextStep ? "próximo" : "concluir",
+      ...defaultEdge,
+    });
+    step.conditions.forEach((condition, conditionIndex) => {
+      if (
+        condition.action === "branch" &&
+        condition.targetStepId &&
+        stepIds.has(condition.targetStepId)
+      ) {
+        edges.push({
+          id: `${step.id}-branch-${conditionIndex}`,
+          source: step.id,
+          target: condition.targetStepId,
+          label: conditionLabel(condition),
+          type: "smoothstep",
+          markerEnd,
+          style: { stroke: "rgba(90, 170, 210, 0.82)", strokeWidth: 2 },
+          labelStyle: { fill: "rgb(185, 220, 234)", fontSize: 11, fontWeight: 600 },
+        });
+      }
+      if (condition.action === "exit") {
+        edges.push({
+          id: `${step.id}-exit-${conditionIndex}`,
+          source: step.id,
+          target: "end",
+          label: conditionLabel(condition),
+          type: "smoothstep",
+          markerEnd,
+          style: { stroke: "rgba(214, 170, 96, 0.82)", strokeWidth: 2 },
+          labelStyle: { fill: "rgb(232, 202, 143)", fontSize: 11, fontWeight: 600 },
+        });
+      }
+    });
+  });
+
+  return { nodes, edges };
+}
+
+function campaignAudienceLabel(inputGraph: {
+  csvPreview: CsvPreviewResult | null;
+  segmentEnabled: boolean;
+}) {
+  if (inputGraph.csvPreview) return `${inputGraph.csvPreview.validCount} contatos elegíveis`;
+  return inputGraph.segmentEnabled ? "Segmento ativo" : "Todos que entram";
+}
+
+function flowCanvasIcon(iconType: CampaignCanvasNodeData["iconType"]) {
+  if (iconType === "start") return PlayCircle;
+  if (iconType === "end") return Flag;
+  if (iconType === "branch") return GitBranch;
+  return stepIcon(iconType);
+}
+
+function stepTone(
+  step: StepDraft,
+  channel: ChannelType,
+  hasBranch: boolean,
+): CampaignCanvasTone {
+  if (hasBranch) return "violet";
+  if (step.type === "temporary_messages" || step.type === "voice") return "cyan";
+  if (channel === "instagram" || step.type === "image" || step.type === "video") return "ig";
+  if (step.type === "document") return "neutral";
+  return "wa";
+}
+
+function flowToneColor(tone: CampaignCanvasTone) {
+  if (tone === "wa") return "rgb(35, 168, 102)";
+  if (tone === "ig") return "rgb(88, 151, 190)";
+  if (tone === "violet") return "rgb(156, 124, 224)";
+  if (tone === "danger") return "rgb(211, 100, 100)";
+  if (tone === "neutral") return "rgb(139, 151, 160)";
+  return "rgb(91, 155, 173)";
+}
+
+function conditionLabel(condition: ConditionDraft) {
+  const type = conditionTypes.find((item) => item.value === condition.type)?.label ?? condition.type;
+  const value = condition.value.trim();
+  return value ? `${type}: ${value}` : type;
+}
+
+function stepDraftCanvasSummary(step: StepDraft) {
   if (step.type === "temporary_messages") return `Temporárias ${step.temporaryMessagesDuration}`;
   if (step.type === "text") return step.template || "Mensagem de texto";
   if (step.type === "link") return `${step.linkText || "Link"} - ${step.url || "URL pendente"}`;
   if (step.type === "document")
     return `${step.fileName || "Documento"} - asset #${step.mediaAssetId || "-"}`;
-  return step.caption || "Ainda tem peças incríveis te esperando. Que tal dar uma espiada de novo?";
+  if (step.type === "voice") return step.fileName || "Voice note PTT";
+  return step.caption || "Mídia sem legenda";
 }
 
 function FlowStudioInspector({

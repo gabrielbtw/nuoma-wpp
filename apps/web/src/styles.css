@@ -2184,44 +2184,38 @@ body:has(.nuoma-concept-app)::before {
   background: rgba(92, 112, 129, 0.22);
 }
 
-.nuoma-flow-v2-lines {
+.nuoma-flow-v2-reactflow {
   position: absolute;
   inset: 0;
-  z-index: 1;
-  height: 100%;
-  width: 100%;
-  overflow: visible;
-  pointer-events: none;
+  z-index: 2;
+  padding-top: 3.75rem;
 }
 
-.nuoma-flow-v2-lines path {
-  fill: none;
-  stroke: rgba(172, 188, 198, 0.72);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 2;
+.nuoma-flow-v2-reactflow .react-flow__pane {
+  cursor: grab;
 }
 
-.nuoma-flow-v2-handle circle {
-  fill: #5c6670;
-  stroke: #a7b4be;
+.nuoma-flow-v2-reactflow .react-flow__pane:active {
+  cursor: grabbing;
+}
+
+.nuoma-flow-v2-reactflow .react-flow__edge-path {
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.26));
+}
+
+.nuoma-flow-v2-reactflow .react-flow__edge-text {
+  fill: #d4e2ea;
+  font-family: "Geist Variable", "Geist", system-ui, sans-serif;
+}
+
+.nuoma-flow-v2-reactflow .react-flow__edge-textbg {
+  fill: rgba(8, 16, 25, 0.86);
+  stroke: rgba(115, 136, 150, 0.24);
   stroke-width: 1;
 }
 
-.nuoma-flow-v2-handle path {
-  stroke: #edf4f7;
-  stroke-width: 1.25;
-}
-
-.nuoma-flow-v2-handle-small circle {
-  fill: rgb(var(--color-brand-blue));
-  stroke: #1b2026;
-}
-
-.nuoma-flow-v2-node {
-  position: absolute;
-  z-index: 2;
-  width: 11.8rem;
+.nuoma-flow-v2-xy-node {
+  width: 16.5rem;
   border: 1px solid rgba(92, 112, 129, 0.32);
   border-radius: 0.45rem;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 46%), #121c26;
@@ -2232,14 +2226,18 @@ body:has(.nuoma-concept-app)::before {
   padding: 0.72rem;
 }
 
-.nuoma-flow-v2-node-head {
+.nuoma-flow-v2-xy-node-branch {
+  border-color: rgba(var(--color-brand-blue), 0.42);
+}
+
+.nuoma-flow-v2-xy-node-head {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
   gap: 0.62rem;
 }
 
-.nuoma-flow-v2-node-icon {
+.nuoma-flow-v2-xy-node-icon {
   display: grid;
   height: 1.8rem;
   width: 1.8rem;
@@ -2249,22 +2247,27 @@ body:has(.nuoma-concept-app)::before {
   color: rgb(var(--color-brand-teal));
 }
 
-.nuoma-flow-v2-node-wa .nuoma-flow-v2-node-icon {
+.nuoma-flow-v2-xy-node-wa .nuoma-flow-v2-xy-node-icon {
   background: rgba(37, 211, 107, 0.14);
   color: rgb(var(--color-brand-green));
 }
 
-.nuoma-flow-v2-node-ig .nuoma-flow-v2-node-icon {
-  background: rgba(238, 69, 150, 0.14);
-  color: rgb(var(--color-semantic-danger));
+.nuoma-flow-v2-xy-node-ig .nuoma-flow-v2-xy-node-icon {
+  background: rgba(88, 151, 190, 0.16);
+  color: rgb(var(--color-channel-instagram));
 }
 
-.nuoma-flow-v2-node-neutral .nuoma-flow-v2-node-icon {
+.nuoma-flow-v2-xy-node-violet .nuoma-flow-v2-xy-node-icon {
+  background: rgba(156, 124, 224, 0.14);
+  color: #cdbbff;
+}
+
+.nuoma-flow-v2-xy-node-neutral .nuoma-flow-v2-xy-node-icon {
   background: rgba(255, 255, 255, 0.08);
   color: #c9d3db;
 }
 
-.nuoma-flow-v2-node-title {
+.nuoma-flow-v2-xy-node-title {
   overflow: hidden;
   color: #f2f7fb;
   font-size: 0.8rem;
@@ -2274,7 +2277,7 @@ body:has(.nuoma-concept-app)::before {
   white-space: nowrap;
 }
 
-.nuoma-flow-v2-node-meta {
+.nuoma-flow-v2-xy-node-meta {
   margin-top: 0.42rem;
   display: grid;
   gap: 0.16rem;
@@ -2283,176 +2286,75 @@ body:has(.nuoma-concept-app)::before {
   line-height: 1.45;
 }
 
-.nuoma-flow-v2-node-media {
-  margin-top: 0.75rem;
-  display: grid;
-  grid-template-columns: 3.25rem minmax(0, 1fr);
-  gap: 0.65rem;
-}
-
-.nuoma-flow-v2-node-media img {
-  height: 4.3rem;
-  width: 3.25rem;
-  border-radius: 0.3rem;
-  object-fit: cover;
-}
-
-.nuoma-flow-v2-node-caption {
+.nuoma-flow-v2-xy-node-summary {
   display: block;
+  margin-top: 0.75rem;
   color: #d8e3ea;
   font-size: 0.67rem;
   line-height: 1.45;
-}
-
-.nuoma-flow-v2-node-start {
-  left: 4.8%;
-  top: 12.5%;
-}
-
-.nuoma-flow-v2-node-primary {
-  left: 4.8%;
-  top: 30%;
-}
-
-.nuoma-flow-v2-node-wait-left {
-  left: 4.8%;
-  top: 58.5%;
-}
-
-.nuoma-flow-v2-node-condition {
-  left: 31%;
-  top: 34.8%;
-  display: grid;
-  gap: 0.56rem;
-  width: 11.2rem;
-}
-
-.nuoma-flow-v2-node-secondary {
-  left: 58.2%;
-  top: 22%;
-  width: 10.8rem;
-}
-
-.nuoma-flow-v2-node-wait-right {
-  left: 58.2%;
-  top: 46.6%;
-  width: 10.8rem;
-}
-
-.nuoma-flow-v2-node-reengage {
-  left: 58.2%;
-  top: 66.6%;
-  width: 10.8rem;
-}
-
-.nuoma-flow-v2-node-end {
-  left: 83.5%;
-  top: 54.5%;
-  width: 9.1rem;
-}
-
-.nuoma-flow-v2-branch {
-  display: grid;
-  gap: 0.12rem;
-  border-radius: 0.35rem;
-  border: 1px solid transparent;
-  padding: 0.62rem 0.7rem;
-  text-align: left;
-  font-size: 0.68rem;
-  line-height: 1.2;
-}
-
-.nuoma-flow-v2-branch span:first-child {
-  font-weight: 750;
-}
-
-.nuoma-flow-v2-branch span:last-child {
-  color: #c6d0d8;
-}
-
-.nuoma-flow-v2-branch-yes {
-  border-color: rgba(37, 211, 107, 0.34);
-  background: rgba(37, 211, 107, 0.13);
-  color: rgb(var(--color-brand-green-soft));
-}
-
-.nuoma-flow-v2-branch-no {
-  border-color: rgba(var(--color-brand-blue), 0.5);
-  background: rgba(var(--color-brand-blue), 0.14);
-  color: rgb(var(--color-brand-blue-soft));
-}
-
-.nuoma-flow-v2-minimap {
-  position: absolute;
-  bottom: 1rem;
-  left: 1.35rem;
-  z-index: 4;
-  display: grid;
-  width: 10.65rem;
-  gap: 0.65rem;
-}
-
-.nuoma-flow-v2-minimap-screen {
-  position: relative;
-  height: 5rem;
   overflow: hidden;
-  border: 1px solid rgba(var(--color-brand-teal), 0.68);
-  border-radius: 0.35rem;
-  background: rgba(12, 23, 33, 0.88);
-  box-shadow: inset 0 0 0 1px rgba(var(--color-brand-teal), 0.08);
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
-.nuoma-flow-v2-minimap-screen span {
-  position: absolute;
-  display: block;
-  border-radius: 0.2rem;
-  background: #243241;
-}
-
-.nuoma-flow-v2-minimap-screen .a {
-  left: 0.55rem;
-  top: 1rem;
-  height: 0.9rem;
-  width: 1.8rem;
-}
-.nuoma-flow-v2-minimap-screen .b {
-  left: 2.7rem;
-  top: 1.45rem;
-  height: 1.1rem;
-  width: 2.05rem;
-}
-.nuoma-flow-v2-minimap-screen .c {
-  right: 1.05rem;
-  top: 0.7rem;
-  height: 1rem;
-  width: 2rem;
-}
-.nuoma-flow-v2-minimap-screen .d {
-  right: 1.1rem;
-  bottom: 0.85rem;
-  height: 1.2rem;
-  width: 2.15rem;
-}
-.nuoma-flow-v2-minimap-screen .e {
-  left: 0.55rem;
-  bottom: 1.05rem;
-  height: 0.85rem;
-  width: 1.95rem;
-}
-
-.nuoma-flow-v2-minimap-controls {
+.nuoma-flow-v2-xy-branch-row {
+  margin-top: 0.72rem;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.45rem;
-  border: 1px solid rgba(92, 112, 129, 0.28);
-  border-radius: 0.35rem;
-  background: rgba(12, 23, 33, 0.88);
-  padding: 0.45rem;
-  color: #a9b6c1;
 }
 
-.nuoma-flow-v2-minimap-controls svg {
-  margin: auto;
+.nuoma-flow-v2-xy-branch-row button,
+.nuoma-flow-v2-xy-condition {
+  border-radius: 0.35rem;
+  border: 1px solid rgba(var(--color-brand-teal), 0.28);
+  background: rgba(var(--color-brand-teal), 0.09);
+  color: #cfe7ef;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.1;
+  padding: 0.55rem 0.6rem;
+}
+
+.nuoma-flow-v2-xy-condition {
+  margin-top: 0.72rem;
+  width: 100%;
+  text-align: left;
+}
+
+.nuoma-flow-v2-xy-node .react-flow__handle {
+  height: 0.62rem;
+  width: 0.62rem;
+  border: 1px solid rgba(237, 244, 247, 0.72);
+  background: rgb(var(--color-brand-teal));
+}
+
+.nuoma-flow-v2-xy-minimap {
+  overflow: hidden;
+  border: 1px solid rgba(var(--color-brand-teal), 0.42) !important;
+  border-radius: 0.45rem;
+  background: rgba(12, 23, 33, 0.9) !important;
+}
+
+.nuoma-flow-v2-xy-controls {
+  overflow: hidden;
+  border: 1px solid rgba(92, 112, 129, 0.28);
+  border-radius: 0.45rem;
+  background: rgba(10, 20, 30, 0.92);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+}
+
+.nuoma-flow-v2-xy-controls button {
+  border-bottom: 1px solid rgba(92, 112, 129, 0.18);
+  background: transparent;
+  color: #a9b6c2;
+}
+
+.nuoma-flow-v2-xy-controls button:hover {
+  background: rgba(var(--color-brand-teal), 0.1);
+  color: rgb(var(--color-brand-teal-soft));
 }
 
 .nuoma-flow-v2-editor-panels {
