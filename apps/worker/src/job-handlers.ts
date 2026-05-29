@@ -402,7 +402,7 @@ async function drainCampaignStepBatch(
 ): Promise<CampaignBatchDrainResult> {
   const campaignBatchId = stringFromPayload(job.payload.campaignBatchId);
   const campaignBatchIndex = numberFromPayloadAllowZero(job.payload.campaignBatchIndex);
-  const target = campaignBatchDrainTarget(job);
+  const target = await campaignBatchDrainTarget(job, context);
   const result: CampaignBatchDrainResult = {
     campaignBatchId,
     drainedJobs: 0,
@@ -519,14 +519,14 @@ function nextQueuedCampaignBatchSibling(
 ): Job | null {
   const jobTargetExpr =
     input.target.kind === "instagram"
-      ? normalizedJsonInstagramHandleSql("payload_json")
-      : normalizedJsonPhoneSql("payload_json", "$.phone");
+      ? normalizedJobInstagramTargetSql("candidate_jobs")
+      : normalizedJobWhatsappTargetSql("candidate_jobs");
   const row = context.db.raw
     .prepare(
       `
-      select *
-      from jobs
-      where user_id = ?
+      select candidate_jobs.*
+      from jobs candidate_jobs
+      where candidate_jobs.user_id = ?
         and type = 'campaign_step'
         and status = 'queued'
         and json_extract(payload_json, '$.campaignBatchId') = ?
@@ -542,8 +542,52 @@ function nextQueuedCampaignBatchSibling(
   return row ? mapRawJob(row) : null;
 }
 
-function campaignBatchDrainTarget(job: Job): CampaignBatchDrainTarget | null {
-  const phone = typeof job.payload.phone === "string" ? normalizePhone(job.payload.phone) : null;
+async function campaignBatchDrainTarget(
+  job: Job,
+  context: JobHandlerContext,
+): Promise<CampaignBatchDrainTarget | null> {
+  const conversationId = numberFromPayload(job.payload.conversationId);
+  if (conversationId) {
+    const conversation = await context.repos.conversations.findById({
+      userId: job.userId,
+      id: conversationId,
+    });
+    if (conversation?.channel === "whatsapp") {
+      const phone =
+        normalizePhone(conversation.waJid) ?? normalizePhone(conversation.externalThreadId);
+      if (phone) {
+        return { kind: "phone", value: phone };
+      }
+      if (conversation.contactId) {
+        const contact = await context.repos.contacts.findById(conversation.contactId);
+        const contactPhone =
+          normalizePhone(contact?.waJid) ??
+          normalizePhone(contact?.phoneE164) ??
+          normalizePhone(contact?.phone);
+        if (contactPhone) {
+          return { kind: "phone", value: contactPhone };
+        }
+      }
+    }
+    if (conversation?.channel === "instagram") {
+      const instagramHandle = normalizeInstagramHandle(conversation.externalThreadId);
+      if (instagramHandle) {
+        return { kind: "instagram", value: instagramHandle };
+      }
+      if (conversation.contactId) {
+        const contact = await context.repos.contacts.findById(conversation.contactId);
+        const contactHandle = normalizeInstagramHandle(contact?.instagramHandle);
+        if (contactHandle) {
+          return { kind: "instagram", value: contactHandle };
+        }
+      }
+    }
+  }
+
+  const phone =
+    normalizePhone(stringFromPayload(job.payload.waJid)) ??
+    normalizePhone(stringFromPayload(job.payload.externalThreadId)) ??
+    (typeof job.payload.phone === "string" ? normalizePhone(job.payload.phone) : null);
   if (phone) {
     return { kind: "phone", value: phone };
   }
@@ -554,8 +598,13 @@ function campaignBatchDrainTarget(job: Job): CampaignBatchDrainTarget | null {
   return instagramHandle ? { kind: "instagram", value: instagramHandle } : null;
 }
 
-function normalizedJsonPhoneSql(jsonColumn: string, jsonPath: string): string {
-  const digits = `replace(replace(replace(replace(replace(coalesce(json_extract(${jsonColumn}, '${jsonPath}'), ''), '+', ''), ' ', ''), '-', ''), '(', ''), ')', '')`;
+function normalizedSqlPhone(valueSql: string): string {
+  const source = `(CASE
+    WHEN instr(coalesce(${valueSql}, ''), '@') > 0
+      THEN substr(coalesce(${valueSql}, ''), 1, instr(coalesce(${valueSql}, ''), '@') - 1)
+    ELSE coalesce(${valueSql}, '')
+  END)`;
+  const digits = `replace(replace(replace(replace(replace(${source}, '+', ''), ' ', ''), '-', ''), '(', ''), ')', '')`;
   return `(CASE
     WHEN length(${digits}) IN (12, 13) AND substr(${digits}, 1, 2) = '55' THEN ${digits}
     WHEN length(${digits}) IN (10, 11) THEN '55' || ${digits}
@@ -563,10 +612,54 @@ function normalizedJsonPhoneSql(jsonColumn: string, jsonPath: string): string {
   END)`;
 }
 
-function normalizedJsonInstagramHandleSql(jsonColumn: string): string {
+function normalizedJobPayloadPhoneSql(tableAlias: string): string {
+  return normalizedSqlPhone(
+    `coalesce(
+      json_extract(${tableAlias}.payload_json, '$.waJid'),
+      json_extract(${tableAlias}.payload_json, '$.externalThreadId'),
+      json_extract(${tableAlias}.payload_json, '$.phone')
+    )`,
+  );
+}
+
+function normalizedJobWhatsappTargetSql(tableAlias: string): string {
+  const conversationPhone = normalizedSqlPhone(`(
+    SELECT coalesce(c.wa_jid, c.external_thread_id, ct.wa_jid, ct.phone_e164, ct.phone, '')
+    FROM conversations c
+    LEFT JOIN contacts ct ON ct.id = c.contact_id AND ct.user_id = c.user_id
+    WHERE c.user_id = ${tableAlias}.user_id
+      AND c.id = cast(coalesce(json_extract(${tableAlias}.payload_json, '$.conversationId'), 0) AS integer)
+      AND c.channel = 'whatsapp'
+    LIMIT 1
+  )`);
+  const payloadPhone = normalizedJobPayloadPhoneSql(tableAlias);
+  return `(CASE
+    WHEN ${conversationPhone} != '' THEN ${conversationPhone}
+    ELSE ${payloadPhone}
+  END)`;
+}
+
+function normalizedJobPayloadInstagramHandleSql(tableAlias: string): string {
+  const jsonColumn = `${tableAlias}.payload_json`;
   const raw = `lower(trim(coalesce(json_extract(${jsonColumn}, '$.instagramHandle'), json_extract(${jsonColumn}, '$.username'), json_extract(${jsonColumn}, '$.recipientNormalizedValue'), '')))`;
   const withoutPrefix = `replace(replace(${raw}, '@', ''), 'ig:', '')`;
   return `(CASE WHEN length(${withoutPrefix}) BETWEEN 1 AND 30 THEN ${withoutPrefix} ELSE '' END)`;
+}
+
+function normalizedJobInstagramTargetSql(tableAlias: string): string {
+  const rawConversation = `(SELECT lower(trim(coalesce(c.external_thread_id, ct.instagram_handle, '')))
+    FROM conversations c
+    LEFT JOIN contacts ct ON ct.id = c.contact_id AND ct.user_id = c.user_id
+    WHERE c.user_id = ${tableAlias}.user_id
+      AND c.id = cast(coalesce(json_extract(${tableAlias}.payload_json, '$.conversationId'), 0) AS integer)
+      AND c.channel = 'instagram'
+    LIMIT 1)`;
+  const conversationHandle = `replace(replace(${rawConversation}, '@', ''), 'ig:', '')`;
+  const payloadHandle = normalizedJobPayloadInstagramHandleSql(tableAlias);
+  return `(CASE
+    WHEN length(${conversationHandle}) BETWEEN 1 AND 128 THEN ${conversationHandle}
+    ELSE ${payloadHandle}
+  END)`;
 }
 
 function claimCampaignBatchSibling(
@@ -972,9 +1065,9 @@ async function resolveCampaignStepTargetPhone(
     throw new PermanentJobError(`campaign_step unsupported channel: ${conversation.channel}`);
   }
   const phone =
-    normalizePhone(input.phone) ??
     normalizePhone(conversation.waJid) ??
-    normalizePhone(conversation.externalThreadId);
+    normalizePhone(conversation.externalThreadId) ??
+    normalizePhone(input.phone);
   return enforceSendPolicy(job, context, sendPolicyJobTypeForStep(input.step), phone);
 }
 
@@ -1952,9 +2045,9 @@ async function sendVoiceToConversation(
     throw new PermanentJobError(`send_voice unsupported channel: ${conversation.channel}`);
   }
   const phone =
-    normalizePhone(input.phoneInput) ??
     normalizePhone(conversation.waJid) ??
-    normalizePhone(conversation.externalThreadId);
+    normalizePhone(conversation.externalThreadId) ??
+    normalizePhone(input.phoneInput);
   const idempotencyKey = extractIdempotencyKeyFromJobPayload(job.payload, job.id);
   const skippedDuplicate = await trySkipExistingDispatch(job, context, {
     idempotencyKey,
@@ -2105,9 +2198,9 @@ async function sendDocumentToConversation(
     throw new PermanentJobError(`send_document unsupported channel: ${conversation.channel}`);
   }
   const phone =
-    normalizePhone(input.phoneInput) ??
     normalizePhone(conversation.waJid) ??
-    normalizePhone(conversation.externalThreadId);
+    normalizePhone(conversation.externalThreadId) ??
+    normalizePhone(input.phoneInput);
   const idempotencyKey = extractIdempotencyKeyFromJobPayload(job.payload, job.id);
   const skippedDuplicate = await trySkipExistingDispatch(job, context, {
     idempotencyKey,
@@ -2196,9 +2289,9 @@ async function sendNativeMediaToConversation(
     throw new PermanentJobError(`send_media unsupported channel: ${conversation.channel}`);
   }
   const phone =
-    normalizePhone(input.phoneInput) ??
     normalizePhone(conversation.waJid) ??
-    normalizePhone(conversation.externalThreadId);
+    normalizePhone(conversation.externalThreadId) ??
+    normalizePhone(input.phoneInput);
   const idempotencyKey = extractIdempotencyKeyFromJobPayload(job.payload, job.id);
   const skippedDuplicate = await trySkipExistingDispatch(job, context, {
     idempotencyKey,
@@ -2447,9 +2540,9 @@ async function sendTextToConversation(
     throw new PermanentJobError(`send_message unsupported channel: ${conversation.channel}`);
   }
   const phone =
-    normalizePhone(input.phoneInput) ??
     normalizePhone(conversation.waJid) ??
-    normalizePhone(conversation.externalThreadId);
+    normalizePhone(conversation.externalThreadId) ??
+    normalizePhone(input.phoneInput);
   const idempotencyKey = extractIdempotencyKeyFromJobPayload(job.payload, job.id);
   const skippedDuplicate = await trySkipExistingDispatch(job, context, {
     idempotencyKey,

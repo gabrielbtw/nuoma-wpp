@@ -404,6 +404,161 @@ describe("worker job loop", () => {
     );
   });
 
+  it("drains WhatsApp campaign batch siblings by canonical wa_jid when payload phones are stale or absent", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-wa-jid-batch-drain",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_ALLOWED_PHONE: "5531982066263",
+    });
+    const user = await repos.users.create({
+      email: "wa-jid-batch-drain@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel salvo",
+      phone: "31982066263",
+      primaryChannel: "whatsapp",
+      status: "active",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263@c.us",
+      title: "Gabriel salvo no celular",
+    });
+    const basePayload = {
+      campaignId: 302,
+      recipientId: null,
+      conversationId: conversation.id,
+      campaignBatchId: "wa-jid-batch-drain",
+      campaignBatchSize: 2,
+      variables: { nome: "Gabriel" },
+    };
+    const firstJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        ...basePayload,
+        phone: "11999999999",
+        campaignBatchIndex: 0,
+        isLastStep: false,
+        idempotencyKey: "campaign:wa-jid-batch-drain:1",
+        step: {
+          id: "wa-intro",
+          label: "Intro WA",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Oi {{nome}} pelo WA",
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    const nextJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        ...basePayload,
+        campaignBatchIndex: 1,
+        isLastStep: true,
+        idempotencyKey: "campaign:wa-jid-batch-drain:2",
+        step: {
+          id: "wa-follow-up",
+          label: "Follow-up WA",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Segundo toque {{nome}} pelo WA",
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:01.000Z",
+      maxAttempts: 2,
+    });
+    if (!firstJob || !nextJob) {
+      throw new Error("expected WhatsApp campaign_step jobs to be created");
+    }
+    const sendCalls: unknown[] = [];
+    const sync = {
+      connected: true,
+      metrics: {} as never,
+      forceConversation: async () => {
+        throw new Error("unexpected force sync");
+      },
+      sendTextMessage: async (input: {
+        conversationId: number;
+        phone: string;
+        body: string;
+        reason?: string;
+      }) => {
+        sendCalls.push(input);
+        return {
+          mode: "text-message" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "campaign_step",
+          navigationMode: "reused-open-chat" as const,
+          externalId: `wa-jid-batch-${sendCalls.length}`,
+          visibleMessageCountBefore: sendCalls.length,
+          visibleMessageCountAfter: sendCalls.length + 1,
+          lastExternalIdBefore: "before",
+          lastExternalIdAfter: `wa-jid-batch-${sendCalls.length}`,
+        };
+      },
+      sendVoiceMessage: async () => {
+        throw new Error("unexpected voice send");
+      },
+      sendDocumentMessage: async () => {
+        throw new Error("unexpected document send");
+      },
+      sendMediaMessage: async () => {
+        throw new Error("unexpected media send");
+      },
+      close: async () => {},
+    };
+
+    const loop = createJobLoop({
+      env,
+      repos,
+      logger,
+      handlerContext: { env, db, repos, logger, sync },
+    });
+
+    await expect(loop.processOne()).resolves.toBe(true);
+
+    expect(sendCalls).toEqual([
+      expect.objectContaining({ phone: "5531982066263", body: "Oi Gabriel pelo WA" }),
+      expect.objectContaining({ phone: "5531982066263", body: "Segundo toque Gabriel pelo WA" }),
+    ]);
+    const completed = await repos.jobs.list(user.id, "completed");
+    expect(completed.map((job) => job.id).sort((a, b) => a - b)).toEqual([
+      firstJob.id,
+      nextJob.id,
+    ]);
+    const drainEvents = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.campaign_step.batch_drained",
+    });
+    expect(drainEvents[0]?.payload).toEqual(
+      expect.objectContaining({
+        rootJobId: firstJob.id,
+        campaignBatchId: "wa-jid-batch-drain",
+        drainedJobs: 1,
+        stopped: false,
+      }),
+    );
+  });
+
   it("does not claim sync jobs when no sync runtime is connected", async () => {
     const repos = createRepositories(db);
     const logger = pino({ level: "silent" });
