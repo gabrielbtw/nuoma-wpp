@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   PROFILE_PHOTO_SEEN_BY_THREAD_CAP,
   getProfilePhotoSeenByThread,
+  isReadyChatState,
   parseTemporaryMessagesDuration,
   setProfilePhotoSeenByThread,
   shouldAllowActiveSendTarget,
@@ -278,6 +279,39 @@ describe("CDP active send target guard", () => {
         expectedTitle: "gabriel braga nuoma",
       }),
     ).toBe(false);
+  });
+});
+
+describe("CDP WhatsApp readiness", () => {
+  it("requires composer by default for send-safe navigation", () => {
+    expect(
+      isReadyChatState({
+        hasMain: true,
+        hasSidebar: true,
+        hasComposer: false,
+        startingConversation: false,
+        headerTitle: "Gabriel Braga",
+        visibleMessages: 12,
+        href: "https://web.whatsapp.com/send?phone=5531982066263",
+      }),
+    ).toBe(false);
+  });
+
+  it("allows read-only history sync when messages are visible without composer", () => {
+    expect(
+      isReadyChatState(
+        {
+          hasMain: true,
+          hasSidebar: true,
+          hasComposer: false,
+          startingConversation: false,
+          headerTitle: "Gabriel Braga",
+          visibleMessages: 12,
+          href: "https://web.whatsapp.com/send?phone=5531982066263",
+        },
+        { requireComposer: false },
+      ),
+    ).toBe(true);
   });
 });
 

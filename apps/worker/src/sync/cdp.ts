@@ -182,12 +182,14 @@ interface SyncReconcileSummary {
   visibleExternalIds: string[];
 }
 
-interface ReadyChatState {
+export interface ReadyChatState {
   hasMain: boolean;
   hasSidebar: boolean;
   hasComposer: boolean;
   startingConversation: boolean;
   headerTitle: string;
+  visibleMessages?: number;
+  href?: string;
 }
 
 interface SyncHistoryScrollSummary extends SyncReconcileSummary {
@@ -1626,7 +1628,9 @@ export async function startSyncEngine(input: {
     }
 
     if (phone) {
-      await navigateWhatsAppPhone(phone);
+      await navigateWhatsAppPhone(phone, {
+        requireComposer: !forceInput.history?.enabled,
+      });
       await requestActiveReconcile(reason, {
         scope: "force-conversation",
         conversationId: conversation?.id ?? null,
@@ -3987,7 +3991,10 @@ export async function startSyncEngine(input: {
     return true;
   }
 
-  async function navigateWhatsAppPhone(phone: string): Promise<void> {
+  async function navigateWhatsAppPhone(
+    phone: string,
+    options?: { requireComposer?: boolean },
+  ): Promise<void> {
     if (!client) {
       return;
     }
@@ -4004,6 +4011,7 @@ export async function startSyncEngine(input: {
     await sleep(input.env.WORKER_SYNC_MULTI_CHAT_DELAY_MS + 2_000);
     await waitForWhatsAppChatReady(
       Math.max(input.env.WORKER_SYNC_MULTI_CHAT_DELAY_MS + 20_000, 25_000),
+      { requireComposer: options?.requireComposer ?? true },
     );
     await client.Runtime.evaluate({
       expression: observerSource,
@@ -4386,11 +4394,16 @@ export async function startSyncEngine(input: {
     return normalizePhone(typeof result.result.value === "string" ? result.result.value : null);
   }
 
-  async function waitForWhatsAppChatReady(timeoutMs: number): Promise<void> {
+  async function waitForWhatsAppChatReady(
+    timeoutMs: number,
+    options?: { requireComposer?: boolean },
+  ): Promise<void> {
     if (!client) {
       return;
     }
     const deadline = Date.now() + timeoutMs;
+    const requireComposer = options?.requireComposer ?? true;
+    let lastState: unknown = null;
     while (Date.now() < deadline) {
       const invalidPhoneMessage = await dismissInvalidPhoneDialog();
       if (invalidPhoneMessage) {
@@ -4413,12 +4426,17 @@ export async function startSyncEngine(input: {
         includeCommandLineAPI: false,
       });
       const value = result.result.value;
-      if (isReadyChatState(value)) {
+      lastState = value;
+      if (isReadyChatState(value, { requireComposer })) {
         return;
       }
       await sleep(250);
     }
-    throw new Error("WhatsApp chat did not become ready: composer not found");
+    throw new Error(
+      `WhatsApp chat did not become ready: ${describeReadyChatStateFailure(lastState, {
+        requireComposer,
+      })}`,
+    );
   }
 
   async function isWhatsAppChatReady(): Promise<boolean> {
@@ -5494,18 +5512,51 @@ function isOutgoingDeliveryStatus(value: unknown): value is OutgoingDeliveryStat
   );
 }
 
-function isReadyChatState(value: unknown): value is ReadyChatState {
+export function isReadyChatState(
+  value: unknown,
+  options?: { requireComposer?: boolean },
+): value is ReadyChatState {
   // WA Web can leave a visible "Iniciando conversa" overlay around even after
   // the target chat composer is ready. The send path still validates the active
   // target with live phone evidence before typing into the composer.
-  return (
-    isRecord(value) &&
-    value.hasMain === true &&
-    value.hasSidebar === true &&
-    value.hasComposer === true &&
-    typeof value.headerTitle === "string" &&
-    value.headerTitle.trim().length > 0
-  );
+  if (!isRecord(value) || value.hasMain !== true || value.hasSidebar !== true) {
+    return false;
+  }
+  const hasTitle = typeof value.headerTitle === "string" && value.headerTitle.trim().length > 0;
+  if (!hasTitle) {
+    return false;
+  }
+  if (options?.requireComposer ?? true) {
+    return value.hasComposer === true;
+  }
+  const visibleMessages = numberFromUnknown(value.visibleMessages);
+  return value.hasComposer === true || (visibleMessages !== null && visibleMessages > 0);
+}
+
+function describeReadyChatStateFailure(
+  value: unknown,
+  options: { requireComposer: boolean },
+): string {
+  if (!isRecord(value)) {
+    return "state not readable";
+  }
+  const parts = [
+    `main=${String(value.hasMain === true)}`,
+    `sidebar=${String(value.hasSidebar === true)}`,
+    `composer=${String(value.hasComposer === true)}`,
+    `requireComposer=${String(options.requireComposer)}`,
+    `startingConversation=${String(value.startingConversation === true)}`,
+    `visibleMessages=${String(numberFromUnknown(value.visibleMessages) ?? 0)}`,
+  ];
+  const headerTitle = typeof value.headerTitle === "string" ? value.headerTitle.trim() : "";
+  if (headerTitle) {
+    parts.push(`headerTitle=${JSON.stringify(headerTitle.slice(0, 80))}`);
+  }
+  const href = typeof value.href === "string" ? value.href : "";
+  if (href) {
+    parts.push(`href=${JSON.stringify(href.slice(0, 160))}`);
+  }
+  return parts.join(" ");
 }
 
 function parseDisplayDurationSecs(text: string): number | null {
