@@ -3,7 +3,11 @@ import Database from "better-sqlite3";
 import { chromium } from "playwright";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { backfillSmokeWhatsappIdentity } from "./helpers/contact-identity.mjs";
+import {
+  backfillSmokeWhatsappIdentity,
+  findSmokeWhatsappContact,
+  findSmokeWhatsappConversation,
+} from "./helpers/contact-identity.mjs";
 
 const webUrl = process.env.WEB_URL ?? "http://127.0.0.1:3002";
 const apiUrl = process.env.API_URL ?? "http://127.0.0.1:3001";
@@ -136,9 +140,7 @@ async function seedAttachmentEvidence() {
     ensureAttachmentCandidatesTable(db);
     const now = new Date().toISOString();
 
-    const existingContact = db
-      .prepare("SELECT id FROM contacts WHERE user_id = 1 AND phone = ?")
-      .get(smokePhone);
+    const existingContact = findSmokeWhatsappContact(db, { userId: 1, phone: smokePhone });
     if (existingContact?.id) {
       db.prepare(
         `
@@ -166,9 +168,7 @@ async function seedAttachmentEvidence() {
       ).run({ title: smokeTitle, phone: smokePhone, now });
     }
 
-    const contact = db
-      .prepare("SELECT id FROM contacts WHERE user_id = 1 AND phone = ?")
-      .get(smokePhone);
+    const contact = findSmokeWhatsappContact(db, { userId: 1, phone: smokePhone });
     if (!contact?.id) {
       throw new Error("attachment candidate smoke contact was not created");
     }
@@ -196,9 +196,11 @@ async function seedAttachmentEvidence() {
       `,
     ).run({ contactId: contact.id, phone: smokePhone, title: smokeTitle, now });
 
-    const conversation = db
-      .prepare("SELECT id FROM conversations WHERE user_id = 1 AND external_thread_id = ?")
-      .get(smokePhone);
+    const conversation = findSmokeWhatsappConversation(db, {
+      userId: 1,
+      phone: smokePhone,
+      contactId: contact.id,
+    });
     if (!conversation?.id) {
       throw new Error("attachment candidate smoke conversation was not created");
     }
