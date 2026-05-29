@@ -47,7 +47,9 @@ export interface CampaignSchedulerTickResult {
     recipientId: number;
     stepId: string;
     stepType: CampaignStep["type"];
-    phone: string;
+    phone: string | null;
+    instagramHandle: string | null;
+    targetKey: string;
     scheduledAt: string;
     isLastStep: boolean;
     variantId: string | null;
@@ -178,6 +180,9 @@ async function evaluateEvergreenCampaign(input: {
   if (!input.campaign.evergreen) {
     return;
   }
+  if (input.limit <= 0) {
+    return;
+  }
 
   input.result.evergreenCampaignsScanned += 1;
   const contacts = await input.repos.contacts.list({
@@ -195,6 +200,11 @@ async function evaluateEvergreenCampaign(input: {
       if (recipient.contactId) keys.push(`contact:${recipient.contactId}`);
       const phone = normalizePhone(recipient.phone);
       if (phone) keys.push(`phone:${phone}`);
+      const instagramHandle = normalizeInstagramHandle(
+        stringFromUnknown(recipient.metadata.instagramHandle) ??
+          stringFromUnknown(recipient.metadata.instagram),
+      );
+      if (instagramHandle) keys.push(`instagram:${instagramHandle}`);
       return keys;
     }),
   );
@@ -219,6 +229,7 @@ async function evaluateEvergreenCampaign(input: {
     if (input.dryRun) {
       existingKeys.add(`contact:${contact.id}`);
       if (evaluation.phone) existingKeys.add(`phone:${evaluation.phone}`);
+      if (evaluation.instagramHandle) existingKeys.add(`instagram:${evaluation.instagramHandle}`);
       continue;
     }
     if (evaluation.phone) {
@@ -226,6 +237,17 @@ async function evaluateEvergreenCampaign(input: {
         userId: input.userId,
         phone: evaluation.phone,
         channel: "whatsapp",
+      });
+      if (activePipeline) {
+        skipped += 1;
+        input.result.evergreenRecipientsSkipped += 1;
+        continue;
+      }
+    }
+    if (evaluation.instagramHandle) {
+      const activePipeline = await input.repos.campaignRecipients.findActiveByInstagramHandle({
+        userId: input.userId,
+        instagramHandle: evaluation.instagramHandle,
       });
       if (activePipeline) {
         skipped += 1;
@@ -247,11 +269,13 @@ async function evaluateEvergreenCampaign(input: {
         source: "campaign_scheduler.evergreen",
         evergreen: true,
         evaluatedAt: input.now.toISOString(),
-        variables: variablesForContact(contact, evaluation.phone),
+        instagramHandle: evaluation.instagramHandle,
+        variables: variablesForContact(contact, evaluation.phone, evaluation.instagramHandle),
       },
     });
     existingKeys.add(`contact:${contact.id}`);
     if (evaluation.phone) existingKeys.add(`phone:${evaluation.phone}`);
+    if (evaluation.instagramHandle) existingKeys.add(`instagram:${evaluation.instagramHandle}`);
     created += 1;
     input.result.evergreenRecipientsCreated += 1;
   }
@@ -293,7 +317,7 @@ function evaluateEvergreenContact(input: {
   campaign: Campaign;
   contact: Contact;
   existingKeys: Set<string>;
-}): { eligible: true; phone: string | null } | { eligible: false } {
+}): { eligible: true; phone: string | null; instagramHandle: string | null } | { eligible: false } {
   if (input.contact.primaryChannel !== input.campaign.channel) {
     return { eligible: false };
   }
@@ -302,7 +326,14 @@ function evaluateEvergreenContact(input: {
   }
 
   const phone = input.campaign.channel === "whatsapp" ? normalizePhone(input.contact.phone) : null;
+  const instagramHandle =
+    input.campaign.channel === "instagram"
+      ? normalizeInstagramHandle(input.contact.instagramHandle)
+      : null;
   if (input.campaign.channel === "whatsapp" && !phone) {
+    return { eligible: false };
+  }
+  if (input.campaign.channel === "instagram" && !instagramHandle) {
     return { eligible: false };
   }
   if (input.existingKeys.has(`contact:${input.contact.id}`)) {
@@ -311,7 +342,123 @@ function evaluateEvergreenContact(input: {
   if (phone && input.existingKeys.has(`phone:${phone}`)) {
     return { eligible: false };
   }
-  return { eligible: true, phone };
+  if (instagramHandle && input.existingKeys.has(`instagram:${instagramHandle}`)) {
+    return { eligible: false };
+  }
+  return { eligible: true, phone, instagramHandle };
+}
+
+interface CampaignRecipientTarget {
+  channel: "whatsapp" | "instagram";
+  phone: string | null;
+  instagramHandle: string | null;
+  externalThreadId: string;
+  title: string;
+}
+
+async function resolveRecipientTarget(input: {
+  repos: Repositories;
+  userId: number;
+  campaign: Campaign;
+  recipient: CampaignRecipient;
+  now: Date;
+  dryRun: boolean;
+  result: CampaignSchedulerTickResult;
+}): Promise<CampaignRecipientTarget | null> {
+  if (input.recipient.channel === "whatsapp") {
+    const phone = normalizePhone(input.recipient.phone);
+    if (!phone) {
+      await markRecipientSkipped(input, "missing WhatsApp phone");
+      return null;
+    }
+    return {
+      channel: "whatsapp",
+      phone,
+      instagramHandle: null,
+      externalThreadId: phone,
+      title: phone,
+    };
+  }
+
+  if (input.recipient.channel === "instagram") {
+    const instagramHandle = await resolveRecipientInstagramHandle(input);
+    if (!instagramHandle) {
+      await markRecipientSkipped(input, "missing Instagram handle");
+      return null;
+    }
+    const existingThread = await resolveExistingInstagramThread({
+      repos: input.repos,
+      userId: input.userId,
+      contactId: input.recipient.contactId,
+      instagramHandle,
+    });
+    return {
+      channel: "instagram",
+      phone: null,
+      instagramHandle,
+      externalThreadId: existingThread?.externalThreadId ?? `ig:${instagramHandle}`,
+      title: existingThread?.title ?? `@${instagramHandle}`,
+    };
+  }
+
+  await markRecipientSkipped(input, `unsupported channel: ${input.recipient.channel}`);
+  return null;
+}
+
+async function resolveExistingInstagramThread(input: {
+  repos: Repositories;
+  userId: number;
+  contactId: number | null;
+  instagramHandle: string;
+}): Promise<{ externalThreadId: string; title: string } | null> {
+  const conversations = await input.repos.conversations.list(input.userId, 1_000);
+  const byContact = input.contactId
+    ? conversations.find(
+        (conversation) =>
+          conversation.channel === "instagram" &&
+          conversation.contactId === input.contactId &&
+          !conversation.externalThreadId.startsWith("ig:"),
+      )
+    : null;
+  if (byContact) {
+    return { externalThreadId: byContact.externalThreadId, title: byContact.title };
+  }
+  const byHandle = conversations.find(
+    (conversation) =>
+      conversation.channel === "instagram" &&
+      (normalizeInstagramHandle(conversation.title) === input.instagramHandle ||
+        normalizeInstagramHandle(conversation.externalThreadId) === input.instagramHandle),
+  );
+  return byHandle ? { externalThreadId: byHandle.externalThreadId, title: byHandle.title } : null;
+}
+
+async function resolveRecipientInstagramHandle(input: {
+  repos: Repositories;
+  userId: number;
+  recipient: CampaignRecipient;
+}): Promise<string | null> {
+  const fromMetadata = normalizeInstagramHandle(
+    stringFromUnknown(input.recipient.metadata.instagramHandle),
+  );
+  if (fromMetadata) {
+    return fromMetadata;
+  }
+  if (!input.recipient.contactId) {
+    return null;
+  }
+  const contact = await input.repos.contacts.findById(input.recipient.contactId);
+  if (!contact || contact.userId !== input.userId) {
+    return null;
+  }
+  return normalizeInstagramHandle(contact.instagramHandle);
+}
+
+function recipientTargetKey(
+  target: Pick<CampaignRecipientTarget, "channel" | "phone" | "instagramHandle">,
+): string {
+  return target.channel === "instagram"
+    ? `ig:${target.instagramHandle ?? ""}`
+    : `wa:${target.phone ?? ""}`;
 }
 
 async function enqueueRecipientNextStep(input: {
@@ -331,14 +478,8 @@ async function enqueueRecipientNextStep(input: {
       return;
     }
 
-    if (input.recipient.channel !== "whatsapp") {
-      await markRecipientSkipped(input, `unsupported channel: ${input.recipient.channel}`);
-      return;
-    }
-
-    const phone = normalizePhone(input.recipient.phone);
-    if (!phone) {
-      await markRecipientSkipped(input, "missing WhatsApp phone");
+    const target = await resolveRecipientTarget(input);
+    if (!target) {
       return;
     }
 
@@ -388,7 +529,9 @@ async function enqueueRecipientNextStep(input: {
         recipientId: input.recipient.id,
         stepId: item.step.id,
         stepType: item.step.type,
-        phone,
+        phone: target.phone,
+        instagramHandle: target.instagramHandle,
+        targetKey: recipientTargetKey(target),
         scheduledAt: item.scheduledAt,
         isLastStep: item.isLastStep,
         variantId: abVariant?.id ?? null,
@@ -405,14 +548,14 @@ async function enqueueRecipientNextStep(input: {
 
     const existingConversation = await input.repos.conversations.findByExternalThread({
       userId: input.userId,
-      channel: "whatsapp",
-      externalThreadId: phone,
+      channel: target.channel,
+      externalThreadId: target.externalThreadId,
     });
     const conversation = await input.repos.conversations.upsertObserved({
       userId: input.userId,
-      channel: "whatsapp",
-      externalThreadId: phone,
-      title: usefulConversationTitle(existingConversation?.title) ?? phone,
+      channel: target.channel,
+      externalThreadId: target.externalThreadId,
+      title: usefulConversationTitle(existingConversation?.title) ?? target.title,
       contactId: input.recipient.contactId,
     });
     const batchId = `campaign:${input.campaign.id}:recipient:${input.recipient.id}:batch:${input.now.getTime()}`;
@@ -433,9 +576,12 @@ async function enqueueRecipientNextStep(input: {
           campaignId: input.campaign.id,
           recipientId: input.recipient.id,
           conversationId: conversation.id,
-          phone,
+          phone: target.phone,
+          instagramHandle: target.instagramHandle,
+          recipientNormalizedValue: target.instagramHandle ?? target.phone,
+          recipientTargetKey: recipientTargetKey(target),
           step: jsonObjectFromStep(item.step),
-          variables: variablesForRecipient(input.recipient, phone),
+          variables: variablesForRecipient(input.recipient, target),
           isLastStep: item.isLastStep,
           variantId: abVariant?.id ?? null,
           variantLabel: abVariant?.label ?? null,
@@ -483,6 +629,12 @@ async function enqueueRecipientNextStep(input: {
             stepTypes: createdJobs.map((item) => item.step.type),
             batchId,
             batchSize: createdJobs.length,
+            channel: target.channel,
+            conversationId: conversation.id,
+            externalThreadId: conversation.externalThreadId,
+            targetKey: recipientTargetKey(target),
+            phone: target.phone,
+            instagramHandle: target.instagramHandle,
             variantId: abVariant?.id ?? null,
             variantLabel: abVariant?.label ?? null,
             temporaryMessages: temporaryMessages ? true : false,
@@ -561,10 +713,18 @@ function isRunnableCampaign(campaign: Campaign, now: Date): boolean {
   if (campaign.status !== "running" && campaign.status !== "scheduled") {
     return false;
   }
+  if (hasLegacyStepNormalization(campaign)) {
+    return false;
+  }
   if (!campaign.startsAt) {
     return true;
   }
   return new Date(campaign.startsAt).getTime() <= now.getTime();
+}
+
+function hasLegacyStepNormalization(campaign: Campaign): boolean {
+  const value = campaign.metadata.legacyStepNormalization;
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
 function nextStepForRecipient(
@@ -647,25 +807,33 @@ function temporaryMessagesConfigFromCampaign(
 
 function variablesForRecipient(
   recipient: CampaignRecipient,
-  phone: string,
+  target: { phone: string | null; instagramHandle: string | null },
 ): Record<string, string> {
   const variables = objectRecord(recipient.metadata.variables);
   return {
-    telefone: phone,
-    phone,
+    telefone: target.phone ?? "",
+    phone: target.phone ?? "",
+    instagram: target.instagramHandle ?? "",
+    instagramHandle: target.instagramHandle ?? "",
     ...Object.fromEntries(
       Object.entries(variables).map(([key, value]) => [key, String(value ?? "")]),
     ),
   };
 }
 
-function variablesForContact(contact: Contact, phone: string | null): Record<string, string> {
+function variablesForContact(
+  contact: Contact,
+  phone: string | null,
+  instagramHandle: string | null = normalizeInstagramHandle(contact.instagramHandle),
+): Record<string, string> {
   return {
     nome: contact.name,
     name: contact.name,
     telefone: phone ?? contact.phone ?? "",
     phone: phone ?? contact.phone ?? "",
     email: contact.email ?? "",
+    instagram: instagramHandle ?? "",
+    instagramHandle: instagramHandle ?? "",
   };
 }
 
@@ -697,6 +865,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function numberFromUnknown(value: unknown): number | null {
   const number = typeof value === "number" ? value : Number(value);
   return Number.isInteger(number) && number > 0 ? number : null;
+}
+
+function stringFromUnknown(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizeInstagramHandle(value: string | null | undefined): string | null {
+  const cleaned = String(value ?? "")
+    .trim()
+    .replace(/^ig:/i, "")
+    .replace(/^@+/, "")
+    .toLowerCase();
+  return /^[a-z0-9._]{1,30}$/.test(cleaned) ? cleaned : null;
 }
 
 function numericArrayFromUnknown(value: unknown): number[] {

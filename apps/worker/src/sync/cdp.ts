@@ -7,13 +7,19 @@ import CDP from "chrome-remote-interface";
 import type { Logger } from "pino";
 
 import { CONSTANTS, type WorkerEnv } from "@nuoma/config";
-import { normalizePhone } from "@nuoma/contracts";
+import { normalizePhone, normalizeWaJid } from "@nuoma/contracts";
 import type { Repositories } from "@nuoma/db";
 
 import {
   NUOMA_OVERLAY_API_BINDING_NAME,
+  NUOMA_OVERLAY_NATIVE_BRIDGE_NAME,
   createNuomaOverlayScript,
 } from "../features/overlay/inject.js";
+import {
+  isWithin24hWindow,
+  listOverlayAutomationOptions,
+  runOverlayAutomationNow,
+} from "../../../api/src/services/overlay-automations.js";
 import {
   listOverlayCampaignOptions,
   runOverlayCampaignNow,
@@ -56,6 +62,43 @@ export interface SyncEngineRuntime {
 }
 
 type CdpClient = CDP.Client;
+export const PROFILE_PHOTO_SEEN_BY_THREAD_CAP = 500;
+
+export function getProfilePhotoSeenByThread(
+  seenByThread: Map<string, string>,
+  threadKey: string,
+): string | undefined {
+  const value = seenByThread.get(threadKey);
+  if (value === undefined) {
+    return undefined;
+  }
+  seenByThread.delete(threadKey);
+  seenByThread.set(threadKey, value);
+  return value;
+}
+
+export function setProfilePhotoSeenByThread(
+  seenByThread: Map<string, string>,
+  threadKey: string,
+  sha256: string,
+  cap = PROFILE_PHOTO_SEEN_BY_THREAD_CAP,
+): void {
+  if (cap <= 0) {
+    seenByThread.clear();
+    return;
+  }
+  if (seenByThread.has(threadKey)) {
+    seenByThread.delete(threadKey);
+  }
+  seenByThread.set(threadKey, sha256);
+  while (seenByThread.size > cap) {
+    const oldestKey = seenByThread.keys().next().value;
+    if (oldestKey === undefined) {
+      break;
+    }
+    seenByThread.delete(oldestKey);
+  }
+}
 
 export interface SyncForceConversationInput {
   userId: number;
@@ -176,6 +219,7 @@ interface BrowserProfilePhotoSnapshot {
 interface OverlayThreadState {
   mounted: boolean;
   phone: string | null;
+  waJid: string | null;
   phoneSource: string | null;
   title: string | null;
 }
@@ -359,7 +403,7 @@ export async function startSyncEngine(input: {
 
   if (!input.env.WORKER_SYNC_ENABLED) {
     input.logger.info("worker sync disabled by WORKER_SYNC_ENABLED=false");
-    return disabledRuntime(metrics);
+    return disabledRuntime(metrics, () => handler.close());
   }
 
   let client: CdpClient | null = null;
@@ -387,6 +431,7 @@ export async function startSyncEngine(input: {
       expression: `
         (() => {
           delete window.${NUOMA_OVERLAY_API_BINDING_NAME};
+          delete window.${NUOMA_OVERLAY_NATIVE_BRIDGE_NAME};
           delete window.__nuomaApiResolve;
           if (window.__nuomaOverlayState && typeof window.__nuomaOverlayState === "object") {
             window.__nuomaOverlayState.apiBridge = null;
@@ -405,6 +450,14 @@ export async function startSyncEngine(input: {
     }).catch(() => undefined);
     await client.Runtime.addBinding({ name: SYNC_BINDING_NAME });
     await client.Runtime.addBinding({ name: NUOMA_OVERLAY_API_BINDING_NAME });
+    const overlayBridgePrelude = `
+      (() => {
+        if (typeof window.${NUOMA_OVERLAY_API_BINDING_NAME} === "function") {
+          window.${NUOMA_OVERLAY_NATIVE_BRIDGE_NAME} = window.${NUOMA_OVERLAY_API_BINDING_NAME}.bind(window);
+        }
+        return true;
+      })()
+    `;
 
     client.on("Runtime.bindingCalled", (params: { name: string; payload: string }) => {
       if (params.name === NUOMA_OVERLAY_API_BINDING_NAME) {
@@ -452,9 +505,15 @@ export async function startSyncEngine(input: {
     });
 
     await client.Page.addScriptToEvaluateOnNewDocument({ source: observerSource });
+    await client.Page.addScriptToEvaluateOnNewDocument({ source: overlayBridgePrelude });
     await client.Page.addScriptToEvaluateOnNewDocument({ source: overlaySource });
     await client.Runtime.evaluate({
       expression: observerSource,
+      awaitPromise: false,
+      includeCommandLineAPI: false,
+    });
+    await client.Runtime.evaluate({
+      expression: overlayBridgePrelude,
       awaitPromise: false,
       includeCommandLineAPI: false,
     });
@@ -564,14 +623,18 @@ export async function startSyncEngine(input: {
       if (request.method === "contactSummary") {
         const title = stringValue(request.params.title);
         auditPhoneSource = stringValue(request.params.phoneSource);
+        const overlayThread = await readOverlayThreadState();
+        const waJid =
+          normalizeWaJid(stringValue(request.params.waJid)) ?? normalizeWaJid(overlayThread.waJid);
         const phone =
           normalizePhone(stringValue(request.params.phone)) ??
-          normalizePhone(title) ??
-          normalizePhone((await readOverlayThreadState()).phone);
+          normalizePhone(waJid) ??
+          normalizePhone(overlayThread.phone);
         auditPhone = phone;
         const snapshot = await buildOverlaySnapshot({
           userId: CONSTANTS.defaultUserId,
           phone,
+          waJid,
           phoneSource: auditPhoneSource,
           title,
           reason: `overlay-api:${request.method}`,
@@ -599,10 +662,13 @@ export async function startSyncEngine(input: {
       if (request.method === "forceConversationSync") {
         const title = stringValue(request.params.title);
         auditPhoneSource = stringValue(request.params.phoneSource);
+        const overlayThread = await readOverlayThreadState();
+        const waJid =
+          normalizeWaJid(stringValue(request.params.waJid)) ?? normalizeWaJid(overlayThread.waJid);
         const phone =
           normalizePhone(stringValue(request.params.phone)) ??
-          normalizePhone(title) ??
-          normalizePhone((await readOverlayThreadState()).phone);
+          normalizePhone(waJid) ??
+          normalizePhone(overlayThread.phone);
         auditPhone = phone;
         const conversationId = positiveIntegerValue(request.params.conversationId);
         const result = await forceConversation({
@@ -619,6 +685,7 @@ export async function startSyncEngine(input: {
         const snapshot = await buildOverlaySnapshot({
           userId: CONSTANTS.defaultUserId,
           phone: result.phone ?? phone,
+          waJid,
           phoneSource: auditPhoneSource,
           title,
           reason: `overlay-api:${request.method}:after`,
@@ -649,11 +716,27 @@ export async function startSyncEngine(input: {
       if (request.method === "runCampaignForPhone") {
         const title = stringValue(request.params.title);
         auditPhoneSource = stringValue(request.params.phoneSource);
-        const phone =
-          normalizePhone(stringValue(request.params.phone)) ??
-          normalizePhone(title) ??
-          normalizePhone((await readOverlayThreadState()).phone);
+        const overlayThread = await readOverlayThreadState();
+        const target = resolveOverlayMutationTarget(request, overlayThread);
+        if (!target.ok) {
+          await resolveOverlayApiRequest(request.id, {
+            ok: false,
+            error: { code: target.errorCode, message: target.errorMessage },
+          });
+          await auditOverlayApiRequest({
+            request,
+            ok: false,
+            phone: auditPhone,
+            phoneSource: auditPhoneSource,
+            latencyMs: Date.now() - startedAt,
+            errorCode: target.errorCode,
+            errorMessage: target.errorMessage,
+          });
+          return;
+        }
+        const { phone, waJid } = target;
         auditPhone = phone;
+        auditPhoneSource = target.phoneSource;
         const campaignId = positiveIntegerValue(request.params.campaignId);
         if (!campaignId) {
           await resolveOverlayApiRequest(request.id, {
@@ -685,6 +768,7 @@ export async function startSyncEngine(input: {
         const snapshot = await buildOverlaySnapshot({
           userId: CONSTANTS.defaultUserId,
           phone: result.phone ?? phone,
+          waJid,
           phoneSource: auditPhoneSource,
           title,
           reason: `overlay-api:${request.method}:after`,
@@ -721,6 +805,110 @@ export async function startSyncEngine(input: {
           latencyMs: Date.now() - startedAt,
           errorCode: ok ? undefined : (result.rejected[0]?.reason ?? "campaign_blocked"),
           errorMessage: ok ? undefined : "Overlay campaign dispatch blocked",
+        });
+        return;
+      }
+
+      if (request.method === "runAutomationForPhone") {
+        const title = stringValue(request.params.title);
+        auditPhoneSource = stringValue(request.params.phoneSource);
+        const overlayThread = await readOverlayThreadState();
+        const target = resolveOverlayMutationTarget(request, overlayThread);
+        if (!target.ok) {
+          await resolveOverlayApiRequest(request.id, {
+            ok: false,
+            error: { code: target.errorCode, message: target.errorMessage },
+          });
+          await auditOverlayApiRequest({
+            request,
+            ok: false,
+            phone: auditPhone,
+            phoneSource: auditPhoneSource,
+            latencyMs: Date.now() - startedAt,
+            errorCode: target.errorCode,
+            errorMessage: target.errorMessage,
+          });
+          return;
+        }
+        const { phone, waJid } = target;
+        auditPhone = phone;
+        auditPhoneSource = target.phoneSource;
+        const automationId = positiveIntegerValue(request.params.automationId);
+        if (!automationId) {
+          await resolveOverlayApiRequest(request.id, {
+            ok: false,
+            error: { code: "invalid_automation", message: "Automation id is required" },
+          });
+          await auditOverlayApiRequest({
+            request,
+            ok: false,
+            phone: auditPhone,
+            phoneSource: auditPhoneSource,
+            latencyMs: Date.now() - startedAt,
+            errorCode: "invalid_automation",
+            errorMessage: "Automation id is required",
+          });
+          return;
+        }
+        const conversation = await findOverlayConversation({
+          userId: CONSTANTS.defaultUserId,
+          phone,
+          waJid,
+        });
+        const result = await runOverlayAutomationNow({
+          repos: input.repos,
+          userId: CONSTANTS.defaultUserId,
+          automationId,
+          phone,
+          sendPolicy: resolveWorkerOverlaySendPolicy(),
+          conversationId: conversation?.id ?? null,
+          within24hWindow: isWithin24hWindow(conversation?.lastMessageAt),
+          source: "worker.overlay",
+          idempotencyKey: request.mutation?.idempotencyKey ?? null,
+        });
+        const ok = result.eligible && result.rejected.length === 0;
+        const snapshot = await buildOverlaySnapshot({
+          userId: CONSTANTS.defaultUserId,
+          phone: result.phone ?? phone,
+          waJid,
+          phoneSource: auditPhoneSource,
+          title,
+          reason: `overlay-api:${request.method}:after`,
+        });
+        await resolveOverlayApiRequest(request.id, {
+          ok,
+          data: {
+            result,
+            snapshot: {
+              ...snapshot,
+              source: "worker-db",
+              apiStatus: ok ? "online" : "error",
+              apiLastMethod: request.method,
+              apiLastError: ok ? null : (result.rejected[0]?.reason ?? "automation_blocked"),
+              automationRunStatus: ok ? "done" : "error",
+              automationRunLastResult: result,
+              automationRunLastError: ok
+                ? null
+                : (result.rejected[0]?.reason ?? "automation_blocked"),
+            },
+          },
+          ...(ok
+            ? {}
+            : {
+                error: {
+                  code: result.rejected[0]?.reason ?? "automation_blocked",
+                  message: "Automacao bloqueada pelos guardrails.",
+                },
+              }),
+        });
+        await auditOverlayApiRequest({
+          request,
+          ok,
+          phone: auditPhone,
+          phoneSource: auditPhoneSource,
+          latencyMs: Date.now() - startedAt,
+          errorCode: ok ? undefined : (result.rejected[0]?.reason ?? "automation_blocked"),
+          errorMessage: ok ? undefined : "Overlay automation dispatch blocked",
         });
         return;
       }
@@ -919,7 +1107,7 @@ export async function startSyncEngine(input: {
         return;
       }
       const threadKey = profileThreadKey(snapshot.thread ?? thread);
-      if (profilePhotoSeenByThread.get(threadKey) === snapshot.sha256) {
+      if (getProfilePhotoSeenByThread(profilePhotoSeenByThread, threadKey) === snapshot.sha256) {
         return;
       }
 
@@ -958,7 +1146,7 @@ export async function startSyncEngine(input: {
           captureMode: "cdp-header-image",
         },
       });
-      profilePhotoSeenByThread.set(threadKey, sha256);
+      setProfilePhotoSeenByThread(profilePhotoSeenByThread, threadKey, sha256);
       syncMetrics(metrics, handler.metrics);
     } catch (error) {
       input.logger.debug({ error, thread }, "profile photo capture skipped");
@@ -974,10 +1162,12 @@ export async function startSyncEngine(input: {
       if (!thread.mounted) {
         return;
       }
-      const phone = normalizePhone(thread.phone) ?? normalizePhone(thread.title);
+      const waJid = normalizeWaJid(thread.waJid ?? thread.phone);
+      const phone = normalizePhone(thread.phone) ?? normalizePhone(waJid);
       const snapshot = await buildOverlaySnapshot({
         userId: CONSTANTS.defaultUserId,
         phone,
+        waJid,
         phoneSource: thread.phoneSource,
         title: thread.title,
         reason,
@@ -1002,18 +1192,19 @@ export async function startSyncEngine(input: {
 
   async function readOverlayThreadState(): Promise<OverlayThreadState> {
     if (!client) {
-      return { mounted: false, phone: null, phoneSource: null, title: null };
+      return { mounted: false, phone: null, waJid: null, phoneSource: null, title: null };
     }
     const result = await client.Runtime.evaluate({
       expression: `
         (() => {
           if (typeof window.__nuomaOverlayRefresh !== "function") {
-            return { mounted: false, phone: null, title: null };
+              return { mounted: false, phone: null, waJid: null, title: null };
           }
           const state = window.__nuomaOverlayRefresh();
           return {
             mounted: Boolean(state && state.mounted),
             phone: state && typeof state.phone === "string" ? state.phone : null,
+            waJid: state && typeof state.waJid === "string" ? state.waJid : null,
             phoneSource: state && typeof state.phoneSource === "string" ? state.phoneSource : null,
             title: state && typeof state.title === "string" ? state.title : null
           };
@@ -1025,13 +1216,17 @@ export async function startSyncEngine(input: {
     });
     const value = result.result.value;
     if (typeof value !== "object" || value === null) {
-      return { mounted: false, phone: null, phoneSource: null, title: null };
+      return { mounted: false, phone: null, waJid: null, phoneSource: null, title: null };
     }
     return {
       mounted: Boolean((value as { mounted?: unknown }).mounted),
       phone:
         typeof (value as { phone?: unknown }).phone === "string"
           ? (value as { phone: string }).phone || null
+          : null,
+      waJid:
+        typeof (value as { waJid?: unknown }).waJid === "string"
+          ? (value as { waJid: string }).waJid || null
           : null,
       phoneSource:
         typeof (value as { phoneSource?: unknown }).phoneSource === "string"
@@ -1044,39 +1239,116 @@ export async function startSyncEngine(input: {
     };
   }
 
+  function resolveOverlayMutationTarget(
+    request: OverlayApiRequest,
+    thread: OverlayThreadState,
+  ):
+    | { ok: true; phone: string | null; waJid: string | null; phoneSource: string | null }
+    | { ok: false; errorCode: string; errorMessage: string } {
+    if (!thread.mounted) {
+      return {
+        ok: false,
+        errorCode: "overlay_thread_unavailable",
+        errorMessage: "Overlay thread is not mounted",
+      };
+    }
+    const requestedWaJid = normalizeWaJid(stringValue(request.params.waJid));
+    const requestedPhone =
+      normalizePhone(stringValue(request.params.phone)) ?? normalizePhone(requestedWaJid);
+    const liveWaJid = normalizeWaJid(thread.waJid ?? thread.phone);
+    const livePhone = normalizePhone(thread.phone) ?? normalizePhone(liveWaJid);
+    if (requestedPhone && livePhone && requestedPhone !== livePhone) {
+      return {
+        ok: false,
+        errorCode: "overlay_thread_mismatch",
+        errorMessage: "Requested phone does not match current overlay thread",
+      };
+    }
+    if (requestedWaJid && liveWaJid && requestedWaJid !== liveWaJid) {
+      return {
+        ok: false,
+        errorCode: "overlay_thread_mismatch",
+        errorMessage: "Requested WhatsApp identity does not match current overlay thread",
+      };
+    }
+    const phone = livePhone ?? requestedPhone;
+    const waJid = liveWaJid ?? requestedWaJid;
+    if (!phone && !waJid) {
+      return {
+        ok: false,
+        errorCode: "invalid_phone",
+        errorMessage: "Current overlay thread does not expose a valid phone",
+      };
+    }
+    return {
+      ok: true,
+      phone,
+      waJid,
+      phoneSource: thread.phoneSource ?? stringValue(request.params.phoneSource),
+    };
+  }
+
+  async function findOverlayConversation(inputConversation: {
+    userId: number;
+    phone: string | null;
+    waJid: string | null;
+  }) {
+    const waJid = normalizeWaJid(inputConversation.waJid ?? inputConversation.phone);
+    const phone = normalizePhone(inputConversation.phone) ?? normalizePhone(waJid);
+    if (waJid) {
+      const conversation = await input.repos.conversations.findByWaJid({
+        userId: inputConversation.userId,
+        waJid,
+      });
+      if (conversation) return conversation;
+    }
+    const conversations = await input.repos.conversations.list(inputConversation.userId, 100);
+    return (
+      conversations.find((conversation) => {
+        if (waJid) {
+          const conversationWaJid =
+            normalizeWaJid(conversation.waJid) ?? normalizeWaJid(conversation.externalThreadId);
+          if (conversationWaJid === waJid) {
+            return true;
+          }
+        }
+        return Boolean(phone && normalizePhone(conversation.externalThreadId) === phone);
+      }) ?? null
+    );
+  }
+
   async function buildOverlaySnapshot(inputSnapshot: {
     userId: number;
     phone: string | null;
+    waJid: string | null;
     phoneSource: string | null;
     title: string | null;
     reason: string;
   }) {
-    let phone = inputSnapshot.phone;
+    const waJid = normalizeWaJid(inputSnapshot.waJid ?? inputSnapshot.phone);
+    let phone = inputSnapshot.phone ?? normalizePhone(waJid);
     const title = stringValue(inputSnapshot.title);
-    const titleConversation =
-      !phone && title
-        ? await input.repos.conversations.findActiveByTitle({
+    const identityConversation = waJid
+      ? await input.repos.conversations.findByWaJid({
+          userId: inputSnapshot.userId,
+          waJid,
+        })
+      : null;
+    let contact =
+      phone || waJid
+        ? await input.repos.contacts.findByIdentity({
             userId: inputSnapshot.userId,
-            channel: "whatsapp",
-            title,
+            phone,
+            waJid,
           })
         : null;
-    let contact = phone
-      ? await input.repos.contacts.findByPhone({ userId: inputSnapshot.userId, phone })
-      : null;
-    if (!contact && titleConversation?.contactId) {
-      contact = await input.repos.contacts.findById(titleConversation.contactId);
+    if (!contact && identityConversation?.contactId) {
+      contact = await input.repos.contacts.findById(identityConversation.contactId);
     }
-    phone =
-      phone ??
-      normalizePhone(contact?.phone) ??
-      normalizePhone(titleConversation?.externalThreadId) ??
-      normalizePhone(titleConversation?.title);
+    phone = phone ?? normalizePhone(contact?.phone) ?? normalizePhone(contact?.waJid);
     const phoneSource =
-      phone &&
-      titleConversation &&
-      (!inputSnapshot.phoneSource || inputSnapshot.phoneSource === "unresolved")
-        ? "title-conversation"
+      phone && waJid && (!inputSnapshot.phoneSource || inputSnapshot.phoneSource === "unresolved")
+        ? "wa-jid"
         : inputSnapshot.phoneSource;
     const allConversations = await input.repos.conversations.list(inputSnapshot.userId, 100);
     const conversations = allConversations
@@ -1084,15 +1356,17 @@ export async function startSyncEngine(input: {
         if (contact && conversation.contactId === contact.id) {
           return true;
         }
-        if (titleConversation && conversation.id === titleConversation.id) {
+        if (identityConversation && conversation.id === identityConversation.id) {
           return true;
         }
-        if (!phone) {
+        if (!phone && !waJid) {
           return false;
         }
         return (
-          normalizePhone(conversation.externalThreadId) === phone ||
-          normalizePhone(conversation.title) === phone
+          (waJid !== null &&
+            (normalizeWaJid(conversation.waJid) === waJid ||
+              normalizeWaJid(conversation.externalThreadId) === waJid)) ||
+          (phone !== null && normalizePhone(conversation.externalThreadId) === phone)
         );
       })
       .slice(0, 4);
@@ -1110,21 +1384,35 @@ export async function startSyncEngine(input: {
     )
       .flat()
       .slice(0, 3);
-    const automations = (await input.repos.automations.list(inputSnapshot.userId))
-      .filter(
-        (automation) =>
-          automation.status === "active" &&
-          (!automation.trigger.channel ||
-            !contact?.primaryChannel ||
-            automation.trigger.channel === contact.primaryChannel),
-      )
-      .slice(0, 4);
+    const within24hWindow = conversations.some((conversation) =>
+      isWithin24hWindow(conversation.lastMessageAt),
+    );
+    const automations = await listOverlayAutomationOptions({
+      repos: input.repos,
+      userId: inputSnapshot.userId,
+      phone,
+      sendPolicy: resolveWorkerOverlaySendPolicy(),
+      within24hWindow,
+      limit: 5,
+    }).catch((error: unknown) => {
+      input.logger.warn(
+        { error },
+        "overlay automation options unavailable; continuing contact summary",
+      );
+      return [];
+    });
     const campaigns = await listOverlayCampaignOptions({
       repos: input.repos,
       userId: inputSnapshot.userId,
       phone,
       sendPolicy: resolveWorkerOverlaySendPolicy(),
       limit: 5,
+    }).catch((error: unknown) => {
+      input.logger.warn(
+        { error },
+        "overlay campaign options unavailable; continuing contact summary",
+      );
+      return [];
     });
 
     return {
@@ -1151,12 +1439,7 @@ export async function startSyncEngine(input: {
         contentType: message.contentType,
         observedAtUtc: message.observedAtUtc,
       })),
-      automations: automations.map((automation) => ({
-        id: automation.id,
-        name: automation.name,
-        category: automation.category,
-        status: automation.status,
-      })),
+      automations,
       campaigns,
       notes: contact?.notes ?? null,
       source: "worker-db",
@@ -1276,8 +1559,9 @@ export async function startSyncEngine(input: {
       : null;
     const phone =
       normalizePhone(forceInput.phone) ??
+      normalizePhone(conversation?.waJid) ??
       normalizePhone(conversation?.externalThreadId) ??
-      normalizePhone(conversation?.title);
+      null;
     metrics.lastForcedConversationId = conversation?.id ?? forceInput.conversationId ?? null;
 
     if (!client) {
@@ -4142,6 +4426,7 @@ export async function startSyncEngine(input: {
       if (reconcileTimer) {
         clearInterval(reconcileTimer);
       }
+      handler.close();
       await client?.close();
       metrics.connected = false;
     },
@@ -4320,7 +4605,7 @@ async function scoreSyncTarget(env: WorkerEnv, target: CDP.Target): Promise<numb
   }
 }
 
-function disabledRuntime(metrics: SyncEngineMetrics): SyncEngineRuntime {
+function disabledRuntime(metrics: SyncEngineMetrics, closeHandler?: () => void): SyncEngineRuntime {
   return {
     connected: false,
     metrics,
@@ -4342,7 +4627,9 @@ function disabledRuntime(metrics: SyncEngineMetrics): SyncEngineRuntime {
     sendMediaMessage: async () => {
       throw new Error("sync engine is disabled");
     },
-    close: async () => {},
+    close: async () => {
+      closeHandler?.();
+    },
   };
 }
 
@@ -5346,6 +5633,10 @@ function parseBrowserThread(value: unknown): SyncThreadRef | null {
   return {
     channel,
     externalThreadId,
+    waJid:
+      typeof value.waJid === "string"
+        ? normalizeWaJid(value.waJid)
+        : normalizeWaJid(externalThreadId),
     title:
       typeof value.title === "string" && value.title.length > 0 ? value.title : externalThreadId,
     phone: typeof value.phone === "string" && value.phone.length > 0 ? value.phone : null,
@@ -5387,6 +5678,7 @@ function mediaStorageRoot(databaseUrl: string): string {
 
 function profileThreadKey(thread: SyncThreadRef): string {
   return (
+    thread.waJid ??
     normalizePhone(thread.phone) ??
     normalizePhone(thread.externalThreadId) ??
     thread.externalThreadId

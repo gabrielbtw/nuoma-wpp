@@ -37,12 +37,16 @@
       };
     }
 
-    if (request.method !== "contactSummary" && request.method !== "runCampaignForPhone") {
+    if (
+      request.method !== "contactSummary" &&
+      request.method !== "runCampaignForPhone" &&
+      request.method !== "runAutomationForPhone"
+    ) {
       return {
         ok: false,
         error: {
           code: "unsupported_method",
-          message: "Mutacoes do overlay continuam restritas ao worker/CDP.",
+          message: "Metodo do overlay nao suportado pela extensao.",
         },
       };
     }

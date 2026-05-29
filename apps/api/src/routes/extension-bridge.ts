@@ -2,9 +2,14 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import type { ApiEnv } from "@nuoma/config";
+import { normalizePhone, normalizeWaJid } from "@nuoma/contracts";
 import type { Repositories } from "@nuoma/db";
 
 import { buildExtensionOverlaySnapshot } from "../services/extension-overlay.js";
+import {
+  isWithin24hWindow,
+  runOverlayAutomationNow,
+} from "../services/overlay-automations.js";
 import { runOverlayCampaignNow } from "../services/overlay-campaigns.js";
 import { resolveApiSendPolicy } from "../services/send-policy.js";
 import { verifyAccessToken, type AuthUser } from "../trpc/auth.js";
@@ -59,6 +64,9 @@ export async function registerExtensionBridgeRoutes(
     const startedAt = Date.now();
     const overlayRequest = parsed.data;
     const phone = stringValue(overlayRequest.params.phone);
+    const waJid = stringValue(overlayRequest.params.waJid);
+    const targetIdentity = resolveOverlayRequestIdentity(phone, waJid);
+    const targetPhone = targetIdentity.ok ? targetIdentity.phone : null;
     const phoneSource = stringValue(overlayRequest.params.phoneSource);
     const sendPolicy = resolveApiSendPolicy(deps.env);
     try {
@@ -70,6 +78,7 @@ export async function registerExtensionBridgeRoutes(
           ok: true,
           latencyMs: Date.now() - startedAt,
           phone,
+          waJid,
           phoneSource,
         });
         return reply.send({
@@ -88,6 +97,7 @@ export async function registerExtensionBridgeRoutes(
           repos: deps.repos,
           userId: user.id,
           phone,
+          waJid,
           phoneSource,
           title: stringValue(overlayRequest.params.title),
           reason: stringValue(overlayRequest.params.reason) ?? "chrome-extension",
@@ -101,6 +111,7 @@ export async function registerExtensionBridgeRoutes(
           latencyMs: Date.now() - startedAt,
           phone: snapshot.phone,
           phoneSource: snapshot.phoneSource,
+          waJid: snapshot.waJid,
         });
         return reply.send({
           ok: true,
@@ -123,6 +134,7 @@ export async function registerExtensionBridgeRoutes(
             ok: false,
             latencyMs: Date.now() - startedAt,
             phone,
+            waJid,
             phoneSource,
             errorCode: mutationCheck.errorCode,
             errorMessage: mutationCheck.errorMessage,
@@ -132,6 +144,27 @@ export async function registerExtensionBridgeRoutes(
             error: {
               code: mutationCheck.errorCode,
               message: mutationCheck.errorMessage,
+            },
+          });
+        }
+        if (!targetIdentity.ok) {
+          await auditExtensionOverlayRequest({
+            repos: deps.repos,
+            userId: user.id,
+            request: overlayRequest,
+            ok: false,
+            latencyMs: Date.now() - startedAt,
+            phone,
+            waJid,
+            phoneSource,
+            errorCode: targetIdentity.errorCode,
+            errorMessage: targetIdentity.errorMessage,
+          });
+          return reply.code(400).send({
+            ok: false,
+            error: {
+              code: targetIdentity.errorCode,
+              message: targetIdentity.errorMessage,
             },
           });
         }
@@ -146,7 +179,7 @@ export async function registerExtensionBridgeRoutes(
           repos: deps.repos,
           userId: user.id,
           campaignId,
-          phone,
+          phone: targetPhone,
           sendPolicy,
           ownerId: `extension-overlay:${user.id}`,
           source: "extension.overlay",
@@ -155,7 +188,8 @@ export async function registerExtensionBridgeRoutes(
         const snapshot = await buildExtensionOverlaySnapshot({
           repos: deps.repos,
           userId: user.id,
-          phone: result.phone ?? phone,
+          phone: result.phone ?? targetPhone,
+          waJid,
           phoneSource,
           title: stringValue(overlayRequest.params.title),
           reason: "chrome-extension:runCampaignForPhone",
@@ -168,9 +202,9 @@ export async function registerExtensionBridgeRoutes(
           request: overlayRequest,
           ok,
           latencyMs: Date.now() - startedAt,
-          phone: result.phone ?? phone,
+          phone: result.phone ?? targetPhone,
           phoneSource,
-          errorCode: ok ? undefined : result.rejected[0]?.reason ?? "campaign_blocked",
+          errorCode: ok ? undefined : (result.rejected[0]?.reason ?? "campaign_blocked"),
           errorMessage: ok ? undefined : "Overlay campaign dispatch blocked",
         });
         return reply.send({
@@ -181,7 +215,7 @@ export async function registerExtensionBridgeRoutes(
               ...snapshot,
               apiStatus: ok ? "online" : "error",
               apiLastMethod: overlayRequest.method,
-              apiLastError: ok ? null : result.rejected[0]?.reason ?? "campaign_blocked",
+              apiLastError: ok ? null : (result.rejected[0]?.reason ?? "campaign_blocked"),
             },
           },
           ...(ok
@@ -195,6 +229,123 @@ export async function registerExtensionBridgeRoutes(
         });
       }
 
+      if (overlayRequest.method === "runAutomationForPhone") {
+        const mutationCheck = validateOverlayMutation(overlayRequest);
+        if (!mutationCheck.ok) {
+          await auditExtensionOverlayRequest({
+            repos: deps.repos,
+            userId: user.id,
+            request: overlayRequest,
+            ok: false,
+            latencyMs: Date.now() - startedAt,
+            phone,
+            waJid,
+            phoneSource,
+            errorCode: mutationCheck.errorCode,
+            errorMessage: mutationCheck.errorMessage,
+          });
+          return reply.code(400).send({
+            ok: false,
+            error: {
+              code: mutationCheck.errorCode,
+              message: mutationCheck.errorMessage,
+            },
+          });
+        }
+        if (!targetIdentity.ok) {
+          await auditExtensionOverlayRequest({
+            repos: deps.repos,
+            userId: user.id,
+            request: overlayRequest,
+            ok: false,
+            latencyMs: Date.now() - startedAt,
+            phone,
+            waJid,
+            phoneSource,
+            errorCode: targetIdentity.errorCode,
+            errorMessage: targetIdentity.errorMessage,
+          });
+          return reply.code(400).send({
+            ok: false,
+            error: {
+              code: targetIdentity.errorCode,
+              message: targetIdentity.errorMessage,
+            },
+          });
+        }
+        const automationId = positiveIntegerValue(overlayRequest.params.automationId);
+        if (!automationId) {
+          return reply.code(400).send({
+            ok: false,
+            error: { code: "invalid_automation", message: "Automation id is required" },
+          });
+        }
+        const conversation = await findExtensionOverlayConversation({
+          repos: deps.repos,
+          userId: user.id,
+          phone: targetPhone,
+          waJid,
+        });
+        const result = await runOverlayAutomationNow({
+          repos: deps.repos,
+          userId: user.id,
+          automationId,
+          phone: targetPhone,
+          sendPolicy,
+          conversationId: conversation?.id ?? null,
+          within24hWindow: isWithin24hWindow(conversation?.lastMessageAt),
+          source: "extension.overlay",
+          idempotencyKey: overlayRequest.mutation?.idempotencyKey ?? null,
+        });
+        const snapshot = await buildExtensionOverlaySnapshot({
+          repos: deps.repos,
+          userId: user.id,
+          phone: result.phone ?? targetPhone,
+          waJid,
+          phoneSource,
+          title: stringValue(overlayRequest.params.title),
+          reason: "chrome-extension:runAutomationForPhone",
+          sendPolicy,
+        });
+        const ok = result.eligible && result.rejected.length === 0;
+        await auditExtensionOverlayRequest({
+          repos: deps.repos,
+          userId: user.id,
+          request: overlayRequest,
+          ok,
+          latencyMs: Date.now() - startedAt,
+          phone: result.phone ?? targetPhone,
+          phoneSource,
+          errorCode: ok ? undefined : (result.rejected[0]?.reason ?? "automation_blocked"),
+          errorMessage: ok ? undefined : "Overlay automation dispatch blocked",
+        });
+        return reply.send({
+          ok,
+          data: {
+            result,
+            snapshot: {
+              ...snapshot,
+              apiStatus: ok ? "online" : "error",
+              apiLastMethod: overlayRequest.method,
+              apiLastError: ok ? null : (result.rejected[0]?.reason ?? "automation_blocked"),
+              automationRunStatus: ok ? "done" : "error",
+              automationRunLastResult: result,
+              automationRunLastError: ok
+                ? null
+                : (result.rejected[0]?.reason ?? "automation_blocked"),
+            },
+          },
+          ...(ok
+            ? {}
+            : {
+                error: {
+                  code: result.rejected[0]?.reason ?? "automation_blocked",
+                  message: "Automacao bloqueada pelos guardrails.",
+                },
+              }),
+        });
+      }
+
       await auditExtensionOverlayRequest({
         repos: deps.repos,
         userId: user.id,
@@ -202,6 +353,7 @@ export async function registerExtensionBridgeRoutes(
         ok: false,
         latencyMs: Date.now() - startedAt,
         phone,
+        waJid,
         phoneSource,
         errorCode: "unsupported_method",
         errorMessage: `Unsupported extension companion overlay method: ${overlayRequest.method}`,
@@ -211,7 +363,7 @@ export async function registerExtensionBridgeRoutes(
         error: {
           code: "unsupported_method",
           message:
-            "O companion de extensao M38/M39 aceita apenas metodos de leitura. Mutacoes continuam no worker/CDP.",
+            "O companion de extensao aceita resumo e disparos guardados de campanha/automacao no numero atual.",
         },
       });
     } catch (error) {
@@ -222,6 +374,7 @@ export async function registerExtensionBridgeRoutes(
         ok: false,
         latencyMs: Date.now() - startedAt,
         phone,
+        waJid,
         phoneSource,
         errorCode: "handler_error",
         errorMessage: error instanceof Error ? error.message : String(error),
@@ -268,6 +421,7 @@ async function auditExtensionOverlayRequest(input: {
   ok: boolean;
   latencyMs: number;
   phone?: string | null;
+  waJid?: string | null;
   phoneSource?: string | null;
   errorCode?: string;
   errorMessage?: string;
@@ -282,6 +436,7 @@ async function auditExtensionOverlayRequest(input: {
       version: input.request?.version ?? null,
       hasMutationGuard: Boolean(input.request?.mutation),
       phone: input.phone ?? null,
+      waJid: input.waJid ?? null,
       phoneSource: input.phoneSource ?? null,
       ok: input.ok,
       latencyMs: input.latencyMs,
@@ -297,15 +452,71 @@ function stringValue(value: unknown): string | null {
 }
 
 function positiveIntegerValue(value: unknown): number | null {
-  const numeric = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  const numeric =
+    typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
   return Number.isInteger(numeric) && numeric > 0 ? numeric : null;
+}
+
+function resolveOverlayRequestIdentity(
+  phoneValue: string | null,
+  waJidValue: string | null,
+):
+  | { ok: true; phone: string | null; waJid: string | null }
+  | { ok: false; errorCode: string; errorMessage: string } {
+  const waJid = normalizeWaJid(waJidValue ?? phoneValue);
+  const phone = normalizePhone(phoneValue) ?? normalizePhone(waJid);
+  const requestedPhone = normalizePhone(phoneValue);
+  const waJidPhone = normalizePhone(waJid);
+  if (requestedPhone && waJidPhone && requestedPhone !== waJidPhone) {
+    return {
+      ok: false,
+      errorCode: "overlay_thread_mismatch",
+      errorMessage: "Requested phone does not match requested WhatsApp identity",
+    };
+  }
+  if (!phone && !waJid) {
+    return {
+      ok: false,
+      errorCode: "invalid_phone",
+      errorMessage: "Overlay request does not expose a valid phone",
+    };
+  }
+  return { ok: true, phone, waJid };
+}
+
+async function findExtensionOverlayConversation(input: {
+  repos: Repositories;
+  userId: number;
+  phone: string | null;
+  waJid: string | null;
+}) {
+  const waJid = normalizeWaJid(input.waJid ?? input.phone);
+  const phone = normalizePhone(input.phone) ?? normalizePhone(waJid);
+  if (waJid) {
+    const conversation = await input.repos.conversations.findByWaJid({
+      userId: input.userId,
+      waJid,
+    });
+    if (conversation) return conversation;
+  }
+  const conversations = await input.repos.conversations.list(input.userId, 100);
+  return (
+    conversations.find((conversation) => {
+      if (waJid) {
+        const conversationWaJid =
+          normalizeWaJid(conversation.waJid) ?? normalizeWaJid(conversation.externalThreadId);
+        if (conversationWaJid === waJid) {
+          return true;
+        }
+      }
+      return Boolean(phone && normalizePhone(conversation.externalThreadId) === phone);
+    }) ?? null
+  );
 }
 
 function validateOverlayMutation(
   request: OverlayRequest,
-):
-  | { ok: true }
-  | { ok: false; errorCode: string; errorMessage: string } {
+): { ok: true } | { ok: false; errorCode: string; errorMessage: string } {
   if (!request.mutation) {
     return {
       ok: false,

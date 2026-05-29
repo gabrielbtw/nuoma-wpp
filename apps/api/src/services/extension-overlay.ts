@@ -1,5 +1,11 @@
 import type { Repositories } from "@nuoma/db";
+import { normalizeWaJid } from "@nuoma/contracts";
 
+import {
+  isWithin24hWindow,
+  listOverlayAutomationOptions,
+  type OverlayAutomationOption,
+} from "./overlay-automations.js";
 import { listOverlayCampaignOptions, type OverlayCampaignOption } from "./overlay-campaigns.js";
 import { normalizePhone } from "./send-policy.js";
 import type { ApiSendPolicy } from "./send-policy.js";
@@ -8,6 +14,7 @@ export interface ExtensionOverlaySnapshotInput {
   repos: Repositories;
   userId: number;
   phone: string | null;
+  waJid?: string | null;
   phoneSource: string | null;
   title: string | null;
   reason: string;
@@ -15,31 +22,27 @@ export interface ExtensionOverlaySnapshotInput {
 }
 
 export async function buildExtensionOverlaySnapshot(input: ExtensionOverlaySnapshotInput) {
-  let phone = normalizePhone(input.phone);
+  const waJid = normalizeWaJid(input.waJid ?? input.phone);
+  let phone = normalizePhone(input.phone) ?? normalizePhone(waJid);
   const title = stringValue(input.title);
-  const titleConversation =
-    !phone && title
-      ? await input.repos.conversations.findActiveByTitle({
-          userId: input.userId,
-          channel: "whatsapp",
-          title,
-        })
-      : null;
-  let contact = phone
-    ? await input.repos.contacts.findByPhone({ userId: input.userId, phone })
+  const identityConversation = waJid
+    ? await input.repos.conversations.findByWaJid({
+        userId: input.userId,
+        waJid,
+      })
     : null;
-  if (!contact && titleConversation?.contactId) {
-    contact = await input.repos.contacts.findById(titleConversation.contactId);
+  let contact =
+    phone || waJid
+      ? await input.repos.contacts.findByIdentity({ userId: input.userId, phone, waJid })
+      : null;
+  if (!contact && identityConversation?.contactId) {
+    contact = await input.repos.contacts.findById(identityConversation.contactId);
   }
 
-  phone =
-    phone ??
-    normalizePhone(contact?.phone) ??
-    normalizePhone(titleConversation?.externalThreadId) ??
-    normalizePhone(titleConversation?.title);
+  phone = phone ?? normalizePhone(contact?.phone) ?? normalizePhone(contact?.waJid) ?? null;
   const phoneSource =
-    phone && titleConversation && (!input.phoneSource || input.phoneSource === "unresolved")
-      ? "title-conversation"
+    phone && waJid && (!input.phoneSource || input.phoneSource === "unresolved")
+      ? "wa-jid"
       : input.phoneSource;
 
   const allConversations = await input.repos.conversations.list(input.userId, 100);
@@ -48,15 +51,17 @@ export async function buildExtensionOverlaySnapshot(input: ExtensionOverlaySnaps
       if (contact && conversation.contactId === contact.id) {
         return true;
       }
-      if (titleConversation && conversation.id === titleConversation.id) {
+      if (identityConversation && conversation.id === identityConversation.id) {
         return true;
       }
-      if (!phone) {
+      if (!phone && !waJid) {
         return false;
       }
       return (
-        normalizePhone(conversation.externalThreadId) === phone ||
-        normalizePhone(conversation.title) === phone
+        (waJid !== null &&
+          (normalizeWaJid(conversation.waJid) === waJid ||
+            normalizeWaJid(conversation.externalThreadId) === waJid)) ||
+        (phone !== null && normalizePhone(conversation.externalThreadId) === phone)
       );
     })
     .slice(0, 4);
@@ -74,25 +79,28 @@ export async function buildExtensionOverlaySnapshot(input: ExtensionOverlaySnaps
   )
     .flat()
     .slice(0, 3);
-  const automations = (await input.repos.automations.list(input.userId))
-    .filter(
-      (automation) =>
-        automation.status === "active" &&
-        (!automation.trigger.channel ||
-          !contact?.primaryChannel ||
-          automation.trigger.channel === contact.primaryChannel),
-    )
-    .slice(0, 4);
+  const within24hWindow = conversations.some((conversation) =>
+    isWithin24hWindow(conversation.lastMessageAt),
+  );
+  const automations: OverlayAutomationOption[] = await listOverlayAutomationOptions({
+    repos: input.repos,
+    userId: input.userId,
+    phone,
+    sendPolicy: input.sendPolicy,
+    within24hWindow,
+    limit: 5,
+  }).catch(() => []);
   const campaigns: OverlayCampaignOption[] = await listOverlayCampaignOptions({
     repos: input.repos,
     userId: input.userId,
     phone,
     sendPolicy: input.sendPolicy,
     limit: 5,
-  });
+  }).catch(() => []);
 
   return {
     phone,
+    waJid,
     phoneSource,
     title,
     contact: contact
@@ -115,12 +123,7 @@ export async function buildExtensionOverlaySnapshot(input: ExtensionOverlaySnaps
       contentType: message.contentType,
       observedAtUtc: message.observedAtUtc,
     })),
-    automations: automations.map((automation) => ({
-      id: automation.id,
-      name: automation.name,
-      category: automation.category,
-      status: automation.status,
-    })),
+    automations,
     campaigns,
     notes: contact?.notes ?? null,
     source: "nuoma-api",

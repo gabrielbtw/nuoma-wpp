@@ -1626,6 +1626,32 @@ describe("api health", () => {
       );
       expect(campaignCreate.statusCode).toBe(200);
 
+      const instagramUnsupportedCreate = await trpcCall(
+        app,
+        "POST",
+        "campaigns.create",
+        {
+          name: "Campanha IG inválida",
+          channel: "instagram",
+          evergreen: false,
+          steps: [
+            {
+              id: "voice",
+              label: "Áudio",
+              type: "voice",
+              mediaAssetId: 1,
+              caption: null,
+              delaySeconds: 0,
+              conditions: [],
+            },
+          ],
+          metadata: {},
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(instagramUnsupportedCreate.statusCode).toBe(400);
+      expect(instagramUnsupportedCreate.error?.message).toContain("Instagram na régua suporta");
+
       const campaignGet = await trpcCall<{ campaign: { id: number; name: string } }>(
         app,
         "GET",
@@ -1839,6 +1865,33 @@ describe("api health", () => {
         { cookie: cookies, csrfToken },
       );
       expect(campaignReadyToExecute.data?.campaign?.status).toBe("running");
+
+      const campaignExecuteWithoutM303 = await trpcCall(
+        app,
+        "POST",
+        "campaigns.execute",
+        {
+          campaignId: campaignCreate.data!.campaign.id,
+          dryRun: false,
+          phones: ["5531982066263"],
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(campaignExecuteWithoutM303.statusCode).toBe(400);
+      expect(campaignExecuteWithoutM303.error?.message).toContain("temporaryMessages M30.3");
+
+      await repos.campaigns.update({
+        id: campaignCreate.data!.campaign.id,
+        userId: user.id,
+        metadata: {
+          temporaryMessages: {
+            enabled: true,
+            beforeSendDuration: "24h",
+            afterCompletionDuration: "90d",
+            restoreOnFailure: true,
+          },
+        },
+      });
 
       const campaignExecuteRunning = await trpcCall<{
         dryRun: boolean;
@@ -2389,11 +2442,19 @@ describe("api health", () => {
       primaryChannel: "whatsapp",
       notes: "Cliente do aceite M30.3.",
     });
+    await repos.contacts.create({
+      userId: user.id,
+      name: "Lead fora do overlay",
+      phone: "553188880001",
+      primaryChannel: "whatsapp",
+      notes: "Nao deve entrar no disparo rapido do overlay.",
+    });
     const conversation = await repos.conversations.create({
       userId: user.id,
       contactId: contact.id,
       channel: "whatsapp",
       externalThreadId: "opaque-neferpeel-thread",
+      waJid: "5531982066263@s.whatsapp.net",
       title: "Neferpeel",
       lastMessageAt: "2026-05-07T10:00:00.000Z",
       lastPreview: "Resumo do contato",
@@ -2414,6 +2475,7 @@ describe("api health", () => {
       name: "Campanha Overlay",
       status: "running",
       channel: "whatsapp",
+      evergreen: true,
       steps: [
         {
           id: "intro",
@@ -2424,6 +2486,52 @@ describe("api health", () => {
           template: "Oi {{contact.name}}, posso te ajudar por aqui?",
         },
       ],
+      metadata: {
+        temporaryMessages: {
+          enabled: true,
+          beforeSendDuration: "24h",
+          afterCompletionDuration: "90d",
+          restoreOnFailure: true,
+        },
+      },
+    });
+    const campaignWithoutM303 = await repos.campaigns.create({
+      userId: user.id,
+      name: "Campanha Overlay Sem M30.3",
+      status: "running",
+      channel: "whatsapp",
+      steps: [
+        {
+          id: "intro",
+          label: "Intro",
+          delaySeconds: 0,
+          conditions: [],
+          type: "text",
+          template: "Oi {{contact.name}}, posso te ajudar por aqui?",
+        },
+      ],
+    });
+    const automation = await repos.automations.create({
+      userId: user.id,
+      name: "Automacao Overlay",
+      category: "Overlay",
+      status: "active",
+      trigger: { type: "message_received", channel: "whatsapp" },
+      condition: { segment: null, requireWithin24hWindow: false },
+      actions: [
+        {
+          type: "send_step",
+          step: {
+            id: "auto-intro",
+            label: "Auto intro",
+            delaySeconds: 0,
+            conditions: [],
+            type: "text",
+            template: "Oi {{nome}}, automacao disparada pelo overlay.",
+          },
+        },
+      ],
+      metadata: {},
     });
 
     const app = await buildApiApp({
@@ -2489,6 +2597,7 @@ describe("api health", () => {
           method: "contactSummary",
           params: {
             title: "Neferpeel",
+            waJid: "5531982066263@s.whatsapp.net",
             phoneSource: "unresolved",
             reason: "m38-api-test",
           },
@@ -2500,7 +2609,8 @@ describe("api health", () => {
         ok: true,
         data: {
           phone: "5531982066263",
-          phoneSource: "title-conversation",
+          waJid: "5531982066263@s.whatsapp.net",
+          phoneSource: "wa-jid",
           contact: { name: "Neferpeel", primaryChannel: "whatsapp" },
           source: "nuoma-api",
           apiStatus: "online",
@@ -2510,6 +2620,16 @@ describe("api health", () => {
       expect(summary.json().data.latestMessages[0]).toMatchObject({
         body: "Oi pelo Chrome Extension",
       });
+      expect(summary.json().data.automations).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: automation.id,
+            name: "Automacao Overlay",
+            eligible: true,
+            canDispatchReal: true,
+          }),
+        ]),
+      );
       expect(summary.json().data.campaigns).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -2517,8 +2637,71 @@ describe("api health", () => {
             name: "Campanha Overlay",
             eligible: true,
           }),
+          expect.objectContaining({
+            id: campaignWithoutM303.id,
+            name: "Campanha Overlay Sem M30.3",
+            eligible: false,
+            reasons: expect.arrayContaining(["temporary_messages_audit_only"]),
+          }),
         ]),
       );
+
+      const missingMutation = await app.inject({
+        method: "POST",
+        url: "/api/extension/overlay",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${accessToken}`,
+        },
+        payload: {
+          id: "m38-run-campaign-no-mutation",
+          method: "runCampaignForPhone",
+          params: {
+            campaignId: campaign.id,
+            phone: "31982066263",
+            waJid: "5531982066263@s.whatsapp.net",
+            phoneSource: "wa-jid",
+            reason: "m38-api-test",
+          },
+          version: "v2.11.7-m35-m38-extension",
+        },
+      });
+      expect(missingMutation.statusCode).toBe(400);
+      expect(missingMutation.json()).toMatchObject({
+        ok: false,
+        error: { code: "mutation_guard_required" },
+      });
+
+      const blockedMissingM303 = await app.inject({
+        method: "POST",
+        url: "/api/extension/overlay",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${accessToken}`,
+        },
+        payload: {
+          id: "m38-run-campaign-missing-m303",
+          method: "runCampaignForPhone",
+          params: {
+            campaignId: campaignWithoutM303.id,
+            phone: "31982066263",
+            waJid: "5531982066263@s.whatsapp.net",
+            phoneSource: "wa-jid",
+            reason: "m38-api-test",
+          },
+          mutation: {
+            nonce: "overlay-nonce-m303",
+            idempotencyKey: "overlay-key-m303",
+            confirmed: true,
+          },
+          version: "v2.11.7-m35-m38-extension",
+        },
+      });
+      expect(blockedMissingM303.statusCode).toBe(200);
+      expect(blockedMissingM303.json()).toMatchObject({
+        ok: false,
+        error: { code: "temporary_messages_audit_only" },
+      });
 
       const runCampaign = await app.inject({
         method: "POST",
@@ -2533,7 +2716,8 @@ describe("api health", () => {
           params: {
             campaignId: campaign.id,
             phone: "31982066263",
-            phoneSource: "title-conversation",
+            waJid: "5531982066263@s.whatsapp.net",
+            phoneSource: "wa-jid",
             reason: "m38-api-test",
           },
           mutation: { nonce: "overlay-nonce", idempotencyKey: "overlay-key", confirmed: true },
@@ -2569,7 +2753,8 @@ describe("api health", () => {
           params: {
             campaignId: campaign.id,
             phone: "31982066263",
-            phoneSource: "title-conversation",
+            waJid: "5531982066263@s.whatsapp.net",
+            phoneSource: "wa-jid",
             reason: "m38-api-test",
           },
           mutation: { nonce: "overlay-nonce-2", idempotencyKey: "overlay-key", confirmed: true },
@@ -2593,6 +2778,59 @@ describe("api health", () => {
         limit: 10,
       });
       expect(overlayRecipients).toHaveLength(1);
+      expect(overlayRecipients[0]?.phone).toBe("5531982066263");
+
+      const runAutomation = await app.inject({
+        method: "POST",
+        url: "/api/extension/overlay",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${accessToken}`,
+        },
+        payload: {
+          id: "m38-run-automation",
+          method: "runAutomationForPhone",
+          params: {
+            automationId: automation.id,
+            phone: "31982066263",
+            waJid: "5531982066263@s.whatsapp.net",
+            phoneSource: "wa-jid",
+            reason: "m38-api-test",
+          },
+          mutation: {
+            nonce: "overlay-automation-nonce",
+            idempotencyKey: "overlay-automation-key",
+            confirmed: true,
+          },
+          version: "v2.11.7-m35-m38-extension",
+        },
+      });
+      expect(runAutomation.statusCode).toBe(200);
+      expect(runAutomation.json()).toMatchObject({
+        ok: true,
+        data: {
+          result: {
+            phone: "5531982066263",
+            automation: { id: automation.id, name: "Automacao Overlay" },
+            eligible: true,
+            jobsCreated: 1,
+          },
+          snapshot: {
+            phone: "5531982066263",
+            apiLastMethod: "runAutomationForPhone",
+            automationRunStatus: "done",
+          },
+        },
+      });
+      const queuedJobs = await repos.jobs.list(user.id, "queued");
+      const automationJobs = queuedJobs.filter((job) => {
+        const payload = job.payload as { automationId?: number; phone?: string };
+        return payload.automationId === automation.id;
+      });
+      expect(automationJobs).toHaveLength(1);
+      expect((automationJobs[0]?.payload as { phone?: string } | undefined)?.phone).toBe(
+        "5531982066263",
+      );
 
       const mutation = await app.inject({
         method: "POST",
@@ -2621,6 +2859,82 @@ describe("api health", () => {
       });
       expect(events.length).toBeGreaterThanOrEqual(3);
       expect(events.map((event) => event.severity)).toContain("warn");
+    } finally {
+      await app.close();
+      db.close();
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("blocks campaigns.execute in production without an env canary allowlist", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "nuoma-v2-api-prod-canary-"));
+    const db = openDb(path.join(tempDir, "api.db"));
+    await runMigrations(db);
+    const repos = createRepositories(db);
+    const passwordHash = await argon2.hash("initial-password-123", { type: argon2.argon2id });
+    const user = await repos.users.create({
+      email: "admin@nuoma.local",
+      passwordHash,
+      role: "admin",
+      displayName: "Admin",
+    });
+    const campaign = await repos.campaigns.create({
+      userId: user.id,
+      name: "Campanha producao sem canary",
+      status: "running",
+      channel: "whatsapp",
+      steps: [
+        {
+          id: "intro",
+          label: "Intro",
+          delaySeconds: 0,
+          conditions: [],
+          type: "text",
+          template: "Oi {{telefone}}",
+        },
+      ],
+      metadata: {
+        temporaryMessages: {
+          enabled: true,
+          beforeSendDuration: "24h",
+          afterCompletionDuration: "90d",
+          restoreOnFailure: true,
+        },
+      },
+    });
+    const app = await buildApiApp({
+      env: loadApiEnv({
+        API_LOG_LEVEL: "silent",
+        NODE_ENV: "test",
+        API_JWT_SECRET: "test-secret-with-more-than-16-chars",
+        API_SEND_POLICY_MODE: "production",
+        API_SEND_ALLOWED_PHONES: "",
+        DATABASE_URL: path.join(tempDir, "api.db"),
+      }),
+      db,
+      migrate: false,
+    });
+
+    try {
+      const login = await trpcCall<{ csrfToken: string }>(app, "POST", "auth.login", {
+        email: "admin@nuoma.local",
+        password: "initial-password-123",
+      });
+      const blocked = await trpcCall(
+        app,
+        "POST",
+        "campaigns.execute",
+        {
+          campaignId: campaign.id,
+          dryRun: false,
+          phones: ["5531982066263"],
+          allowedPhone: "5531982066263",
+        },
+        { cookie: cookieHeader(login.setCookie), csrfToken: login.data!.csrfToken },
+      );
+      expect(blocked.statusCode).toBe(400);
+      expect(blocked.error?.message).toContain("production_without_canary_allowlist");
+      expect(await repos.jobs.list(user.id)).toHaveLength(0);
     } finally {
       await app.close();
       db.close();
@@ -3037,6 +3351,46 @@ describe("api health", () => {
       ],
       metadata: {},
     });
+    const instagramCampaign = await repos.campaigns.create({
+      userId: user.id,
+      name: "V2.10 Remarketing Instagram",
+      channel: "instagram",
+      status: "running",
+      evergreen: false,
+      startsAt: null,
+      segment: null,
+      steps: [
+        {
+          id: "ig-intro",
+          label: "Intro IG",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Intro @{{instagram}}",
+        },
+      ],
+      metadata: {},
+    });
+    const instagramSecondCampaign = await repos.campaigns.create({
+      userId: user.id,
+      name: "V2.10 Remarketing Instagram 2",
+      channel: "instagram",
+      status: "running",
+      evergreen: false,
+      startsAt: null,
+      segment: null,
+      steps: [
+        {
+          id: "ig-intro",
+          label: "Intro IG",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Intro 2 @{{instagram}}",
+        },
+      ],
+      metadata: {},
+    });
     const app = await buildApiApp({
       env: loadApiEnv({
         API_LOG_LEVEL: "silent",
@@ -3185,6 +3539,153 @@ describe("api health", () => {
         expect.objectContaining({ beforeSendDuration: "24h", afterCompletionDuration: "90d" }),
         expect.objectContaining({ beforeSendDuration: "24h", afterCompletionDuration: "90d" }),
       ]);
+      const instagramWithoutSession = await trpcCall<{
+        canDispatch: boolean;
+        issues: Array<{ code: string; severity: string }>;
+      }>(
+        app,
+        "POST",
+        "campaigns.remarketingBatchReady",
+        {
+          campaignId: instagramSecondCampaign.id,
+          rawInstagramHandles: "gabriell_braga",
+          allowedInstagramHandle: "gabriell_braga",
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(
+        instagramWithoutSession.statusCode,
+        JSON.stringify(instagramWithoutSession.error),
+      ).toBe(200);
+      expect(instagramWithoutSession.data?.canDispatch).toBe(false);
+      expect(instagramWithoutSession.data?.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ code: "instagram_session_unavailable", severity: "error" }),
+        ]),
+      );
+      await repos.workerState.heartbeat({
+        workerId: "worker-instagram-ready",
+        status: "idle",
+        browserConnected: true,
+        metrics: {
+          instagram: {
+            connected: true,
+            lastError: null,
+            session: {
+              status: "connected",
+              authenticated: true,
+              username: "studionuoma",
+              pageUrl: "https://www.instagram.com/direct/inbox/",
+              lastSyncAt: "2026-05-28T12:00:00.000Z",
+            },
+          },
+        },
+      });
+      const instagramReady = await trpcCall<{
+        canDispatch: boolean;
+        confirmText: string;
+        summary: {
+          acceptedRecipients: number;
+          plannedJobs: number;
+          activeCampaignStepJobs: number;
+          instagramSession: { authenticated: boolean; username: string | null } | null;
+        };
+        accepted: Array<{ instagramHandle: string; phone: string | null }>;
+      }>(
+        app,
+        "POST",
+        "campaigns.remarketingBatchReady",
+        {
+          campaignId: instagramSecondCampaign.id,
+          rawInstagramHandles: "gabriell_braga",
+          allowedInstagramHandle: "gabriell_braga",
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(instagramReady.statusCode, JSON.stringify(instagramReady.error)).toBe(200);
+      expect(instagramReady.data).toMatchObject({
+        canDispatch: true,
+        confirmText: "DISPARAR LOTE 1",
+        summary: {
+          acceptedRecipients: 1,
+          plannedJobs: 1,
+          activeCampaignStepJobs: 0,
+          instagramSession: { authenticated: true, username: "studionuoma" },
+        },
+        accepted: [expect.objectContaining({ instagramHandle: "gabriell_braga", phone: null })],
+      });
+
+      const instagramDispatch = await trpcCall<{
+        recipientsCreated: number;
+        scheduler: {
+          jobsCreated: number;
+          plannedJobs: Array<{ phone: string | null; instagramHandle: string | null }>;
+        };
+      }>(
+        app,
+        "POST",
+        "campaigns.remarketingBatchDispatch",
+        {
+          campaignId: instagramCampaign.id,
+          rawInstagramHandles: "gabriell_braga",
+          allowedInstagramHandle: "gabriell_braga",
+          confirmText: instagramReady.data!.confirmText,
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(instagramDispatch.statusCode, JSON.stringify(instagramDispatch.error)).toBe(200);
+      expect(instagramDispatch.data).toMatchObject({
+        recipientsCreated: 1,
+        scheduler: {
+          jobsCreated: 1,
+          plannedJobs: [
+            expect.objectContaining({ phone: null, instagramHandle: "gabriell_braga" }),
+          ],
+        },
+      });
+
+      const queuedAfterInstagram = await repos.jobs.list(user.id, "queued");
+      expect(queuedAfterInstagram).toHaveLength(3);
+      expect(queuedAfterInstagram).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            payload: expect.objectContaining({
+              instagramHandle: "gabriell_braga",
+              phone: null,
+              recipientNormalizedValue: "gabriell_braga",
+              recipientTargetKey: "ig:gabriell_braga",
+              variables: expect.objectContaining({
+                instagram: "gabriell_braga",
+                instagramHandle: "gabriell_braga",
+              }),
+            }),
+          }),
+        ]),
+      );
+      const instagramActivePipeline = await trpcCall<{
+        canDispatch: boolean;
+        rejected: Array<{ reason: string }>;
+      }>(
+        app,
+        "POST",
+        "campaigns.remarketingBatchReady",
+        {
+          campaignId: instagramSecondCampaign.id,
+          rawInstagramHandles: "gabriell_braga",
+          allowedInstagramHandle: "gabriell_braga",
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(
+        instagramActivePipeline.statusCode,
+        JSON.stringify(instagramActivePipeline.error),
+      ).toBe(200);
+      expect(instagramActivePipeline.data?.canDispatch).toBe(false);
+      expect(instagramActivePipeline.data?.rejected).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ reason: "active_pipeline_for_instagram" }),
+        ]),
+      );
       const events = await repos.systemEvents.list({ userId: user.id, limit: 10 });
       expect(events).toEqual(
         expect.arrayContaining([
@@ -3199,6 +3700,21 @@ describe("api health", () => {
               guardrails: expect.objectContaining({
                 allowlist: true,
                 temporaryMessagesM303: true,
+                partialBatchBlocked: true,
+              }),
+            }),
+          }),
+          expect.objectContaining({
+            type: "campaign.remarketing_batch.dispatched",
+            severity: "info",
+            payload: expect.objectContaining({
+              campaignId: instagramCampaign.id,
+              executionMode: "instagram_real",
+              recipientsCreated: 1,
+              jobsCreated: 1,
+              guardrails: expect.objectContaining({
+                allowlist: true,
+                temporaryMessagesM303: false,
                 partialBatchBlocked: true,
               }),
             }),

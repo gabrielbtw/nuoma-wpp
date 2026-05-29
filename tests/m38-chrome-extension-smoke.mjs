@@ -23,8 +23,14 @@ await execFileAsync(npmBin, ["run", "build:chrome-extension"], { cwd: root });
 const manifest = JSON.parse(await fs.readFile(path.join(distDir, "manifest.json"), "utf8"));
 assert(manifest.manifest_version === 3, "manifest MV3 ausente");
 assert(manifest.permissions.includes("cookies"), "permissao cookies ausente");
-assert(manifest.content_scripts[0]?.matches?.includes("https://web.whatsapp.com/*"), "match WhatsApp ausente");
-assert(manifest.web_accessible_resources[0]?.resources?.includes("page-bridge.js"), "page bridge nao exposto");
+assert(
+  manifest.content_scripts[0]?.matches?.includes("https://web.whatsapp.com/*"),
+  "match WhatsApp ausente",
+);
+assert(
+  manifest.web_accessible_resources[0]?.resources?.includes("page-bridge.js"),
+  "page bridge nao exposto",
+);
 await assertFile(path.join(distDir, "background.js"));
 await assertFile(path.join(distDir, "content.js"));
 await assertFile(path.join(distDir, "page-bridge.js"));
@@ -51,6 +57,103 @@ try {
         return;
       }
       const request = JSON.parse(data.payload);
+      const snapshot = {
+        phone: "5531982066263",
+        waJid: "5531982066263@s.whatsapp.net",
+        phoneSource: "wa-jid",
+        title: "5531982066263",
+        contact: {
+          name: "Neferpeel Extension",
+          status: "active",
+          primaryChannel: "whatsapp",
+          notes: "Resumo hidratado pela ponte M38.",
+        },
+        conversations: [
+          {
+            id: 38,
+            channel: "whatsapp",
+            lastPreview: "Bridge Chrome extension OK",
+            lastMessageAt: "2026-05-07T10:38:00.000Z",
+          },
+        ],
+        latestMessages: [
+          {
+            body: "Mensagem fixture M38",
+            direction: "inbound",
+            contentType: "text",
+            observedAtUtc: "2026-05-07T10:38:00.000Z",
+          },
+        ],
+        automations: [
+          {
+            id: 39,
+            name: "Automacao Extension Smoke",
+            category: "Overlay",
+            status: "active",
+            triggerChannel: "whatsapp",
+            actionsCount: 1,
+            sendStepsCount: 1,
+            eligible: true,
+            reasons: [],
+            wouldEnqueueJobs: true,
+            canDispatchReal: true,
+          },
+        ],
+        campaigns: [
+          {
+            id: 38,
+            name: "Campanha Extension Smoke",
+            status: "running",
+            channel: "whatsapp",
+            stepsCount: 1,
+            firstStepType: "text",
+            eligible: true,
+            reasons: [],
+            canDispatchReal: true,
+          },
+        ],
+        notes: "Resumo hidratado pela ponte M38.",
+        source: "nuoma-api",
+        apiStatus: "online",
+        apiLastMethod: request.method,
+        apiLastError: null,
+        updatedAt: new Date().toISOString(),
+      };
+      const responseData =
+        request.method === "runCampaignForPhone"
+          ? {
+              result: {
+                campaign: { id: 38, name: "Campanha Extension Smoke", status: "running" },
+                phone: "5531982066263",
+                recipientsCreated: 1,
+                jobsCreated: 1,
+                plannedJobs: 1,
+                rejected: [],
+              },
+              snapshot: {
+                ...snapshot,
+                campaignRunStatus: "done",
+                campaignRunLastResult: { recipientsCreated: 1, jobsCreated: 1, plannedJobs: 1 },
+              },
+            }
+          : request.method === "runAutomationForPhone"
+            ? {
+                result: {
+                  automation: { id: 39, name: "Automacao Extension Smoke", status: "active" },
+                  phone: "5531982066263",
+                  eligible: true,
+                  jobsCreated: 1,
+                  actionsApplied: 0,
+                  plannedActions: 1,
+                  rejected: [],
+                },
+                snapshot: {
+                  ...snapshot,
+                  automationRunStatus: "done",
+                  automationRunLastResult: { jobsCreated: 1, actionsApplied: 0, plannedActions: 1 },
+                },
+              }
+          : snapshot;
       window.postMessage(
         {
           source: "nuoma-wpp-extension-content",
@@ -58,40 +161,7 @@ try {
           id: request.id,
           response: {
             ok: true,
-            data: {
-              phone: "5531982066263",
-              phoneSource: "title-conversation",
-              title: "5531982066263",
-              contact: {
-                name: "Neferpeel Extension",
-                status: "active",
-                primaryChannel: "whatsapp",
-                notes: "Resumo hidratado pela ponte M38.",
-              },
-              conversations: [
-                {
-                  id: 38,
-                  channel: "whatsapp",
-                  lastPreview: "Bridge Chrome extension OK",
-                  lastMessageAt: "2026-05-07T10:38:00.000Z",
-                },
-              ],
-              latestMessages: [
-                {
-                  body: "Mensagem fixture M38",
-                  direction: "inbound",
-                  contentType: "text",
-                  observedAtUtc: "2026-05-07T10:38:00.000Z",
-                },
-              ],
-              automations: [],
-              notes: "Resumo hidratado pela ponte M38.",
-              source: "nuoma-api",
-              apiStatus: "online",
-              apiLastMethod: "contactSummary",
-              apiLastError: null,
-              updatedAt: new Date().toISOString(),
-            },
+            data: responseData,
           },
         },
         "*",
@@ -123,6 +193,50 @@ try {
   assert(state.phone === "5531982066263", `telefone inesperado: ${state.phone}`);
   assert(state.panelText.includes("Neferpeel Extension"), "painel nao hidratou contato");
   assert(state.panelText.includes("online / contactSummary"), "ponte API nao ficou online");
+  await page.click('[data-nuoma-campaign-run="38"]');
+  await page.waitForFunction(() => {
+    const host = document.getElementById("nuoma-wpp-overlay-root");
+    return host?.shadowRoot?.textContent?.includes("Criou 1 recipient(s) e 1 job(s).");
+  });
+  const campaignState = await page.evaluate(() => {
+    const host = document.getElementById("nuoma-wpp-overlay-root");
+    return {
+      apiStatus: host?.getAttribute("data-nuoma-api-status"),
+      apiMethod: host?.getAttribute("data-nuoma-api-method"),
+      panelText: host?.shadowRoot?.textContent ?? "",
+    };
+  });
+  assert(campaignState.apiStatus === "online", "campanha extension nao manteve ponte online");
+  assert(
+    campaignState.apiMethod === "runCampaignForPhone",
+    "campanha extension nao chamou runCampaignForPhone",
+  );
+  assert(
+    campaignState.panelText.includes("Criou 1 recipient(s) e 1 job(s)."),
+    "resultado da campanha nao apareceu",
+  );
+  await page.click('[data-nuoma-quick-run-automation="true"]');
+  await page.waitForFunction(() => {
+    const host = document.getElementById("nuoma-wpp-overlay-root");
+    return host?.shadowRoot?.textContent?.includes("Criou 1 job(s) e aplicou 0 acao(oes).");
+  });
+  const automationState = await page.evaluate(() => {
+    const host = document.getElementById("nuoma-wpp-overlay-root");
+    return {
+      apiStatus: host?.getAttribute("data-nuoma-api-status"),
+      apiMethod: host?.getAttribute("data-nuoma-api-method"),
+      panelText: host?.shadowRoot?.textContent ?? "",
+    };
+  });
+  assert(automationState.apiStatus === "online", "automacao extension nao manteve ponte online");
+  assert(
+    automationState.apiMethod === "runAutomationForPhone",
+    "automacao extension nao chamou runAutomationForPhone",
+  );
+  assert(
+    automationState.panelText.includes("Automacao Extension Smoke"),
+    "automacao extension nao apareceu no overlay",
+  );
   await page.screenshot({ path: overlayScreenshot, fullPage: true });
 } finally {
   await browser.close();
@@ -136,7 +250,7 @@ await fs.writeFile(
     "- teste > Build MV3, manifest, popup e page bridge do overlay.",
     `- prints > ${popupScreenshot}`,
     `- prints > ${overlayScreenshot}`,
-    "- detalhes > manifest=ok popup=ok overlay=ok bridge=ok auth=chrome.cookies+Bearer",
+    "- detalhes > manifest=ok popup=ok overlay=ok bridge=ok campanha=ok automacao=ok auth=chrome.cookies+Bearer",
     "",
   ].join("\n"),
   "utf8",
@@ -149,6 +263,7 @@ console.log(
     "popup=ok",
     "overlay=ok",
     "bridge=ok",
+    "automacao=ok",
     `report=${reportPath}`,
   ].join("|"),
 );

@@ -1,12 +1,12 @@
-import type { Campaign, Contact } from "@nuoma/contracts";
+import {
+  campaignTemporaryMessagesConfigSchema,
+  type Campaign,
+  type Contact,
+} from "@nuoma/contracts";
 import type { Repositories } from "@nuoma/db";
 
 import { runCampaignSchedulerTick } from "./campaign-scheduler.js";
-import {
-  evaluateApiRealSendTarget,
-  normalizePhone,
-  type ApiSendPolicy,
-} from "./send-policy.js";
+import { evaluateApiRealSendTarget, normalizePhone, type ApiSendPolicy } from "./send-policy.js";
 
 export interface OverlayCampaignOption {
   id: number;
@@ -176,6 +176,7 @@ export async function runOverlayCampaignNow(input: {
     ownerId: input.ownerId,
     campaignId: campaign.id,
     limit: 1,
+    evergreenLimit: 0,
     dryRun: false,
   });
 
@@ -279,6 +280,7 @@ function evaluateOverlayCampaign(input: {
   );
 
   if (!isRunnableManualCampaign(input.campaign)) reasons.push("status_not_runnable");
+  if (hasLegacyStepNormalization(input.campaign)) reasons.push("legacy_campaign_steps_need_review");
   if (input.campaign.channel !== "whatsapp") reasons.push("channel_not_supported");
   if (!phone) reasons.push("invalid_phone");
   if (input.contact && !isContactRemarketingAllowed(input.contact)) {
@@ -292,10 +294,13 @@ function evaluateOverlayCampaign(input: {
   if (input.activePipeline) reasons.push("active_pipeline_for_phone");
   if (input.campaign.steps.length === 0) reasons.push("campaign_without_steps");
   if (hasEmptyMessageStep(input.campaign)) reasons.push("empty_message_step");
+  const temporaryMessagesIssue = campaignTemporaryMessagesGateIssue(input.campaign);
+  if (temporaryMessagesIssue) reasons.push(temporaryMessagesIssue);
   const sendDecision = phone
     ? evaluateApiRealSendTarget(input.sendPolicy, phone)
     : ({ allowed: false, reason: "invalid_phone" } as const);
   if (!sendDecision.allowed) reasons.push(sendDecision.reason);
+  const eligible = reasons.length === 0;
 
   return {
     id: input.campaign.id,
@@ -304,9 +309,9 @@ function evaluateOverlayCampaign(input: {
     channel: input.campaign.channel,
     stepsCount: input.campaign.steps.length,
     firstStepType: firstStep?.type ?? null,
-    eligible: reasons.length === 0,
+    eligible,
     reasons,
-    canDispatchReal: sendDecision.allowed,
+    canDispatchReal: eligible && sendDecision.allowed,
   };
 }
 
@@ -345,6 +350,11 @@ function isRunnableManualCampaign(campaign: Campaign): boolean {
   return isRunnableManualStatus(campaign.status);
 }
 
+function hasLegacyStepNormalization(campaign: Campaign): boolean {
+  const value = campaign.metadata.legacyStepNormalization;
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
 function isRunnableManualStatus(status: Campaign["status"]): boolean {
   return status === "running" || status === "scheduled";
 }
@@ -359,4 +369,23 @@ function hasEmptyMessageStep(campaign: Campaign): boolean {
       (step.type === "text" && !step.template.trim()) ||
       (step.type === "link" && !step.text.trim()),
   );
+}
+
+function campaignTemporaryMessagesGateIssue(campaign: Campaign): string | null {
+  const hasTemporaryMessagesControl = campaign.steps.some(
+    (step) => step.type === "temporary_messages",
+  );
+  if (hasTemporaryMessagesControl) {
+    return null;
+  }
+  const parsed = campaignTemporaryMessagesConfigSchema.safeParse(
+    campaign.metadata.temporaryMessages,
+  );
+  if (!parsed.success || !parsed.data.enabled) {
+    return "temporary_messages_audit_only";
+  }
+  if (parsed.data.beforeSendDuration !== "24h" || parsed.data.afterCompletionDuration !== "90d") {
+    return "temporary_messages_global_not_m303";
+  }
+  return null;
 }
