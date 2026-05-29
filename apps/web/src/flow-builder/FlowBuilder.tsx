@@ -120,6 +120,19 @@ interface StepDraft {
   conditions: ConditionDraft[];
 }
 
+interface StepFieldErrors {
+  template?: string;
+  url?: string;
+  linkText?: string;
+  mediaAssetId?: string;
+  fileName?: string;
+}
+
+interface ConditionFieldErrors {
+  value?: string;
+  targetStepId?: string;
+}
+
 interface ConditionDraft {
   id: string;
   type: CampaignStepCondition["type"];
@@ -742,8 +755,18 @@ export function CampaignFlowBuilder({
                       Configuração
                     </div>
                     <div className="grid gap-3 md:grid-cols-[1fr_12rem_10rem_10rem]">
-                      <LabeledField label="Nome">
-                        <Input value={name} onChange={(event) => setName(event.target.value)} />
+                      <LabeledField
+                        label="Nome"
+                        error={name.trim() ? null : "Nome obrigatório."}
+                        errorId="campaign-name-error"
+                      >
+                        <Input
+                          value={name}
+                          invalid={!name.trim()}
+                          aria-invalid={!name.trim()}
+                          aria-describedby={!name.trim() ? "campaign-name-error" : undefined}
+                          onChange={(event) => setName(event.target.value)}
+                        />
                       </LabeledField>
                       <LabeledField label="Canal">
                         <ChannelSelect value={channel} onValueChange={setChannel} />
@@ -1277,11 +1300,7 @@ function flowCanvasIcon(iconType: CampaignCanvasNodeData["iconType"]) {
   return stepIcon(iconType);
 }
 
-function stepTone(
-  step: StepDraft,
-  channel: ChannelType,
-  hasBranch: boolean,
-): CampaignCanvasTone {
+function stepTone(step: StepDraft, channel: ChannelType, hasBranch: boolean): CampaignCanvasTone {
   if (hasBranch) return "violet";
   if (step.type === "temporary_messages" || step.type === "voice") return "cyan";
   if (channel === "instagram" || step.type === "image" || step.type === "video") return "ig";
@@ -1299,7 +1318,8 @@ function flowToneColor(tone: CampaignCanvasTone) {
 }
 
 function conditionLabel(condition: ConditionDraft) {
-  const type = conditionTypes.find((item) => item.value === condition.type)?.label ?? condition.type;
+  const type =
+    conditionTypes.find((item) => item.value === condition.type)?.label ?? condition.type;
   const value = condition.value.trim();
   return value ? `${type}: ${value}` : type;
 }
@@ -1357,7 +1377,9 @@ function FlowStudioInspector({
         data-status={validationStatus}
       >
         <div className="nuoma-flow-v2-card-head">
-          <span className={cn("nuoma-flow-v2-card-icon", isFlowValid ? "is-success" : "is-warning")}>
+          <span
+            className={cn("nuoma-flow-v2-card-icon", isFlowValid ? "is-success" : "is-warning")}
+          >
             {isFlowValid ? (
               <CheckCircle2 className="h-4 w-4" />
             ) : (
@@ -2396,6 +2418,7 @@ function StepEditor({
   );
   const unsupportedForChannel =
     channel === "instagram" && !instagramSupportedStepTypes.has(value.type);
+  const fieldErrors = stepDraftFieldErrors(value, index + 1);
   return (
     <div className="rounded-lg bg-bg-base p-3 shadow-flat">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2452,8 +2475,13 @@ function StepEditor({
           Este tipo não dispara no Instagram.
         </div>
       ) : null}
-      <StepBody index={index} value={value} onChange={onChange} />
-      <StepConditions value={value} stepOptions={stepOptions} onChange={onChange} />
+      <StepBody index={index} value={value} errors={fieldErrors} onChange={onChange} />
+      <StepConditions
+        stepIndex={index}
+        value={value}
+        stepOptions={stepOptions}
+        onChange={onChange}
+      />
     </div>
   );
 }
@@ -2461,10 +2489,12 @@ function StepEditor({
 function StepBody({
   index,
   value,
+  errors,
   onChange,
 }: {
   index: number;
   value: StepDraft;
+  errors: StepFieldErrors;
   onChange: (value: StepDraft) => void;
 }) {
   if (value.type === "temporary_messages") {
@@ -2509,9 +2539,19 @@ function StepBody({
 
   if (value.type === "text") {
     return (
-      <LabeledField label="Mensagem" className="mt-3">
+      <LabeledField
+        label="Mensagem"
+        className="mt-3"
+        error={errors.template}
+        errorId={`campaign-step-message-${index + 1}-error`}
+      >
         <Textarea
           data-testid={`campaign-step-message-${index + 1}`}
+          invalid={Boolean(errors.template)}
+          aria-invalid={Boolean(errors.template)}
+          aria-describedby={
+            errors.template ? `campaign-step-message-${index + 1}-error` : undefined
+          }
           rows={3}
           value={value.template}
           placeholder="Olá {{nome}}, tudo bem?"
@@ -2524,15 +2564,31 @@ function StepBody({
   if (value.type === "link") {
     return (
       <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-        <LabeledField label="URL">
+        <LabeledField
+          label="URL"
+          error={errors.url}
+          errorId={`campaign-step-url-${index + 1}-error`}
+        >
           <Input
+            invalid={Boolean(errors.url)}
+            aria-invalid={Boolean(errors.url)}
+            aria-describedby={errors.url ? `campaign-step-url-${index + 1}-error` : undefined}
             value={value.url}
             placeholder="https://..."
             onChange={(event) => onChange({ ...value, url: event.target.value })}
           />
         </LabeledField>
-        <LabeledField label="Texto">
+        <LabeledField
+          label="Texto"
+          error={errors.linkText}
+          errorId={`campaign-step-link-text-${index + 1}-error`}
+        >
           <Input
+            invalid={Boolean(errors.linkText)}
+            aria-invalid={Boolean(errors.linkText)}
+            aria-describedby={
+              errors.linkText ? `campaign-step-link-text-${index + 1}-error` : undefined
+            }
             value={value.linkText}
             onChange={(event) => onChange({ ...value, linkText: event.target.value })}
           />
@@ -2551,16 +2607,32 @@ function StepBody({
 
   return (
     <div className="mt-3 grid gap-3 md:grid-cols-[9rem_1fr_1fr]">
-      <LabeledField label="Asset ID">
+      <LabeledField
+        label="Asset ID"
+        error={errors.mediaAssetId}
+        errorId={`campaign-step-asset-${index + 1}-error`}
+      >
         <Input
+          invalid={Boolean(errors.mediaAssetId)}
+          aria-invalid={Boolean(errors.mediaAssetId)}
+          aria-describedby={
+            errors.mediaAssetId ? `campaign-step-asset-${index + 1}-error` : undefined
+          }
           inputMode="numeric"
           value={value.mediaAssetId}
           onChange={(event) => onChange({ ...value, mediaAssetId: event.target.value })}
         />
       </LabeledField>
       {value.type === "document" && (
-        <LabeledField label="Arquivo">
+        <LabeledField
+          label="Arquivo"
+          error={errors.fileName}
+          errorId={`campaign-step-file-${index + 1}-error`}
+        >
           <Input
+            invalid={Boolean(errors.fileName)}
+            aria-invalid={Boolean(errors.fileName)}
+            aria-describedby={errors.fileName ? `campaign-step-file-${index + 1}-error` : undefined}
             value={value.fileName}
             onChange={(event) => onChange({ ...value, fileName: event.target.value })}
           />
@@ -2577,10 +2649,12 @@ function StepBody({
 }
 
 function StepConditions({
+  stepIndex,
   value,
   stepOptions,
   onChange,
 }: {
+  stepIndex: number;
   value: StepDraft;
   stepOptions: Array<{ id: string; label: string }>;
   onChange: (value: StepDraft) => void;
@@ -2611,121 +2685,147 @@ function StepConditions({
         <div className="mt-2 text-xs text-fg-dim">Sem regras para este step.</div>
       ) : (
         <div className="mt-3 grid gap-2">
-          {value.conditions.map((condition) => (
-            <div
-              key={condition.id}
-              className="grid gap-2 rounded-md bg-bg-base p-2 shadow-flat md:grid-cols-[1fr_1fr_1fr_1fr_auto]"
-              data-testid="campaign-step-condition-row"
-            >
-              <LabeledField label="Se">
-                <Select
-                  value={condition.type}
-                  onValueChange={(nextType) =>
-                    onChange({
-                      ...value,
-                      conditions: value.conditions.map((item) =>
-                        item.id === condition.id
-                          ? { ...item, type: nextType as CampaignStepCondition["type"] }
-                          : item,
-                      ),
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {conditionTypes.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </LabeledField>
-              <LabeledField label="Ação">
-                <Select
-                  value={condition.action}
-                  onValueChange={(nextAction) =>
-                    onChange({
-                      ...value,
-                      conditions: value.conditions.map((item) =>
-                        item.id === condition.id
-                          ? { ...item, action: nextAction as CampaignStepCondition["action"] }
-                          : item,
-                      ),
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {conditionActions.map((action) => (
-                      <SelectItem key={action.value} value={action.value}>
-                        {action.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </LabeledField>
-              <LabeledField label="Valor">
-                <Input
-                  value={condition.value}
-                  placeholder={conditionPlaceholder(condition.type)}
-                  onChange={(event) =>
-                    onChange({
-                      ...value,
-                      conditions: value.conditions.map((item) =>
-                        item.id === condition.id ? { ...item, value: event.target.value } : item,
-                      ),
-                    })
-                  }
-                />
-              </LabeledField>
-              <LabeledField label="Destino">
-                <Select
-                  value={condition.targetStepId || "__none"}
-                  disabled={condition.action !== "branch" || stepOptions.length === 0}
-                  onValueChange={(targetStepId) =>
-                    onChange({
-                      ...value,
-                      conditions: value.conditions.map((item) =>
-                        item.id === condition.id
-                          ? { ...item, targetStepId: targetStepId === "__none" ? "" : targetStepId }
-                          : item,
-                      ),
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none">Sem destino</SelectItem>
-                    {stepOptions
-                      .filter((option) => option.id !== value.id)
-                      .map((option) => (
-                        <SelectItem key={option.id} value={option.id}>
-                          {option.label}
+          {value.conditions.map((condition, conditionIndex) => {
+            const conditionErrors = conditionFieldErrors(
+              condition,
+              stepIndex + 1,
+              conditionIndex + 1,
+            );
+            const valueErrorId = `campaign-step-${stepIndex + 1}-condition-${conditionIndex + 1}-value-error`;
+            const targetErrorId = `campaign-step-${stepIndex + 1}-condition-${conditionIndex + 1}-target-error`;
+            return (
+              <div
+                key={condition.id}
+                className="grid gap-2 rounded-md bg-bg-base p-2 shadow-flat md:grid-cols-[1fr_1fr_1fr_1fr_auto]"
+                data-testid="campaign-step-condition-row"
+              >
+                <LabeledField label="Se">
+                  <Select
+                    value={condition.type}
+                    onValueChange={(nextType) =>
+                      onChange({
+                        ...value,
+                        conditions: value.conditions.map((item) =>
+                          item.id === condition.id
+                            ? { ...item, type: nextType as CampaignStepCondition["type"] }
+                            : item,
+                        ),
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {conditionTypes.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
                         </SelectItem>
                       ))}
-                  </SelectContent>
-                </Select>
-              </LabeledField>
-              <IconButton
-                label="Remover condição"
-                onClick={() =>
-                  onChange({
-                    ...value,
-                    conditions: value.conditions.filter((item) => item.id !== condition.id),
-                  })
-                }
-              >
-                <Trash2 className="h-4 w-4" />
-              </IconButton>
-            </div>
-          ))}
+                    </SelectContent>
+                  </Select>
+                </LabeledField>
+                <LabeledField label="Ação">
+                  <Select
+                    value={condition.action}
+                    onValueChange={(nextAction) =>
+                      onChange({
+                        ...value,
+                        conditions: value.conditions.map((item) =>
+                          item.id === condition.id
+                            ? { ...item, action: nextAction as CampaignStepCondition["action"] }
+                            : item,
+                        ),
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {conditionActions.map((action) => (
+                        <SelectItem key={action.value} value={action.value}>
+                          {action.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </LabeledField>
+                <LabeledField label="Valor" error={conditionErrors.value} errorId={valueErrorId}>
+                  <Input
+                    value={condition.value}
+                    invalid={Boolean(conditionErrors.value)}
+                    aria-invalid={Boolean(conditionErrors.value)}
+                    aria-describedby={conditionErrors.value ? valueErrorId : undefined}
+                    placeholder={conditionPlaceholder(condition.type)}
+                    onChange={(event) =>
+                      onChange({
+                        ...value,
+                        conditions: value.conditions.map((item) =>
+                          item.id === condition.id ? { ...item, value: event.target.value } : item,
+                        ),
+                      })
+                    }
+                  />
+                </LabeledField>
+                <LabeledField
+                  label="Destino"
+                  error={conditionErrors.targetStepId}
+                  errorId={targetErrorId}
+                >
+                  <Select
+                    value={condition.targetStepId || "__none"}
+                    disabled={condition.action !== "branch" || stepOptions.length === 0}
+                    onValueChange={(targetStepId) =>
+                      onChange({
+                        ...value,
+                        conditions: value.conditions.map((item) =>
+                          item.id === condition.id
+                            ? {
+                                ...item,
+                                targetStepId: targetStepId === "__none" ? "" : targetStepId,
+                              }
+                            : item,
+                        ),
+                      })
+                    }
+                  >
+                    <SelectTrigger
+                      aria-invalid={Boolean(conditionErrors.targetStepId)}
+                      aria-describedby={conditionErrors.targetStepId ? targetErrorId : undefined}
+                      className={cn(
+                        conditionErrors.targetStepId &&
+                          "ring-2 ring-semantic-danger/60 focus:ring-semantic-danger/60",
+                      )}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">Sem destino</SelectItem>
+                      {stepOptions
+                        .filter((option) => option.id !== value.id)
+                        .map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </LabeledField>
+                <IconButton
+                  label="Remover condição"
+                  onClick={() =>
+                    onChange({
+                      ...value,
+                      conditions: value.conditions.filter((item) => item.id !== condition.id),
+                    })
+                  }
+                >
+                  <Trash2 className="h-4 w-4" />
+                </IconButton>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -3320,10 +3420,14 @@ function LabeledField({
   label,
   children,
   className,
+  error,
+  errorId,
 }: {
   label: string;
   children: ReactNode;
   className?: string;
+  error?: string | null;
+  errorId?: string;
 }) {
   return (
     <label className={className}>
@@ -3331,6 +3435,15 @@ function LabeledField({
         {label}
       </span>
       {children}
+      {error ? (
+        <span
+          id={errorId}
+          className="mt-1.5 block text-xs leading-snug text-semantic-danger"
+          data-testid={errorId}
+        >
+          {error}
+        </span>
+      ) : null}
     </label>
   );
 }
@@ -3429,6 +3542,52 @@ function unsupportedInstagramStepLabels(steps: StepDraft[]): string[] {
   return steps
     .filter((step) => !instagramSupportedStepTypes.has(step.type))
     .map((step, index) => step.label.trim() || `Step ${index + 1}`);
+}
+
+function stepDraftFieldErrors(step: StepDraft, order: number): StepFieldErrors {
+  if (step.type === "text") {
+    return step.template.trim() ? {} : { template: `Step ${order}: mensagem vazia.` };
+  }
+
+  if (step.type === "link") {
+    return {
+      ...(!step.url.trim() ? { url: `Step ${order}: informe a URL.` } : {}),
+      ...(!step.linkText.trim() ? { linkText: `Step ${order}: informe o texto do link.` } : {}),
+    };
+  }
+
+  if (step.type === "temporary_messages") {
+    return {};
+  }
+
+  const mediaAssetId = Number.parseInt(step.mediaAssetId, 10);
+  return {
+    ...(!Number.isInteger(mediaAssetId) || mediaAssetId <= 0
+      ? { mediaAssetId: `Step ${order}: informe um Media Asset ID válido.` }
+      : {}),
+    ...(step.type === "document" && !step.fileName.trim()
+      ? { fileName: `Step ${order}: documento precisa de nome de arquivo.` }
+      : {}),
+  };
+}
+
+function conditionFieldErrors(
+  condition: ConditionDraft,
+  stepOrder: number,
+  conditionOrder: number,
+): ConditionFieldErrors {
+  const value = condition.value.trim();
+  const targetStepId = condition.targetStepId.trim();
+  return {
+    ...((condition.type === "has_tag" || condition.type === "channel_is") && !value
+      ? { value: `Step ${stepOrder}, condição ${conditionOrder}: informe o valor.` }
+      : {}),
+    ...(condition.action === "branch" && !targetStepId
+      ? {
+          targetStepId: `Step ${stepOrder}, condição ${conditionOrder}: branch precisa de destino.`,
+        }
+      : {}),
+  };
 }
 
 function buildStep(step: StepDraft, order: number): CampaignStep | string {

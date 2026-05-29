@@ -53,16 +53,20 @@ async function main() {
     const firstMessageTextarea = page.getByTestId("campaign-step-message-1");
     const originalMessage = await firstMessageTextarea.inputValue();
     await firstMessageTextarea.fill("");
-    const validationAfterInvalid = await waitForFlowValidation(
-      page,
-      "invalid",
-      "Step 1: mensagem vazia.",
-    );
+    const validationAfterInvalid = await waitForFlowValidation(page, "invalid");
+    const messageError = page.getByTestId("campaign-step-message-1-error");
+    await messageError.waitFor({
+      state: "visible",
+      timeout: 5_000,
+    });
+    const messageErrorText = (await messageError.textContent()) ?? "";
+    const messageFieldInvalid = await firstMessageTextarea.getAttribute("aria-invalid");
     if (
       validationAfterInvalid.status !== "invalid" ||
       validationAfterInvalid.failedChecks < 1 ||
-      !validationAfterInvalid.text.includes("Step 1: mensagem vazia.") ||
-      validationAfterInvalid.text.includes("Fluxo válido")
+      !messageErrorText.includes("Step 1: mensagem vazia.") ||
+      validationAfterInvalid.text.includes("Fluxo válido") ||
+      messageFieldInvalid !== "true"
     ) {
       throw new Error(
         `campaign builder validation did not surface invalid step inline: ${JSON.stringify(validationAfterInvalid)}`,
@@ -70,6 +74,10 @@ async function main() {
     }
     await firstMessageTextarea.fill(originalMessage || "Olá {{nome}}, tudo bem?");
     const validationAfterRestore = await waitForFlowValidation(page, "valid");
+    await page.getByTestId("campaign-step-message-1-error").waitFor({
+      state: "detached",
+      timeout: 5_000,
+    });
     if (validationAfterRestore.status !== "valid") {
       throw new Error(
         `campaign builder validation did not recover after fixing step: ${JSON.stringify(validationAfterRestore)}`,
@@ -361,9 +369,9 @@ async function readFlowValidation(page) {
   return page.getByTestId("campaign-flow-validation-card").evaluate((element) => ({
     status: element.getAttribute("data-status"),
     text: element.textContent ?? "",
-    failedChecks: Array.from(element.querySelectorAll('[data-testid="campaign-flow-validation-check"]')).filter(
-      (check) => check.getAttribute("data-ok") === "false",
-    ).length,
+    failedChecks: Array.from(
+      element.querySelectorAll('[data-testid="campaign-flow-validation-check"]'),
+    ).filter((check) => check.getAttribute("data-ok") === "false").length,
   }));
 }
 
