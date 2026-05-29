@@ -46,5 +46,11 @@ jobs:
       - name: Unit Tests
         run: npm run test
 
-      - name: Contact Identity SQL Guard
-        run: npm run test:contact-identity-raw-sql
+      - name: Critical Messaging Reliability Tests
+        run: |
+          npm run test --workspace @nuoma/api -- src/services/extension-overlay.test.ts src/services/automation-engine-daemon.test.ts
+          npm run test --workspace @nuoma/db -- src/contact-identity-backfill.test.ts src/repositories.test.ts -t "wa_jid|worker send token buckets|serial"
+          npm run test --workspace @nuoma/worker -- src/sync/handler.test.ts -t "saved-name|wa_jid|canonical identity|canonical"
+          npm run test --workspace @nuoma/worker -- src/job-loop.test.ts -t "Instagram|token bucket|24h|canonical wa_jid|rate"
+          npm run test --workspace @nuoma/worker -- src/instagram/guard.test.ts src/voice/audio.test.ts
+          npm run test:contact-identity-raw-sql
