@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   parseInstagramDisplayedTimestamp,
-  shouldSkipInstagramSyncedOutgoingDuplicate,
+  shouldSkipInstagramSyncedDuplicate,
   stableInstagramMessageExternalId,
 } from "./sync.js";
 
@@ -74,7 +74,7 @@ describe("Instagram sync helpers", () => {
     ];
 
     expect(
-      shouldSkipInstagramSyncedOutgoingDuplicate({
+      shouldSkipInstagramSyncedDuplicate({
         message: {
           direction: "outgoing",
           body: "ig video media smoke",
@@ -86,7 +86,7 @@ describe("Instagram sync helpers", () => {
       }),
     ).toBe(true);
     expect(
-      shouldSkipInstagramSyncedOutgoingDuplicate({
+      shouldSkipInstagramSyncedDuplicate({
         message: {
           direction: "outgoing",
           body: "",
@@ -94,6 +94,27 @@ describe("Instagram sync helpers", () => {
           sentAt: "2026-05-29T10:41:00.000Z",
         },
         existingMessages,
+        syncedAt: "2026-05-29T10:42:00.000Z",
+      }),
+    ).toBe(true);
+    expect(
+      shouldSkipInstagramSyncedDuplicate({
+        message: {
+          direction: "incoming",
+          body: "61 98299.0982",
+          contentType: "text",
+          sentAt: "2026-05-21T14:41:00.000Z",
+        },
+        existingMessages: [
+          {
+            direction: "inbound",
+            status: "received",
+            body: "61 98299.0982",
+            contentType: "text",
+            mediaAssetId: null,
+            observedAtUtc: "2026-05-21T14:41:00.000Z",
+          },
+        ],
         syncedAt: "2026-05-29T10:42:00.000Z",
       }),
     ).toBe(true);

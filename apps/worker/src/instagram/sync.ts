@@ -480,7 +480,7 @@ async function persistInstagramThreads(input: {
 
     for (const [index, message] of thread.messages.entries()) {
       if (
-        shouldSkipInstagramSyncedOutgoingDuplicate({
+        shouldSkipInstagramSyncedDuplicate({
           message,
           existingMessages: recentMessages,
           syncedAt,
@@ -1055,7 +1055,7 @@ function resolveInstagramThreadParticipant(input: {
   };
 }
 
-export function shouldSkipInstagramSyncedOutgoingDuplicate(input: {
+export function shouldSkipInstagramSyncedDuplicate(input: {
   message: Pick<InstagramThreadMessageSnapshot, "direction" | "body" | "contentType" | "sentAt">;
   existingMessages: Array<{
     direction: MessageDirection;
@@ -1067,13 +1067,11 @@ export function shouldSkipInstagramSyncedOutgoingDuplicate(input: {
   }>;
   syncedAt: string;
 }): boolean {
-  if (input.message.direction !== "outgoing") {
-    return false;
-  }
   const body = input.message.body.replace(/\s+/g, " ").trim();
   const messageMs = Date.parse(input.message.sentAt ?? input.syncedAt);
+  const expectedDirection = input.message.direction === "incoming" ? "inbound" : "outbound";
   for (const existing of input.existingMessages) {
-    if (existing.direction !== "outbound" || existing.status === "failed") {
+    if (existing.status === "failed") {
       continue;
     }
     const existingMs = Date.parse(existing.observedAtUtc);
@@ -1085,6 +1083,16 @@ export function shouldSkipInstagramSyncedOutgoingDuplicate(input: {
       continue;
     }
     const existingBody = String(existing.body ?? "").replace(/\s+/g, " ").trim();
+    if (
+      existing.direction === expectedDirection &&
+      existing.contentType === input.message.contentType &&
+      existingBody === body
+    ) {
+      return true;
+    }
+    if (input.message.direction !== "outgoing" || existing.direction !== "outbound") {
+      continue;
+    }
     if (body && existingBody === body) {
       return true;
     }
