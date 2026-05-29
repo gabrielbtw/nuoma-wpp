@@ -63,14 +63,14 @@ export function EvidencePage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-6 pt-2">
+    <div className="flex min-h-[calc(100vh-6.5rem)] w-full max-w-none flex-col gap-4 pt-0">
       <Animate preset="rise-in">
-        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <header className="nuoma-workspace-header flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="botforge-kicker [color:rgb(var(--color-brand-cyan))]">
               M37 Evidence Center
             </p>
-            <h1 className="botforge-display mt-2 text-4xl md:text-5xl">
+            <h1 className="botforge-display mt-2 text-3xl md:text-4xl">
               Provas <span className="nuoma-gradient-text">navegáveis</span>.
             </h1>
             <p className="mt-3 max-w-2xl text-sm text-fg-muted">
@@ -89,72 +89,120 @@ export function EvidencePage() {
         </header>
       </Animate>
 
-      <Animate preset="rise-in" delaySeconds={0.05}>
-        <section className="grid gap-3 md:grid-cols-5">
-          <SummaryTile label="Grupos" value={evidence.data.summary.groups} />
-          <SummaryTile label="Prints" value={evidence.data.summary.images} />
-          <SummaryTile label="Reports" value={evidence.data.summary.reports} />
-          <SummaryTile label="JSON" value={evidence.data.summary.json} />
-          <SummaryTile
-            label="Mais recente"
-            value={
-              evidence.data.summary.latestAt ? (
-                <TimeAgo
-                  date={evidence.data.summary.latestAt}
-                  className="[color:rgb(var(--color-fg-primary))]"
-                />
-              ) : (
-                "—"
-              )
-            }
-            compact
-          />
-        </section>
-      </Animate>
-
-      <Animate preset="rise-in" delaySeconds={0.08}>
-        <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-bg-base px-4 py-3 shadow-flat">
-          <div className="flex flex-wrap gap-2">
-            {categoryOrder.map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => setCategory(item)}
-                className={cn(
-                  "h-8 rounded-md px-3 font-mono text-[0.65rem] uppercase tracking-widest transition-shadow",
-                  category === item
-                    ? "bg-bg-surface text-brand-cyan shadow-pressed-sm"
-                    : "text-fg-primary shadow-flat-subtle hover:shadow-raised-sm",
-                )}
-              >
-                {item === "all" ? "todos" : categoryLabels[item]}
-              </button>
-            ))}
-          </div>
-          <Button
-            size="sm"
-            variant="soft"
-            leftIcon={<RefreshCw className="h-3.5 w-3.5" />}
-            loading={evidence.isFetching}
-            onClick={() => void evidence.refetch()}
-          >
-            Atualizar
-          </Button>
-        </section>
-      </Animate>
-
       <Animate preset="rise-in" delaySeconds={0.1}>
-        {groups.length === 0 ? (
-          <div className="rounded-xl bg-bg-base p-8 shadow-flat">
-            <EmptyState description="Nenhuma evidência encontrada para este filtro." />
-          </div>
-        ) : (
-          <section data-testid="evidence-center-grid" className="grid gap-4 xl:grid-cols-2">
-            {groups.map((group) => (
-              <EvidenceGroupCard key={group.id} group={group} />
-            ))}
-          </section>
-        )}
+        <section className="nuoma-evidence-v2">
+          <aside className="nuoma-evidence-rail">
+            <section>
+              <div className="nuoma-ops-panel-head">
+                <div>
+                  <h2>Índice</h2>
+                  <p>Assets locais normalizados por categoria.</p>
+                </div>
+                <FileJson className="h-4 w-4" />
+              </div>
+              <div className="nuoma-evidence-summary">
+                <SummaryTile label="Grupos" value={evidence.data.summary.groups} />
+                <SummaryTile label="Prints" value={evidence.data.summary.images} />
+                <SummaryTile label="Reports" value={evidence.data.summary.reports} />
+                <SummaryTile label="JSON" value={evidence.data.summary.json} />
+              </div>
+            </section>
+
+            <section>
+              <div className="nuoma-ops-panel-head">
+                <div>
+                  <h2>Filtros</h2>
+                  <p>Recorta o board sem sair da tela.</p>
+                </div>
+              </div>
+              <div className="nuoma-evidence-filters">
+                {categoryOrder.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setCategory(item)}
+                    className={category === item ? "is-active" : undefined}
+                  >
+                    {item === "all" ? "todos" : categoryLabels[item]}
+                  </button>
+                ))}
+              </div>
+              <Button
+                className="nuoma-evidence-refresh"
+                size="sm"
+                variant="soft"
+                leftIcon={<RefreshCw className="h-3.5 w-3.5" />}
+                loading={evidence.isFetching}
+                onClick={() => void evidence.refetch()}
+              >
+                Atualizar
+              </Button>
+            </section>
+          </aside>
+
+          <main className="nuoma-evidence-grid-panel">
+            {groups.length === 0 ? (
+              <div className="nuoma-evidence-empty">
+                <EmptyState description="Nenhuma evidência encontrada para este filtro." />
+              </div>
+            ) : (
+              <section data-testid="evidence-center-grid" className="nuoma-evidence-grid">
+                {groups.map((group) => (
+                  <EvidenceGroupCard key={group.id} group={group} />
+                ))}
+              </section>
+            )}
+          </main>
+
+          <aside className="nuoma-evidence-side">
+            <section>
+              <div className="nuoma-ops-panel-head">
+                <div>
+                  <h2>Raiz auditada</h2>
+                  <p>Diretório usado pela API.</p>
+                </div>
+                <ShieldCheck className="h-4 w-4" />
+              </div>
+              <div className="nuoma-evidence-root">{evidence.data.dataRoot}</div>
+            </section>
+
+            <section>
+              <div className="nuoma-ops-panel-head">
+                <div>
+                  <h2>Mais recente</h2>
+                  <p>Última alteração encontrada.</p>
+                </div>
+              </div>
+              <div className="nuoma-evidence-latest">
+                {evidence.data.summary.latestAt ? (
+                  <TimeAgo
+                    date={evidence.data.summary.latestAt}
+                    className="[color:rgb(var(--color-fg-primary))]"
+                  />
+                ) : (
+                  "—"
+                )}
+              </div>
+            </section>
+
+            <section>
+              <div className="nuoma-ops-panel-head">
+                <div>
+                  <h2>Fila visual</h2>
+                  <p>{groups.length} grupos no filtro atual.</p>
+                </div>
+              </div>
+              <ol className="nuoma-evidence-queue">
+                {groups.slice(0, 6).map((group) => (
+                  <li key={group.id}>
+                    <span>{categoryLabels[group.category]}</span>
+                    <strong>{group.title}</strong>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          </aside>
+        </section>
       </Animate>
     </div>
   );
@@ -164,7 +212,7 @@ function EvidenceGroupCard({ group }: { group: EvidenceGroup }) {
   const previewAssets = group.assets.filter((asset) => asset.type === "image").slice(0, 4);
 
   return (
-    <article className="rounded-xl bg-bg-base p-4 shadow-flat" data-testid="evidence-group">
+    <article className="nuoma-evidence-card" data-testid="evidence-group">
       <div className="grid gap-4 md:grid-cols-[11rem_1fr]">
         <a
           href={group.cover ? assetUrl(group.cover) : undefined}
@@ -203,10 +251,7 @@ function EvidenceGroupCard({ group }: { group: EvidenceGroup }) {
                 {group.relativeDir || "data"}
               </div>
             </div>
-            <TimeAgo
-              date={group.updatedAt}
-              className="[color:rgb(var(--color-fg-primary))]"
-            />
+            <TimeAgo date={group.updatedAt} className="[color:rgb(var(--color-fg-primary))]" />
           </div>
 
           <div className="mt-4 grid grid-cols-4 gap-2 text-center">
@@ -256,8 +301,7 @@ function EvidenceGroupCard({ group }: { group: EvidenceGroup }) {
 }
 
 function AssetLink({ asset, label }: { asset: EvidenceAsset; label: string }) {
-  const Icon =
-    asset.type === "markdown" ? FileText : asset.type === "json" ? FileJson : ImageIcon;
+  const Icon = asset.type === "markdown" ? FileText : asset.type === "json" ? FileJson : ImageIcon;
   return (
     <a
       href={assetUrl(asset)}
@@ -282,14 +326,9 @@ function SummaryTile({
   compact?: boolean;
 }) {
   return (
-    <div className="rounded-xl bg-bg-base px-4 py-4 shadow-flat">
-      <div className="text-xs text-fg-primary">{label}</div>
-      <div
-        className={cn(
-          "mt-2 font-semibold text-fg-primary",
-          compact ? "text-sm" : "text-3xl tracking-tight",
-        )}
-      >
+    <div className="nuoma-evidence-tile">
+      <div>{label}</div>
+      <div className={cn("mt-2 font-semibold text-fg-primary", compact ? "text-sm" : "text-3xl")}>
         {value}
       </div>
     </div>

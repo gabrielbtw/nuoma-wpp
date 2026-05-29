@@ -1,4 +1,13 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
+  Database,
+  RotateCcw,
+  ShieldCheck,
+  Trash2,
+} from "lucide-react";
 
 import {
   Animate,
@@ -29,6 +38,12 @@ export function JobsPage() {
 
   const all = trpc.jobs.list.useQuery({}, { enabled: tab === "queue" });
   const dead = trpc.jobs.listDead.useQuery({}, { enabled: tab === "dead" });
+  const jobs = all.data?.jobs ?? [];
+  const deadJobs = dead.data?.jobs ?? [];
+  const queuedCount = jobs.filter((job) => job.status === "queued").length;
+  const runningCount = jobs.filter((job) => job.status === "running" || job.status === "claimed").length;
+  const completedCount = jobs.filter((job) => job.status === "completed").length;
+  const failedCount = jobs.filter((job) => job.status === "failed" || job.status === "cancelled").length;
 
   const retry = trpc.jobs.retryDead.useMutation({
     onSuccess() {
@@ -55,14 +70,14 @@ export function JobsPage() {
   });
 
   return (
-    <div className="flex flex-col gap-7 max-w-6xl mx-auto pt-2">
+    <div className="flex min-h-[calc(100vh-6.5rem)] w-full max-w-none flex-col gap-4 pt-0">
       <Animate preset="rise-in">
-        <header className="flex items-end justify-between gap-6">
+        <header className="nuoma-workspace-header flex items-end justify-between gap-6">
           <div>
             <p className="botforge-kicker">
               Worker
             </p>
-            <h1 className="botforge-display mt-2 text-5xl md:text-6xl">
+            <h1 className="botforge-display mt-2 text-3xl md:text-4xl">
               Jobs <span className="nuoma-gradient-text">em fila</span>.
             </h1>
             <p className="text-sm text-fg-muted mt-3 max-w-xl">
@@ -81,96 +96,172 @@ export function JobsPage() {
       </Animate>
 
       <Animate preset="rise-in" delaySeconds={0.1}>
-        <Tabs value={tab} onValueChange={setTab}>
-          <TabsList>
-            <TabsTrigger value="queue">Fila</TabsTrigger>
-            <TabsTrigger value="dead">DLQ</TabsTrigger>
-          </TabsList>
-          <TabsContent value="queue">
-            <Card>
-              <CardHeader>
-                <CardTitle>Fila atual</CardTitle>
-                <CardDescription>
-                  {all.data ? `${all.data.jobs.length} jobs` : "—"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {all.isLoading ? (
-                  <LoadingState />
-                ) : all.error ? (
-                  <ErrorState description={all.error.message} />
-                ) : !all.data || all.data.jobs.length === 0 ? (
-                  <EmptyState description="Fila vazia." />
-                ) : (
-                  <ul className="flex flex-col gap-1">
-                    {all.data.jobs.map((job) => (
-                      <li
-                        key={job.id}
-                        className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg hover:bg-bg-base hover:shadow-flat transition-shadow"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className="font-mono text-xs text-fg-dim">#{job.id}</span>
-                          <span className="text-sm">{job.type}</span>
+        <section className="nuoma-jobs-board">
+          <div className="nuoma-jobs-stats">
+            <JobSignalCard icon={<Database className="h-4 w-4" />} label="Fila" value={jobs.length} detail={`${queuedCount} queued`} tone="cyan" />
+            <JobSignalCard icon={<Clock3 className="h-4 w-4" />} label="Em execução" value={runningCount} detail="claimed/running" tone="green" />
+            <JobSignalCard icon={<CheckCircle2 className="h-4 w-4" />} label="Concluídos" value={completedCount} detail="janela atual" tone="green" />
+            <JobSignalCard icon={<AlertTriangle className="h-4 w-4" />} label="Falhas" value={failedCount + deadJobs.length} detail={`${deadJobs.length} DLQ`} tone={failedCount + deadJobs.length > 0 ? "amber" : "green"} />
+          </div>
+
+          <div className="nuoma-jobs-layout">
+            <Tabs value={tab} onValueChange={setTab} className="nuoma-jobs-main">
+              <div className="nuoma-jobs-tabs-row">
+                <TabsList>
+                  <TabsTrigger value="queue">Fila</TabsTrigger>
+                  <TabsTrigger value="dead">DLQ</TabsTrigger>
+                </TabsList>
+                <Badge variant={failedCount + deadJobs.length > 0 ? "warning" : "success"}>
+                  {failedCount + deadJobs.length > 0 ? "atenção" : "saudável"}
+                </Badge>
+              </div>
+
+              <TabsContent value="queue">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Fila atual</CardTitle>
+                    <CardDescription>
+                      {all.data ? `${all.data.jobs.length} jobs` : "—"}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {all.isLoading ? (
+                      <LoadingState />
+                    ) : all.error ? (
+                      <ErrorState description={all.error.message} />
+                    ) : !all.data || all.data.jobs.length === 0 ? (
+                      <EmptyState description="Fila vazia." />
+                    ) : (
+                      <div className="nuoma-jobs-table">
+                        <div className="nuoma-jobs-row is-head">
+                          <span>ID</span>
+                          <span>Tipo</span>
+                          <span>Status</span>
+                          <span>Criado</span>
+                          <span>Ação</span>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <Badge variant={statusVariant(job.status)}>{job.status}</Badge>
-                          <TimeAgo date={job.scheduledAt} />
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-          <TabsContent value="dead">
-            <Card>
-              <CardHeader>
-                <CardTitle>Dead-letter queue</CardTitle>
-                <CardDescription>
-                  {dead.data ? `${dead.data.jobs.length} jobs mortos` : "—"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {dead.isLoading ? (
-                  <LoadingState />
-                ) : dead.error ? (
-                  <ErrorState description={dead.error.message} />
-                ) : !dead.data || dead.data.jobs.length === 0 ? (
-                  <EmptyState description="Nenhum job morto." />
-                ) : (
-                  <ul className="flex flex-col gap-1">
-                    {dead.data.jobs.map((job) => (
-                      <li
-                        key={job.id}
-                        className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg hover:bg-bg-base hover:shadow-flat transition-shadow"
-                      >
-                        <div className="min-w-0">
-                          <div className="text-sm">
-                            <span className="font-mono text-xs text-fg-dim mr-2">#{job.id}</span>
-                            {job.type}
+                        {all.data.jobs.map((job) => (
+                          <div key={job.id} className="nuoma-jobs-row">
+                            <span className="font-mono text-fg-dim">#{job.id}</span>
+                            <span className="truncate">{job.type}</span>
+                            <span><Badge variant={statusVariant(job.status)}>{job.status}</Badge></span>
+                            <span><TimeAgo date={job.createdAt} /></span>
+                            <span className="nuoma-jobs-row-action">
+                              {job.status === "failed" || job.status === "cancelled" ? "Revisar" : "Monitorar"}
+                            </span>
                           </div>
-                          <div className="text-xs text-fg-dim mt-0.5 truncate max-w-md">
-                            {job.lastError}
-                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="dead">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Dead-letter queue</CardTitle>
+                    <CardDescription>
+                      {dead.data ? `${dead.data.jobs.length} jobs mortos` : "—"}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {dead.isLoading ? (
+                      <LoadingState />
+                    ) : dead.error ? (
+                      <ErrorState description={dead.error.message} />
+                    ) : !dead.data || dead.data.jobs.length === 0 ? (
+                      <EmptyState description="Nenhum job morto." />
+                    ) : (
+                      <div className="nuoma-jobs-table">
+                        <div className="nuoma-jobs-row is-head">
+                          <span>ID</span>
+                          <span>Tipo</span>
+                          <span>Erro</span>
+                          <span>Criado</span>
+                          <span>Ação</span>
                         </div>
-                        <Button
-                          size="xs"
-                          variant="soft"
-                          loading={retry.isPending && retry.variables?.deadJobId === job.id}
-                          onClick={() => retry.mutate({ deadJobId: job.id })}
-                        >
-                          Recolocar
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                        {dead.data.jobs.map((job) => (
+                          <div key={job.id} className="nuoma-jobs-row">
+                            <span className="font-mono text-fg-dim">#{job.id}</span>
+                            <span className="truncate">{job.type}</span>
+                            <span className="truncate text-fg-dim">{job.lastError}</span>
+                            <span><TimeAgo date={job.createdAt} /></span>
+                            <span>
+                              <Button
+                                size="xs"
+                                variant="soft"
+                                loading={retry.isPending && retry.variables?.deadJobId === job.id}
+                                onClick={() => retry.mutate({ deadJobId: job.id })}
+                              >
+                                Recolocar
+                              </Button>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+
+            <aside className="nuoma-jobs-side">
+              <section>
+                <h2>Readiness da fila</h2>
+                <div className="nuoma-jobs-gates">
+                  <span><ShieldCheck className="h-4 w-4" /> Scheduler <b>OK</b></span>
+                  <span><Clock3 className="h-4 w-4" /> Backlog <b>{queuedCount}</b></span>
+                  <span><AlertTriangle className="h-4 w-4" /> DLQ <b>{deadJobs.length}</b></span>
+                </div>
+              </section>
+              <section>
+                <h2>Ações recomendadas</h2>
+                <button type="button" onClick={() => cleanup.mutate({ olderThanDays: 30 })}>
+                  <Trash2 className="h-4 w-4" />
+                  Cleanup 30 dias
+                </button>
+                <button type="button" onClick={() => setTab("dead")}>
+                  <RotateCcw className="h-4 w-4" />
+                  Revisar DLQ
+                </button>
+              </section>
+              <section>
+                <h2>Linha operacional</h2>
+                <div className="nuoma-jobs-timeline">
+                  <span className="is-done">Recebido</span>
+                  <span className={runningCount > 0 ? "is-done" : undefined}>Claim</span>
+                  <span className={completedCount > 0 ? "is-done" : undefined}>Execução</span>
+                  <span className={deadJobs.length === 0 ? "is-done" : "is-alert"}>DLQ</span>
+                </div>
+              </section>
+            </aside>
+          </div>
+        </section>
       </Animate>
+    </div>
+  );
+}
+
+function JobSignalCard({
+  icon,
+  label,
+  value,
+  detail,
+  tone,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: ReactNode;
+  detail: string;
+  tone: "cyan" | "green" | "amber";
+}) {
+  return (
+    <div className="nuoma-jobs-stat" data-tone={tone}>
+      <span>{icon}</span>
+      <em>{label}</em>
+      <strong>{value}</strong>
+      <small>{detail}</small>
     </div>
   );
 }

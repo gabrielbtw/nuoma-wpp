@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type CSSProperties } from "react";
-import type { inferRouterOutputs } from "@trpc/server";
+import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import type { AppRouter } from "@nuoma/api";
@@ -34,6 +34,7 @@ import { CampaignFlowBuilder } from "../flow-builder/FlowBuilder.js";
 
 type CampaignTickResult = inferRouterOutputs<AppRouter>["campaigns"]["tick"];
 type CampaignReadyReport = inferRouterOutputs<AppRouter>["campaigns"]["ready"];
+type RemarketingBatchInput = inferRouterInputs<AppRouter>["campaigns"]["remarketingBatchReady"];
 type RemarketingBatchReadyReport =
   inferRouterOutputs<AppRouter>["campaigns"]["remarketingBatchReady"];
 type RemarketingBatchDispatchResult =
@@ -42,24 +43,58 @@ type CampaignListItem = inferRouterOutputs<AppRouter>["campaigns"]["list"]["camp
 type CampaignRecipientItem = CampaignListItem["recipients"][number];
 type CampaignBlockIssue = CampaignReadyReport["issues"][number];
 type RemarketingBatchRejected = RemarketingBatchReadyReport["rejected"][number];
+type CampaignTab = "overview" | "builder" | "dispatch" | "recipients";
 
 export function CampaignsPage() {
   const campaigns = trpc.campaigns.list.useQuery();
   const utils = trpc.useUtils();
   const [lastTick, setLastTick] = useState<CampaignTickResult | null>(null);
-  const [lastBatchDispatch, setLastBatchDispatch] =
-    useState<RemarketingBatchDispatchResult | null>(null);
+  const [lastBatchDispatch, setLastBatchDispatch] = useState<RemarketingBatchDispatchResult | null>(
+    null,
+  );
   const [safeCampaignId, setSafeCampaignId] = useState<string>(() => initialCampaignIdFromUrl());
   const [safeConfirm, setSafeConfirm] = useState("");
   const [safeBatchPhones, setSafeBatchPhones] = useState("");
+  const [safeBatchAllowedPhone, setSafeBatchAllowedPhone] = useState("5531982066263");
+  const [safeBatchAllowedInstagram, setSafeBatchAllowedInstagram] = useState("gabriell_braga");
   const [safeBatchConfirm, setSafeBatchConfirm] = useState("");
+  const [batchReadyKey, setBatchReadyKey] = useState<string | null>(null);
   const toast = useToast();
   const intent = usePageIntent();
+  const [activeTab, setActiveTab] = useState<CampaignTab>(initialCampaignTabFromUrl(intent));
+  const builderImmersive = activeTab === "builder";
   const selectedSafeCampaignId = useMemo(() => {
     const parsed = Number(safeCampaignId);
     if (Number.isInteger(parsed) && parsed > 0) return parsed;
     return campaigns.data?.campaigns[0]?.id ?? null;
   }, [campaigns.data?.campaigns, safeCampaignId]);
+  const selectedSafeCampaign = useMemo(
+    () =>
+      campaigns.data?.campaigns.find((campaign) => campaign.id === selectedSafeCampaignId) ??
+      campaigns.data?.campaigns[0] ??
+      null,
+    [campaigns.data?.campaigns, selectedSafeCampaignId],
+  );
+  const currentBatchInput = useMemo(
+    () =>
+      selectedSafeCampaignId
+        ? remarketingBatchInput({
+            campaignId: selectedSafeCampaignId,
+            channel: selectedSafeCampaign?.channel ?? "whatsapp",
+            recipients: safeBatchPhones,
+            allowedPhone: safeBatchAllowedPhone,
+            allowedInstagram: safeBatchAllowedInstagram,
+          })
+        : null,
+    [
+      selectedSafeCampaignId,
+      selectedSafeCampaign?.channel,
+      safeBatchPhones,
+      safeBatchAllowedPhone,
+      safeBatchAllowedInstagram,
+    ],
+  );
+  const currentBatchKey = currentBatchInput ? remarketingBatchRequestKey(currentBatchInput) : null;
   const readiness = trpc.campaigns.ready.useQuery(
     { campaignId: selectedSafeCampaignId ?? 1 },
     {
@@ -68,7 +103,8 @@ export function CampaignsPage() {
     },
   );
   const batchReady = trpc.campaigns.remarketingBatchReady.useMutation({
-    onSuccess(result) {
+    onSuccess(result, variables) {
+      setBatchReadyKey(remarketingBatchRequestKey(variables));
       setSafeBatchConfirm("");
       toast.push({
         title: result.canDispatch ? "Lote pronto" : "Lote bloqueado",
@@ -82,9 +118,12 @@ export function CampaignsPage() {
       toast.push({ title: "Falha ao validar lote", description: error.message, variant: "danger" });
     },
   });
+  const currentBatchReady =
+    batchReadyKey && currentBatchKey === batchReadyKey ? (batchReady.data ?? null) : null;
   const batchDispatch = trpc.campaigns.remarketingBatchDispatch.useMutation({
     async onSuccess(result) {
       setLastBatchDispatch(result);
+      setBatchReadyKey(null);
       setSafeBatchConfirm("");
       await utils.campaigns.list.invalidate();
       toast.push({
@@ -143,6 +182,26 @@ export function CampaignsPage() {
       toast.push({ title: "Falha ao retomar", description: error.message, variant: "danger" });
     },
   });
+  const updateCampaign = trpc.campaigns.update.useMutation({
+    async onSuccess(result) {
+      await utils.campaigns.list.invalidate();
+      const enabled = isOverlayEnabled(result.campaign?.metadata ?? {});
+      toast.push({
+        title: enabled ? "Overlay liberado" : "Overlay removido",
+        description: result.campaign
+          ? `${result.campaign.name}: overlay ${enabled ? "sim" : "não"}.`
+          : "Campanha atualizada.",
+        variant: enabled ? "success" : "info",
+      });
+    },
+    onError(error) {
+      toast.push({
+        title: "Falha ao atualizar overlay",
+        description: error.message,
+        variant: "danger",
+      });
+    },
+  });
 
   const isGlobalTickPending = (dryRun: boolean) =>
     tick.isPending &&
@@ -176,6 +235,14 @@ export function CampaignsPage() {
     setSafeConfirm("");
   };
   const runConfirmedTick = (input: { campaignId?: number; label: string }) => {
+    if (!input.campaignId) {
+      toast.push({
+        title: "Selecione uma campanha",
+        description: "Disparo real agora exige Campanha pronta por campanha.",
+        variant: "warning",
+      });
+      return;
+    }
     const confirmation = window.prompt(`Digite DISPARAR para enfileirar ${input.label}.`);
     if (confirmation !== "DISPARAR") {
       toast.push({
@@ -187,38 +254,56 @@ export function CampaignsPage() {
     }
     tick.mutate({ dryRun: false, campaignId: input.campaignId, confirmText: confirmation });
   };
-  const runBatchReady = () => {
-    if (!selectedSafeCampaignId) return;
-    batchReady.mutate({
-      campaignId: selectedSafeCampaignId,
-      rawPhones: safeBatchPhones,
-      allowedPhone: "5531982066263",
+  const toggleCampaignOverlay = (campaign: CampaignListItem) => {
+    const enabled = !isOverlayEnabled(campaign.metadata);
+    updateCampaign.mutate({
+      id: campaign.id,
+      metadata: {
+        ...campaign.metadata,
+        overlayEnabled: enabled,
+      },
     });
   };
+  const runBatchReady = () => {
+    if (!currentBatchInput) return;
+    batchReady.mutate(currentBatchInput);
+  };
   const runBatchDispatch = () => {
-    if (!selectedSafeCampaignId || !batchReady.data?.canDispatch) return;
+    if (!currentBatchInput || !currentBatchReady?.canDispatch) return;
+    if (currentBatchKey !== batchReadyKey) {
+      toast.push({
+        title: "Revalide o lote",
+        description: "O alvo, campanha ou allowlist mudou depois da última validação.",
+        variant: "warning",
+      });
+      return;
+    }
     batchDispatch.mutate({
-      campaignId: selectedSafeCampaignId,
-      rawPhones: safeBatchPhones,
-      allowedPhone: "5531982066263",
+      ...currentBatchInput,
       confirmText: safeBatchConfirm,
     });
   };
 
+  if (builderImmersive) {
+    return (
+      <div className="nuoma-campaign-immersive">
+        <CampaignFlowBuilder onOpenCampaignTab={setActiveTab} />
+      </div>
+    );
+  }
+
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-5 pt-2">
+    <div className="flex min-h-[calc(100vh-6.5rem)] w-full max-w-none flex-col gap-4 pt-0">
       <Animate preset="rise-in">
-        <header className="flex items-center justify-between gap-6">
+        <header className="nuoma-workspace-header flex items-center justify-between gap-6">
           <div>
-            <p className="botforge-kicker">
-              Campanhas
-            </p>
+            <p className="botforge-kicker">Campanhas</p>
             <h1 className="botforge-display mt-1 text-3xl md:text-4xl">
               Outbound <span className="nuoma-gradient-text">operacional</span>.
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-fg-muted">
-              Builder, disparo, recipients e auditoria em uma superfície compacta com
-              guardrails fortes por telefone.
+              Builder, disparo, recipients e auditoria em uma superfície compacta com guardrails
+              fortes por canal.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -242,12 +327,24 @@ export function CampaignsPage() {
         </header>
       </Animate>
 
-      <Tabs defaultValue={intent === "enqueue" ? "dispatch" : "overview"} className="flex flex-col gap-4">
-        <TabsList className="grid w-full grid-cols-2 gap-1 md:w-auto md:grid-cols-4">
-          <TabsTrigger value="overview">Visão geral</TabsTrigger>
-          <TabsTrigger value="builder">Builder</TabsTrigger>
-          <TabsTrigger value="dispatch">Disparo</TabsTrigger>
-          <TabsTrigger value="recipients">Recipients</TabsTrigger>
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as CampaignTab)}
+        className="flex flex-col gap-4"
+      >
+        <TabsList className="nuoma-campaign-tabs">
+          <TabsTrigger value="overview" data-testid="campaign-tab-overview">
+            Visão geral
+          </TabsTrigger>
+          <TabsTrigger value="builder" data-testid="campaign-tab-builder">
+            Builder
+          </TabsTrigger>
+          <TabsTrigger value="dispatch" data-testid="campaign-tab-dispatch">
+            Disparo
+          </TabsTrigger>
+          <TabsTrigger value="recipients" data-testid="campaign-tab-recipients">
+            Recipients
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -272,9 +369,13 @@ export function CampaignsPage() {
             readyError={readiness.error?.message ?? null}
             batchPhones={safeBatchPhones}
             onBatchPhonesChange={setSafeBatchPhones}
+            batchAllowedPhone={safeBatchAllowedPhone}
+            onBatchAllowedPhoneChange={setSafeBatchAllowedPhone}
+            batchAllowedInstagram={safeBatchAllowedInstagram}
+            onBatchAllowedInstagramChange={setSafeBatchAllowedInstagram}
             batchConfirmation={safeBatchConfirm}
             onBatchConfirmationChange={setSafeBatchConfirm}
-            batchReady={batchReady.data ?? null}
+            batchReady={currentBatchReady}
             batchReadyPending={batchReady.isPending}
             batchReadyError={batchReady.error?.message ?? null}
             batchDispatchPending={batchDispatch.isPending}
@@ -288,124 +389,131 @@ export function CampaignsPage() {
             onBatchDispatch={runBatchDispatch}
           />
 
-      {intent === "enqueue" && (
-        <Animate preset="rise-in" delaySeconds={0.08}>
-          <Card>
-            <CardHeader>
-              <CardTitle>Preparar disparo</CardTitle>
-              <CardDescription>
-                A paleta abriu este fluxo em modo seguro. Use prévia antes de enfileirar.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-3">
-              <Button
-                variant="accent"
-                loading={isGlobalTickPending(true)}
-                onClick={() => tick.mutate({ dryRun: true })}
-              >
-                Rodar prévia
-              </Button>
-              <Button
-                variant="soft"
-                loading={isGlobalTickPending(false)}
-                onClick={() => runConfirmedTick({ label: "campanhas elegíveis" })}
-              >
-                Enfileirar elegíveis
-              </Button>
-            </CardContent>
-          </Card>
-        </Animate>
-      )}
-
-      {lastTick && (
-        <Animate preset="rise-in" delaySeconds={0.08}>
-          <Card>
-            <CardHeader>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <CardTitle>Último tick</CardTitle>
+          {intent === "enqueue" && (
+            <Animate preset="rise-in" delaySeconds={0.08}>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Preparar disparo</CardTitle>
                   <CardDescription>
-                    {lastTick.dryRun
-                      ? `${lastTick.plannedJobs.length} job(s) planejado(s), sem alterar fila`
-                      : `${lastTick.jobsCreated} job(s) criado(s)`}
+                    A paleta abriu este fluxo em modo seguro. Use prévia antes de enfileirar.
                   </CardDescription>
-                </div>
-                <Badge variant={lastTick.dryRun ? "warning" : "success"}>
-                  {lastTick.dryRun ? "prévia" : "enfileirado"}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-3 md:grid-cols-5">
-                <Metric label="Campanhas" value={lastTick.campaignsScanned} />
-                <Metric label="Recipients" value={lastTick.recipientsScanned} />
-                <Metric label="Jobs" value={lastTick.jobsCreated || lastTick.plannedJobs.length} />
-                <Metric
-                  label="Evergreen"
-                  value={lastTick.evergreenRecipientsCreated || lastTick.evergreenRecipientsPlanned}
-                />
-                <Metric label="Pulados" value={lastTick.recipientsSkipped} />
-              </div>
-              {lastTick.evergreenCampaignsScanned > 0 && (
-                <div
-                  className="mt-4 grid gap-2 rounded-lg bg-bg-base p-3 shadow-pressed-sm sm:grid-cols-4"
-                  data-testid="campaign-evergreen-last-tick"
-                  data-planned={lastTick.evergreenRecipientsPlanned}
-                  data-created={lastTick.evergreenRecipientsCreated}
-                >
-                  <CampaignMetric
-                    label="evergreen campanhas"
-                    value={lastTick.evergreenCampaignsScanned}
-                  />
-                  <CampaignMetric
-                    label="contatos lidos"
-                    value={lastTick.evergreenContactsScanned}
-                  />
-                  <CampaignMetric label="planejados" value={lastTick.evergreenRecipientsPlanned} />
-                  <CampaignMetric label="criados" value={lastTick.evergreenRecipientsCreated} />
-                </div>
-              )}
-              {lastTick.plannedJobs.length > 0 && (
-                <ul className="mt-4 flex flex-col gap-1">
-                  {lastTick.plannedJobs.map((job) => (
-                    <li
-                      key={`${job.campaignId}-${job.recipientId}-${job.stepId}`}
-                      className="grid gap-2 rounded-lg bg-bg-base px-3 py-2.5 text-xs shadow-flat md:grid-cols-[1fr_auto_auto]"
-                    >
-                      <div className="min-w-0">
-                        <span className="font-mono text-fg-dim">
-                          #{job.campaignId}/{job.recipientId}
-                        </span>{" "}
-                        <span className="text-fg-primary">{job.stepId}</span>
-                        {job.variantId && (
-                          <span className="ml-2 inline-flex rounded-full bg-brand-violet/15 px-2 py-0.5 font-mono text-[0.65rem] text-brand-violet">
-                            A/B {job.variantLabel ?? job.variantId}
-                          </span>
-                        )}
-                      </div>
-                      <span className="font-mono text-fg-muted">{job.phone}</span>
-                      <span className="font-mono text-fg-muted">{job.scheduledAt}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {lastTick.errors.length > 0 && (
-                <ul className="mt-4 flex flex-col gap-1">
-                  {lastTick.errors.map((error) => (
-                    <li
-                      key={`${error.recipientId}-${error.error}`}
-                      className="text-xs text-semantic-danger"
-                    >
-                      #{error.recipientId}: {error.error}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </Animate>
-      )}
+                </CardHeader>
+                <CardContent className="flex flex-wrap gap-3">
+                  <Button
+                    variant="accent"
+                    loading={isGlobalTickPending(true)}
+                    onClick={() => tick.mutate({ dryRun: true })}
+                  >
+                    Rodar prévia
+                  </Button>
+                  <Button
+                    variant="soft"
+                    loading={isGlobalTickPending(false)}
+                    onClick={() => runConfirmedTick({ label: "campanhas elegíveis" })}
+                  >
+                    Enfileirar elegíveis
+                  </Button>
+                </CardContent>
+              </Card>
+            </Animate>
+          )}
 
+          {lastTick && (
+            <Animate preset="rise-in" delaySeconds={0.08}>
+              <Card>
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <CardTitle>Último tick</CardTitle>
+                      <CardDescription>
+                        {lastTick.dryRun
+                          ? `${lastTick.plannedJobs.length} job(s) planejado(s), sem alterar fila`
+                          : `${lastTick.jobsCreated} job(s) criado(s)`}
+                      </CardDescription>
+                    </div>
+                    <Badge variant={lastTick.dryRun ? "warning" : "success"}>
+                      {lastTick.dryRun ? "prévia" : "enfileirado"}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-3 md:grid-cols-5">
+                    <Metric label="Campanhas" value={lastTick.campaignsScanned} />
+                    <Metric label="Recipients" value={lastTick.recipientsScanned} />
+                    <Metric
+                      label="Jobs"
+                      value={lastTick.jobsCreated || lastTick.plannedJobs.length}
+                    />
+                    <Metric
+                      label="Evergreen"
+                      value={
+                        lastTick.evergreenRecipientsCreated || lastTick.evergreenRecipientsPlanned
+                      }
+                    />
+                    <Metric label="Pulados" value={lastTick.recipientsSkipped} />
+                  </div>
+                  {lastTick.evergreenCampaignsScanned > 0 && (
+                    <div
+                      className="mt-4 grid gap-2 rounded-lg bg-bg-base p-3 shadow-pressed-sm sm:grid-cols-4"
+                      data-testid="campaign-evergreen-last-tick"
+                      data-planned={lastTick.evergreenRecipientsPlanned}
+                      data-created={lastTick.evergreenRecipientsCreated}
+                    >
+                      <CampaignMetric
+                        label="evergreen campanhas"
+                        value={lastTick.evergreenCampaignsScanned}
+                      />
+                      <CampaignMetric
+                        label="contatos lidos"
+                        value={lastTick.evergreenContactsScanned}
+                      />
+                      <CampaignMetric
+                        label="planejados"
+                        value={lastTick.evergreenRecipientsPlanned}
+                      />
+                      <CampaignMetric label="criados" value={lastTick.evergreenRecipientsCreated} />
+                    </div>
+                  )}
+                  {lastTick.plannedJobs.length > 0 && (
+                    <ul className="mt-4 flex flex-col gap-1">
+                      {lastTick.plannedJobs.map((job) => (
+                        <li
+                          key={`${job.campaignId}-${job.recipientId}-${job.stepId}`}
+                          className="grid gap-2 rounded-lg bg-bg-base px-3 py-2.5 text-xs shadow-flat md:grid-cols-[1fr_auto_auto]"
+                        >
+                          <div className="min-w-0">
+                            <span className="font-mono text-fg-dim">
+                              #{job.campaignId}/{job.recipientId}
+                            </span>{" "}
+                            <span className="text-fg-primary">{job.stepId}</span>
+                            {job.variantId && (
+                              <span className="ml-2 inline-flex rounded-full bg-brand-violet/15 px-2 py-0.5 font-mono text-[0.65rem] text-brand-violet">
+                                A/B {job.variantLabel ?? job.variantId}
+                              </span>
+                            )}
+                          </div>
+                          <span className="font-mono text-fg-muted">{job.phone}</span>
+                          <span className="font-mono text-fg-muted">{job.scheduledAt}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {lastTick.errors.length > 0 && (
+                    <ul className="mt-4 flex flex-col gap-1">
+                      {lastTick.errors.map((error) => (
+                        <li
+                          key={`${error.recipientId}-${error.error}`}
+                          className="text-xs text-semantic-danger"
+                        >
+                          #{error.recipientId}: {error.error}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </CardContent>
+              </Card>
+            </Animate>
+          )}
         </TabsContent>
 
         <TabsContent value="builder" className="space-y-4">
@@ -417,133 +525,155 @@ export function CampaignsPage() {
         <TabsContent value="recipients" className="space-y-4">
           <Animate preset="rise-in" delaySeconds={0.1}>
             <Card>
-          <CardHeader>
-            <CardTitle>Existentes</CardTitle>
-            <CardDescription>
-              {campaigns.data ? `${campaigns.data.campaigns.length} campanhas` : "—"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {campaigns.isLoading ? (
-              <LoadingState />
-            ) : campaigns.error ? (
-              <ErrorState description={campaigns.error.message} />
-            ) : !campaigns.data || campaigns.data.campaigns.length === 0 ? (
-              <EmptyState
-                title="Nenhuma campanha"
-                description="Crie um rascunho no builder acima."
-              />
-            ) : (
-              <ul className="flex flex-col gap-1">
-                {campaigns.data.campaigns.map((c) => (
-                  <li
-                    key={c.id}
-                    className="rounded-lg px-3 py-3 transition-shadow hover:bg-bg-base hover:shadow-flat"
-                    data-testid="campaign-list-item"
-                    data-campaign-id={c.id}
-                    data-campaign-status={c.status}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm">{c.name}</div>
-                        <div className="font-mono text-xs text-fg-dim">
-                          {c.steps.length} step(s) · {c.recipients.length} recipient(s)
+              <CardHeader>
+                <CardTitle>Existentes</CardTitle>
+                <CardDescription>
+                  {campaigns.data ? `${campaigns.data.campaigns.length} campanhas` : "—"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {campaigns.isLoading ? (
+                  <LoadingState />
+                ) : campaigns.error ? (
+                  <ErrorState description={campaigns.error.message} />
+                ) : !campaigns.data || campaigns.data.campaigns.length === 0 ? (
+                  <EmptyState
+                    title="Nenhuma campanha"
+                    description="Crie um rascunho no builder acima."
+                  />
+                ) : (
+                  <ul className="flex flex-col gap-1">
+                    {campaigns.data.campaigns.map((c) => (
+                      <li
+                        key={c.id}
+                        className="rounded-lg px-3 py-3 transition-shadow hover:bg-bg-base hover:shadow-flat"
+                        data-testid="campaign-list-item"
+                        data-campaign-id={c.id}
+                        data-campaign-status={c.status}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm">{c.name}</div>
+                            <div className="font-mono text-xs text-fg-dim">
+                              {c.steps.length} step(s) · {c.recipients.length} recipient(s)
+                            </div>
+                          </div>
+                          <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                            {c.evergreen && <Badge variant="cyan">evergreen</Badge>}
+                            <Badge variant={isOverlayEnabled(c.metadata) ? "success" : "neutral"}>
+                              overlay {isOverlayEnabled(c.metadata) ? "sim" : "não"}
+                            </Badge>
+                            <Badge variant={c.status === "running" ? "success" : "neutral"}>
+                              {c.status}
+                            </Badge>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex shrink-0 flex-wrap justify-end gap-1">
-                        {c.evergreen && <Badge variant="cyan">evergreen</Badge>}
-                        <Badge variant={c.status === "running" ? "success" : "neutral"}>
-                          {c.status}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-                      {isPausableCampaign(c.status) && (
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          data-testid="campaign-pause-button"
-                          data-campaign-id={c.id}
-                          loading={pauseCampaign.isPending && pauseCampaign.variables?.id === c.id}
-                          onClick={() =>
-                            pauseCampaign.mutate({
-                              id: c.id,
-                              reason: "manual_pause_v2.10.9",
-                            })
-                          }
-                        >
-                          Pausar
-                        </Button>
-                      )}
-                      {isResumableCampaign(c.status) && (
-                        <Button
-                          variant="accent"
-                          size="xs"
-                          data-testid="campaign-resume-button"
-                          data-campaign-id={c.id}
-                          loading={
-                            resumeCampaign.isPending && resumeCampaign.variables?.id === c.id
-                          }
-                          onClick={() => resumeCampaign.mutate({ id: c.id })}
-                        >
-                          Retomar
-                        </Button>
-                      )}
-                      <Button
-                        variant="soft"
-                        size="xs"
-                        data-testid="campaign-preview-button"
-                        data-campaign-id={c.id}
-                        loading={isCampaignTickPending(c.id, true)}
-                        onClick={() => tick.mutate({ dryRun: true, campaignId: c.id })}
-                      >
-                        Prévia
-                      </Button>
-                      <Button
-                        variant="soft"
-                        size="xs"
-                        data-testid="campaign-enqueue-button"
-                        data-campaign-id={c.id}
-                        disabled={!isPausableCampaign(c.status)}
-                        loading={isCampaignTickPending(c.id, false)}
-                        onClick={() => runConfirmedTick({ campaignId: c.id, label: c.name })}
-                      >
-                        Enfileirar
-                      </Button>
-                    </div>
-                    <CampaignPauseResumePanel
-                      campaignId={c.id}
-                      summary={pauseResumeSummary(c.metadata)}
-                    />
-                    <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
-                      <CampaignMetric label="eventos" value={c.metrics.timelineEvents} />
-                      <CampaignMetric label="ok" value={c.metrics.completedSteps} />
-                      <CampaignMetric label="falhas" value={c.metrics.failedSteps} />
-                      <CampaignMetric label="navegou" value={c.metrics.navigatedSteps} />
-                      <CampaignMetric label="reuso" value={c.metrics.reusedOpenChatSteps} />
-                      <CampaignMetric
-                        label="tempo"
-                        value={formatDuration(c.metrics.durationSeconds)}
-                      />
-                    </div>
-                    {c.stepStats.length > 0 && (
-                      <CampaignStepStatsPanel campaignId={c.id} stats={c.stepStats} />
-                    )}
-                    {c.abTest && <CampaignAbVariantsPanel campaignId={c.id} abTest={c.abTest} />}
-                    {c.evergreen && (
-                      <CampaignEvergreenPanel
-                        campaignId={c.id}
-                        summary={evergreenEvaluationSummary(c.metadata)}
-                      />
-                    )}
-                    {c.recipients.length > 0 && (
-                      <CampaignRecipientsVirtualTable campaignId={c.id} recipients={c.recipients} />
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
+                        <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+                          {isPausableCampaign(c.status) && (
+                            <Button
+                              variant="ghost"
+                              size="xs"
+                              data-testid="campaign-pause-button"
+                              data-campaign-id={c.id}
+                              loading={
+                                pauseCampaign.isPending && pauseCampaign.variables?.id === c.id
+                              }
+                              onClick={() =>
+                                pauseCampaign.mutate({
+                                  id: c.id,
+                                  reason: "manual_pause_v2.10.9",
+                                })
+                              }
+                            >
+                              Pausar
+                            </Button>
+                          )}
+                          {isResumableCampaign(c.status) && (
+                            <Button
+                              variant="accent"
+                              size="xs"
+                              data-testid="campaign-resume-button"
+                              data-campaign-id={c.id}
+                              loading={
+                                resumeCampaign.isPending && resumeCampaign.variables?.id === c.id
+                              }
+                              onClick={() => resumeCampaign.mutate({ id: c.id })}
+                            >
+                              Retomar
+                            </Button>
+                          )}
+                          <Button
+                            variant={isOverlayEnabled(c.metadata) ? "soft" : "accent"}
+                            size="xs"
+                            data-testid="campaign-overlay-toggle"
+                            data-campaign-id={c.id}
+                            loading={
+                              updateCampaign.isPending && updateCampaign.variables?.id === c.id
+                            }
+                            onClick={() => toggleCampaignOverlay(c)}
+                          >
+                            Overlay {isOverlayEnabled(c.metadata) ? "não" : "sim"}
+                          </Button>
+                          <Button
+                            variant="soft"
+                            size="xs"
+                            data-testid="campaign-preview-button"
+                            data-campaign-id={c.id}
+                            loading={isCampaignTickPending(c.id, true)}
+                            onClick={() => tick.mutate({ dryRun: true, campaignId: c.id })}
+                          >
+                            Prévia
+                          </Button>
+                          <Button
+                            variant="soft"
+                            size="xs"
+                            data-testid="campaign-enqueue-button"
+                            data-campaign-id={c.id}
+                            disabled={!isPausableCampaign(c.status)}
+                            loading={isCampaignTickPending(c.id, false)}
+                            onClick={() => runConfirmedTick({ campaignId: c.id, label: c.name })}
+                          >
+                            Enfileirar
+                          </Button>
+                        </div>
+                        <CampaignPauseResumePanel
+                          campaignId={c.id}
+                          summary={pauseResumeSummary(c.metadata)}
+                        />
+                        <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                          <CampaignMetric label="eventos" value={c.metrics.timelineEvents} />
+                          <CampaignMetric label="ok" value={c.metrics.completedSteps} />
+                          <CampaignMetric label="falhas" value={c.metrics.failedSteps} />
+                          <CampaignMetric label="navegou" value={c.metrics.navigatedSteps} />
+                          <CampaignMetric label="reuso" value={c.metrics.reusedOpenChatSteps} />
+                          <CampaignMetric
+                            label="tempo"
+                            value={formatDuration(c.metrics.durationSeconds)}
+                          />
+                        </div>
+                        {c.stepStats.length > 0 && (
+                          <CampaignStepStatsPanel campaignId={c.id} stats={c.stepStats} />
+                        )}
+                        {c.abTest && (
+                          <CampaignAbVariantsPanel campaignId={c.id} abTest={c.abTest} />
+                        )}
+                        {c.evergreen && (
+                          <CampaignEvergreenPanel
+                            campaignId={c.id}
+                            summary={evergreenEvaluationSummary(c.metadata)}
+                          />
+                        )}
+                        {c.recipients.length > 0 && (
+                          <CampaignRecipientsVirtualTable
+                            campaignId={c.id}
+                            recipients={c.recipients}
+                          />
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
             </Card>
           </Animate>
         </TabsContent>
@@ -575,8 +705,12 @@ function CampaignsOverviewPanel({
     (total, campaign) => total + campaign.metrics.completedSteps,
     0,
   );
-  const failedSteps = campaigns.reduce((total, campaign) => total + campaign.metrics.failedSteps, 0);
+  const failedSteps = campaigns.reduce(
+    (total, campaign) => total + campaign.metrics.failedSteps,
+    0,
+  );
   const runningCampaigns = campaigns.filter((campaign) => campaign.status === "running").length;
+  const visibleCampaigns = [...campaigns].sort((a, b) => b.id - a.id).slice(0, 12);
 
   return (
     <Animate preset="rise-in" delaySeconds={0.04}>
@@ -604,21 +738,34 @@ function CampaignsOverviewPanel({
           </div>
           {error ? <ErrorState description={error} /> : null}
           {lastTick ? (
-            <div className="grid gap-2 rounded-lg bg-bg-base px-3 py-3 shadow-pressed-sm md:grid-cols-[1fr_auto_auto_auto]">
+            <div
+              className="grid gap-2 rounded-lg bg-bg-base px-3 py-3 shadow-pressed-sm md:grid-cols-[1fr_auto_auto_auto]"
+              data-testid={
+                lastTick.evergreenCampaignsScanned > 0
+                  ? "campaign-evergreen-last-tick"
+                  : "campaign-last-tick"
+              }
+              data-planned={lastTick.evergreenRecipientsPlanned}
+              data-created={lastTick.evergreenRecipientsCreated}
+            >
               <div>
                 <div className="text-sm font-medium text-fg-primary">Último tick</div>
                 <div className="font-mono text-xs text-fg-dim">
-                  {lastTick.dryRun ? "prévia" : "execução real"} · {lastTick.plannedJobs.length} planejados
+                  {lastTick.dryRun ? "prévia" : "execução real"} · {lastTick.plannedJobs.length}{" "}
+                  planejados
                 </div>
               </div>
-              <CampaignMetric label="jobs" value={lastTick.jobsCreated || lastTick.plannedJobs.length} />
+              <CampaignMetric
+                label="jobs"
+                value={lastTick.jobsCreated || lastTick.plannedJobs.length}
+              />
               <CampaignMetric label="pulados" value={lastTick.recipientsSkipped} />
               <CampaignMetric label="erros" value={lastTick.errors.length} />
             </div>
           ) : null}
           {!loading && campaigns.length > 0 ? (
             <div className="flex flex-col gap-1">
-              {campaigns.slice(0, 6).map((campaign) => (
+              {visibleCampaigns.map((campaign) => (
                 <div
                   key={campaign.id}
                   className="grid gap-2 rounded-lg bg-bg-sunken/82 px-3 py-2.5 shadow-flat md:grid-cols-[minmax(0,1fr)_auto_auto_auto]"
@@ -626,7 +773,8 @@ function CampaignsOverviewPanel({
                   <div className="min-w-0">
                     <div className="truncate text-sm text-fg-primary">{campaign.name}</div>
                     <div className="font-mono text-[0.68rem] text-fg-dim">
-                      #{campaign.id} · {campaign.steps.length} steps · {campaign.recipients.length} recipients
+                      #{campaign.id} · {campaign.steps.length} steps · {campaign.recipients.length}{" "}
+                      recipients
                     </div>
                   </div>
                   <Badge variant={campaign.status === "running" ? "cyan" : "neutral"}>
@@ -638,6 +786,14 @@ function CampaignsOverviewPanel({
                   <span className="font-mono text-xs text-fg-muted">
                     fail {campaign.metrics.failedSteps}
                   </span>
+                  {campaign.evergreen ? (
+                    <div className="md:col-span-4">
+                      <CampaignEvergreenPanel
+                        campaignId={campaign.id}
+                        summary={evergreenEvaluationSummary(campaign.metadata)}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -660,6 +816,10 @@ function SafeRemarketingConsole({
   readyError,
   batchPhones,
   onBatchPhonesChange,
+  batchAllowedPhone,
+  onBatchAllowedPhoneChange,
+  batchAllowedInstagram,
+  onBatchAllowedInstagramChange,
   batchConfirmation,
   onBatchConfirmationChange,
   batchReady,
@@ -684,6 +844,10 @@ function SafeRemarketingConsole({
   readyError: string | null;
   batchPhones: string;
   onBatchPhonesChange: (value: string) => void;
+  batchAllowedPhone: string;
+  onBatchAllowedPhoneChange: (value: string) => void;
+  batchAllowedInstagram: string;
+  onBatchAllowedInstagramChange: (value: string) => void;
   batchConfirmation: string;
   onBatchConfirmationChange: (value: string) => void;
   batchReady: RemarketingBatchReadyReport | null;
@@ -703,6 +867,12 @@ function SafeRemarketingConsole({
   );
   const selected =
     campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? campaigns[0] ?? null;
+  const batchChannel = selected?.channel === "instagram" ? "instagram" : "whatsapp";
+  const batchPlaceholder = batchChannel === "instagram" ? "gabriell_braga" : "5531982066263";
+  const batchAllowlistValue =
+    batchChannel === "instagram" ? batchAllowedInstagram : batchAllowedPhone;
+  const batchAllowlistChange =
+    batchChannel === "instagram" ? onBatchAllowedInstagramChange : onBatchAllowedPhoneChange;
   return (
     <Animate preset="rise-in" delaySeconds={0.06}>
       <Card>
@@ -862,7 +1032,9 @@ function SafeRemarketingConsole({
                   Lote real
                 </div>
                 <div className="mt-0.5 text-xs text-fg-muted">
-                  Valida allowlist, lote inteiro e temporaryMessages 24h/90d antes de criar jobs.
+                  {batchChannel === "instagram"
+                    ? "Valida allowlist, lote inteiro e sessão Instagram antes de criar jobs."
+                    : "Valida allowlist, lote inteiro e temporaryMessages 24h/90d antes de criar jobs."}
                 </div>
               </div>
               <Badge variant={batchReady?.canDispatch ? "success" : "warning"}>
@@ -873,9 +1045,21 @@ function SafeRemarketingConsole({
               rows={4}
               monospace
               value={batchPhones}
-              placeholder="5531982066263"
+              placeholder={batchPlaceholder}
               data-testid="safe-batch-phones-input"
               onChange={(event) => onBatchPhonesChange(event.target.value)}
+            />
+            <Input
+              monospace
+              value={batchAllowlistValue}
+              placeholder={batchPlaceholder}
+              aria-label={
+                batchChannel === "instagram"
+                  ? "Instagram liberado para teste"
+                  : "Telefone liberado para teste"
+              }
+              data-testid="safe-batch-allowlist-input"
+              onChange={(event) => batchAllowlistChange(event.target.value)}
             />
             <div className="flex flex-wrap gap-2">
               <Button
@@ -906,7 +1090,9 @@ function SafeRemarketingConsole({
                 Disparar lote real
               </Button>
             </div>
-            {batchReadyError && <div className="text-xs text-semantic-danger">{batchReadyError}</div>}
+            {batchReadyError && (
+              <div className="text-xs text-semantic-danger">{batchReadyError}</div>
+            )}
             {batchReady && (
               <div
                 className="grid gap-3"
@@ -915,7 +1101,7 @@ function SafeRemarketingConsole({
                 data-accepted={batchReady.summary.acceptedRecipients}
                 data-planned-jobs={batchReady.summary.plannedJobs}
               >
-                <div className="grid gap-2 sm:grid-cols-6">
+                <div className="grid gap-2 sm:grid-cols-6 lg:grid-cols-8">
                   <CampaignMetric label="cand." value={batchReady.summary.candidates} />
                   <CampaignMetric label="aceitos" value={batchReady.summary.acceptedRecipients} />
                   <CampaignMetric label="rejeit." value={batchReady.summary.rejectedRecipients} />
@@ -927,9 +1113,25 @@ function SafeRemarketingConsole({
                       batchReady.temporaryMessages.controlSteps.length > 0
                         ? `${batchReady.temporaryMessages.controlSteps.length} step(s)`
                         : batchReady.temporaryMessages.enabled
-                        ? `${batchReady.temporaryMessages.beforeSendDuration}/${batchReady.temporaryMessages.afterCompletionDuration}`
-                        : "off"
+                          ? `${batchReady.temporaryMessages.beforeSendDuration}/${batchReady.temporaryMessages.afterCompletionDuration}`
+                          : "off"
                     }
+                  />
+                  <CampaignMetric
+                    label="ig"
+                    value={
+                      batchReady.summary.instagramSession
+                        ? batchReady.summary.instagramSession.authenticated
+                          ? "on"
+                          : batchReady.summary.instagramSession.status
+                        : batchChannel === "instagram"
+                          ? "off"
+                          : "n/a"
+                    }
+                  />
+                  <CampaignMetric
+                    label="ativos"
+                    value={`${batchReady.summary.activeCampaignStepJobs}/${batchReady.summary.activeRecipients}`}
                   />
                 </div>
                 <CampaignBlockingUxPanel
@@ -1016,7 +1218,8 @@ function SafeRemarketingConsole({
                 data-testid="safe-batch-last-dispatch"
               >
                 lote {lastBatchDispatch.batchDispatchId} · recipients{" "}
-                {lastBatchDispatch.recipientsCreated} · jobs {lastBatchDispatch.scheduler.jobsCreated}
+                {lastBatchDispatch.recipientsCreated} · jobs{" "}
+                {lastBatchDispatch.scheduler.jobsCreated}
               </div>
             )}
           </div>
@@ -1146,11 +1349,77 @@ function usePageIntent() {
   }, []);
 }
 
+function isOverlayEnabled(metadata: Record<string, unknown>): boolean {
+  return metadata.overlayEnabled === true;
+}
+
 function initialCampaignIdFromUrl() {
   if (typeof window === "undefined") return "";
   const value = new URLSearchParams(window.location.search).get("campaignId");
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? String(parsed) : "";
+}
+
+function remarketingBatchInput(input: {
+  campaignId: number;
+  channel: CampaignListItem["channel"];
+  recipients: string;
+  allowedPhone: string;
+  allowedInstagram: string;
+}): RemarketingBatchInput {
+  const base = {
+    campaignId: input.campaignId,
+    rawPhones: "",
+    phones: [],
+    rawInstagramHandles: "",
+    instagramHandles: [],
+    contactIds: [],
+    maxRecipients: 100,
+  };
+  if (input.channel === "instagram") {
+    return {
+      ...base,
+      rawInstagramHandles: input.recipients,
+      allowedInstagramHandle: input.allowedInstagram.trim() || undefined,
+    };
+  }
+  return {
+    ...base,
+    rawPhones: input.recipients,
+    allowedPhone: input.allowedPhone.trim() || undefined,
+  };
+}
+
+function remarketingBatchRequestKey(input: RemarketingBatchInput): string {
+  return JSON.stringify({
+    campaignId: input.campaignId,
+    rawPhones: normalizeBatchKeyText(input.rawPhones),
+    phones: [...(input.phones ?? [])].map(normalizeBatchKeyText).sort(),
+    rawInstagramHandles: normalizeBatchKeyText(input.rawInstagramHandles),
+    instagramHandles: [...(input.instagramHandles ?? [])].map(normalizeBatchKeyText).sort(),
+    contactIds: [...(input.contactIds ?? [])].sort((a, b) => a - b),
+    allowedPhone: normalizeBatchKeyText(input.allowedPhone),
+    allowedInstagramHandle: normalizeBatchKeyText(input.allowedInstagramHandle),
+    maxRecipients: input.maxRecipients ?? 100,
+  });
+}
+
+function normalizeBatchKeyText(value: string | null | undefined): string {
+  return String(value ?? "")
+    .replace(/\r\n/g, "\n")
+    .trim()
+    .toLowerCase();
+}
+
+function initialCampaignTabFromUrl(intent: string | null): CampaignTab {
+  if (typeof window !== "undefined") {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab === "overview" || tab === "builder" || tab === "dispatch" || tab === "recipients") {
+      return tab;
+    }
+  }
+  if (intent === "enqueue") return "dispatch";
+  return initialCampaignIdFromUrl() ? "dispatch" : "builder";
 }
 
 function countIssues(issues: CampaignBlockIssue[], severity: CampaignBlockIssue["severity"]) {
@@ -1168,7 +1437,7 @@ function issueResolution(issue: CampaignBlockIssue) {
     case "campaign_status_not_runnable":
       return "Retome a campanha ou altere o status para running/scheduled antes de disparar.";
     case "channel_not_supported":
-      return "Use uma campanha WhatsApp para este fluxo seguro.";
+      return "Use uma campanha WhatsApp ou Instagram para este fluxo seguro.";
     case "campaign_without_steps":
       return "Adicione pelo menos um step com conteúdo antes de validar novamente.";
     case "empty_message_step":
@@ -1177,6 +1446,10 @@ function issueResolution(issue: CampaignBlockIssue) {
       return "Inclua recipients queued/running ou use o lote real para criar novos alvos.";
     case "invalid_recipient_phone":
       return "Corrija os telefones dos recipients para números WhatsApp válidos.";
+    case "invalid_recipient_instagram":
+      return "Corrija os Instagram dos recipients antes de disparar.";
+    case "unsupported_instagram_steps":
+      return "Mantenha na campanha Instagram apenas texto, link, imagem ou vídeo.";
     case "suppressed_contact":
       return "Remova contatos blocked/archived do disparo ou regularize o status do contato.";
     case "duplicate_recipient_phone":
@@ -1197,12 +1470,22 @@ function issueResolution(issue: CampaignBlockIssue) {
       return "Revise o global antigo ou migre para steps explícitos de mensagens temporárias.";
     case "send_policy_allowlist_required":
       return "Informe allowlist explícita para lote real.";
+    case "instagram_allowlist_required":
+      return "Informe o Instagram canário autorizado antes de liberar o lote.";
+    case "instagram_session_unavailable":
+      return "Suba o worker com sessão Instagram antes de validar o lote.";
+    case "instagram_session_error":
+      return "Corrija o erro da sessão Instagram no worker e valide novamente.";
+    case "instagram_session_disconnected":
+      return "Reconecte o CDP/worker usado pelo Instagram.";
+    case "instagram_session_not_authenticated":
+      return "Autentique o Instagram na sessão compartilhada do worker.";
     case "active_campaign_step_jobs":
       return "Finalize ou limpe campaign_step ativos antes de abrir outro lote real.";
     case "active_campaign_recipients":
       return "Conclua recipients ativos antes de criar um novo lote para a campanha.";
     case "empty_batch":
-      return "Informe ao menos um telefone ou contato no lote.";
+      return "Informe ao menos um telefone, Instagram ou contato no lote.";
     case "batch_has_rejections":
       return "Corrija todos os rejeitados; o sistema bloqueia lote parcial.";
     case "no_accepted_recipients":
@@ -1239,16 +1522,26 @@ function rejectedReasonLabel(reason: string) {
       return "Contato não encontrado";
     case "missing_phone":
       return "Contato sem telefone";
+    case "missing_instagram":
+      return "Contato sem Instagram";
     case "invalid_phone":
       return "Telefone inválido";
+    case "invalid_instagram":
+      return "Instagram inválido";
     case "duplicate_candidate":
-      return "Telefone duplicado no lote";
+      return "Alvo duplicado no lote";
     case "duplicate_recipient":
       return "Já existe recipient para este alvo";
     case "not_allowlisted_for_test_execution":
       return "Fora da allowlist de teste";
     case "not_in_production_canary_allowlist":
       return "Fora da allowlist canária";
+    case "instagram_allowlist_required":
+      return "Allowlist Instagram ausente";
+    case "instagram_handle_not_allowed":
+      return "Instagram fora da allowlist";
+    case "active_pipeline_for_instagram":
+      return "Pipeline ativo para este Instagram";
     default:
       if (reason.startsWith("contact_") && reason.endsWith("_suppressed")) {
         return "Contato suprimido por status";
@@ -1677,7 +1970,12 @@ function tempPart(record: Record<string, unknown>) {
   }
   const mode = record.executionMode === "whatsapp_real" ? "real" : "audit";
   const verified = record.verified === true ? "ok" : record.verified === false ? "falhou" : null;
-  return [mode, String(record.phase), String(record.verifiedDuration ?? record.duration ?? ""), verified]
+  return [
+    mode,
+    String(record.phase),
+    String(record.verifiedDuration ?? record.duration ?? ""),
+    verified,
+  ]
     .filter(Boolean)
     .join(":");
 }
@@ -1698,7 +1996,11 @@ function navigationBadge(payload: unknown) {
   if (record.executionMode === "whatsapp_real" && record.verified === false) {
     return <Badge variant="danger">24h falhou</Badge>;
   }
-  if (record.executionMode === "whatsapp_real" && phase === "before_send" && record.verified === true) {
+  if (
+    record.executionMode === "whatsapp_real" &&
+    phase === "before_send" &&
+    record.verified === true
+  ) {
     return <Badge variant="success">24h verificado</Badge>;
   }
   if (
@@ -1707,7 +2009,11 @@ function navigationBadge(payload: unknown) {
     phase.includes("restore") &&
     record.verified === true
   ) {
-    return <Badge variant="success">restaurado {String(record.verifiedDuration ?? record.duration)}</Badge>;
+    return (
+      <Badge variant="success">
+        restaurado {String(record.verifiedDuration ?? record.duration)}
+      </Badge>
+    );
   }
   if (typeof phase === "string" && phase.includes("restore")) {
     return <Badge variant="warning">24h/90d</Badge>;

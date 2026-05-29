@@ -97,19 +97,19 @@ export interface NuomaOverlayData {
 }
 
 const overlayTokens = {
-  bg: "oklch(0.17 0.022 198 / 0.94)",
-  bgHover: "oklch(0.25 0.030 192 / 0.96)",
-  fg: "oklch(0.94 0.010 175)",
-  fgMuted: "oklch(0.80 0.018 182)",
-  fgDim: "oklch(0.72 0.018 188)",
-  cyan: "oklch(0.74 0.12 202)",
-  warning: "oklch(0.78 0.15 74)",
-  surface: "oklch(0.22 0.026 196 / 0.88)",
-  elevated: "oklch(0.25 0.030 192 / 0.92)",
-  contour: "oklch(0.58 0.040 188 / 0.42)",
-  contourMuted: "oklch(0.31 0.026 190 / 0.42)",
-  shadow: "0 0 0 1px oklch(0.58 0.040 188 / 0.42), 0 18px 48px oklch(0.06 0.020 205 / 0.44)",
-  glow: "0 0 0 1px oklch(0.74 0.12 202 / 0.78), 0 0 24px oklch(0.74 0.12 202 / 0.18)",
+  bg: "oklch(0.16 0.018 214 / 0.94)",
+  bgHover: "oklch(0.23 0.026 210 / 0.96)",
+  fg: "oklch(0.94 0.010 190)",
+  fgMuted: "oklch(0.80 0.018 198)",
+  fgDim: "oklch(0.70 0.018 205)",
+  cyan: "oklch(0.63 0.055 185)",
+  warning: "oklch(0.66 0.090 210)",
+  surface: "oklch(0.21 0.024 210 / 0.90)",
+  elevated: "oklch(0.24 0.028 210 / 0.94)",
+  contour: "oklch(0.54 0.045 205 / 0.42)",
+  contourMuted: "oklch(0.31 0.024 210 / 0.42)",
+  shadow: "0 0 0 1px oklch(0.54 0.045 205 / 0.38), 0 18px 48px oklch(0.06 0.020 215 / 0.44)",
+  glow: "0 0 0 1px oklch(0.63 0.055 185 / 0.58), 0 12px 28px oklch(0.06 0.020 215 / 0.24)",
   fontFamily:
     '"Geist Variable", "Geist", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
 } as const;

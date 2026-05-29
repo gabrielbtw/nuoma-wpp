@@ -43,6 +43,8 @@ type ChatbotActionKind =
   | "notify_attendant"
   | "trigger_automation";
 
+type DryRunChannel = "whatsapp" | "instagram";
+
 const matchTypes: Array<{ value: ChatbotRuleMatch["type"]; label: string }> = [
   { value: "contains", label: "Contém" },
   { value: "equals", label: "Igual" },
@@ -65,6 +67,7 @@ export function ChatbotsPage() {
   const toast = useToast();
   const [body, setBody] = useState("Qual o preco?");
   const [phone, setPhone] = useState("5531982066263");
+  const [dryRunChannel, setDryRunChannel] = useState<DryRunChannel>("whatsapp");
   const [selectedChatbotId, setSelectedChatbotId] = useState("");
   const [ruleName, setRuleName] = useState("Resposta preço");
   const [priority, setPriority] = useState("10");
@@ -81,6 +84,14 @@ export function ChatbotsPage() {
   const [variantA, setVariantA] = useState("Vou te mandar as opções por aqui.");
   const [variantB, setVariantB] = useState("Tenho duas opções para você comparar.");
   const selectedChatbotIdNumber = Number.parseInt(selectedChatbotId, 10);
+  const selectedChatbot = chatbots.data?.chatbots.find(
+    (chatbot) => chatbot.id === selectedChatbotIdNumber,
+  );
+  const dryRunIdentity =
+    dryRunChannel === "instagram" ? phone.trim().replace(/^@+/, "") : phone.replace(/\D/g, "");
+  const dryRunIdentityLabel =
+    dryRunChannel === "instagram" ? "Instagram do teste" : "Telefone do teste";
+  const dryRunIdentityPlaceholder = dryRunChannel === "instagram" ? "@perfil" : "5531982066263";
   const executionHistory = trpc.chatbots.executionHistory.useQuery(
     {
       ...(Number.isInteger(selectedChatbotIdNumber) && selectedChatbotIdNumber > 0
@@ -102,7 +113,11 @@ export function ChatbotsPage() {
   const createRule = trpc.chatbots.createRule.useMutation({
     async onSuccess() {
       await utils.chatbots.listRules.invalidate();
-      toast.push({ title: "Regra criada", description: "Rascunho ativo salvo sem criar job.", variant: "success" });
+      toast.push({
+        title: "Regra criada",
+        description: "Rascunho ativo salvo sem criar job.",
+        variant: "success",
+      });
     },
     onError(error) {
       toast.push({ title: "Falha ao criar regra", description: error.message, variant: "danger" });
@@ -115,9 +130,34 @@ export function ChatbotsPage() {
 
   useEffect(() => {
     if (!selectedChatbotId && chatbots.data?.chatbots[0]) {
-      setSelectedChatbotId(String(chatbots.data.chatbots[0].id));
+      const firstChatbot = chatbots.data.chatbots[0];
+      setSelectedChatbotId(String(firstChatbot.id));
+      if (firstChatbot.channel === "whatsapp" || firstChatbot.channel === "instagram") {
+        updateDryRunChannel(firstChatbot.channel);
+      }
     }
   }, [chatbots.data?.chatbots, selectedChatbotId]);
+
+  useEffect(() => {
+    if (selectedChatbot?.channel === "whatsapp" || selectedChatbot?.channel === "instagram") {
+      updateDryRunChannel(selectedChatbot.channel);
+    }
+  }, [selectedChatbot?.channel]);
+
+  function updateDryRunChannel(channel: DryRunChannel) {
+    setDryRunChannel(channel);
+    setPhone((currentValue) => {
+      const value = currentValue.trim();
+      const looksLikePhone = /^\+?\d[\d\s().-]*$/.test(value);
+      if (channel === "instagram" && (!value || looksLikePhone)) {
+        return "@perfil";
+      }
+      if (channel === "whatsapp" && (!value || value.startsWith("@"))) {
+        return "5531982066263";
+      }
+      return currentValue;
+    });
+  }
 
   function createRuleFromBuilder() {
     const chatbotId = Number.parseInt(selectedChatbotId, 10);
@@ -162,149 +202,56 @@ export function ChatbotsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-7 max-w-6xl mx-auto pt-2">
+    <div className="flex min-h-[calc(100vh-6.5rem)] w-full max-w-none flex-col gap-4 pt-0">
       <Animate preset="rise-in">
-        <header>
-          <p className="botforge-kicker">
-            Chatbots
-          </p>
-          <h1 className="botforge-display mt-2 text-5xl md:text-6xl">
+        <header className="nuoma-workspace-header">
+          <p className="botforge-kicker">Chatbots</p>
+          <h1 className="botforge-display mt-2 text-3xl md:text-4xl">
             Auto-resposta <span className="nuoma-gradient-text">priorizada</span>.
           </h1>
           <p className="text-sm text-fg-muted mt-3 max-w-xl">
-            Regras com prioridade, fallback e variantes A/B determinísticas para dry-run seguro.
+            Regras com prioridade, fallback e variantes A/B determinísticas para WhatsApp e Direct.
           </p>
         </header>
       </Animate>
 
-      <Animate preset="rise-in" delaySeconds={0.06}>
-        <Card data-testid="chatbots-ab-test-summary">
-          <CardHeader>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <CardTitle>Teste seco A/B</CardTitle>
-                <CardDescription>
-                  Simula a regra ativa sem criar job e sem enviar mensagem.
-                </CardDescription>
-              </div>
-              <Badge variant="violet">V2.10.35</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="grid gap-3 lg:grid-cols-[14rem_11rem_1fr_auto]">
-            <Select value={selectedChatbotId} onValueChange={setSelectedChatbotId}>
-              <SelectTrigger
-                aria-label="Chatbot do teste seco"
-                data-testid="chatbot-dry-run-chatbot-select"
-              >
-                <SelectValue placeholder="Chatbot" />
-              </SelectTrigger>
-              <SelectContent>
-                {(chatbots.data?.chatbots ?? []).map((chatbot) => (
-                  <SelectItem key={chatbot.id} value={String(chatbot.id)}>
-                    {chatbot.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              value={phone}
-              inputMode="tel"
-              aria-label="Telefone do teste"
-              onChange={(event) => setPhone(event.target.value)}
-            />
-            <Input
-              value={body}
-              aria-label="Mensagem do teste"
-              onChange={(event) => setBody(event.target.value)}
-            />
-            <Button
-              variant="accent"
-              loading={dryRun.isPending}
-              leftIcon={<FlaskConical className="h-4 w-4" />}
-              data-testid="chatbot-ab-dry-run-button"
-              onClick={() =>
-                dryRun.mutate({
-                  ...(Number.isInteger(selectedChatbotIdNumber) && selectedChatbotIdNumber > 0
-                    ? { chatbotId: selectedChatbotIdNumber }
-                    : {}),
-                  channel: "whatsapp",
-                  phone: phone.replace(/\D/g, ""),
-                  body,
-                })
-              }
-            >
-              Testar
-            </Button>
-            {dryRun.data && (
-              <div
-                className="lg:col-span-4 rounded-lg border border-border-muted bg-bg-base/60 px-4 py-3 text-sm"
-                data-testid="chatbot-ab-dry-run-result"
-                data-selected-variant-id={dryRun.data.abTest?.selectedVariantId ?? ""}
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant={dryRun.data.matched ? "success" : "warning"}>
-                    {dryRun.data.matched ? "match" : "sem match"}
-                  </Badge>
-                  <Badge variant={dryRun.data.abTest ? "cyan" : "neutral"}>
-                    variante: {selectedVariant}
-                  </Badge>
-                  <span className="text-fg-muted">
-                    {dryRun.data.actions.length} ação(ões) prevista(s)
-                  </span>
+      <section className="nuoma-chatbots-v2">
+        <aside className="nuoma-chatbots-rail">
+          <Animate preset="rise-in" delaySeconds={0.06}>
+            <Card className="nuoma-chatbots-card" data-testid="chatbots-ab-test-summary">
+              <CardHeader>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <CardTitle>Teste seco A/B</CardTitle>
+                    <CardDescription>
+                      Simula a regra ativa sem criar job e sem enviar mensagem.
+                    </CardDescription>
+                  </div>
+                  <Badge variant="violet">V2.10.35</Badge>
                 </div>
-              </div>
-            )}
-            {executionHistory.data && executionHistory.data.events.length > 0 && (
-              <div
-                className="lg:col-span-4 grid gap-2 rounded-lg border border-border-muted bg-bg-base/50 px-4 py-3"
-                data-testid="chatbot-execution-history"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-mono text-[0.65rem] uppercase tracking-widest text-fg-dim">
-                    Histórico por mensagem
-                  </span>
-                  <Badge variant="cyan">{executionHistory.data.events.length}</Badge>
-                </div>
-                <ol className="grid gap-1.5">
-                  {executionHistory.data.events.slice(0, 3).map((event) => (
-                    <li
-                      key={event.id}
-                      className="grid gap-2 rounded-md bg-bg-sunken/60 px-3 py-2 text-xs md:grid-cols-[8rem_1fr_auto]"
-                      data-testid="chatbot-execution-history-row"
-                    >
-                      <time className="font-mono text-fg-dim">{formatShortTime(event.createdAt)}</time>
-                      <span className="truncate text-fg-primary">{chatbotExecutionMeta(event.payload)}</span>
-                      <Badge variant={event.severity === "warn" ? "warning" : "neutral"}>
-                        {event.severity}
-                      </Badge>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </Animate>
-
-      <Animate preset="rise-in" delaySeconds={0.08}>
-        <Card data-testid="chatbot-rule-builder">
-          <CardHeader>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <CardTitle>Builder de regras</CardTitle>
-                <CardDescription>
-                  Match, regex tester, fallback, ações e variantes sem disparar envio.
-                </CardDescription>
-              </div>
-              <Badge variant="cyan">V2.10.26-34</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <div className="grid gap-3 lg:grid-cols-[1fr_1fr_8rem]">
-              <LabeledField label="Chatbot">
+              </CardHeader>
+              <CardContent className="grid gap-3 lg:grid-cols-[10rem_14rem_11rem_1fr_auto]">
+                <Select
+                  value={dryRunChannel}
+                  onValueChange={(value) => updateDryRunChannel(value as DryRunChannel)}
+                >
+                  <SelectTrigger
+                    aria-label="Canal do teste seco"
+                    data-testid="chatbot-dry-run-channel-select"
+                  >
+                    <SelectValue placeholder="Canal" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                    <SelectItem value="instagram">Instagram Direct</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Select value={selectedChatbotId} onValueChange={setSelectedChatbotId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione" />
+                  <SelectTrigger
+                    aria-label="Chatbot do teste seco"
+                    data-testid="chatbot-dry-run-chatbot-select"
+                  >
+                    <SelectValue placeholder="Chatbot" />
                   </SelectTrigger>
                   <SelectContent>
                     {(chatbots.data?.chatbots ?? []).map((chatbot) => (
@@ -314,167 +261,292 @@ export function ChatbotsPage() {
                     ))}
                   </SelectContent>
                 </Select>
-              </LabeledField>
-              <LabeledField label="Nome">
-                <Input value={ruleName} onChange={(event) => setRuleName(event.target.value)} />
-              </LabeledField>
-              <LabeledField label="Prioridade">
                 <Input
-                  inputMode="numeric"
-                  value={priority}
-                  onChange={(event) => setPriority(event.target.value)}
+                  value={phone}
+                  inputMode={dryRunChannel === "instagram" ? "text" : "tel"}
+                  aria-label={dryRunIdentityLabel}
+                  placeholder={dryRunIdentityPlaceholder}
+                  onChange={(event) => setPhone(event.target.value)}
                 />
-              </LabeledField>
-            </div>
-
-            <div className="grid gap-3 lg:grid-cols-[12rem_1fr_1fr]">
-              <LabeledField label="Tipo de match">
-                <Select
-                  value={matchType}
-                  onValueChange={(value) => setMatchType(value as ChatbotRuleMatch["type"])}
+                <Input
+                  value={body}
+                  aria-label="Mensagem do teste"
+                  onChange={(event) => setBody(event.target.value)}
+                />
+                <Button
+                  variant="accent"
+                  loading={dryRun.isPending}
+                  leftIcon={<FlaskConical className="h-4 w-4" />}
+                  data-testid="chatbot-ab-dry-run-button"
+                  onClick={() =>
+                    dryRun.mutate({
+                      ...(Number.isInteger(selectedChatbotIdNumber) && selectedChatbotIdNumber > 0
+                        ? { chatbotId: selectedChatbotIdNumber }
+                        : {}),
+                      channel: dryRunChannel,
+                      phone: dryRunIdentity,
+                      body,
+                    })
+                  }
                 >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {matchTypes.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </LabeledField>
-              <LabeledField label="Valor">
-                <Input
-                  value={matchValue}
-                  disabled={matchType === "fallback"}
-                  onChange={(event) => setMatchValue(event.target.value)}
-                />
-              </LabeledField>
-              <LabeledField label="Regex tester">
-                <Input value={regexProbe} onChange={(event) => setRegexProbe(event.target.value)} />
-              </LabeledField>
-            </div>
-            <div
-              className="rounded-lg border border-border-muted bg-bg-base/60 px-3 py-2 text-xs"
-              data-testid="chatbot-regex-tester"
-              data-regex-state={regexStatus.state}
-            >
-              <div className="flex items-center gap-2">
-                <Regex className="h-4 w-4 text-brand-cyan" />
-                <span className="font-mono">{regexStatus.message}</span>
-              </div>
-            </div>
-
-            <div className="grid gap-3 lg:grid-cols-[12rem_1fr]">
-              <LabeledField label="Ação">
-                <Select value={actionKind} onValueChange={(value) => setActionKind(value as ChatbotActionKind)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {chatbotActionKinds.map((kind) => (
-                      <SelectItem key={kind.value} value={kind.value}>
-                        {kind.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </LabeledField>
-              <ChatbotActionEditor
-                actionKind={actionKind}
-                responseText={responseText}
-                tagId={tagId}
-                statusValue={statusValue}
-                notifyMessage={notifyMessage}
-                automationId={automationId}
-                onResponseTextChange={setResponseText}
-                onTagIdChange={setTagId}
-                onStatusValueChange={setStatusValue}
-                onNotifyMessageChange={setNotifyMessage}
-                onAutomationIdChange={setAutomationId}
-              />
-            </div>
-
-            <div className="grid gap-3 lg:grid-cols-[auto_1fr_1fr]">
-              <label className="flex items-center gap-3 rounded-lg bg-bg-base px-4 py-3 shadow-pressed-sm">
-                <input
-                  type="checkbox"
-                  checked={variantsEnabled}
-                  onChange={(event) => setVariantsEnabled(event.target.checked)}
-                />
-                <span className="text-sm text-fg-muted">Variantes A/B</span>
-              </label>
-              <LabeledField label="Variante A">
-                <Input value={variantA} onChange={(event) => setVariantA(event.target.value)} />
-              </LabeledField>
-              <LabeledField label="Variante B">
-                <Input value={variantB} onChange={(event) => setVariantB(event.target.value)} />
-              </LabeledField>
-            </div>
-
-            <div className="flex justify-end">
-              <Button
-                variant="accent"
-                loading={createRule.isPending}
-                leftIcon={<Plus className="h-4 w-4" />}
-                onClick={createRuleFromBuilder}
-                data-testid="chatbot-create-rule-button"
-              >
-                Criar regra
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </Animate>
-
-      <Animate preset="rise-in" delaySeconds={0.1}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Existentes</CardTitle>
-            <CardDescription>
-              {chatbots.data ? `${chatbots.data.chatbots.length} chatbot(s)` : "—"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {chatbots.isLoading ? (
-              <LoadingState />
-            ) : chatbots.error ? (
-              <ErrorState description={chatbots.error.message} />
-            ) : !chatbots.data || chatbots.data.chatbots.length === 0 ? (
-              <EmptyState description="Nenhum chatbot ainda." />
-            ) : (
-              <div className="grid gap-4" data-testid="chatbot-list">
-                {chatbots.data.chatbots.map((chatbot) => (
-                  <section
-                    key={chatbot.id}
-                    className="rounded-lg border border-border-muted bg-bg-sunken/40 p-4"
-                    data-testid="chatbot-card"
-                    data-chatbot-id={chatbot.id}
+                  Testar
+                </Button>
+                {dryRun.data && (
+                  <div
+                    className="lg:col-span-5 rounded-lg border border-border-muted bg-bg-base/60 px-4 py-3 text-sm"
+                    data-testid="chatbot-ab-dry-run-result"
+                    data-selected-variant-id={dryRun.data.abTest?.selectedVariantId ?? ""}
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <Bot className="h-4 w-4 text-brand-cyan" />
-                          <h2 className="truncate text-base font-medium">{chatbot.name}</h2>
-                        </div>
-                        <p className="mt-1 text-xs font-mono text-fg-dim">
-                          #{chatbot.id} · {chatbot.channel}
-                        </p>
-                      </div>
-                      <Badge variant={chatbot.status === "active" ? "success" : "neutral"}>
-                        {chatbot.status}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant={dryRun.data.matched ? "success" : "warning"}>
+                        {dryRun.data.matched ? "match" : "sem match"}
                       </Badge>
+                      <Badge variant={dryRun.data.abTest ? "cyan" : "neutral"}>
+                        variante: {selectedVariant}
+                      </Badge>
+                      <span className="text-fg-muted">
+                        {dryRun.data.actions.length} ação(ões) prevista(s)
+                      </span>
                     </div>
-                    <ChatbotRulesPanel chatbotId={chatbot.id} />
-                  </section>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </Animate>
+                  </div>
+                )}
+                {executionHistory.data && executionHistory.data.events.length > 0 && (
+                  <div
+                    className="lg:col-span-5 grid gap-2 rounded-lg border border-border-muted bg-bg-base/50 px-4 py-3"
+                    data-testid="chatbot-execution-history"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-mono text-[0.65rem] uppercase tracking-widest text-fg-dim">
+                        Histórico por mensagem
+                      </span>
+                      <Badge variant="cyan">{executionHistory.data.events.length}</Badge>
+                    </div>
+                    <ol className="grid gap-1.5">
+                      {executionHistory.data.events.slice(0, 3).map((event) => (
+                        <li
+                          key={event.id}
+                          className="grid gap-2 rounded-md bg-bg-sunken/60 px-3 py-2 text-xs md:grid-cols-[8rem_1fr_auto]"
+                          data-testid="chatbot-execution-history-row"
+                        >
+                          <time className="font-mono text-fg-dim">
+                            {formatShortTime(event.createdAt)}
+                          </time>
+                          <span className="truncate text-fg-primary">
+                            {chatbotExecutionMeta(event.payload)}
+                          </span>
+                          <Badge variant={event.severity === "warn" ? "warning" : "neutral"}>
+                            {event.severity}
+                          </Badge>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </Animate>
+        </aside>
+
+        <main className="nuoma-chatbots-builder">
+          <Animate preset="rise-in" delaySeconds={0.08}>
+            <Card className="nuoma-chatbots-card" data-testid="chatbot-rule-builder">
+              <CardHeader>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <CardTitle>Builder de regras</CardTitle>
+                    <CardDescription>
+                      Match, regex tester, fallback, ações e variantes sem disparar envio.
+                    </CardDescription>
+                  </div>
+                  <Badge variant="cyan">V2.10.26-34</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <div className="grid gap-3 lg:grid-cols-[1fr_1fr_8rem]">
+                  <LabeledField label="Chatbot">
+                    <Select value={selectedChatbotId} onValueChange={setSelectedChatbotId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(chatbots.data?.chatbots ?? []).map((chatbot) => (
+                          <SelectItem key={chatbot.id} value={String(chatbot.id)}>
+                            {chatbot.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </LabeledField>
+                  <LabeledField label="Nome">
+                    <Input value={ruleName} onChange={(event) => setRuleName(event.target.value)} />
+                  </LabeledField>
+                  <LabeledField label="Prioridade">
+                    <Input
+                      inputMode="numeric"
+                      value={priority}
+                      onChange={(event) => setPriority(event.target.value)}
+                    />
+                  </LabeledField>
+                </div>
+
+                <div className="grid gap-3 lg:grid-cols-[12rem_1fr_1fr]">
+                  <LabeledField label="Tipo de match">
+                    <Select
+                      value={matchType}
+                      onValueChange={(value) => setMatchType(value as ChatbotRuleMatch["type"])}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {matchTypes.map((type) => (
+                          <SelectItem key={type.value} value={type.value}>
+                            {type.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </LabeledField>
+                  <LabeledField label="Valor">
+                    <Input
+                      value={matchValue}
+                      disabled={matchType === "fallback"}
+                      onChange={(event) => setMatchValue(event.target.value)}
+                    />
+                  </LabeledField>
+                  <LabeledField label="Regex tester">
+                    <Input
+                      value={regexProbe}
+                      onChange={(event) => setRegexProbe(event.target.value)}
+                    />
+                  </LabeledField>
+                </div>
+                <div
+                  className="rounded-lg border border-border-muted bg-bg-base/60 px-3 py-2 text-xs"
+                  data-testid="chatbot-regex-tester"
+                  data-regex-state={regexStatus.state}
+                >
+                  <div className="flex items-center gap-2">
+                    <Regex className="h-4 w-4 text-brand-cyan" />
+                    <span className="font-mono">{regexStatus.message}</span>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 lg:grid-cols-[12rem_1fr]">
+                  <LabeledField label="Ação">
+                    <Select
+                      value={actionKind}
+                      onValueChange={(value) => setActionKind(value as ChatbotActionKind)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {chatbotActionKinds.map((kind) => (
+                          <SelectItem key={kind.value} value={kind.value}>
+                            {kind.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </LabeledField>
+                  <ChatbotActionEditor
+                    actionKind={actionKind}
+                    responseText={responseText}
+                    tagId={tagId}
+                    statusValue={statusValue}
+                    notifyMessage={notifyMessage}
+                    automationId={automationId}
+                    onResponseTextChange={setResponseText}
+                    onTagIdChange={setTagId}
+                    onStatusValueChange={setStatusValue}
+                    onNotifyMessageChange={setNotifyMessage}
+                    onAutomationIdChange={setAutomationId}
+                  />
+                </div>
+
+                <div className="grid gap-3 lg:grid-cols-[auto_1fr_1fr]">
+                  <label className="flex items-center gap-3 rounded-lg bg-bg-base px-4 py-3 shadow-pressed-sm">
+                    <input
+                      type="checkbox"
+                      checked={variantsEnabled}
+                      onChange={(event) => setVariantsEnabled(event.target.checked)}
+                    />
+                    <span className="text-sm text-fg-muted">Variantes A/B</span>
+                  </label>
+                  <LabeledField label="Variante A">
+                    <Input value={variantA} onChange={(event) => setVariantA(event.target.value)} />
+                  </LabeledField>
+                  <LabeledField label="Variante B">
+                    <Input value={variantB} onChange={(event) => setVariantB(event.target.value)} />
+                  </LabeledField>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button
+                    variant="accent"
+                    loading={createRule.isPending}
+                    leftIcon={<Plus className="h-4 w-4" />}
+                    onClick={createRuleFromBuilder}
+                    data-testid="chatbot-create-rule-button"
+                  >
+                    Criar regra
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </Animate>
+        </main>
+
+        <aside className="nuoma-chatbots-inspector">
+          <Animate preset="rise-in" delaySeconds={0.1}>
+            <Card className="nuoma-chatbots-card">
+              <CardHeader>
+                <CardTitle>Existentes</CardTitle>
+                <CardDescription>
+                  {chatbots.data ? `${chatbots.data.chatbots.length} chatbot(s)` : "—"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {chatbots.isLoading ? (
+                  <LoadingState />
+                ) : chatbots.error ? (
+                  <ErrorState description={chatbots.error.message} />
+                ) : !chatbots.data || chatbots.data.chatbots.length === 0 ? (
+                  <EmptyState description="Nenhum chatbot ainda." />
+                ) : (
+                  <div className="grid gap-4" data-testid="chatbot-list">
+                    {chatbots.data.chatbots.map((chatbot) => (
+                      <section
+                        key={chatbot.id}
+                        className="rounded-lg border border-border-muted bg-bg-sunken/40 p-4"
+                        data-testid="chatbot-card"
+                        data-chatbot-id={chatbot.id}
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <Bot className="h-4 w-4 text-brand-cyan" />
+                              <h2 className="truncate text-base font-medium">{chatbot.name}</h2>
+                            </div>
+                            <p className="mt-1 text-xs font-mono text-fg-dim">
+                              #{chatbot.id} · {chatbot.channel}
+                            </p>
+                          </div>
+                          <Badge variant={chatbot.status === "active" ? "success" : "neutral"}>
+                            {chatbot.status}
+                          </Badge>
+                        </div>
+                        <ChatbotRulesPanel chatbotId={chatbot.id} />
+                      </section>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </Animate>
+        </aside>
+      </section>
     </div>
   );
 }
@@ -581,7 +653,8 @@ function ChatbotRulesPanel({ chatbotId }: { chatbotId: number }) {
                         {variant.actionsCount} ação(ões) · {abTest.assignment}
                       </p>
                       <p className="mt-2 text-xs text-fg-muted">
-                        {stats?.exposures ?? 0} exposição(ões) · {stats?.conversions ?? 0} conversão(ões)
+                        {stats?.exposures ?? 0} exposição(ões) · {stats?.conversions ?? 0}{" "}
+                        conversão(ões)
                       </p>
                     </div>
                   );
@@ -623,14 +696,22 @@ function ChatbotActionEditor({
   if (actionKind === "send_step") {
     return (
       <LabeledField label="Resposta">
-        <Textarea rows={3} value={responseText} onChange={(event) => onResponseTextChange(event.target.value)} />
+        <Textarea
+          rows={3}
+          value={responseText}
+          onChange={(event) => onResponseTextChange(event.target.value)}
+        />
       </LabeledField>
     );
   }
   if (actionKind === "apply_tag") {
     return (
       <LabeledField label="Tag ID">
-        <Input inputMode="numeric" value={tagId} onChange={(event) => onTagIdChange(event.target.value)} />
+        <Input
+          inputMode="numeric"
+          value={tagId}
+          onChange={(event) => onTagIdChange(event.target.value)}
+        />
       </LabeledField>
     );
   }
@@ -644,13 +725,20 @@ function ChatbotActionEditor({
   if (actionKind === "notify_attendant") {
     return (
       <LabeledField label="Mensagem">
-        <Input value={notifyMessage} onChange={(event) => onNotifyMessageChange(event.target.value)} />
+        <Input
+          value={notifyMessage}
+          onChange={(event) => onNotifyMessageChange(event.target.value)}
+        />
       </LabeledField>
     );
   }
   return (
     <LabeledField label="Automação ID">
-      <Input inputMode="numeric" value={automationId} onChange={(event) => onAutomationIdChange(event.target.value)} />
+      <Input
+        inputMode="numeric"
+        value={automationId}
+        onChange={(event) => onAutomationIdChange(event.target.value)}
+      />
     </LabeledField>
   );
 }

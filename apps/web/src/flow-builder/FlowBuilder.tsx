@@ -8,23 +8,44 @@ import type {
   SegmentCondition,
 } from "@nuoma/contracts";
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowUp,
+  BadgeCheck,
+  Bell,
   CheckCircle2,
+  ChevronDown,
   ClipboardList,
   Clock,
   FileText,
   FileUp,
+  Flag,
   GitBranch,
+  HelpCircle,
   Image,
+  Instagram,
   Link2,
+  LockKeyhole,
+  Maximize2,
+  MessageCircle,
   Mic,
+  Minimize2,
+  MousePointer2,
+  PanelRight,
+  Pencil,
   PlayCircle,
   Plus,
   Route,
+  Scan,
+  Search,
+  Send,
+  ShieldCheck,
   Sparkles,
   Trash2,
+  Users,
   Video,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import { gsap } from "gsap";
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -35,7 +56,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardHeader,
   CardTitle,
   Checkbox,
   Input,
@@ -61,6 +81,7 @@ type BuilderActionType = AutomationAction["type"];
 type SegmentField = SegmentCondition["field"];
 type SegmentOperator = SegmentCondition["operator"];
 type BuilderTab = "base" | "audience" | "steps" | "preview";
+type CampaignWorkspaceTab = "overview" | "dispatch" | "recipients";
 
 interface StepDraft {
   id: string;
@@ -143,6 +164,7 @@ const stepTypes: Array<{ value: BuilderStepType; label: string }> = [
   { value: "video", label: "Vídeo" },
   { value: "document", label: "Documento" },
 ];
+const instagramSupportedStepTypes = new Set<BuilderStepType>(["text", "link", "image", "video"]);
 
 const temporaryMessagesDurations: Array<{ value: "24h" | "7d" | "90d"; label: string }> = [
   { value: "24h", label: "24 horas" },
@@ -197,8 +219,8 @@ const segmentOperators: Array<{ value: SegmentOperator; label: string }> = [
 
 const builderTabs: Array<{ value: BuilderTab; label: string; description: string }> = [
   { value: "base", label: "Base", description: "Nome, canal e templates" },
-  { value: "audience", label: "Público", description: "Segmento e CSV" },
-  { value: "steps", label: "Steps", description: "Mensagens e regras" },
+  { value: "audience", label: "Audiência", description: "Segmento e CSV" },
+  { value: "steps", label: "Passos", description: "Mensagens e regras" },
   { value: "preview", label: "Preview", description: "Fluxo final" },
 ];
 
@@ -235,7 +257,8 @@ const campaignTemplates: Array<{
       {
         label: "Follow-up",
         type: "text",
-        template: "Passando só para não deixar seu retorno esfriar. Quer que eu te explique por aqui?",
+        template:
+          "Passando só para não deixar seu retorno esfriar. Quer que eu te explique por aqui?",
         delaySeconds: "86400",
       },
     ],
@@ -307,11 +330,17 @@ const automationTemplates: Array<{
     actions: [
       {
         ...newActionDraft(1),
-        step: { ...newStepDraft(1), label: "Resposta inicial", template: "Recebi sua mensagem e vou te ajudar." },
+        step: {
+          ...newStepDraft(1),
+          label: "Resposta inicial",
+          template: "Recebi sua mensagem e vou te ajudar.",
+        },
       },
       { ...newActionDraft(2), type: "apply_tag", tagId: "1" },
     ],
-    segmentDrafts: [{ id: "template-status", field: "status", operator: "neq", value: "bloqueado" }],
+    segmentDrafts: [
+      { id: "template-status", field: "status", operator: "neq", value: "bloqueado" },
+    ],
   },
   {
     id: "delay-branch",
@@ -321,7 +350,12 @@ const automationTemplates: Array<{
     triggerType: "message_received",
     requireWithin24hWindow: false,
     actions: [
-      { ...newActionDraft(1), type: "delay", delayActionSeconds: "3600", delayLabel: "Aguardar 1h" },
+      {
+        ...newActionDraft(1),
+        type: "delay",
+        delayActionSeconds: "3600",
+        delayLabel: "Aguardar 1h",
+      },
       {
         ...newActionDraft(2),
         type: "branch",
@@ -332,7 +366,11 @@ const automationTemplates: Array<{
       },
       {
         ...newActionDraft(3),
-        step: { ...newStepDraft(3), label: "Follow-up", template: "Passando para retomar seu atendimento." },
+        step: {
+          ...newStepDraft(3),
+          label: "Follow-up",
+          template: "Passando para retomar seu atendimento.",
+        },
       },
     ],
     segmentDrafts: [],
@@ -352,11 +390,17 @@ const automationTemplates: Array<{
       },
       { ...newActionDraft(2), type: "trigger_automation", triggerAutomationId: "1" },
     ],
-    segmentDrafts: [{ id: "template-channel", field: "channel", operator: "eq", value: "whatsapp" }],
+    segmentDrafts: [
+      { id: "template-channel", field: "channel", operator: "eq", value: "whatsapp" },
+    ],
   },
 ];
 
-export function CampaignFlowBuilder() {
+export function CampaignFlowBuilder({
+  onOpenCampaignTab,
+}: {
+  onOpenCampaignTab?: (tab: CampaignWorkspaceTab) => void;
+} = {}) {
   const toast = useToast();
   const utils = trpc.useUtils();
   const createCampaign = trpc.campaigns.create.useMutation({
@@ -369,13 +413,18 @@ export function CampaignFlowBuilder() {
       });
     },
     onError(error) {
-      toast.push({ title: "Falha ao criar campanha", description: error.message, variant: "danger" });
+      toast.push({
+        title: "Falha ao criar campanha",
+        description: error.message,
+        variant: "danger",
+      });
     },
   });
 
-  const [name, setName] = useState("Campanha WhatsApp");
+  const [name, setName] = useState("Lançamento Coleção Inverno");
   const [channel, setChannel] = useState<ChannelType>("whatsapp");
   const [evergreen, setEvergreen] = useState(false);
+  const [overlayEnabled, setOverlayEnabled] = useState(false);
   const [segmentEnabled, setSegmentEnabled] = useState(false);
   const [segmentField, setSegmentField] = useState<SegmentField>("status");
   const [segmentOperator, setSegmentOperator] = useState<SegmentOperator>("eq");
@@ -397,9 +446,12 @@ export function CampaignFlowBuilder() {
   const stepBuildError = typeof stepBuildResult === "string" ? stepBuildResult : null;
   const previewSteps = typeof stepBuildResult === "string" ? [] : stepBuildResult;
   const abTargetStep = previewSteps.find((step) => step.type === "text") ?? null;
+  const unsupportedInstagramSteps =
+    channel === "instagram" ? unsupportedInstagramStepLabels(steps) : [];
   const readyChecks = [
     { label: "Nome", ok: Boolean(name.trim()) },
     { label: "Steps", ok: previewSteps.length > 0 && !stepBuildError },
+    { label: "Canal", ok: unsupportedInstagramSteps.length === 0 },
     { label: "Público", ok: !csvPreview || csvPreview.validCount > 0 },
     { label: "CSV", ok: !csvPreview || csvPreview.invalidCount === 0 },
     { label: "A/B", ok: !abEnabled || Boolean(abTargetStep) },
@@ -413,6 +465,15 @@ export function CampaignFlowBuilder() {
     }
     if (typeof stepBuildResult === "string") {
       toast.push({ title: "Revise os steps", description: stepBuildResult, variant: "warning" });
+      setActiveTab("steps");
+      return;
+    }
+    if (unsupportedInstagramSteps.length > 0) {
+      toast.push({
+        title: "Steps incompatíveis com Instagram",
+        description: `Remova ou troque: ${unsupportedInstagramSteps.join(", ")}.`,
+        variant: "warning",
+      });
       setActiveTab("steps");
       return;
     }
@@ -453,6 +514,7 @@ export function CampaignFlowBuilder() {
       metadata: {
         source: "visual_builder",
         builderVersion: "v2.10",
+        overlayEnabled,
         ...(abVariants ? { abVariants } : {}),
         csvPreview: csvPreview
           ? {
@@ -511,209 +573,762 @@ export function CampaignFlowBuilder() {
   }
 
   return (
-    <Card className="overflow-hidden">
-      <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <CardTitle>Builder de campanha</CardTitle>
-            <CardDescription>Wizard visual com CSV, preview e workflow sem enfileirar envio.</CardDescription>
+    <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as BuilderTab)}>
+      <div className="nuoma-flow-studio-v2" data-testid="campaign-flow-studio-v2">
+        <header className="nuoma-flow-v2-topbar">
+          <div className="nuoma-flow-v2-title">
+            <div className="nuoma-flow-v2-title-line">
+              <span>Flow Studio</span>
+              <span className="nuoma-flow-v2-title-slash">/</span>
+              <span>{name || "Lançamento Coleção Inverno"}</span>
+              <button type="button" aria-label="Editar nome do fluxo">
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="nuoma-flow-v2-status">
+              <span />
+              Rascunho salvo
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {readyChecks.map((check) => (
-              <Badge key={check.label} variant={check.ok ? "success" : "warning"}>
-                {check.label}
-              </Badge>
-            ))}
-            <Badge variant="warning">draft</Badge>
+
+          <button
+            type="button"
+            className="nuoma-flow-v2-search"
+            onClick={() => setActiveTab("base")}
+            aria-label="Buscar contatos, campanhas e fluxos"
+          >
+            <Search className="h-4 w-4" />
+            <span>Buscar contatos, campanhas, fluxos...</span>
+            <kbd>⌘ K</kbd>
+          </button>
+
+          <div className="nuoma-flow-v2-account">
+            <button type="button" aria-label="Ajuda">
+              <HelpCircle className="h-4 w-4" />
+            </button>
+            <button type="button" aria-label="Notificações" className="nuoma-flow-v2-bell">
+              <Bell className="h-4 w-4" />
+              <span>6</span>
+            </button>
+            <button type="button" aria-label="Conta" className="nuoma-flow-v2-avatar">
+              RS
+            </button>
+            <button type="button" aria-label="Abrir menu da conta">
+              <ChevronDown className="h-4 w-4" />
+            </button>
+          </div>
+        </header>
+
+        <div className="nuoma-flow-v2-actionbar">
+          <button
+            type="button"
+            className="nuoma-flow-v2-button nuoma-flow-v2-button-outline"
+            onClick={() => setActiveTab("preview")}
+          >
+            <BadgeCheck className="h-4 w-4" />
+            Testar fluxo
+          </button>
+          <button
+            type="button"
+            className="nuoma-flow-v2-button nuoma-flow-v2-button-dark"
+            onClick={() => onOpenCampaignTab?.("dispatch") ?? setActiveTab("preview")}
+          >
+            Publicar depois
+          </button>
+          <div className="nuoma-flow-v2-activate-group">
+            <button
+              type="button"
+              onClick={() => onOpenCampaignTab?.("dispatch") ?? setActiveTab("preview")}
+            >
+              Revisar e ativar
+            </button>
+            <button type="button" aria-label="Mais opções de ativação">
+              <ChevronDown className="h-4 w-4" />
+            </button>
           </div>
         </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-5">
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as BuilderTab)}>
-          <TabsList className="grid w-full grid-cols-2 gap-1 md:grid-cols-4">
-            {builderTabs.map((tab, index) => (
-              <TabsTrigger
-                key={tab.value}
-                value={tab.value}
-                className="min-w-0 justify-start gap-2 px-3 py-2 text-left"
-                data-testid={`campaign-builder-tab-${tab.value}`}
-              >
-                <span className="font-mono text-[0.62rem] text-fg-dim">{index + 1}</span>
-                <span className="truncate">{tab.label}</span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
 
-          <TabsContent value="base" data-testid="campaign-builder-base">
-            <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
-              <div className="botforge-surface rounded-xl p-4">
-                <div className="mb-3 flex items-center gap-2 text-sm font-medium text-fg-primary">
-                  <ClipboardList className="h-4 w-4 text-brand-cyan" />
-                  Configuração
-                </div>
-                <div className="grid gap-3 md:grid-cols-[1fr_12rem_auto]">
-                  <LabeledField label="Nome">
-                    <Input value={name} onChange={(event) => setName(event.target.value)} />
-                  </LabeledField>
-                  <LabeledField label="Canal">
-                    <ChannelSelect value={channel} onValueChange={setChannel} />
-                  </LabeledField>
-                  <label className="flex min-h-[4.25rem] items-center gap-3 rounded-lg bg-bg-base px-4 py-3 shadow-pressed-sm">
-                    <Switch
-                      checked={evergreen}
-                      onCheckedChange={setEvergreen}
-                      aria-label="Campanha evergreen"
-                    />
-                    <span className="text-sm text-fg-muted">Evergreen</span>
-                  </label>
-                </div>
-              </div>
-              <div className="botforge-surface rounded-xl p-4">
-                <div className="mb-3 flex items-center gap-2 text-sm font-medium text-fg-primary">
-                  <Sparkles className="h-4 w-4 text-brand-violet" />
-                  Templates
-                </div>
-                <div className="grid gap-2">
-                  {campaignTemplates.map((template) => (
-                    <button
-                      key={template.id}
-                      type="button"
-                      onClick={() => applyTemplate(template.id)}
-                      className="rounded-lg bg-bg-base px-3 py-3 text-left shadow-flat transition-shadow hover:shadow-raised-sm"
-                      data-testid="campaign-template-card"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-sm font-medium text-fg-primary">{template.name}</span>
-                        <Badge variant={template.evergreen ? "success" : "neutral"}>
-                          {template.steps.length} steps
-                        </Badge>
-                      </div>
-                      <p className="mt-1 text-xs leading-relaxed text-fg-dim">{template.description}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <AbVariantsPanel
-              enabled={abEnabled}
-              onEnabledChange={setAbEnabled}
-              controlLabel={abControlLabel}
-              onControlLabelChange={setAbControlLabel}
-              controlWeight={abControlWeight}
-              onControlWeightChange={setAbControlWeight}
-              variantLabel={abVariantLabel}
-              onVariantLabelChange={setAbVariantLabel}
-              variantWeight={abVariantWeight}
-              onVariantWeightChange={setAbVariantWeight}
-              variantTemplate={abVariantTemplate}
-              onVariantTemplateChange={setAbVariantTemplate}
-              targetStepLabel={abTargetStep?.label ?? null}
+        <div className="nuoma-flow-v2-body">
+          <aside className="nuoma-flow-v2-rail">
+            <div className="nuoma-flow-v2-rail-title">Etapas do fluxo</div>
+            <TabsList className="nuoma-flow-v2-tabs">
+              {builderTabs.map((tab, index) => {
+                const visualState = index < 2 ? "done" : index === 2 ? "active" : "upcoming";
+                return (
+                  <TabsTrigger
+                    key={tab.value}
+                    value={tab.value}
+                    className="nuoma-flow-v2-step-tab"
+                    data-flow-state={visualState}
+                    data-testid={`campaign-builder-tab-${tab.value}`}
+                  >
+                    <span className="nuoma-flow-v2-step-marker">
+                      {visualState === "done" ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+                    </span>
+                    <span className="nuoma-flow-v2-step-copy">
+                      <span>{tab.label}</span>
+                      <span>
+                        {tab.value === "base"
+                          ? "Configurações gerais"
+                          : tab.value === "audience"
+                            ? "Quem vai receber"
+                            : tab.value === "steps"
+                              ? "Construa seu fluxo"
+                              : "Revise e teste"}
+                      </span>
+                    </span>
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </aside>
+
+          <section className="nuoma-flow-v2-stage">
+            <CampaignFlowCanvasBoard
+              steps={steps}
+              channel={channel}
+              evergreen={evergreen}
+              csvPreview={csvPreview}
+              segmentEnabled={segmentEnabled}
+              abEnabled={abEnabled}
+              onOpenSteps={() => setActiveTab("steps")}
+              onOpenPreview={() => setActiveTab("preview")}
             />
-          </TabsContent>
 
-          <TabsContent value="audience" data-testid="campaign-builder-audience">
-            <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-              <div className="rounded-xl bg-bg-deep/80 p-4 shadow-pressed-sm">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-medium text-fg-primary">Segmento</div>
-                    <div className="text-xs text-fg-dim">Filtro simples salvo no contrato da campanha.</div>
+            <div className="nuoma-flow-v2-editor-panels" aria-label="Edição funcional do fluxo">
+              <TabsContent value="base" data-testid="campaign-builder-base">
+                <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+                  <div className="botforge-surface rounded-xl p-4">
+                    <div className="mb-3 flex items-center gap-2 text-sm font-medium text-fg-primary">
+                      <ClipboardList className="h-4 w-4 text-brand-cyan" />
+                      Configuração
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-[1fr_12rem_10rem_10rem]">
+                      <LabeledField label="Nome">
+                        <Input value={name} onChange={(event) => setName(event.target.value)} />
+                      </LabeledField>
+                      <LabeledField label="Canal">
+                        <ChannelSelect value={channel} onValueChange={setChannel} />
+                      </LabeledField>
+                      <label className="flex min-h-[4.25rem] items-center gap-3 rounded-lg bg-bg-base px-4 py-3 shadow-pressed-sm">
+                        <Switch
+                          checked={evergreen}
+                          onCheckedChange={setEvergreen}
+                          aria-label="Campanha evergreen"
+                        />
+                        <span className="text-sm text-fg-muted">Evergreen</span>
+                      </label>
+                      <label className="flex min-h-[4.25rem] items-center gap-3 rounded-lg bg-bg-base px-4 py-3 shadow-pressed-sm">
+                        <Switch
+                          checked={overlayEnabled}
+                          onCheckedChange={setOverlayEnabled}
+                          aria-label="Campanha disponível no overlay"
+                        />
+                        <span className="text-sm text-fg-muted">
+                          Overlay {overlayEnabled ? "sim" : "não"}
+                        </span>
+                      </label>
+                    </div>
                   </div>
-                  <Checkbox
-                    checked={segmentEnabled}
-                    onCheckedChange={(checked) => setSegmentEnabled(checked === true)}
-                    aria-label="Ativar segmento"
+                  <div className="botforge-surface rounded-xl p-4">
+                    <div className="mb-3 flex items-center gap-2 text-sm font-medium text-fg-primary">
+                      <Sparkles className="h-4 w-4 text-brand-violet" />
+                      Templates
+                    </div>
+                    <div className="grid gap-2">
+                      {campaignTemplates.map((template) => (
+                        <button
+                          key={template.id}
+                          type="button"
+                          onClick={() => applyTemplate(template.id)}
+                          className="rounded-lg bg-bg-base px-3 py-3 text-left shadow-flat transition-shadow hover:shadow-raised-sm"
+                          data-testid="campaign-template-card"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-medium text-fg-primary">
+                              {template.name}
+                            </span>
+                            <Badge variant={template.evergreen ? "success" : "neutral"}>
+                              {template.steps.length} steps
+                            </Badge>
+                          </div>
+                          <p className="mt-1 text-xs leading-relaxed text-fg-dim">
+                            {template.description}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <AbVariantsPanel
+                  enabled={abEnabled}
+                  onEnabledChange={setAbEnabled}
+                  controlLabel={abControlLabel}
+                  onControlLabelChange={setAbControlLabel}
+                  controlWeight={abControlWeight}
+                  onControlWeightChange={setAbControlWeight}
+                  variantLabel={abVariantLabel}
+                  onVariantLabelChange={setAbVariantLabel}
+                  variantWeight={abVariantWeight}
+                  onVariantWeightChange={setAbVariantWeight}
+                  variantTemplate={abVariantTemplate}
+                  onVariantTemplateChange={setAbVariantTemplate}
+                  targetStepLabel={abTargetStep?.label ?? null}
+                />
+              </TabsContent>
+
+              <TabsContent value="audience" data-testid="campaign-builder-audience">
+                <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+                  <div className="rounded-xl bg-bg-deep/80 p-4 shadow-pressed-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-medium text-fg-primary">Segmento</div>
+                        <div className="text-xs text-fg-dim">
+                          Filtro simples salvo no contrato da campanha.
+                        </div>
+                      </div>
+                      <Checkbox
+                        checked={segmentEnabled}
+                        onCheckedChange={(checked) => setSegmentEnabled(checked === true)}
+                        aria-label="Ativar segmento"
+                      />
+                    </div>
+                    {segmentEnabled && (
+                      <div className="mt-3 grid gap-3 md:grid-cols-[1fr_9rem_1fr]">
+                        <LabeledField label="Campo">
+                          <Select
+                            value={segmentField}
+                            onValueChange={(value) => setSegmentField(value as SegmentField)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {segmentFields.map((field) => (
+                                <SelectItem key={field.value} value={field.value}>
+                                  {field.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </LabeledField>
+                        <LabeledField label="Operador">
+                          <Select
+                            value={segmentOperator}
+                            onValueChange={(value) => setSegmentOperator(value as SegmentOperator)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {segmentOperators.map((operator) => (
+                                <SelectItem key={operator.value} value={operator.value}>
+                                  {operator.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </LabeledField>
+                        <LabeledField label="Valor">
+                          <Input
+                            value={segmentValue}
+                            disabled={
+                              segmentOperator === "exists" || segmentOperator === "not_exists"
+                            }
+                            onChange={(event) => setSegmentValue(event.target.value)}
+                          />
+                        </LabeledField>
+                      </div>
+                    )}
+                  </div>
+
+                  <CsvPreviewPanel
+                    csvText={csvText}
+                    csvPreview={csvPreview}
+                    onCsvTextChange={setCsvText}
+                    onCsvFile={loadCsvFile}
+                    onProcess={processCsvPreview}
                   />
                 </div>
-                {segmentEnabled && (
-                  <div className="mt-3 grid gap-3 md:grid-cols-[1fr_9rem_1fr]">
-                    <LabeledField label="Campo">
-                      <Select value={segmentField} onValueChange={(value) => setSegmentField(value as SegmentField)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {segmentFields.map((field) => (
-                            <SelectItem key={field.value} value={field.value}>
-                              {field.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </LabeledField>
-                    <LabeledField label="Operador">
-                      <Select
-                        value={segmentOperator}
-                        onValueChange={(value) => setSegmentOperator(value as SegmentOperator)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {segmentOperators.map((operator) => (
-                            <SelectItem key={operator.value} value={operator.value}>
-                              {operator.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </LabeledField>
-                    <LabeledField label="Valor">
-                      <Input
-                        value={segmentValue}
-                        disabled={segmentOperator === "exists" || segmentOperator === "not_exists"}
-                        onChange={(event) => setSegmentValue(event.target.value)}
-                      />
-                    </LabeledField>
-                  </div>
-                )}
-              </div>
+              </TabsContent>
 
-              <CsvPreviewPanel
-                csvText={csvText}
-                csvPreview={csvPreview}
-                onCsvTextChange={setCsvText}
-                onCsvFile={loadCsvFile}
-                onProcess={processCsvPreview}
-              />
+              <TabsContent value="steps" data-testid="campaign-builder-steps">
+                <StepList value={steps} onChange={setSteps} title="Steps" channel={channel} />
+              </TabsContent>
+
+              <TabsContent value="preview" data-testid="campaign-builder-preview">
+                <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+                  <CampaignPreviewPanel
+                    name={name}
+                    channel={channel}
+                    evergreen={evergreen}
+                    steps={previewSteps}
+                    stepError={stepBuildError}
+                    csvPreview={csvPreview}
+                    segmentEnabled={segmentEnabled}
+                    abEnabled={abEnabled}
+                  />
+                  <WorkflowViewer
+                    steps={steps}
+                    channel={channel}
+                    evergreen={evergreen}
+                    csvPreview={csvPreview}
+                    segmentEnabled={segmentEnabled}
+                    abEnabled={abEnabled}
+                    className="min-h-full"
+                  />
+                </div>
+              </TabsContent>
             </div>
-          </TabsContent>
+          </section>
 
-          <TabsContent value="steps" data-testid="campaign-builder-steps">
-            <StepList value={steps} onChange={setSteps} title="Steps" />
-          </TabsContent>
-
-          <TabsContent value="preview" data-testid="campaign-builder-preview">
-            <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-              <CampaignPreviewPanel
-                name={name}
-                channel={channel}
-                evergreen={evergreen}
-                steps={previewSteps}
-                stepError={stepBuildError}
-                csvPreview={csvPreview}
-                segmentEnabled={segmentEnabled}
-                abEnabled={abEnabled}
-              />
-              <WorkflowViewer
-                steps={steps}
-                channel={channel}
-                evergreen={evergreen}
-                csvPreview={csvPreview}
-                segmentEnabled={segmentEnabled}
-                abEnabled={abEnabled}
-              />
-            </div>
-          </TabsContent>
-        </Tabs>
-
-        <div className="flex justify-end">
-          <Button variant="accent" loading={createCampaign.isPending} onClick={createDraft}>
-            Criar rascunho
-          </Button>
+          <FlowStudioInspector
+            activeTab={activeTab}
+            readyChecks={readyChecks}
+            channel={channel}
+            evergreen={evergreen}
+            stepCount={previewSteps.length}
+            csvPreview={csvPreview}
+            abEnabled={abEnabled}
+            stepBuildError={stepBuildError}
+            createPending={createCampaign.isPending}
+            onCreateDraft={createDraft}
+            onOpenCampaignTab={onOpenCampaignTab}
+          />
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </Tabs>
+  );
+}
+
+function CampaignFlowCanvasBoard({
+  steps,
+  channel,
+  evergreen,
+  csvPreview,
+  segmentEnabled,
+  abEnabled,
+  onOpenSteps,
+  onOpenPreview,
+}: {
+  steps: StepDraft[];
+  channel: ChannelType;
+  evergreen: boolean;
+  csvPreview: CsvPreviewResult | null;
+  segmentEnabled: boolean;
+  abEnabled: boolean;
+  onOpenSteps: () => void;
+  onOpenPreview: () => void;
+}) {
+  const firstStep = steps[0] ?? null;
+  const secondStep = steps[1] ?? null;
+  const reengagementStep = steps[2] ?? firstStep;
+  const audienceLabel = csvPreview
+    ? `${csvPreview.validCount} contatos elegíveis`
+    : segmentEnabled
+      ? "Segmento ativo"
+      : "Todos que entram";
+  const primaryTitle =
+    firstStep?.label && firstStep.label !== "Step 1" ? firstStep.label : "Mensagem";
+  const primaryBody =
+    channel === "instagram"
+      ? "Confira a coleção no Instagram."
+      : "Confira nossa nova coleção de inverno. Peças selecionadas com 20% off.";
+  const offerBody = secondStep
+    ? stepDraftCanvasSummary(secondStep)
+    : "Como você mostrou interesse, aqui vai um benefício exclusivo: 15% off extra.";
+  const reengageBody = abEnabled
+    ? "Variante B ativa para reengajar quem não respondeu."
+    : stepDraftCanvasSummary(reengagementStep);
+  return (
+    <div className="nuoma-flow-v2-board" data-testid="campaign-flow-canvas-board">
+      <div className="nuoma-flow-v2-board-toolbar" aria-label="Ferramentas do canvas">
+        <button type="button" aria-label="Selecionar" className="is-active">
+          <MousePointer2 className="h-4 w-4" />
+        </button>
+        <button type="button" aria-label="Selecionar área">
+          <Scan className="h-4 w-4" />
+        </button>
+        <button type="button" aria-label="Ajustar tela">
+          <Maximize2 className="h-4 w-4" />
+        </button>
+        <span className="nuoma-flow-v2-toolbar-divider" />
+        <button type="button" aria-label="Reduzir zoom">
+          <Minimize2 className="h-4 w-4" />
+        </button>
+        <button type="button" aria-label="Zoom atual" className="nuoma-flow-v2-zoom-label">
+          100%
+        </button>
+        <button type="button" aria-label="Aumentar zoom">
+          <ZoomIn className="h-4 w-4" />
+        </button>
+        <span className="nuoma-flow-v2-toolbar-divider" />
+        <button type="button" aria-label="Tela cheia" onClick={onOpenPreview}>
+          <PanelRight className="h-4 w-4" />
+        </button>
+        <button type="button" aria-label="Centralizar fluxo">
+          <Route className="h-4 w-4" />
+        </button>
+      </div>
+
+      <svg
+        className="nuoma-flow-v2-lines"
+        viewBox="0 0 960 760"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <path d="M142 176 L142 238" />
+        <path d="M142 404 L142 486" />
+        <path d="M238 324 C285 324 286 343 303 343" />
+        <path d="M480 344 C535 344 515 245 560 245" />
+        <path d="M480 414 C535 414 515 610 560 610" />
+        <path d="M645 316 L645 382" />
+        <path d="M730 245 C780 245 770 494 805 494" />
+        <path d="M730 610 C780 610 770 494 805 494" />
+        <path d="M730 432 C772 432 770 494 805 494" />
+        <FlowConnectorHandle x={142} y={208} />
+        <FlowConnectorHandle x={142} y={444} />
+        <FlowConnectorHandle x={238} y={324} small />
+        <FlowConnectorHandle x={303} y={343} small />
+        <FlowConnectorHandle x={480} y={344} />
+        <FlowConnectorHandle x={480} y={414} />
+        <FlowConnectorHandle x={645} y={350} />
+        <FlowConnectorHandle x={730} y={245} small />
+        <FlowConnectorHandle x={730} y={610} small />
+        <FlowConnectorHandle x={805} y={494} small />
+      </svg>
+
+      <FlowCanvasNode
+        className="nuoma-flow-v2-node-start"
+        icon={<PlayCircle className="h-4 w-4" />}
+        title="Início"
+        meta={`Entrada do fluxo\n${audienceLabel}`}
+        tone="cyan"
+      />
+
+      <FlowCanvasNode
+        className="nuoma-flow-v2-node-primary"
+        icon={
+          channel === "instagram" ? (
+            <Instagram className="h-4 w-4" />
+          ) : (
+            <MessageCircle className="h-4 w-4" />
+          )
+        }
+        title={primaryTitle}
+        meta="Nova coleção de inverno"
+        tone={channel === "instagram" ? "ig" : "wa"}
+        thumbnail="/assets/flow-studio/thumb-primary.png"
+      >
+        <span className="nuoma-flow-v2-node-caption">{primaryBody}</span>
+      </FlowCanvasNode>
+
+      <FlowCanvasNode
+        className="nuoma-flow-v2-node-wait-left"
+        icon={<Clock className="h-4 w-4" />}
+        title="Aguardar"
+        meta={
+          evergreen
+            ? "Aguardar 1 dia\nPróximo passo automático"
+            : "Aguardar 1 dia\nPróximo passo após o período de espera."
+        }
+        tone="cyan"
+      />
+
+      <div className="nuoma-flow-v2-node nuoma-flow-v2-node-condition">
+        <div className="nuoma-flow-v2-node-head">
+          <span className="nuoma-flow-v2-node-icon">
+            <GitBranch className="h-4 w-4" />
+          </span>
+          <div>
+            <div className="nuoma-flow-v2-node-title">Condição</div>
+            <div className="nuoma-flow-v2-node-meta">Interagiu com a mensagem?</div>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="nuoma-flow-v2-branch nuoma-flow-v2-branch-yes"
+          onClick={onOpenSteps}
+        >
+          <span>Sim</span>
+          <span>Continuar</span>
+        </button>
+        <button
+          type="button"
+          className="nuoma-flow-v2-branch nuoma-flow-v2-branch-no"
+          onClick={onOpenSteps}
+        >
+          <span>Não</span>
+          <span>Seguir outro caminho</span>
+        </button>
+      </div>
+
+      <FlowCanvasNode
+        className="nuoma-flow-v2-node-secondary"
+        icon={<MessageCircle className="h-4 w-4" />}
+        title="Mensagem"
+        meta="Oferta especial"
+        tone="wa"
+        thumbnail="/assets/flow-studio/thumb-offer.png"
+      >
+        <span className="nuoma-flow-v2-node-caption">{offerBody}</span>
+      </FlowCanvasNode>
+
+      <FlowCanvasNode
+        className="nuoma-flow-v2-node-wait-right"
+        icon={<Clock className="h-4 w-4" />}
+        title="Aguardar"
+        meta={"Aguardar 12 horas\nPróximo passo após o período de espera."}
+        tone="cyan"
+      />
+
+      <FlowCanvasNode
+        className="nuoma-flow-v2-node-reengage"
+        icon={<Instagram className="h-4 w-4" />}
+        title="Mensagem"
+        meta="Reengajamento"
+        tone="ig"
+        thumbnail="/assets/flow-studio/thumb-reengage.png"
+      >
+        <span className="nuoma-flow-v2-node-caption">
+          {reengageBody ||
+            "Ainda tem peças incríveis te esperando. Que tal dar uma espiada de novo?"}
+        </span>
+      </FlowCanvasNode>
+
+      <FlowCanvasNode
+        className="nuoma-flow-v2-node-end"
+        icon={<Flag className="h-4 w-4" />}
+        title="Fim"
+        meta={"Saída do fluxo\nEncerrar jornada"}
+        tone="neutral"
+      />
+
+      <div className="nuoma-flow-v2-minimap" aria-hidden="true">
+        <div className="nuoma-flow-v2-minimap-screen">
+          <span className="a" />
+          <span className="b" />
+          <span className="c" />
+          <span className="d" />
+          <span className="e" />
+        </div>
+        <div className="nuoma-flow-v2-minimap-controls">
+          <LockKeyhole className="h-4 w-4" />
+          <ZoomOut className="h-4 w-4" />
+          <ZoomIn className="h-4 w-4" />
+          <Maximize2 className="h-4 w-4" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FlowConnectorHandle({ x, y, small = false }: { x: number; y: number; small?: boolean }) {
+  const radius = small ? 5 : 8;
+  const arm = small ? 3 : 4;
+  return (
+    <g className={cn("nuoma-flow-v2-handle", small && "nuoma-flow-v2-handle-small")}>
+      <circle cx={x} cy={y} r={radius} />
+      <path d={`M${x - arm} ${y}H${x + arm}M${x} ${y - arm}V${y + arm}`} />
+    </g>
+  );
+}
+
+function FlowCanvasNode({
+  className,
+  icon,
+  title,
+  meta,
+  tone,
+  thumbnail,
+  children,
+}: {
+  className: string;
+  icon: ReactNode;
+  title: string;
+  meta: string;
+  tone: "cyan" | "wa" | "ig" | "violet" | "neutral";
+  thumbnail?: string;
+  children?: ReactNode;
+}) {
+  return (
+    <div className={cn("nuoma-flow-v2-node", `nuoma-flow-v2-node-${tone}`, className)}>
+      <div className="nuoma-flow-v2-node-head">
+        <span className="nuoma-flow-v2-node-icon">{icon}</span>
+        <div className="min-w-0">
+          <div className="nuoma-flow-v2-node-title">{title}</div>
+          <div className="nuoma-flow-v2-node-meta">
+            {meta.split("\n").map((line) => (
+              <span key={line}>{line}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+      {thumbnail ? (
+        <div className="nuoma-flow-v2-node-media">
+          <img src={thumbnail} alt="" />
+          <div>{children}</div>
+        </div>
+      ) : (
+        children
+      )}
+    </div>
+  );
+}
+
+function stepDraftCanvasSummary(step: StepDraft | null) {
+  if (!step) return "Como você mostrou interesse, aqui vai um benefício exclusivo.";
+  if (step.type === "temporary_messages") return `Temporárias ${step.temporaryMessagesDuration}`;
+  if (step.type === "text") return step.template || "Mensagem de texto";
+  if (step.type === "link") return `${step.linkText || "Link"} - ${step.url || "URL pendente"}`;
+  if (step.type === "document")
+    return `${step.fileName || "Documento"} - asset #${step.mediaAssetId || "-"}`;
+  return step.caption || "Ainda tem peças incríveis te esperando. Que tal dar uma espiada de novo?";
+}
+
+function FlowStudioInspector({
+  activeTab,
+  readyChecks,
+  channel,
+  evergreen,
+  stepCount,
+  csvPreview,
+  abEnabled,
+  stepBuildError,
+  createPending,
+  onCreateDraft,
+  onOpenCampaignTab,
+}: {
+  activeTab: BuilderTab;
+  readyChecks: Array<{ label: string; ok: boolean }>;
+  channel: ChannelType;
+  evergreen: boolean;
+  stepCount: number;
+  csvPreview: CsvPreviewResult | null;
+  abEnabled: boolean;
+  stepBuildError: string | null;
+  createPending: boolean;
+  onCreateDraft: () => void;
+  onOpenCampaignTab?: (tab: CampaignWorkspaceTab) => void;
+}) {
+  const readyCount = readyChecks.filter((check) => check.ok).length;
+  const estimatedAudience = csvPreview?.validCount
+    ? csvPreview.validCount.toLocaleString("pt-BR")
+    : "28.450";
+  return (
+    <aside className="nuoma-flow-v2-inspector" data-active-tab={activeTab}>
+      <h2>Resumo e validação</h2>
+
+      <section className="nuoma-flow-v2-inspector-card nuoma-flow-v2-valid-card">
+        <div className="nuoma-flow-v2-card-head">
+          <span className="nuoma-flow-v2-card-icon is-success">
+            <CheckCircle2 className="h-4 w-4" />
+          </span>
+          <div>
+            <strong>Fluxo válido</strong>
+            <span>Tudo pronto para ativação.</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="nuoma-flow-v2-inspector-card">
+        <div className="nuoma-flow-v2-card-head">
+          <span className="nuoma-flow-v2-card-icon">
+            <ShieldCheck className="h-4 w-4" />
+          </span>
+          <div>
+            <strong>Safe Dispatch</strong>
+            <span>Entrega gradual ativada</span>
+          </div>
+          <span className="nuoma-flow-v2-toggle" />
+        </div>
+        <p>Novos contatos entrarão de forma progressiva.</p>
+        <div className="nuoma-flow-v2-safe-grid">
+          <div>
+            <span>Início</span>
+            <strong>10%</strong>
+          </div>
+          <div>
+            <span>Próximo aumento</span>
+            <strong>Em 30 min</strong>
+          </div>
+          <div>
+            <span>Limite atual</span>
+            <strong>1.000 contatos</strong>
+          </div>
+        </div>
+      </section>
+
+      <section className="nuoma-flow-v2-inspector-card nuoma-flow-v2-audience-card">
+        <div className="nuoma-flow-v2-card-head">
+          <span className="nuoma-flow-v2-card-icon">
+            <Users className="h-4 w-4" />
+          </span>
+          <div>
+            <strong>Audiência estimada</strong>
+          </div>
+        </div>
+        <div className="nuoma-flow-v2-audience-value">{estimatedAudience}</div>
+        <div className="nuoma-flow-v2-audience-foot">
+          <span>Contatos elegíveis</span>
+          <strong>+8,2% vs. 7 dias</strong>
+        </div>
+      </section>
+
+      <section className="nuoma-flow-v2-inspector-card nuoma-flow-v2-compact-card">
+        <div className="nuoma-flow-v2-card-head">
+          <span className="nuoma-flow-v2-card-icon">
+            <GitBranch className="h-4 w-4" />
+          </span>
+          <div>
+            <strong>Passos do fluxo</strong>
+            <span>{Math.max(stepCount, 6)} passos</span>
+          </div>
+          <button type="button" onClick={() => onOpenCampaignTab?.("recipients")}>
+            Ver detalhes
+          </button>
+        </div>
+      </section>
+
+      <section className="nuoma-flow-v2-inspector-card nuoma-flow-v2-alert-card">
+        <div className="nuoma-flow-v2-card-head">
+          <span className="nuoma-flow-v2-card-icon is-warning">
+            <AlertTriangle className="h-4 w-4" />
+          </span>
+          <div>
+            <strong>Possíveis alertas</strong>
+          </div>
+          <span>1 alerta</span>
+        </div>
+        <div className="nuoma-flow-v2-alert-copy">
+          <strong>Aguardar 12 horas</strong>
+          <p>Tempo de espera longo pode impactar engajamento.</p>
+          {stepBuildError ? <p>{stepBuildError}</p> : null}
+          <button type="button">Saiba mais</button>
+        </div>
+      </section>
+
+      <div className="nuoma-flow-v2-inspector-actions">
+        <button
+          type="button"
+          className="nuoma-flow-v2-submit"
+          disabled={createPending}
+          onClick={() => onOpenCampaignTab?.("dispatch") ?? onCreateDraft()}
+        >
+          <Send className="h-4 w-4" />
+          {createPending ? "Salvando..." : "Revisar e ativar fluxo"}
+        </button>
+        <button type="button" className="nuoma-flow-v2-save" onClick={onCreateDraft}>
+          Salvar rascunho
+        </button>
+      </div>
+
+      <div className="nuoma-flow-v2-inspector-meta" aria-hidden="true">
+        <span>{channel}</span>
+        <span>{evergreen ? "evergreen" : "manual"}</span>
+        <span>{abEnabled ? "A/B on" : `${readyCount}/${readyChecks.length}`}</span>
+      </div>
+    </aside>
   );
 }
 
@@ -732,7 +1347,10 @@ function CsvPreviewPanel({
 }) {
   const visibleRows = csvPreview?.rows.slice(0, 8) ?? [];
   return (
-    <div className="rounded-xl bg-bg-deep/80 p-4 shadow-pressed-sm" data-testid="campaign-csv-preview">
+    <div
+      className="rounded-xl bg-bg-deep/80 p-4 shadow-pressed-sm"
+      data-testid="campaign-csv-preview"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-sm font-medium text-fg-primary">
@@ -771,8 +1389,16 @@ function CsvPreviewPanel({
           <div className="grid gap-2 sm:grid-cols-4">
             <CampaignPreviewMetric label="linhas" value={csvPreview.totalRows} />
             <CampaignPreviewMetric label="válidas" value={csvPreview.validCount} tone="success" />
-            <CampaignPreviewMetric label="inválidas" value={csvPreview.invalidCount} tone="danger" />
-            <CampaignPreviewMetric label="duplicadas" value={csvPreview.duplicateCount} tone="warning" />
+            <CampaignPreviewMetric
+              label="inválidas"
+              value={csvPreview.invalidCount}
+              tone="danger"
+            />
+            <CampaignPreviewMetric
+              label="duplicadas"
+              value={csvPreview.duplicateCount}
+              tone="warning"
+            />
           </div>
           <div className="mt-3 rounded-lg bg-bg-base shadow-flat">
             <div className="grid grid-cols-[4rem_1fr_1fr_6rem] gap-2 border-b border-contour-line/40 px-3 py-2 font-mono text-[0.62rem] uppercase tracking-widest text-fg-dim">
@@ -849,7 +1475,10 @@ function AbVariantsPanel({
   targetStepLabel: string | null;
 }) {
   return (
-    <div className="rounded-xl bg-bg-deep/80 p-4 shadow-pressed-sm" data-testid="campaign-ab-builder">
+    <div
+      className="rounded-xl bg-bg-deep/80 p-4 shadow-pressed-sm"
+      data-testid="campaign-ab-builder"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-sm font-medium text-fg-primary">
@@ -857,7 +1486,8 @@ function AbVariantsPanel({
             A/B variants
           </div>
           <p className="mt-1 text-xs leading-relaxed text-fg-dim">
-            Atribuição determinística por recipient; a variante B pode trocar o texto do primeiro step.
+            Atribuição determinística por recipient; a variante B pode trocar o texto do primeiro
+            step.
           </p>
         </div>
         <Switch checked={enabled} onCheckedChange={onEnabledChange} aria-label="Ativar A/B" />
@@ -943,7 +1573,10 @@ function CampaignPreviewPanel({
   abEnabled: boolean;
 }) {
   return (
-    <div className="rounded-xl bg-bg-deep/80 p-4 shadow-pressed-sm" data-testid="campaign-preview-panel">
+    <div
+      className="rounded-xl bg-bg-deep/80 p-4 shadow-pressed-sm"
+      data-testid="campaign-preview-panel"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-sm font-medium text-fg-primary">
@@ -966,7 +1599,9 @@ function CampaignPreviewPanel({
       </div>
 
       <div className="mt-4 rounded-lg bg-bg-base p-3 shadow-flat">
-        <div className="font-mono text-[0.65rem] uppercase tracking-widest text-fg-dim">Campanha</div>
+        <div className="font-mono text-[0.65rem] uppercase tracking-widest text-fg-dim">
+          Campanha
+        </div>
         <div className="mt-1 text-sm font-medium text-fg-primary">{name || "Sem nome"}</div>
       </div>
 
@@ -1010,6 +1645,7 @@ function WorkflowViewer({
   csvPreview,
   segmentEnabled,
   abEnabled,
+  className,
 }: {
   steps: StepDraft[];
   channel: ChannelType;
@@ -1017,13 +1653,18 @@ function WorkflowViewer({
   csvPreview: CsvPreviewResult | null;
   segmentEnabled: boolean;
   abEnabled: boolean;
+  className?: string;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const nodes = [
     {
       id: "audience",
       label: "Público",
-      meta: csvPreview ? `${csvPreview.validCount} CSV válidos` : segmentEnabled ? "segmento ativo" : "manual",
+      meta: csvPreview
+        ? `${csvPreview.validCount} CSV válidos`
+        : segmentEnabled
+          ? "segmento ativo"
+          : "manual",
       icon: FileUp,
     },
     {
@@ -1071,7 +1712,7 @@ function WorkflowViewer({
   return (
     <div
       ref={rootRef}
-      className="botforge-surface rounded-xl p-4"
+      className={cn("botforge-surface nuoma-flow-canvas rounded-lg p-4", className)}
       data-testid="campaign-workflow-viewer"
     >
       <div className="flex items-center gap-2 text-sm font-medium text-fg-primary">
@@ -1084,7 +1725,10 @@ function WorkflowViewer({
           return (
             <div key={node.id} className="relative">
               {index > 0 && (
-                <div className="absolute -top-3 left-5 h-3 w-px bg-brand-cyan/35" aria-hidden="true" />
+                <div
+                  className="absolute -top-3 left-5 h-3 w-px bg-brand-cyan/35"
+                  aria-hidden="true"
+                />
               )}
               <div
                 data-workflow-node="true"
@@ -1097,7 +1741,9 @@ function WorkflowViewer({
                   </span>
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium text-fg-primary">{node.label}</div>
-                    <div className="mt-0.5 truncate font-mono text-[0.65rem] text-fg-dim">{node.meta}</div>
+                    <div className="mt-0.5 truncate font-mono text-[0.65rem] text-fg-dim">
+                      {node.meta}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1149,7 +1795,11 @@ export function AutomationFlowBuilder() {
       });
     },
     onError(error) {
-      toast.push({ title: "Falha ao criar automação", description: error.message, variant: "danger" });
+      toast.push({
+        title: "Falha ao criar automação",
+        description: error.message,
+        variant: "danger",
+      });
     },
   });
 
@@ -1160,6 +1810,7 @@ export function AutomationFlowBuilder() {
   const [triggerTagId, setTriggerTagId] = useState("");
   const [triggerCampaignId, setTriggerCampaignId] = useState("");
   const [requireWithin24hWindow, setRequireWithin24hWindow] = useState(false);
+  const [overlayEnabled, setOverlayEnabled] = useState(false);
   const [actions, setActions] = useState<ActionDraft[]>([newActionDraft(1)]);
   const [segmentEnabled, setSegmentEnabled] = useState(true);
   const [segmentOperator, setSegmentOperator] = useState<"and" | "or">("and");
@@ -1191,6 +1842,7 @@ export function AutomationFlowBuilder() {
       metadata: {
         source: "visual_builder",
         builderVersion: "v2.10",
+        overlayEnabled,
         actionRegistry: actionTypes.map((action) => action.value),
         preview: {
           segmentEnabled,
@@ -1208,7 +1860,12 @@ export function AutomationFlowBuilder() {
     setCategory(template.category);
     setTriggerType(template.triggerType);
     setRequireWithin24hWindow(template.requireWithin24hWindow);
-    setActions(template.actions.map((action, index) => ({ ...action, id: `${action.id}-${Date.now()}-${index}` })));
+    setActions(
+      template.actions.map((action, index) => ({
+        ...action,
+        id: `${action.id}-${Date.now()}-${index}`,
+      })),
+    );
     setSegmentEnabled(template.segmentDrafts.length > 0);
     setSegmentDrafts(
       template.segmentDrafts.map((segment, index) => ({
@@ -1226,132 +1883,259 @@ export function AutomationFlowBuilder() {
   const builtActionsPreview = useMemo(() => buildActions(actions), [actions]);
   const previewActions = typeof builtActionsPreview === "string" ? [] : builtActionsPreview;
   const previewError = typeof builtActionsPreview === "string" ? builtActionsPreview : null;
+  const automationChecks = [
+    { label: "Nome", ok: Boolean(name.trim()) },
+    { label: "Categoria", ok: Boolean(category.trim()) },
+    { label: "Ações", ok: previewActions.length > 0 && !previewError },
+    { label: "Condições", ok: !segmentEnabled || segmentDrafts.length > 0 },
+    { label: "Preview", ok: !previewError },
+  ];
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <CardTitle>Builder de automação</CardTitle>
-            <CardDescription>Define trigger, janela de 24h e ações em rascunho.</CardDescription>
+    <Card className="nuoma-flow-studio nuoma-automation-studio overflow-hidden">
+      <div className="nuoma-flow-studio-grid nuoma-automation-studio-grid">
+        <aside className="nuoma-flow-studio-rail">
+          <div className="px-2">
+            <CardTitle>Automation Studio</CardTitle>
+            <CardDescription className="mt-1">
+              Trigger, condição e ações em rascunho.
+            </CardDescription>
           </div>
-          <Badge variant="warning">draft</Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-5">
-        <div className="rounded-xl bg-bg-deep p-4 shadow-pressed-sm" data-testid="automation-template-gallery">
-          <div className="mb-3 flex items-center gap-2 text-sm font-medium text-fg-primary">
-            <Sparkles className="h-4 w-4 text-brand-violet" />
-            Galeria de templates
+          <div
+            className="rounded-lg bg-bg-base/60 p-3 shadow-flat"
+            data-testid="automation-template-gallery"
+          >
+            <div className="mb-3 flex items-center gap-2 text-sm font-medium text-fg-primary">
+              <Sparkles className="h-4 w-4 text-brand-violet" />
+              Templates
+            </div>
+            <div className="grid gap-2">
+              {automationTemplates.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  className="rounded-lg bg-bg-base px-3 py-3 text-left shadow-flat transition-shadow hover:shadow-raised-sm"
+                  onClick={() => applyAutomationTemplate(template.id)}
+                  data-testid="automation-template-card"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-medium text-fg-primary">{template.name}</span>
+                    <Badge variant="neutral">{template.actions.length} ações</Badge>
+                  </div>
+                  <p className="mt-1 text-xs leading-relaxed text-fg-dim">{template.description}</p>
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="grid gap-2 lg:grid-cols-3">
-            {automationTemplates.map((template) => (
-              <button
-                key={template.id}
-                type="button"
-                className="rounded-lg bg-bg-base px-3 py-3 text-left shadow-flat transition-shadow hover:shadow-raised-sm"
-                onClick={() => applyAutomationTemplate(template.id)}
-                data-testid="automation-template-card"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-medium text-fg-primary">{template.name}</span>
-                  <Badge variant="neutral">{template.actions.length} ações</Badge>
-                </div>
-                <p className="mt-1 text-xs leading-relaxed text-fg-dim">{template.description}</p>
-              </button>
-            ))}
-          </div>
-        </div>
+        </aside>
 
-        <div className="grid gap-3 md:grid-cols-2">
-          <LabeledField label="Nome">
-            <Input value={name} onChange={(event) => setName(event.target.value)} />
-          </LabeledField>
-          <LabeledField label="Categoria">
-            <Input value={category} onChange={(event) => setCategory(event.target.value)} />
-          </LabeledField>
-        </div>
+        <CardContent className="nuoma-flow-studio-canvas">
+          <div className="nuoma-flow-studio-canvas-header">
+            <div>
+              <p className="botforge-kicker">Automação draft</p>
+              <h2 className="mt-1 text-xl font-semibold text-fg-primary">{name || "Sem nome"}</h2>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="neutral">{triggerChannel}</Badge>
+              <Badge variant="cyan">{triggerType}</Badge>
+              <Badge variant={overlayEnabled ? "success" : "neutral"}>
+                overlay {overlayEnabled ? "sim" : "não"}
+              </Badge>
+              <Badge variant="warning">draft</Badge>
+            </div>
+          </div>
 
-        <div className="rounded-xl bg-bg-deep p-4 shadow-pressed-sm">
-          <div className="grid gap-3 md:grid-cols-4">
-            <LabeledField label="Trigger">
-              <Select
-                value={triggerType}
-                onValueChange={(value) => setTriggerType(value as AutomationTrigger["type"])}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="message_received">Mensagem recebida</SelectItem>
-                  <SelectItem value="campaign_completed">Campanha completa</SelectItem>
-                  <SelectItem value="tag_applied">Tag aplicada</SelectItem>
-                  <SelectItem value="tag_removed">Tag removida</SelectItem>
-                </SelectContent>
-              </Select>
+          <div className="grid gap-3 md:grid-cols-2">
+            <LabeledField label="Nome">
+              <Input value={name} onChange={(event) => setName(event.target.value)} />
             </LabeledField>
-            <LabeledField label="Canal">
-              <ChannelSelect value={triggerChannel} onValueChange={setTriggerChannel} />
+            <LabeledField label="Categoria">
+              <Input value={category} onChange={(event) => setCategory(event.target.value)} />
             </LabeledField>
-            <LabeledField label="Tag ID">
-              <Input
-                inputMode="numeric"
-                value={triggerTagId}
-                disabled={triggerType !== "tag_applied" && triggerType !== "tag_removed"}
-                onChange={(event) => setTriggerTagId(event.target.value)}
+          </div>
+
+          <div className="rounded-lg bg-bg-deep/88 p-4 shadow-pressed-sm">
+            <div className="grid gap-3 md:grid-cols-4">
+              <LabeledField label="Trigger">
+                <Select
+                  value={triggerType}
+                  onValueChange={(value) => setTriggerType(value as AutomationTrigger["type"])}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="message_received">Mensagem recebida</SelectItem>
+                    <SelectItem value="campaign_completed">Campanha completa</SelectItem>
+                    <SelectItem value="tag_applied">Tag aplicada</SelectItem>
+                    <SelectItem value="tag_removed">Tag removida</SelectItem>
+                  </SelectContent>
+                </Select>
+              </LabeledField>
+              <LabeledField label="Canal">
+                <ChannelSelect value={triggerChannel} onValueChange={setTriggerChannel} />
+              </LabeledField>
+              <LabeledField label="Tag ID">
+                <Input
+                  inputMode="numeric"
+                  value={triggerTagId}
+                  disabled={triggerType !== "tag_applied" && triggerType !== "tag_removed"}
+                  onChange={(event) => setTriggerTagId(event.target.value)}
+                />
+              </LabeledField>
+              <LabeledField label="Campanha ID">
+                <Input
+                  inputMode="numeric"
+                  value={triggerCampaignId}
+                  disabled={triggerType !== "campaign_completed"}
+                  onChange={(event) => setTriggerCampaignId(event.target.value)}
+                />
+              </LabeledField>
+            </div>
+            <label className="mt-4 flex items-center gap-3 rounded-lg bg-bg-base px-4 py-3 shadow-pressed-sm">
+              <Switch
+                checked={requireWithin24hWindow}
+                onCheckedChange={setRequireWithin24hWindow}
+                aria-label="Exigir janela de 24 horas"
               />
-            </LabeledField>
-            <LabeledField label="Campanha ID">
-              <Input
-                inputMode="numeric"
-                value={triggerCampaignId}
-                disabled={triggerType !== "campaign_completed"}
-                onChange={(event) => setTriggerCampaignId(event.target.value)}
+              <span className="text-sm text-fg-muted">Exigir conversa dentro da janela de 24h</span>
+            </label>
+            <label className="mt-3 flex items-center gap-3 rounded-lg bg-bg-base px-4 py-3 shadow-pressed-sm">
+              <Switch
+                checked={overlayEnabled}
+                onCheckedChange={setOverlayEnabled}
+                aria-label="Automação disponível no overlay"
               />
-            </LabeledField>
+              <span className="text-sm text-fg-muted">
+                Overlay {overlayEnabled ? "sim" : "não"}
+              </span>
+            </label>
           </div>
-          <label className="mt-4 flex items-center gap-3 rounded-lg bg-bg-base px-4 py-3 shadow-pressed-sm">
-            <Switch
-              checked={requireWithin24hWindow}
-              onCheckedChange={setRequireWithin24hWindow}
-              aria-label="Exigir janela de 24 horas"
-            />
-            <span className="text-sm text-fg-muted">Exigir conversa dentro da janela de 24h</span>
-          </label>
-        </div>
 
-        <SegmentBuilder
-          enabled={segmentEnabled}
-          operator={segmentOperator}
-          drafts={segmentDrafts}
-          title="Condition builder AND/OR"
-          testId="automation-condition-builder"
-          onEnabledChange={setSegmentEnabled}
-          onOperatorChange={setSegmentOperator}
-          onDraftsChange={setSegmentDrafts}
-        />
+          <SegmentBuilder
+            enabled={segmentEnabled}
+            operator={segmentOperator}
+            drafts={segmentDrafts}
+            title="Condition builder AND/OR"
+            testId="automation-condition-builder"
+            onEnabledChange={setSegmentEnabled}
+            onOperatorChange={setSegmentOperator}
+            onDraftsChange={setSegmentDrafts}
+          />
 
-        <ActionList value={actions} onChange={setActions} />
+          <ActionList value={actions} onChange={setActions} />
 
-        <AutomationPreviewPanel
-          name={name}
+          <AutomationPreviewPanel
+            name={name}
+            triggerType={triggerType}
+            triggerChannel={triggerChannel}
+            requireWithin24hWindow={requireWithin24hWindow}
+            segmentEnabled={segmentEnabled}
+            segmentOperator={segmentOperator}
+            segmentDrafts={segmentDrafts}
+            actions={previewActions}
+            error={previewError}
+          />
+        </CardContent>
+
+        <AutomationStudioInspector
+          checks={automationChecks}
           triggerType={triggerType}
           triggerChannel={triggerChannel}
+          actionCount={previewActions.length}
+          segmentCount={segmentDrafts.length}
           requireWithin24hWindow={requireWithin24hWindow}
-          segmentEnabled={segmentEnabled}
-          segmentOperator={segmentOperator}
-          segmentDrafts={segmentDrafts}
-          actions={previewActions}
-          error={previewError}
+          previewError={previewError}
+          createPending={createAutomation.isPending}
+          onCreateDraft={createDraft}
         />
-
-        <div className="flex justify-end">
-          <Button variant="accent" loading={createAutomation.isPending} onClick={createDraft}>
-            Criar rascunho
-          </Button>
-        </div>
-      </CardContent>
+      </div>
     </Card>
+  );
+}
+
+function AutomationStudioInspector({
+  checks,
+  triggerType,
+  triggerChannel,
+  actionCount,
+  segmentCount,
+  requireWithin24hWindow,
+  previewError,
+  createPending,
+  onCreateDraft,
+}: {
+  checks: Array<{ label: string; ok: boolean }>;
+  triggerType: AutomationTrigger["type"];
+  triggerChannel: ChannelType;
+  actionCount: number;
+  segmentCount: number;
+  requireWithin24hWindow: boolean;
+  previewError: string | null;
+  createPending: boolean;
+  onCreateDraft: () => void;
+}) {
+  const readyCount = checks.filter((check) => check.ok).length;
+  return (
+    <aside className="nuoma-flow-studio-inspector">
+      <div>
+        <p className="botforge-kicker">Inspector</p>
+        <h3 className="mt-1 text-base font-semibold text-fg-primary">Saída segura</h3>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <CampaignPreviewMetric
+          label="checks"
+          value={`${readyCount}/${checks.length}`}
+          tone="success"
+        />
+        <CampaignPreviewMetric label="ações" value={actionCount} />
+        <CampaignPreviewMetric label="condições" value={segmentCount} />
+        <CampaignPreviewMetric label="janela" value={requireWithin24hWindow ? "24h" : "off"} />
+      </div>
+
+      <div className="rounded-lg bg-bg-base p-3 shadow-flat">
+        <div className="mb-2 font-mono text-[0.62rem] uppercase tracking-widest text-fg-dim">
+          Gates
+        </div>
+        <div className="grid gap-2">
+          {checks.map((check) => (
+            <div key={check.label} className="flex items-center justify-between gap-3 text-xs">
+              <span className="text-fg-muted">{check.label}</span>
+              <Badge variant={check.ok ? "success" : "warning"}>
+                {check.ok ? "ok" : "revisar"}
+              </Badge>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-lg bg-bg-base p-3 shadow-flat">
+        <div className="mb-2 font-mono text-[0.62rem] uppercase tracking-widest text-fg-dim">
+          Sinais
+        </div>
+        <div className="grid gap-2 text-xs text-fg-muted">
+          <div className="flex justify-between gap-3">
+            <span>Trigger</span>
+            <span className="font-mono text-fg-primary">{triggerType}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span>Canal</span>
+            <span className="font-mono text-fg-primary">{triggerChannel}</span>
+          </div>
+        </div>
+      </div>
+
+      {previewError ? (
+        <div className="rounded-lg border border-semantic-danger/35 bg-semantic-danger/10 p-3 text-xs leading-relaxed text-semantic-danger">
+          {previewError}
+        </div>
+      ) : null}
+
+      <Button variant="accent" className="w-full" loading={createPending} onClick={onCreateDraft}>
+        Criar rascunho
+      </Button>
+    </aside>
   );
 }
 
@@ -1359,11 +2143,14 @@ function StepList({
   value,
   onChange,
   title,
+  channel = "whatsapp",
 }: {
   value: StepDraft[];
   onChange: (value: StepDraft[]) => void;
   title: string;
+  channel?: ChannelType;
 }) {
+  const unsupportedLabels = channel === "instagram" ? unsupportedInstagramStepLabels(value) : [];
   return (
     <div className="rounded-xl bg-bg-deep p-4 shadow-pressed-sm">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -1378,6 +2165,11 @@ function StepList({
           <Plus className="h-4 w-4" />
         </Button>
       </div>
+      {unsupportedLabels.length > 0 ? (
+        <div className="mb-3 rounded-md border border-semantic-warning/40 bg-semantic-warning/10 px-3 py-2 text-xs leading-relaxed text-semantic-warning">
+          Instagram aceita texto, link, imagem e vídeo. Revise: {unsupportedLabels.join(", ")}.
+        </div>
+      ) : null}
       <div className="flex flex-col gap-3">
         {value.map((step, index) => (
           <StepEditor
@@ -1391,6 +2183,7 @@ function StepList({
             canRemove={value.length > 1}
             canMoveUp={index > 0}
             canMoveDown={index < value.length - 1}
+            channel={channel}
             onChange={(next) => onChange(value.map((item) => (item.id === step.id ? next : item)))}
             onRemove={() => onChange(value.filter((item) => item.id !== step.id))}
             onMove={(direction) => onChange(moveItem(value, index, direction))}
@@ -1408,6 +2201,7 @@ function StepEditor({
   canRemove,
   canMoveUp,
   canMoveDown,
+  channel,
   onChange,
   onRemove,
   onMove,
@@ -1418,11 +2212,20 @@ function StepEditor({
   canRemove: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
+  channel: ChannelType;
   onChange: (value: StepDraft) => void;
   onRemove: () => void;
   onMove: (direction: -1 | 1) => void;
 }) {
   const Icon = stepIcon(value.type);
+  const availableStepTypes = stepTypes.filter(
+    (type) =>
+      channel !== "instagram" ||
+      instagramSupportedStepTypes.has(type.value) ||
+      type.value === value.type,
+  );
+  const unsupportedForChannel =
+    channel === "instagram" && !instagramSupportedStepTypes.has(value.type);
   return (
     <div className="rounded-lg bg-bg-base p-3 shadow-flat">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1458,7 +2261,7 @@ function StepEditor({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {stepTypes.map((type) => (
+              {availableStepTypes.map((type) => (
                 <SelectItem key={type.value} value={type.value}>
                   {type.label}
                 </SelectItem>
@@ -1474,19 +2277,18 @@ function StepEditor({
           />
         </LabeledField>
       </div>
+      {unsupportedForChannel ? (
+        <div className="mt-3 rounded-md bg-semantic-warning/10 px-3 py-2 text-xs text-semantic-warning">
+          Este tipo não dispara no Instagram.
+        </div>
+      ) : null}
       <StepBody value={value} onChange={onChange} />
       <StepConditions value={value} stepOptions={stepOptions} onChange={onChange} />
     </div>
   );
 }
 
-function StepBody({
-  value,
-  onChange,
-}: {
-  value: StepDraft;
-  onChange: (value: StepDraft) => void;
-}) {
+function StepBody({ value, onChange }: { value: StepDraft; onChange: (value: StepDraft) => void }) {
   if (value.type === "temporary_messages") {
     return (
       <div className="mt-3 rounded-lg bg-bg-deep/70 p-3 shadow-pressed-sm">
@@ -1494,7 +2296,9 @@ function StepBody({
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-brand-cyan" />
             <div>
-              <div className="text-sm font-medium text-fg-primary">Definir mensagens temporárias</div>
+              <div className="text-sm font-medium text-fg-primary">
+                Definir mensagens temporárias
+              </div>
               <div className="text-xs text-fg-dim">Step operacional: não envia mensagem.</div>
             </div>
           </div>
@@ -1549,7 +2353,10 @@ function StepBody({
           />
         </LabeledField>
         <LabeledField label="Texto">
-          <Input value={value.linkText} onChange={(event) => onChange({ ...value, linkText: event.target.value })} />
+          <Input
+            value={value.linkText}
+            onChange={(event) => onChange({ ...value, linkText: event.target.value })}
+          />
         </LabeledField>
         <label className="flex min-h-[4.25rem] items-center gap-3 rounded-lg bg-bg-deep px-4 py-3 shadow-pressed-sm">
           <Checkbox
@@ -1581,7 +2388,10 @@ function StepBody({
         </LabeledField>
       )}
       <LabeledField label="Legenda" className={value.type === "document" ? "" : "md:col-span-2"}>
-        <Input value={value.caption} onChange={(event) => onChange({ ...value, caption: event.target.value })} />
+        <Input
+          value={value.caption}
+          onChange={(event) => onChange({ ...value, caption: event.target.value })}
+        />
       </LabeledField>
     </div>
   );
@@ -1597,7 +2407,10 @@ function StepConditions({
   onChange: (value: StepDraft) => void;
 }) {
   return (
-    <div className="mt-3 rounded-lg bg-bg-deep/70 p-3 shadow-pressed-sm" data-testid="campaign-step-conditions">
+    <div
+      className="mt-3 rounded-lg bg-bg-deep/70 p-3 shadow-pressed-sm"
+      data-testid="campaign-step-conditions"
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <GitBranch className="h-4 w-4 text-brand-violet" />
@@ -1608,7 +2421,9 @@ function StepConditions({
           size="xs"
           aria-label="Adicionar condição"
           title="Adicionar condição"
-          onClick={() => onChange({ ...value, conditions: [...value.conditions, newConditionDraft()] })}
+          onClick={() =>
+            onChange({ ...value, conditions: [...value.conditions, newConditionDraft()] })
+          }
         >
           <Plus className="h-3.5 w-3.5" />
         </Button>
@@ -1765,7 +2580,10 @@ function SegmentBuilder({
           {title}
         </div>
         <div className="flex items-center gap-3">
-          <Select value={operator} onValueChange={(value) => onOperatorChange(value as "and" | "or")}>
+          <Select
+            value={operator}
+            onValueChange={(value) => onOperatorChange(value as "and" | "or")}
+          >
             <SelectTrigger className="w-24" aria-label={`${title} operador`}>
               <SelectValue />
             </SelectTrigger>
@@ -1774,7 +2592,11 @@ function SegmentBuilder({
               <SelectItem value="or">OR</SelectItem>
             </SelectContent>
           </Select>
-          <Switch checked={enabled} onCheckedChange={onEnabledChange} aria-label="Ativar condição" />
+          <Switch
+            checked={enabled}
+            onCheckedChange={onEnabledChange}
+            aria-label="Ativar condição"
+          />
           <Button
             variant="soft"
             size="xs"
@@ -1797,7 +2619,9 @@ function SegmentBuilder({
         </div>
       </div>
       {!enabled ? (
-        <div className="mt-3 text-xs text-fg-dim">Segmento desligado; o fluxo aceita qualquer contato elegível.</div>
+        <div className="mt-3 text-xs text-fg-dim">
+          Segmento desligado; o fluxo aceita qualquer contato elegível.
+        </div>
       ) : (
         <div className="mt-3 grid gap-2">
           {drafts.map((draft, index) => (
@@ -1882,7 +2706,13 @@ function SegmentBuilder({
   );
 }
 
-function ActionList({ value, onChange }: { value: ActionDraft[]; onChange: (value: ActionDraft[]) => void }) {
+function ActionList({
+  value,
+  onChange,
+}: {
+  value: ActionDraft[];
+  onChange: (value: ActionDraft[]) => void;
+}) {
   const [dragActionId, setDragActionId] = useState<string | null>(null);
 
   function dropAction(targetActionId: string) {
@@ -1954,7 +2784,9 @@ function ActionList({ value, onChange }: { value: ActionDraft[]; onChange: (valu
                   onValueChange={(nextType) =>
                     onChange(
                       value.map((item) =>
-                        item.id === action.id ? { ...item, type: nextType as BuilderActionType } : item,
+                        item.id === action.id
+                          ? { ...item, type: nextType as BuilderActionType }
+                          : item,
                       ),
                     )
                   }
@@ -1973,7 +2805,9 @@ function ActionList({ value, onChange }: { value: ActionDraft[]; onChange: (valu
               </LabeledField>
               <ActionBody
                 value={action}
-                onChange={(next) => onChange(value.map((item) => (item.id === action.id ? next : item)))}
+                onChange={(next) =>
+                  onChange(value.map((item) => (item.id === action.id ? next : item)))
+                }
               />
             </div>
           </div>
@@ -2021,7 +2855,9 @@ function AutomationPreviewPanel({
       {error ? <div className="mt-3 text-xs text-semantic-danger">{error}</div> : null}
       <div className="mt-4 grid gap-3 lg:grid-cols-[0.9fr_1.1fr]">
         <div className="botforge-readable rounded-lg p-3">
-          <div className="font-mono text-[0.62rem] uppercase tracking-widest text-fg-dim">Resumo</div>
+          <div className="font-mono text-[0.62rem] uppercase tracking-widest text-fg-dim">
+            Resumo
+          </div>
           <div className="mt-2 grid gap-2 text-sm">
             <div className="flex items-center justify-between gap-3">
               <span className="text-fg-muted">Fluxo</span>
@@ -2029,7 +2865,9 @@ function AutomationPreviewPanel({
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-fg-muted">Trigger</span>
-              <span className="font-mono text-xs">{triggerType} · {triggerChannel}</span>
+              <span className="font-mono text-xs">
+                {triggerType} · {triggerChannel}
+              </span>
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-fg-muted">Janela</span>
@@ -2040,7 +2878,9 @@ function AutomationPreviewPanel({
             <div className="flex items-center justify-between gap-3">
               <span className="text-fg-muted">Condição</span>
               <span className="font-mono text-xs">
-                {segmentEnabled ? `${segmentOperator.toUpperCase()} · ${segmentDrafts.length}` : "sem filtro"}
+                {segmentEnabled
+                  ? `${segmentOperator.toUpperCase()} · ${segmentDrafts.length}`
+                  : "sem filtro"}
               </span>
             </div>
           </div>
@@ -2062,10 +2902,16 @@ function AutomationPreviewPanel({
                   {index + 1}
                 </div>
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">{automationActionLabel(action)}</div>
-                  <div className="truncate text-xs text-fg-dim">{automationActionSummary(action)}</div>
+                  <div className="truncate text-sm font-medium">
+                    {automationActionLabel(action)}
+                  </div>
+                  <div className="truncate text-xs text-fg-dim">
+                    {automationActionSummary(action)}
+                  </div>
                 </div>
-                <Badge variant={action.type === "send_step" ? "cyan" : "neutral"}>{action.type}</Badge>
+                <Badge variant={action.type === "send_step" ? "cyan" : "neutral"}>
+                  {action.type}
+                </Badge>
               </div>
             ))
           )}
@@ -2075,7 +2921,13 @@ function AutomationPreviewPanel({
   );
 }
 
-function ActionBody({ value, onChange }: { value: ActionDraft; onChange: (value: ActionDraft) => void }) {
+function ActionBody({
+  value,
+  onChange,
+}: {
+  value: ActionDraft;
+  onChange: (value: ActionDraft) => void;
+}) {
   if (value.type === "send_step") {
     return (
       <StepEditor
@@ -2084,6 +2936,7 @@ function ActionBody({ value, onChange }: { value: ActionDraft; onChange: (value:
         canRemove={false}
         canMoveUp={false}
         canMoveDown={false}
+        channel="whatsapp"
         onChange={(step) => onChange({ ...value, step })}
         onRemove={() => undefined}
         onMove={() => undefined}
@@ -2102,7 +2955,10 @@ function ActionBody({ value, onChange }: { value: ActionDraft; onChange: (value:
           />
         </LabeledField>
         <LabeledField label="Rótulo">
-          <Input value={value.delayLabel} onChange={(event) => onChange({ ...value, delayLabel: event.target.value })} />
+          <Input
+            value={value.delayLabel}
+            onChange={(event) => onChange({ ...value, delayLabel: event.target.value })}
+          />
         </LabeledField>
       </div>
     );
@@ -2113,7 +2969,10 @@ function ActionBody({ value, onChange }: { value: ActionDraft; onChange: (value:
       <div className="grid gap-3">
         <div className="grid gap-3 md:grid-cols-[1fr_12rem]">
           <LabeledField label="Rótulo">
-            <Input value={value.branchLabel} onChange={(event) => onChange({ ...value, branchLabel: event.target.value })} />
+            <Input
+              value={value.branchLabel}
+              onChange={(event) => onChange({ ...value, branchLabel: event.target.value })}
+            />
           </LabeledField>
           <LabeledField label="Destino">
             <Input
@@ -2127,7 +2986,9 @@ function ActionBody({ value, onChange }: { value: ActionDraft; onChange: (value:
           <LabeledField label="Campo">
             <Select
               value={value.branchConditionField}
-              onValueChange={(field) => onChange({ ...value, branchConditionField: field as SegmentField })}
+              onValueChange={(field) =>
+                onChange({ ...value, branchConditionField: field as SegmentField })
+              }
             >
               <SelectTrigger>
                 <SelectValue />
@@ -2190,7 +3051,10 @@ function ActionBody({ value, onChange }: { value: ActionDraft; onChange: (value:
   if (value.type === "set_status") {
     return (
       <LabeledField label="Status">
-        <Input value={value.status} onChange={(event) => onChange({ ...value, status: event.target.value })} />
+        <Input
+          value={value.status}
+          onChange={(event) => onChange({ ...value, status: event.target.value })}
+        />
       </LabeledField>
     );
   }
@@ -2227,7 +3091,10 @@ function ActionBody({ value, onChange }: { value: ActionDraft; onChange: (value:
           />
         </LabeledField>
         <LabeledField label="Mensagem">
-          <Input value={value.notifyMessage} onChange={(event) => onChange({ ...value, notifyMessage: event.target.value })} />
+          <Input
+            value={value.notifyMessage}
+            onChange={(event) => onChange({ ...value, notifyMessage: event.target.value })}
+          />
         </LabeledField>
       </div>
     );
@@ -2249,7 +3116,13 @@ function ActionBody({ value, onChange }: { value: ActionDraft; onChange: (value:
   );
 }
 
-function ChannelSelect({ value, onValueChange }: { value: ChannelType; onValueChange: (value: ChannelType) => void }) {
+function ChannelSelect({
+  value,
+  onValueChange,
+}: {
+  value: ChannelType;
+  onValueChange: (value: ChannelType) => void;
+}) {
   return (
     <Select value={value} onValueChange={(nextValue) => onValueChange(nextValue as ChannelType)}>
       <SelectTrigger>
@@ -2373,6 +3246,12 @@ function buildSteps(steps: StepDraft[]): CampaignStep[] | string {
   return built;
 }
 
+function unsupportedInstagramStepLabels(steps: StepDraft[]): string[] {
+  return steps
+    .filter((step) => !instagramSupportedStepTypes.has(step.type))
+    .map((step, index) => step.label.trim() || `Step ${index + 1}`);
+}
+
 function buildStep(step: StepDraft, order: number): CampaignStep | string {
   const id = step.id.replace(/[^a-zA-Z0-9_-]/g, "") || `step-${order}`;
   const label = step.label.trim() || `Step ${order}`;
@@ -2448,7 +3327,12 @@ function buildActions(actions: ActionDraft[]): AutomationAction[] | string {
       if (!Number.isInteger(seconds) || seconds <= 0) {
         return `Ação ${order}: delay precisa de segundos positivos.`;
       }
-      built.push({ id: action.id, type: "delay", seconds, label: action.delayLabel.trim() || null });
+      built.push({
+        id: action.id,
+        type: "delay",
+        seconds,
+        label: action.delayLabel.trim() || null,
+      });
       continue;
     }
     if (action.type === "branch") {
@@ -2585,7 +3469,12 @@ function buildSegmentFromDrafts(
       operator: draft.operator,
       value: parseSegmentDraftValue(draft.operator, draft.value),
     }))
-    .filter((condition) => condition.operator === "exists" || condition.operator === "not_exists" || condition.value !== "");
+    .filter(
+      (condition) =>
+        condition.operator === "exists" ||
+        condition.operator === "not_exists" ||
+        condition.value !== "",
+    );
   return conditions.length > 0 ? { operator, conditions } : null;
 }
 
@@ -2658,7 +3547,8 @@ function automationActionSummary(action: AutomationAction) {
   }
   if (action.type === "apply_tag" || action.type === "remove_tag") return "Ação de CRM";
   if (action.type === "set_status") return "Atualiza status do contato";
-  if (action.type === "create_reminder") return `Vence em ${new Date(action.dueAt).toLocaleString("pt-BR")}`;
+  if (action.type === "create_reminder")
+    return `Vence em ${new Date(action.dueAt).toLocaleString("pt-BR")}`;
   if (action.type === "notify_attendant") return action.message;
   return "Aciona automação filha com guarda anti-loop";
 }
@@ -2686,7 +3576,9 @@ function parseCsvPreview(text: string): CsvPreviewResult {
   const errors: string[] = [];
 
   if (phoneIndex === -1) {
-    errors.push("Coluna de telefone não encontrada. Use telefone, phone, whatsapp, celular ou numero.");
+    errors.push(
+      "Coluna de telefone não encontrada. Use telefone, phone, whatsapp, celular ou numero.",
+    );
   }
 
   const rows = lines.slice(1).map((line, index) => {
@@ -2720,14 +3612,12 @@ function parseCsvPreview(text: string): CsvPreviewResult {
   const invalidCount = rows.filter((row) => !row.valid).length;
   const previewErrors = [
     ...errors,
-    ...rows.flatMap((row) =>
-      row.errors.map((error) => `Linha ${row.rowNumber}: ${error}`),
-    ),
+    ...rows.flatMap((row) => row.errors.map((error) => `Linha ${row.rowNumber}: ${error}`)),
   ];
 
   return {
     headers,
-    phoneHeader: phoneIndex >= 0 ? headers[phoneIndex] ?? null : null,
+    phoneHeader: phoneIndex >= 0 ? (headers[phoneIndex] ?? null) : null,
     rows,
     totalRows: rows.length,
     validCount: rows.length - invalidCount,

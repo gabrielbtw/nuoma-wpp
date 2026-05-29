@@ -26,40 +26,46 @@
   --color-fg-muted: 184 190 201;
   --color-fg-dim: 126 134 149;
   --color-fg-faint: 82 88 104;
-  --color-channel-whatsapp: 120 202 220;
-  --color-channel-instagram: 202 166 106;
-  --color-channel-system: 120 216 213;
-  --color-semantic-success: 120 202 220;
-  --color-semantic-warning: 215 178 101;
+  --color-channel-whatsapp: 35 168 102;
+  --color-channel-instagram: 88 151 190;
+  --color-channel-system: 91 155 173;
+  --color-semantic-success: 35 168 102;
+  --color-semantic-warning: 86 143 189;
   --color-semantic-danger: 211 100 100;
-  --color-semantic-info: 120 216 213;
-  --color-brand-green: 82 88 104;
-  --color-brand-green-soft: 126 134 149;
-  --color-brand-green-glow: 126 134 149;
-  --color-brand-gold: 202 166 106;
-  --color-brand-gold-soft: 232 201 141;
-  --color-brand-gold-glow: 202 166 106;
-  --color-brand-cyan: 120 216 213;
-  --color-brand-cyan-soft: 191 242 238;
-  --color-brand-cyan-glow: 120 216 213;
-  --color-brand-violet: var(--color-brand-gold);
-  --color-brand-violet-soft: var(--color-brand-gold-soft);
-  --color-brand-violet-glow: var(--color-brand-gold-glow);
-  --color-brand-lime: var(--color-brand-cyan);
-  --color-brand-lime-glow: var(--color-brand-cyan-glow);
-  --color-contour-line: 202 166 106;
+  --color-semantic-info: 91 155 173;
+  --color-brand-blue: 75 119 154;
+  --color-brand-blue-soft: 168 199 216;
+  --color-brand-blue-glow: 75 119 154;
+  --color-brand-green: 35 168 102;
+  --color-brand-green-soft: 127 209 169;
+  --color-brand-green-glow: 35 168 102;
+  --color-brand-teal: 91 155 173;
+  --color-brand-teal-soft: 176 213 222;
+  --color-brand-teal-glow: 91 155 173;
+  --color-brand-gold: var(--color-brand-blue);
+  --color-brand-gold-soft: var(--color-brand-blue-soft);
+  --color-brand-gold-glow: var(--color-brand-blue-glow);
+  --color-brand-cyan: var(--color-brand-teal);
+  --color-brand-cyan-soft: var(--color-brand-teal-soft);
+  --color-brand-cyan-glow: var(--color-brand-teal-glow);
+  --color-brand-violet: var(--color-brand-blue);
+  --color-brand-violet-soft: var(--color-brand-blue-soft);
+  --color-brand-violet-glow: var(--color-brand-blue-glow);
+  --color-brand-lime: var(--color-brand-green);
+  --color-brand-lime-glow: var(--color-brand-green-glow);
+  --color-contour-line: 75 119 154;
   --color-contour-line-muted: 94 101 117;
-  --color-contour-accent: 202 166 106;
+  --color-contour-accent: 91 155 173;
   --color-contour-grid: 94 101 117;
   --color-border-subtle: 94 101 117;
   --color-border-muted: 126 134 149;
-  --color-border-active: 120 216 213;
-  --color-signal-active: 120 216 213;
+  --color-border-active: 91 155 173;
+  --color-signal-active: 91 155 173;
   --color-signal-idle: 82 88 104;
   --color-signal-error: 211 100 100;
-  --color-signal-degraded: 215 178 101;
-  --color-shadow-light: 232 201 141;
-  --color-shadow-light-soft: 202 166 106;
+  --color-signal-degraded: 86 143 189;
+  --color-shadow-light: 168 199 216;
+  --color-shadow-light-soft: 75 119 154;
   --color-shadow-dark: 0 0 0;
   --color-shadow-dark-soft: 0 0 0;
   --theme-gradient:
@@ -83,10 +89,10 @@
   --glass-panel-bg: rgba(16, 18, 23, 0.95);
   --glass-elevated-bg: rgba(23, 25, 31, 0.96);
   --glass-modal-bg: rgba(10, 11, 14, 0.98);
-  --glow-active: rgba(120, 216, 213, 0.14);
+  --glow-active: rgba(var(--color-brand-teal), 0.14);
   --robot-body: rgba(16, 18, 23, 0.96);
-  --robot-face: rgba(232, 201, 141, 0.12);
-  --robot-eye: #e8c98d;
+  --robot-face: rgba(var(--color-brand-blue), 0.12);
+  --robot-eye: rgb(var(--color-brand-teal-soft));
   --theme-blur: blur(10px) saturate(112%);
   --theme-color: #0e0f12;
 }
@@ -105,22 +111,33 @@
   --color-fg-muted: 181 200 197;
   --color-fg-dim: 114 136 133;
   --color-fg-faint: 76 96 94;
-  --color-brand-violet: 141 146 191;
-  --color-brand-violet-soft: 210 213 255;
-  --color-brand-violet-glow: 141 146 191;
-  --color-brand-cyan: 120 216 213;
-  --color-brand-cyan-soft: 191 242 238;
-  --color-brand-cyan-glow: 120 216 213;
-  --color-brand-lime: 120 216 213;
-  --color-brand-lime-glow: 120 216 213;
-  --color-contour-accent: 120 216 213;
-  --color-border-active: 120 216 213;
+  --color-brand-blue: 83 126 159;
+  --color-brand-blue-soft: 172 202 219;
+  --color-brand-blue-glow: 83 126 159;
+  --color-brand-green: 39 158 106;
+  --color-brand-green-soft: 129 205 171;
+  --color-brand-green-glow: 39 158 106;
+  --color-brand-teal: 91 155 173;
+  --color-brand-teal-soft: 176 213 222;
+  --color-brand-teal-glow: 91 155 173;
+  --color-brand-gold: var(--color-brand-blue);
+  --color-brand-gold-soft: var(--color-brand-blue-soft);
+  --color-brand-gold-glow: var(--color-brand-blue-glow);
+  --color-brand-violet: var(--color-brand-blue);
+  --color-brand-violet-soft: var(--color-brand-blue-soft);
+  --color-brand-violet-glow: var(--color-brand-blue-glow);
+  --color-brand-cyan: var(--color-brand-teal);
+  --color-brand-cyan-soft: var(--color-brand-teal-soft);
+  --color-brand-cyan-glow: var(--color-brand-teal-glow);
+  --color-brand-lime: var(--color-brand-green);
+  --color-brand-lime-glow: var(--color-brand-green-glow);
+  --color-contour-accent: 91 155 173;
+  --color-border-active: 91 155 173;
   --theme-gradient:
     linear-gradient(180deg, rgba(20, 22, 27, 0.96), rgba(8, 9, 12, 0.98)),
     linear-gradient(135deg, rgb(9, 10, 13), rgb(14, 16, 20) 48%, rgb(6, 7, 9));
-  --surface-overlay:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.03), transparent 56%);
-  --glow-active: rgba(120, 216, 213, 0.14);
+  --surface-overlay: linear-gradient(145deg, rgba(255, 255, 255, 0.03), transparent 56%);
+  --glow-active: rgba(91, 155, 173, 0.14);
   --robot-body: rgba(16, 18, 23, 0.96);
   --robot-eye: #ddfff6;
   --theme-blur: blur(10px) saturate(112%);
@@ -140,20 +157,31 @@
   --color-fg-muted: 169 193 202;
   --color-fg-dim: 108 132 144;
   --color-fg-faint: 72 94 106;
-  --color-brand-violet: 140 142 192;
-  --color-brand-violet-soft: 205 207 255;
-  --color-brand-violet-glow: 140 142 192;
-  --color-brand-cyan: 158 199 215;
-  --color-brand-cyan-soft: 218 240 247;
-  --color-brand-cyan-glow: 158 199 215;
+  --color-brand-blue: 74 119 157;
+  --color-brand-blue-soft: 171 203 222;
+  --color-brand-blue-glow: 74 119 157;
+  --color-brand-green: 35 153 105;
+  --color-brand-green-soft: 125 200 169;
+  --color-brand-green-glow: 35 153 105;
+  --color-brand-teal: 102 163 181;
+  --color-brand-teal-soft: 190 224 232;
+  --color-brand-teal-glow: 102 163 181;
+  --color-brand-gold: var(--color-brand-blue);
+  --color-brand-gold-soft: var(--color-brand-blue-soft);
+  --color-brand-gold-glow: var(--color-brand-blue-glow);
+  --color-brand-violet: var(--color-brand-blue);
+  --color-brand-violet-soft: var(--color-brand-blue-soft);
+  --color-brand-violet-glow: var(--color-brand-blue-glow);
+  --color-brand-cyan: var(--color-brand-teal);
+  --color-brand-cyan-soft: var(--color-brand-teal-soft);
+  --color-brand-cyan-glow: var(--color-brand-teal-glow);
   --color-contour-accent: 158 199 215;
   --color-border-active: 158 199 215;
   --theme-gradient:
     linear-gradient(180deg, rgba(20, 22, 27, 0.96), rgba(8, 9, 12, 0.98)),
     linear-gradient(135deg, rgb(9, 10, 13), rgb(14, 16, 20) 48%, rgb(6, 7, 9));
-  --surface-overlay:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.04), transparent 56%);
-  --glow-active: rgba(120, 216, 213, 0.14);
+  --surface-overlay: linear-gradient(145deg, rgba(255, 255, 255, 0.04), transparent 56%);
+  --glow-active: rgba(102, 163, 181, 0.14);
   --robot-body: rgba(16, 18, 23, 0.96);
   --robot-eye: #d6f4ff;
   --theme-blur: blur(10px) saturate(112%);
@@ -162,17 +190,17 @@
 :root,
 [data-theme] {
   --shadow-raised-sm:
-    0 12px 34px rgba(var(--color-shadow-dark), 0.28), inset 0 1px 0 rgba(232, 201, 141, 0.075),
+    0 12px 34px rgba(var(--color-shadow-dark), 0.28), inset 0 1px 0 rgba(168, 199, 216, 0.07),
     0 0 0 1px rgba(var(--color-border-muted), 0.16);
   --shadow-raised-md:
-    0 18px 54px rgba(var(--color-shadow-dark), 0.42), inset 0 1px 0 rgba(232, 201, 141, 0.09),
+    0 18px 54px rgba(var(--color-shadow-dark), 0.42), inset 0 1px 0 rgba(168, 199, 216, 0.08),
     0 0 0 1px rgba(var(--color-border-muted), 0.18);
   --shadow-raised-lg:
-    0 26px 76px rgba(var(--color-shadow-dark), 0.52), inset 0 1px 0 rgba(232, 201, 141, 0.11),
+    0 26px 76px rgba(var(--color-shadow-dark), 0.52), inset 0 1px 0 rgba(168, 199, 216, 0.1),
     0 0 0 1px rgba(var(--color-border-active), 0.18);
   --shadow-raised-xl:
-    0 34px 110px rgba(var(--color-shadow-dark), 0.62), inset 0 1.2px 1px rgba(232, 201, 141, 0.16),
-    inset 0 -1px 1px rgba(120, 216, 213, 0.04);
+    0 34px 110px rgba(var(--color-shadow-dark), 0.62), inset 0 1.2px 1px rgba(168, 199, 216, 0.14),
+    inset 0 -1px 1px rgba(91, 155, 173, 0.04);
   --shadow-pressed-sm:
     inset 0 1px 0.8px rgba(255, 255, 255, 0.12), inset 0 -1px 1px rgba(255, 255, 255, 0.035),
     inset 0 0 0 1px rgba(var(--color-border-subtle), 0.1);
@@ -186,30 +214,27 @@
     inset 0 1px 0.8px rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(var(--color-border-subtle), 0.1);
   --shadow-flat-subtle: 0 0 0 1px rgba(var(--color-border-subtle), 0.08);
   --shadow-lift:
-    0 24px 80px rgba(var(--color-shadow-dark), 0.56), inset 0 1px 0.8px rgba(232, 201, 141, 0.18),
+    0 24px 80px rgba(var(--color-shadow-dark), 0.56), inset 0 1px 0.8px rgba(168, 199, 216, 0.14),
     0 0 0 1px rgba(var(--color-border-active), 0.18);
   --shadow-glow-gold:
-    0 0 0 1px rgba(var(--color-brand-gold), 0.5), 0 0 22px rgba(var(--color-brand-gold), 0.16);
+    0 0 0 1px rgba(var(--color-brand-blue), 0.5), 0 10px 24px rgba(var(--color-shadow-dark), 0.18);
   --shadow-glow-green:
-    0 0 0 1px rgba(var(--color-brand-cyan), 0.34),
-    0 0 16px rgba(var(--color-brand-cyan), 0.10);
+    0 0 0 1px rgba(var(--color-brand-green), 0.42), 0 8px 20px rgba(var(--color-shadow-dark), 0.16);
   --shadow-glow-violet: var(--shadow-glow-gold);
   --shadow-glow-cyan:
-    0 0 0 1px rgba(var(--color-brand-cyan), 0.48), 0 0 22px rgba(var(--color-brand-cyan), 0.16);
+    0 0 0 1px rgba(var(--color-brand-teal), 0.46), 0 10px 22px rgba(var(--color-shadow-dark), 0.16);
   --shadow-glow-lime: var(--shadow-glow-green);
   --shadow-glow-danger:
     0 0 0 1px rgba(var(--color-semantic-danger), 0.52),
     0 0 22px rgba(var(--color-semantic-danger), 0.16);
   --shadow-glow-aura:
-    0 0 0 1px rgba(var(--color-brand-cyan), 0.40),
-    0 0 40px rgba(var(--color-brand-cyan), 0.18),
-    0 0 80px rgba(var(--color-brand-gold), 0.10);
+    0 0 0 1px rgba(var(--color-brand-teal), 0.34), 0 16px 36px rgba(var(--color-shadow-dark), 0.22);
 
   /* Orielo 2026 accent gradients — adapt automatically per theme. */
   --gradient-accent: linear-gradient(
     120deg,
-    rgb(var(--color-brand-gold-soft)),
-    rgb(var(--color-brand-cyan))
+    rgb(var(--color-brand-green)),
+    rgb(var(--color-brand-blue-soft))
   );
   --gradient-aura: radial-gradient(
     120% 120% at 0% 0%,
@@ -247,26 +272,18 @@ body::before {
   inset: 0;
   pointer-events: none;
   background:
-    url("/assets/brand/nuoma-mark-watermark.svg") center 12vh / min(56rem, 82vw) auto no-repeat,
-    repeating-linear-gradient(
-      90deg,
-      rgba(255, 255, 255, 0.018) 0 1px,
-      transparent 1px 32px
-    ),
-    repeating-linear-gradient(
-      0deg,
-      rgba(255, 255, 255, 0.014) 0 1px,
-      transparent 1px 32px
-    ),
+    url("/assets/brand/nuoma-mark-watermark.svg") center 12vh / min(46rem, 70vw) auto no-repeat,
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 32px),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.014) 0 1px, transparent 1px 32px),
     linear-gradient(
       90deg,
-      rgba(232, 201, 141, 0.012),
+      rgba(91, 155, 173, 0.012),
       transparent 18%,
       transparent 82%,
-      rgba(120, 216, 213, 0.01)
+      rgba(35, 168, 102, 0.01)
     ),
     linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.24));
-  opacity: 0.86;
+  opacity: 0.56;
 }
 
 ::selection {
@@ -296,7 +313,7 @@ body::before {
   isolation: isolate;
   overflow: hidden;
   background: var(--surface-overlay), rgba(var(--color-bg-panel), 0.96);
-  border: 1px solid rgba(var(--color-border-subtle), 0.20);
+  border: 1px solid rgba(var(--color-border-subtle), 0.18);
   box-shadow: var(--shadow-raised-md);
   backdrop-filter: var(--theme-blur);
   -webkit-backdrop-filter: var(--theme-blur);
@@ -310,7 +327,7 @@ body::before {
   isolation: isolate;
   overflow: hidden;
   background: var(--surface-overlay), var(--glass-panel-bg);
-  border: 1px solid rgba(var(--color-border-subtle), 0.20);
+  border: 1px solid rgba(var(--color-border-subtle), 0.2);
   backdrop-filter: var(--theme-blur);
   -webkit-backdrop-filter: var(--theme-blur);
 }
@@ -344,6 +361,2608 @@ body::before {
   background: var(--surface-specular);
   opacity: 0.38;
   pointer-events: none;
+}
+
+.nuoma-concept-app {
+  --color-bg-base: 8 15 24;
+  --color-bg-deep: 5 10 16;
+  --color-bg-surface: 11 20 30;
+  --color-bg-elevated: 16 28 40;
+  --color-bg-sunken: 7 13 21;
+  --color-bg-raised: 18 30 43;
+  --color-bg-subtle: 23 38 53;
+  --color-bg-panel: 12 22 32;
+  --color-bg-canvas: 8 15 24;
+  --color-fg-primary: 239 247 252;
+  --color-fg-muted: 168 180 193;
+  --color-fg-dim: 116 132 148;
+  --color-fg-faint: 74 88 103;
+  --color-brand-blue: 75 119 154;
+  --color-brand-blue-soft: 168 199 216;
+  --color-brand-green: 35 168 102;
+  --color-brand-green-soft: 127 209 169;
+  --color-brand-teal: 91 155 173;
+  --color-brand-teal-soft: 176 213 222;
+  --color-brand-cyan: var(--color-brand-teal);
+  --color-brand-cyan-soft: var(--color-brand-teal-soft);
+  --color-brand-cyan-glow: var(--color-brand-teal);
+  --color-brand-gold: var(--color-brand-blue);
+  --color-brand-gold-soft: var(--color-brand-blue-soft);
+  --color-brand-violet: var(--color-brand-blue);
+  --color-semantic-success: 35 168 102;
+  --color-semantic-warning: 86 143 189;
+  --color-border-subtle: 92 112 129;
+  --color-border-muted: 122 141 158;
+  --glow-active: rgba(91, 155, 173, 0.16);
+  background: #080f18;
+}
+
+.nuoma-concept-backdrop {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 8rem), #080f18;
+}
+
+.nuoma-concept-app > .relative.flex > aside {
+  width: clamp(10.75rem, 11.8vw, 12.35rem);
+  padding: 0;
+}
+
+.nuoma-concept-app > .relative.flex > aside > div {
+  top: 0;
+  height: 100vh;
+  border-radius: 0;
+  border-width: 0 1px 0 0;
+  border-color: rgba(92, 112, 129, 0.24);
+  background: #080f18;
+  box-shadow: none;
+  padding: 1.15rem 0.75rem;
+}
+
+.nuoma-concept-app > .relative.flex > aside [aria-label="Nuoma"] {
+  justify-content: flex-start;
+  width: 100%;
+  height: 3.5rem;
+}
+
+.nuoma-concept-app > .relative.flex > aside [aria-label="Nuoma"] svg,
+.nuoma-concept-app > .relative.flex > aside [aria-label="Nuoma"] img {
+  display: none;
+}
+
+.nuoma-concept-app > .relative.flex > aside [aria-label="Nuoma"]::before {
+  content: "NUOMA";
+  color: rgb(var(--color-brand-teal));
+  font-size: 1.04rem;
+  font-weight: 780;
+  letter-spacing: 0.16em;
+}
+
+.nuoma-concept-app > .relative.flex > aside [aria-label="Nuoma"] span {
+  display: none !important;
+}
+
+.nuoma-concept-app > .relative.flex > aside nav {
+  gap: 0.6rem;
+}
+
+.nuoma-concept-app > .relative.flex > aside nav a > span {
+  min-height: 2.48rem;
+  border-color: transparent;
+  border-radius: 0.38rem;
+  background: transparent;
+  box-shadow: none;
+  color: #b5c1cc;
+}
+
+.nuoma-concept-app > .relative.flex > aside nav a > span:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: #f0f7fb;
+}
+
+.nuoma-concept-app .nuoma-nav-label {
+  font-size: 0.84rem;
+}
+
+.nuoma-concept-app .nuoma-nav-shortcut,
+.nuoma-concept-app .nuoma-sidebar-workspace {
+  display: none !important;
+}
+
+.nuoma-concept-app .nuoma-sidebar-footer {
+  margin-top: auto;
+  border-top: 1px solid rgba(92, 112, 129, 0.24);
+}
+
+.nuoma-topbar {
+  min-height: 4.55rem;
+  border-radius: 0 !important;
+  border: 0;
+  border-bottom: 1px solid rgba(92, 112, 129, 0.26);
+  background: #080f18;
+  box-shadow: none;
+  padding-left: 1.4rem;
+  padding-right: 1.4rem;
+}
+
+.nuoma-flow-shell {
+  background: rgba(var(--color-bg-base), 0.64);
+}
+
+.nuoma-flow-shell > div,
+.nuoma-flow-shell main {
+  padding: 0 !important;
+}
+
+.nuoma-flow-shell > aside {
+  width: 10.75rem !important;
+  padding: 0 !important;
+}
+
+.nuoma-flow-shell > aside > div {
+  top: 0;
+  height: 100vh;
+  border-radius: 0;
+  border-width: 0 1px 0 0;
+  padding: 1.15rem 0.75rem;
+  background: #080f18;
+  box-shadow: none;
+}
+
+.nuoma-flow-shell > aside [aria-label="Nuoma"] {
+  justify-content: flex-start;
+  width: 100%;
+  height: 3.5rem;
+}
+
+.nuoma-flow-shell > aside [aria-label="Nuoma"] svg,
+.nuoma-flow-shell > aside [aria-label="Nuoma"] img {
+  display: none;
+}
+
+.nuoma-flow-shell > aside [aria-label="Nuoma"]::before {
+  content: "NUOMA";
+  font-weight: 780;
+  font-size: 1.05rem;
+  letter-spacing: 0.16em;
+  color: rgb(var(--color-brand-cyan));
+}
+
+.nuoma-flow-shell > aside [aria-label="Nuoma"] span {
+  display: none !important;
+}
+
+.nuoma-flow-shell > aside nav {
+  gap: 0.65rem;
+}
+
+.nuoma-flow-shell .nuoma-sidebar-workspace {
+  display: none !important;
+}
+
+.nuoma-flow-shell .nuoma-sidebar-footer {
+  margin-top: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.nuoma-flow-shell > aside nav a span {
+  border-radius: 0.375rem;
+}
+
+.nuoma-flow-shell > aside nav a span span:last-child {
+  display: none;
+}
+
+.nuoma-flow-shell .nuoma-nav-shortcut {
+  display: none !important;
+}
+
+.nuoma-flow-shell .nuoma-nav-label {
+  font-size: 0.86rem;
+}
+
+.nuoma-flow-shell .nuoma-route-frame {
+  min-height: 100vh;
+}
+
+.nuoma-flow-shell .nuoma-route-frame > div {
+  min-height: 100vh;
+}
+
+.nuoma-flow-shell .nuoma-route-frame header::after {
+  display: none;
+}
+
+.nuoma-concept-app .nuoma-main-scroll {
+  background: #081019;
+}
+
+.nuoma-concept-app .nuoma-route-frame {
+  width: 100%;
+  min-height: calc(100vh - 5.45rem);
+}
+
+.nuoma-concept-app .nuoma-route-frame > div {
+  width: 100%;
+}
+
+.nuoma-concept-app .nuoma-workspace-header {
+  border-radius: 0.45rem;
+  border: 1px solid rgba(92, 112, 129, 0.28);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.026), transparent 60%), #0d1721;
+  box-shadow: none;
+}
+
+.nuoma-campaign-immersive {
+  min-height: 100vh;
+}
+
+.nuoma-main-scroll {
+  scrollbar-gutter: stable;
+}
+
+.nuoma-route-frame {
+  min-height: calc(100vh - 6.5rem);
+}
+
+.nuoma-route-frame > div {
+  position: relative;
+}
+
+.nuoma-route-frame header {
+  position: relative;
+}
+
+.nuoma-route-frame header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -0.8rem;
+  width: min(15rem, 44vw);
+  height: 1px;
+  background: linear-gradient(90deg, rgba(var(--color-brand-cyan), 0.55), transparent);
+  pointer-events: none;
+}
+
+.nuoma-route-frame .botforge-display {
+  max-width: 13ch;
+}
+
+.nuoma-route-frame :is(.botforge-display) {
+  text-shadow: 0 18px 46px rgba(0, 0, 0, 0.42);
+}
+
+.nuoma-workspace-header {
+  display: flex;
+  min-height: 3.75rem;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-radius: 0.5rem;
+  padding: 0.8rem 1rem;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.035), transparent 54%),
+    rgba(var(--color-bg-panel), 0.9);
+  border: 1px solid rgba(var(--color-border-subtle), 0.16);
+  box-shadow:
+    var(--shadow-flat),
+    0 16px 48px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(12px) saturate(112%);
+  -webkit-backdrop-filter: blur(12px) saturate(112%);
+}
+
+.nuoma-workspace-header > div:first-child,
+.nuoma-workspace-header > div {
+  min-width: 0;
+}
+
+.nuoma-workspace-header .botforge-display {
+  margin-top: 0.1rem;
+  max-width: none;
+  font-size: 1.35rem !important;
+  line-height: 1.08;
+}
+
+.nuoma-workspace-header p:not(.botforge-kicker) {
+  margin-top: 0.25rem;
+  max-width: min(42rem, 70vw);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+body:has(.nuoma-concept-app)::before {
+  display: none;
+}
+
+.nuoma-concept-app .nuoma-topbar {
+  min-height: 4.55rem;
+  border-bottom: 1px solid rgba(92, 112, 129, 0.26);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent), #080f18;
+}
+
+.nuoma-concept-app .nuoma-topbar::before,
+.nuoma-concept-app .nuoma-topbar::after,
+.nuoma-concept-app .nuoma-route-frame header::after {
+  display: none;
+}
+
+.nuoma-concept-app > .relative.flex > aside nav::before {
+  content: "OPERAÇÕES";
+  padding: 0.35rem 0.7rem 0.2rem;
+  color: rgb(var(--color-brand-teal));
+  font-size: 0.66rem;
+  font-weight: 720;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.nuoma-concept-app > .relative.flex > aside nav a {
+  display: block;
+}
+
+.nuoma-concept-app > .relative.flex > aside nav a > span,
+.nuoma-concept-app .nuoma-sidebar-footer a > span {
+  min-height: 2.48rem;
+  border-color: transparent !important;
+  border-radius: 0.38rem !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #b6c2cd !important;
+}
+
+.nuoma-concept-app > .relative.flex > aside nav a > span:hover,
+.nuoma-concept-app .nuoma-sidebar-footer a > span:hover {
+  background: rgba(255, 255, 255, 0.045) !important;
+  color: #eef7fc !important;
+}
+
+.nuoma-concept-app > .relative.flex > aside nav a[aria-current="page"] > span,
+.nuoma-concept-app .nuoma-sidebar-footer a[aria-current="page"] > span {
+  background: linear-gradient(
+    90deg,
+    rgba(var(--color-brand-teal), 0.17),
+    rgba(var(--color-brand-teal), 0.05)
+  ) !important;
+  color: rgb(var(--color-brand-teal)) !important;
+}
+
+.nuoma-concept-app .nuoma-sidebar-footer::before {
+  content: "GOVERNANÇA";
+  display: block;
+  width: 100%;
+  padding: 0.55rem 0.7rem 0.2rem;
+  color: rgb(var(--color-brand-teal));
+  font-size: 0.66rem;
+  font-weight: 720;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.nuoma-dashboard-v2 {
+  --signal-bg: #081019;
+  --signal-panel: #0b1722;
+  --signal-panel-soft: #0f1e2b;
+  --signal-border: rgba(92, 112, 129, 0.28);
+  --signal-border-soft: rgba(92, 112, 129, 0.17);
+  --signal-cyan: rgb(var(--color-brand-teal));
+  --signal-green: #25d36b;
+  --signal-amber: rgb(var(--color-brand-blue));
+  --signal-red: #ef5c5c;
+  color: #edf6fb;
+}
+
+.nuoma-dashboard-v2 .nuoma-workspace-header {
+  display: none;
+}
+
+.nuoma-signal-board {
+  display: flex;
+  height: calc(100vh - 6.4rem);
+  min-height: 46rem;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--signal-border);
+  border-radius: 0.55rem;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(var(--color-brand-teal), 0.07), transparent 28rem),
+    radial-gradient(circle at 100% 100%, rgba(214, 162, 60, 0.04), transparent 25rem),
+    var(--signal-bg);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+}
+
+.nuoma-signal-titlebar {
+  display: flex;
+  min-height: 4.25rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--signal-border);
+  padding: 0.78rem 1.25rem 0.65rem;
+}
+
+.nuoma-signal-breadcrumb {
+  color: #8c9ba8;
+  font-size: 0.74rem;
+}
+
+.nuoma-signal-heading {
+  margin-top: 0.38rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.nuoma-signal-heading h2 {
+  margin: 0;
+  font-size: clamp(1.45rem, 2vw, 1.9rem);
+  font-weight: 760;
+  letter-spacing: 0;
+}
+
+.nuoma-signal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.65rem;
+}
+
+.nuoma-signal-actions button,
+.nuoma-signal-table button,
+.nuoma-signal-panel button,
+.nuoma-safe-check button {
+  display: inline-flex;
+  min-height: 2.15rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: 1px solid var(--signal-border);
+  border-radius: 0.36rem;
+  background: rgba(12, 25, 36, 0.86);
+  padding: 0 0.8rem;
+  color: #dce8ef;
+  font-size: 0.78rem;
+  line-height: 1;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.nuoma-signal-tabs {
+  display: flex;
+  gap: 1.45rem;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--signal-border);
+  padding: 0 1.25rem;
+}
+
+.nuoma-signal-tabs span {
+  position: relative;
+  display: inline-flex;
+  min-height: 2.45rem;
+  align-items: center;
+  color: #a9b6c2;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.nuoma-signal-tabs .is-active {
+  color: var(--signal-cyan);
+  font-weight: 680;
+}
+
+.nuoma-signal-tabs .is-active::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: var(--signal-cyan);
+  box-shadow: 0 0 16px rgba(var(--color-brand-teal), 0.42);
+}
+
+.nuoma-signal-layout {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) minmax(17rem, 19rem);
+  overflow: hidden;
+}
+
+.nuoma-signal-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.65rem;
+  border-right: 1px solid var(--signal-border);
+  padding: 0.65rem;
+  overflow: hidden;
+}
+
+.nuoma-signal-side {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.65rem;
+  overflow: hidden;
+}
+
+.nuoma-signal-panel {
+  min-width: 0;
+  border: 1px solid var(--signal-border-soft);
+  border-radius: 0.44rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.022), transparent 62%), rgba(11, 23, 34, 0.9);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.nuoma-signal-panel h3 {
+  margin: 0;
+  color: #edf6fb;
+  font-size: 0.78rem;
+  font-weight: 760;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.nuoma-signal-panel-head {
+  display: flex;
+  min-height: 2.65rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0.85rem 0;
+}
+
+.nuoma-signal-panel-head button {
+  min-height: 1.8rem;
+  color: var(--signal-cyan);
+}
+
+.nuoma-signal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  color: #a9b6c2;
+  font-size: 0.68rem;
+}
+
+.nuoma-signal-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.nuoma-signal-legend i {
+  height: 0.42rem;
+  width: 0.42rem;
+  border-radius: 0.08rem;
+}
+
+.nuoma-signal-legend .positive,
+.nuoma-readiness-list .is-ok,
+.nuoma-signal-name i[data-tone="positivo"] {
+  background: rgba(37, 211, 107, 0.18);
+  color: var(--signal-green);
+}
+
+.nuoma-signal-legend .warning,
+.nuoma-readiness-list .is-attention,
+.nuoma-signal-name i[data-tone="atenção"] {
+  background: rgba(214, 162, 60, 0.2);
+  color: var(--signal-amber);
+}
+
+.nuoma-signal-legend .negative,
+.nuoma-signal-name i[data-tone="negativo"] {
+  background: rgba(239, 92, 92, 0.18);
+  color: var(--signal-red);
+}
+
+.nuoma-signal-table {
+  overflow-x: auto;
+  padding: 0.35rem 0.65rem 0.65rem;
+}
+
+.nuoma-signal-row {
+  display: grid;
+  min-width: 55rem;
+  grid-template-columns: 1.45fr 0.72fr 1.08fr 0.72fr 0.72fr 1.25fr;
+  align-items: center;
+  gap: 0.7rem;
+  border-top: 1px solid var(--signal-border-soft);
+  padding: 0.36rem 0.2rem;
+}
+
+.nuoma-signal-row-head {
+  border-top: 0;
+  color: #9daab5;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+}
+
+.nuoma-signal-name {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.nuoma-signal-name i {
+  display: inline-flex;
+  height: 1.8rem;
+  width: 1.8rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.4rem;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 780;
+}
+
+.nuoma-signal-name strong,
+.nuoma-readiness-list strong,
+.nuoma-audit-list strong,
+.nuoma-rails-list strong,
+.nuoma-safe-check strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: #edf6fb;
+  font-size: 0.82rem;
+  font-weight: 670;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nuoma-signal-name em,
+.nuoma-readiness-list em,
+.nuoma-audit-list em,
+.nuoma-rails-list em,
+.nuoma-safe-check em {
+  display: block;
+  margin-top: 0.12rem;
+  overflow: hidden;
+  color: #82919f;
+  font-size: 0.7rem;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nuoma-sparkline svg,
+.nuoma-impact-list svg {
+  display: block;
+  width: 100%;
+  height: 1.75rem;
+  fill: none;
+}
+
+.nuoma-sparkline polyline,
+.nuoma-impact-list polyline {
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nuoma-sparkline[data-tone="positivo"] polyline,
+.nuoma-impact-list polyline {
+  stroke: var(--signal-green);
+}
+
+.nuoma-sparkline[data-tone="atenção"] polyline {
+  stroke: var(--signal-amber);
+}
+
+.nuoma-sparkline[data-tone="negativo"] polyline {
+  stroke: var(--signal-red);
+}
+
+.nuoma-signal-value,
+.is-positive {
+  color: var(--signal-green);
+  font-weight: 720;
+}
+
+.is-negative {
+  color: var(--signal-red);
+  font-weight: 720;
+}
+
+.nuoma-signal-table button {
+  justify-content: space-between;
+  width: 100%;
+  min-width: 0;
+  padding: 0 0.65rem;
+}
+
+.nuoma-signal-lower-grid {
+  display: grid;
+  min-height: 0;
+  flex: 1;
+  grid-template-columns: 0.95fr 1.1fr 0.95fr;
+  gap: 0.65rem;
+  overflow: hidden;
+}
+
+.nuoma-signal-lower-grid .nuoma-signal-panel,
+.nuoma-signal-side .nuoma-signal-panel {
+  padding: 0.72rem;
+}
+
+.nuoma-readiness-list,
+.nuoma-audit-list,
+.nuoma-rails-list,
+.nuoma-impact-list {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.nuoma-readiness-list > div,
+.nuoma-audit-list > div,
+.nuoma-rails-list > div {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  border-top: 1px solid var(--signal-border-soft);
+  padding: 0.55rem 0;
+}
+
+.nuoma-readiness-list > div:first-child,
+.nuoma-audit-list > div:first-child,
+.nuoma-rails-list > div:first-child {
+  border-top: 0;
+}
+
+.nuoma-readiness-list > div > span:first-child,
+.nuoma-audit-list i {
+  display: inline-flex;
+  height: 1.65rem;
+  width: 1.65rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-style: normal;
+}
+
+.nuoma-readiness-list b,
+.nuoma-rails-list b {
+  color: var(--signal-green);
+  font-size: 0.68rem;
+}
+
+.nuoma-safe-form {
+  margin-top: 0.85rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+}
+
+.nuoma-safe-form label {
+  color: #8a99a6;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+}
+
+.nuoma-safe-form span {
+  margin-top: 0.25rem;
+  display: flex;
+  min-height: 2.15rem;
+  align-items: center;
+  border: 1px solid var(--signal-border-soft);
+  border-radius: 0.34rem;
+  background: rgba(6, 14, 22, 0.7);
+  padding: 0 0.65rem;
+  color: #dfeaf1;
+  font-size: 0.76rem;
+  text-transform: none;
+}
+
+.nuoma-safe-check {
+  margin-top: 0.8rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  border-radius: 0.42rem;
+  background: rgba(37, 211, 107, 0.1);
+  padding: 0.7rem;
+  color: var(--signal-green);
+}
+
+.nuoma-safe-check button {
+  border-color: rgba(var(--color-brand-teal), 0.46);
+  background: linear-gradient(180deg, #2fe5f7, #19bfd3);
+  color: #031017;
+  font-weight: 760;
+}
+
+.nuoma-impact-list {
+  gap: 0.55rem;
+}
+
+.nuoma-impact-list > div {
+  display: grid;
+  grid-template-columns: 0.85fr 1fr;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 0.38rem;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 0.55rem;
+}
+
+.nuoma-impact-list em {
+  display: block;
+  color: #8a99a6;
+  font-size: 0.66rem;
+  font-style: normal;
+  text-transform: uppercase;
+}
+
+.nuoma-impact-list strong {
+  display: block;
+  margin-top: 0.12rem;
+  color: #edf6fb;
+  font-size: 1.18rem;
+  font-weight: 760;
+}
+
+.nuoma-impact-list b {
+  display: block;
+  margin-top: 0.08rem;
+  color: var(--signal-green);
+  font-size: 0.72rem;
+  font-weight: 680;
+}
+
+.nuoma-audit-list i {
+  background: rgba(var(--color-brand-teal), 0.16);
+  color: var(--signal-cyan);
+  font-size: 0.65rem;
+}
+
+.nuoma-rails-list > div {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.nuoma-status-card {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  background: rgba(37, 211, 107, 0.08);
+  color: var(--signal-green);
+}
+
+.nuoma-status-card strong {
+  color: var(--signal-green);
+}
+
+.nuoma-signal-timeline {
+  display: flex;
+  min-height: 4.65rem;
+  align-items: center;
+  gap: 0.65rem;
+  overflow-x: auto;
+  border-top: 1px solid var(--signal-border);
+  padding: 0.65rem 1rem;
+}
+
+.nuoma-signal-timeline span {
+  position: relative;
+  display: inline-flex;
+  min-width: 8rem;
+  align-items: center;
+  gap: 0.5rem;
+  color: #9caab6;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.nuoma-signal-timeline span:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  right: -0.55rem;
+  left: 2rem;
+  top: 50%;
+  height: 1px;
+  background: rgba(92, 112, 129, 0.42);
+  transform: translateY(-50%);
+}
+
+.nuoma-signal-timeline i {
+  z-index: 1;
+  display: inline-flex;
+  height: 1.35rem;
+  width: 1.35rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #172433;
+  color: #9caab6;
+  font-size: 0.68rem;
+  font-style: normal;
+}
+
+.nuoma-signal-timeline .is-done {
+  color: #edf6fb;
+}
+
+.nuoma-signal-timeline .is-done i {
+  background: var(--signal-green);
+  color: #031017;
+}
+
+@media (max-width: 1280px) {
+  .nuoma-signal-layout,
+  .nuoma-signal-lower-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nuoma-signal-main {
+    border-right: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .nuoma-signal-titlebar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .nuoma-signal-actions {
+    justify-content: flex-start;
+  }
+
+  .nuoma-safe-form,
+  .nuoma-safe-check,
+  .nuoma-impact-list > div {
+    grid-template-columns: 1fr;
+  }
+}
+
+.nuoma-route-frame :is(section, article, form, ul) > .botforge-surface,
+.nuoma-route-frame :is(section, article, form, ul) > .nuoma-glass-panel {
+  border-radius: 0.5rem;
+}
+
+.nuoma-campaign-tabs {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.25rem;
+  align-self: flex-start;
+  border-radius: 0.5rem;
+  padding: 0.25rem;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.035), transparent 58%),
+    rgba(var(--color-bg-panel), 0.74);
+  border: 1px solid rgba(var(--color-border-subtle), 0.14);
+}
+
+.nuoma-campaign-tabs [role="tab"] {
+  min-width: 0;
+  min-height: 2.35rem;
+  justify-content: center;
+  border-radius: 0.375rem;
+}
+
+.nuoma-campaign-tabs-compact {
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  background: rgba(var(--color-bg-base), 0.32);
+  border-color: rgba(var(--color-border-subtle), 0.08);
+}
+
+.nuoma-campaign-tabs-compact [role="tab"] {
+  min-height: 2rem;
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+
+.nuoma-flow-studio {
+  padding: 0;
+  border-radius: 0.5rem;
+  background:
+    radial-gradient(circle at 78% 12%, rgba(var(--color-brand-cyan), 0.11), transparent 34rem),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.035), transparent 48%),
+    rgba(var(--color-bg-panel), 0.94);
+}
+
+.nuoma-flow-studio-titlebar {
+  display: grid;
+  min-height: 7rem;
+  grid-template-columns: minmax(17rem, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.15rem 0.75rem;
+  border-bottom: 1px solid rgba(var(--color-border-subtle), 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent),
+    rgba(var(--color-bg-base), 0.46);
+}
+
+.nuoma-flow-title-search {
+  display: none;
+}
+
+.nuoma-flow-title-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 0.65rem;
+}
+
+.nuoma-flow-studio-grid {
+  display: grid;
+  min-height: calc(100vh - 17rem);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.nuoma-flow-studio-rail {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+  padding: 1rem;
+  border-bottom: 1px solid rgba(var(--color-border-subtle), 0.14);
+  background:
+    linear-gradient(90deg, rgba(var(--color-brand-cyan), 0.06), transparent 0.2rem),
+    rgba(var(--color-bg-base), 0.48);
+}
+
+.nuoma-flow-studio-tabs {
+  display: grid;
+  height: auto;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.nuoma-flow-studio-tab {
+  display: grid;
+  min-height: 4.15rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  justify-content: start;
+  gap: 0.65rem;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  text-align: left;
+  background: rgba(var(--color-bg-base), 0.48);
+  box-shadow: var(--shadow-flat);
+  position: relative;
+}
+
+.nuoma-flow-studio-tab[data-state="active"] {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(var(--color-brand-cyan), 0.16),
+      rgba(var(--color-bg-elevated), 0.76)
+    ),
+    rgba(var(--color-bg-elevated), 0.82);
+  box-shadow:
+    var(--shadow-raised-sm),
+    inset 0 0 0 1px rgba(var(--color-brand-cyan), 0.18);
+}
+
+.nuoma-flow-studio-tab::before {
+  content: "";
+  position: absolute;
+  left: 1.55rem;
+  top: -0.45rem;
+  bottom: calc(100% - 0.1rem);
+  width: 1px;
+  background: rgba(var(--color-brand-cyan), 0.26);
+  pointer-events: none;
+}
+
+.nuoma-flow-studio-tab:first-child::before {
+  display: none;
+}
+
+.nuoma-flow-studio-tab-index {
+  display: inline-flex;
+  width: 1.65rem;
+  height: 1.65rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  background: rgba(var(--color-brand-cyan), 0.1);
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.68rem;
+  color: rgb(var(--color-brand-cyan));
+  box-shadow: var(--shadow-pressed-sm);
+}
+
+.nuoma-flow-studio-canvas {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1rem;
+  overflow: hidden;
+  padding: 1rem;
+}
+
+.nuoma-flow-studio-canvas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(var(--color-brand-cyan), 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--color-brand-cyan), 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, transparent, black 15%, black 82%, transparent);
+  opacity: 0.45;
+}
+
+.nuoma-flow-studio-canvas > * {
+  position: relative;
+  z-index: 1;
+}
+
+.nuoma-flow-studio-canvas [role="tabpanel"] {
+  margin-top: 0;
+}
+
+.nuoma-flow-studio-canvas-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-radius: 0.5rem;
+  padding: 0.8rem 0.9rem;
+  background: rgba(var(--color-bg-base), 0.7);
+  border: 1px solid rgba(var(--color-border-subtle), 0.14);
+  box-shadow: var(--shadow-flat);
+}
+
+.nuoma-flow-studio-inspector {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+  padding: 1rem;
+  border-top: 1px solid rgba(var(--color-border-subtle), 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.028), transparent 38%),
+    rgba(var(--color-bg-base), 0.46);
+}
+
+.nuoma-flow-canvas {
+  min-height: 26rem;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(var(--color-brand-gold), 0.1), transparent 16rem),
+    linear-gradient(rgba(var(--color-brand-cyan), 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--color-brand-cyan), 0.045) 1px, transparent 1px),
+    rgba(var(--color-bg-base), 0.72);
+  background-size:
+    auto,
+    38px 38px,
+    38px 38px,
+    auto;
+}
+
+.nuoma-flow-board {
+  position: relative;
+  display: grid;
+  gap: 0.75rem;
+  min-height: 34rem;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  padding: 0.8rem;
+  background:
+    radial-gradient(circle at 48% 40%, rgba(var(--color-brand-cyan), 0.09), transparent 24rem),
+    radial-gradient(circle at 74% 70%, rgba(var(--color-brand-gold), 0.06), transparent 20rem),
+    linear-gradient(rgba(var(--color-brand-cyan), 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--color-brand-cyan), 0.035) 1px, transparent 1px),
+    rgba(var(--color-bg-base), 0.76);
+  background-size:
+    auto,
+    auto,
+    32px 32px,
+    32px 32px,
+    auto;
+  border: 1px solid rgba(var(--color-border-subtle), 0.16);
+  box-shadow:
+    var(--shadow-flat),
+    inset 0 0 0 1px rgba(var(--color-brand-cyan), 0.035);
+}
+
+.nuoma-flow-board-toolbar {
+  z-index: 3;
+  display: inline-flex;
+  width: max-content;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 0.5rem;
+  padding: 0.35rem;
+  background: rgba(var(--color-bg-panel), 0.82);
+  border: 1px solid rgba(var(--color-border-subtle), 0.16);
+  box-shadow: var(--shadow-raised-sm);
+}
+
+.nuoma-flow-board-lines,
+.nuoma-flow-minimap {
+  display: none;
+}
+
+.nuoma-flow-node {
+  z-index: 2;
+  min-width: 0;
+  border-radius: 0.5rem;
+  padding: 0.9rem;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.045), transparent 52%),
+    rgba(var(--color-bg-panel), 0.9);
+  border: 1px solid rgba(var(--color-border-subtle), 0.2);
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.nuoma-flow-node-icon {
+  display: inline-flex;
+  height: 1.85rem;
+  width: 1.85rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  color: rgb(var(--color-brand-cyan));
+  background: rgba(var(--color-brand-cyan), 0.12);
+  box-shadow: var(--shadow-pressed-sm);
+}
+
+.nuoma-flow-node-wa .nuoma-flow-node-icon {
+  color: rgb(var(--color-semantic-success));
+  background: rgba(var(--color-semantic-success), 0.12);
+}
+
+.nuoma-flow-node-ig .nuoma-flow-node-icon,
+.nuoma-flow-node-violet .nuoma-flow-node-icon {
+  color: rgb(var(--color-brand-violet));
+  background: rgba(var(--color-brand-violet), 0.12);
+}
+
+.nuoma-flow-node-neutral .nuoma-flow-node-icon {
+  color: rgb(var(--color-fg-muted));
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.nuoma-flow-node-media {
+  margin-top: 0.75rem;
+  display: grid;
+  grid-template-columns: 3.1rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.7rem;
+  font-size: 0.72rem;
+  color: rgb(var(--color-fg-dim));
+}
+
+.nuoma-flow-node-thumb {
+  height: 3.1rem;
+  border-radius: 0.375rem;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(var(--color-brand-cyan), 0.58),
+      rgba(var(--color-brand-gold), 0.42)
+    ),
+    rgba(var(--color-bg-elevated), 0.9);
+  box-shadow: var(--shadow-flat);
+}
+
+.nuoma-flow-node-thumb.alt {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(var(--color-semantic-success), 0.5),
+      rgba(var(--color-brand-cyan), 0.34)
+    ),
+    rgba(var(--color-bg-elevated), 0.9);
+}
+
+.nuoma-flow-node-thumb.warm {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(var(--color-brand-gold), 0.56),
+      rgba(var(--color-brand-violet), 0.3)
+    ),
+    rgba(var(--color-bg-elevated), 0.9);
+}
+
+.nuoma-flow-node-condition {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.nuoma-flow-branch {
+  display: grid;
+  gap: 0.1rem;
+  border-radius: 0.375rem;
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+  font-size: 0.74rem;
+  border: 1px solid transparent;
+}
+
+.nuoma-flow-branch span:first-child {
+  font-weight: 700;
+}
+
+.nuoma-flow-branch-yes {
+  color: rgb(var(--color-semantic-success));
+  background: rgba(var(--color-semantic-success), 0.11);
+  border-color: rgba(var(--color-semantic-success), 0.2);
+}
+
+.nuoma-flow-branch-no {
+  color: rgb(var(--color-brand-gold));
+  background: rgba(var(--color-brand-gold), 0.1);
+  border-color: rgba(var(--color-brand-gold), 0.2);
+}
+
+.nuoma-flow-editor-dock {
+  max-height: 26rem;
+  overflow: auto;
+  border-radius: 0.5rem;
+  padding: 0.85rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 40%),
+    rgba(var(--color-bg-base), 0.58);
+  border: 1px solid rgba(var(--color-border-subtle), 0.12);
+  box-shadow: var(--shadow-flat);
+}
+
+.nuoma-flow-studio-v2 {
+  --flow-v2-bg: #080f18;
+  --flow-v2-panel: #0b141e;
+  --flow-v2-panel-soft: #101a24;
+  --flow-v2-panel-raised: #151f2a;
+  --flow-v2-border: rgba(92, 112, 129, 0.28);
+  --flow-v2-border-soft: rgba(92, 112, 129, 0.18);
+  --flow-v2-cyan: rgb(var(--color-brand-teal));
+  --flow-v2-cyan-strong: #28e5fb;
+  --flow-v2-green: #25d36b;
+  --flow-v2-gold: rgb(var(--color-brand-blue));
+  --flow-v2-text: #eef6fb;
+  --flow-v2-muted: #a8b4c1;
+  --flow-v2-dim: #748494;
+  min-height: 100vh;
+  max-width: 100%;
+  overflow-x: hidden;
+  background: var(--flow-v2-bg);
+  color: var(--flow-v2-text);
+  font-family: "Geist Variable", "Geist", system-ui, sans-serif;
+}
+
+.nuoma-flow-shell {
+  background: #080f18;
+}
+
+.nuoma-flow-shell > aside {
+  width: clamp(10.75rem, 11.8vw, 12.35rem) !important;
+}
+
+.nuoma-flow-shell > aside > div {
+  background: #080f18;
+  border-color: rgba(92, 112, 129, 0.24);
+}
+
+.nuoma-flow-shell > aside nav a span {
+  min-height: 2.45rem;
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #b6c2cd !important;
+}
+
+.nuoma-flow-shell > aside nav a span:hover {
+  background: rgba(255, 255, 255, 0.035) !important;
+  color: #e8f2f8 !important;
+}
+
+.nuoma-flow-shell > aside nav a[aria-current="page"] span,
+.nuoma-flow-shell > aside nav a[data-status="active"] span {
+  background: rgba(var(--color-brand-teal), 0.11) !important;
+  color: rgb(var(--color-brand-teal)) !important;
+}
+
+.nuoma-flow-v2-topbar {
+  display: grid;
+  height: 4.55rem;
+  grid-template-columns: minmax(24rem, 1fr) minmax(20rem, 24.25rem) auto;
+  align-items: center;
+  gap: 1.5rem;
+  border-bottom: 1px solid var(--flow-v2-border);
+  background: #080f18;
+  padding: 0 1.4rem;
+}
+
+.nuoma-flow-v2-title {
+  min-width: 0;
+}
+
+.nuoma-flow-v2-title-line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.15;
+  color: #f5fbff;
+}
+
+.nuoma-flow-v2-title-line > span:last-of-type {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nuoma-flow-v2-title-line button,
+.nuoma-flow-v2-account button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: #aab6c2;
+}
+
+.nuoma-flow-v2-title-line button {
+  height: 1.35rem;
+  width: 1.35rem;
+}
+
+.nuoma-flow-v2-title-slash {
+  color: #778694;
+}
+
+.nuoma-flow-v2-status {
+  margin-top: 0.55rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.76rem;
+  color: #a8b4c1;
+}
+
+.nuoma-flow-v2-status span {
+  height: 0.45rem;
+  width: 0.45rem;
+  border-radius: 999px;
+  background: #28c879;
+}
+
+.nuoma-flow-v2-search {
+  display: grid;
+  height: 2.15rem;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  border-radius: 0.45rem;
+  border: 1px solid rgba(92, 112, 129, 0.3);
+  background: #0b141e;
+  padding: 0 0.6rem;
+  color: #7f8d9b;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.nuoma-flow-v2-search span {
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.76rem;
+}
+
+.nuoma-flow-v2-search kbd {
+  border-radius: 0.3rem;
+  background: #151d28;
+  padding: 0.12rem 0.35rem;
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.65rem;
+  color: #8998a7;
+}
+
+.nuoma-flow-v2-account {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  gap: 0.8rem;
+}
+
+.nuoma-flow-v2-account button {
+  position: relative;
+  height: 2.1rem;
+  width: 2.1rem;
+  border-radius: 999px;
+}
+
+.nuoma-flow-v2-account button:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: #f2f8fc;
+}
+
+.nuoma-flow-v2-bell span {
+  position: absolute;
+  right: 0.2rem;
+  top: 0.2rem;
+  display: grid;
+  height: 0.82rem;
+  min-width: 0.82rem;
+  place-items: center;
+  border-radius: 999px;
+  background: #f2683d;
+  color: #ffffff;
+  font-size: 0.55rem;
+  font-weight: 700;
+}
+
+.nuoma-flow-v2-account .nuoma-flow-v2-avatar {
+  background: #172232;
+  color: #f4f8fb;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.nuoma-flow-v2-actionbar {
+  display: flex;
+  height: 3.45rem;
+  align-items: center;
+  justify-content: end;
+  gap: 1rem;
+  border-bottom: 1px solid var(--flow-v2-border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent), #0b141e;
+  padding: 0 1.65rem;
+}
+
+.nuoma-flow-v2-button,
+.nuoma-flow-v2-activate-group button {
+  display: inline-flex;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  border-radius: 0.45rem;
+  border: 1px solid transparent;
+  padding: 0 1.2rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.nuoma-flow-v2-button-outline {
+  border-color: rgba(var(--color-brand-teal), 0.55);
+  background: rgba(var(--color-brand-teal), 0.055);
+  color: #d9fbff;
+}
+
+.nuoma-flow-v2-button-dark {
+  border-color: rgba(92, 112, 129, 0.35);
+  background: #111a24;
+  color: #ecf4fa;
+}
+
+.nuoma-flow-v2-activate-group {
+  display: inline-flex;
+  overflow: hidden;
+  border-radius: 0.45rem;
+  box-shadow: 0 0 24px rgba(var(--color-brand-teal), 0.22);
+}
+
+.nuoma-flow-v2-activate-group button {
+  border-radius: 0;
+  background: rgb(var(--color-brand-teal));
+  color: #031019;
+}
+
+.nuoma-flow-v2-activate-group button + button {
+  width: 2.75rem;
+  border-left-color: rgba(3, 16, 25, 0.24);
+  padding: 0;
+}
+
+.nuoma-flow-v2-body {
+  display: grid;
+  min-height: calc(100vh - 8rem);
+  grid-template-columns: clamp(10.75rem, 12vw, 12.6rem) minmax(0, 1fr) clamp(
+      17.25rem,
+      18.5vw,
+      19.35rem
+    );
+  background: #080f18;
+}
+
+.nuoma-flow-v2-rail {
+  position: relative;
+  border-right: 1px solid var(--flow-v2-border);
+  background: #0a121b;
+  padding: 1.55rem 0.8rem;
+}
+
+.nuoma-flow-v2-rail-title {
+  margin-bottom: 1.45rem;
+  padding-left: 0.1rem;
+  font-size: 0.86rem;
+  font-weight: 650;
+  color: #eaf3f9;
+}
+
+.nuoma-flow-v2-tabs {
+  position: relative;
+  display: grid;
+  width: 100%;
+  gap: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+}
+
+.nuoma-flow-v2-tabs::before {
+  content: "";
+  position: absolute;
+  left: 0.9rem;
+  top: 1.3rem;
+  bottom: 1.35rem;
+  width: 1px;
+  background: rgba(var(--color-brand-teal), 0.34);
+}
+
+.nuoma-flow-v2-step-tab {
+  position: relative;
+  display: grid;
+  min-height: 4.9rem;
+  grid-template-columns: 1.8rem minmax(0, 1fr);
+  align-items: start;
+  justify-content: start;
+  gap: 0.9rem;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0;
+  text-align: left;
+  color: #aab7c2;
+}
+
+.nuoma-flow-v2-step-marker {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  height: 1.35rem;
+  width: 1.35rem;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--color-brand-teal), 0.6);
+  background: #0a121b;
+  color: rgb(var(--color-brand-teal));
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.nuoma-flow-v2-step-tab[data-flow-state="done"] .nuoma-flow-v2-step-marker,
+.nuoma-flow-v2-step-tab[data-flow-state="active"] .nuoma-flow-v2-step-marker {
+  background: rgb(var(--color-brand-teal));
+  color: #031019;
+  box-shadow: 0 0 18px rgba(var(--color-brand-teal), 0.35);
+}
+
+.nuoma-flow-v2-step-tab[data-flow-state="upcoming"] .nuoma-flow-v2-step-marker {
+  background: #0c1721;
+  color: #7e8e9d;
+  box-shadow: none;
+}
+
+.nuoma-flow-v2-step-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.28rem;
+}
+
+.nuoma-flow-v2-step-copy span:first-child {
+  color: #edf6fb;
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.nuoma-flow-v2-step-copy span:last-child {
+  overflow: hidden;
+  color: #a0acb7;
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nuoma-flow-v2-step-tab[data-flow-state="upcoming"] .nuoma-flow-v2-step-copy span:first-child {
+  color: #a8b5c1;
+}
+
+.nuoma-flow-v2-stage {
+  position: relative;
+  min-width: 0;
+  background: #081019;
+  overflow: visible;
+}
+
+.nuoma-flow-v2-board {
+  position: relative;
+  min-height: calc(100vh - 8rem);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 48% 45%, rgba(20, 60, 78, 0.16), transparent 24rem),
+    radial-gradient(circle, rgba(50, 75, 91, 0.24) 1px, transparent 1.45px), #081019;
+  background-size:
+    auto,
+    28px 28px,
+    auto;
+}
+
+.nuoma-flow-v2-board-toolbar {
+  position: absolute;
+  left: 1.35rem;
+  top: 0.85rem;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  border-radius: 0.45rem;
+  border: 1px solid rgba(92, 112, 129, 0.28);
+  background: rgba(10, 20, 30, 0.92);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+}
+
+.nuoma-flow-v2-board-toolbar button {
+  display: inline-flex;
+  height: 2.15rem;
+  min-width: 2.15rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-right: 1px solid rgba(92, 112, 129, 0.18);
+  background: transparent;
+  color: #a9b6c2;
+  font-size: 0.78rem;
+}
+
+.nuoma-flow-v2-board-toolbar button.is-active {
+  background: rgba(var(--color-brand-teal), 0.1);
+  color: rgb(var(--color-brand-teal));
+}
+
+.nuoma-flow-v2-board-toolbar button:last-child {
+  border-right: 0;
+}
+
+.nuoma-flow-v2-zoom-label {
+  width: 3.65rem;
+  color: #d5e1e9 !important;
+}
+
+.nuoma-flow-v2-toolbar-divider {
+  height: 2.15rem;
+  width: 1px;
+  background: rgba(92, 112, 129, 0.22);
+}
+
+.nuoma-flow-v2-lines {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  height: 100%;
+  width: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.nuoma-flow-v2-lines path {
+  fill: none;
+  stroke: rgba(172, 188, 198, 0.72);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.nuoma-flow-v2-handle circle {
+  fill: #5c6670;
+  stroke: #a7b4be;
+  stroke-width: 1;
+}
+
+.nuoma-flow-v2-handle path {
+  stroke: #edf4f7;
+  stroke-width: 1.25;
+}
+
+.nuoma-flow-v2-handle-small circle {
+  fill: #c29b57;
+  stroke: #1b2026;
+}
+
+.nuoma-flow-v2-node {
+  position: absolute;
+  z-index: 2;
+  width: 11.8rem;
+  border: 1px solid rgba(92, 112, 129, 0.32);
+  border-radius: 0.45rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 46%), #121c26;
+  box-shadow:
+    0 24px 58px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  color: #eef6fb;
+  padding: 0.72rem;
+}
+
+.nuoma-flow-v2-node-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.62rem;
+}
+
+.nuoma-flow-v2-node-icon {
+  display: grid;
+  height: 1.8rem;
+  width: 1.8rem;
+  place-items: center;
+  border-radius: 0.35rem;
+  background: rgba(var(--color-brand-teal), 0.13);
+  color: rgb(var(--color-brand-teal));
+}
+
+.nuoma-flow-v2-node-wa .nuoma-flow-v2-node-icon {
+  background: rgba(37, 211, 107, 0.14);
+  color: #25d36b;
+}
+
+.nuoma-flow-v2-node-ig .nuoma-flow-v2-node-icon {
+  background: rgba(238, 69, 150, 0.14);
+  color: #f04f9f;
+}
+
+.nuoma-flow-v2-node-neutral .nuoma-flow-v2-node-icon {
+  background: rgba(255, 255, 255, 0.08);
+  color: #c9d3db;
+}
+
+.nuoma-flow-v2-node-title {
+  overflow: hidden;
+  color: #f2f7fb;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nuoma-flow-v2-node-meta {
+  margin-top: 0.42rem;
+  display: grid;
+  gap: 0.16rem;
+  color: #aab6c0;
+  font-size: 0.67rem;
+  line-height: 1.45;
+}
+
+.nuoma-flow-v2-node-media {
+  margin-top: 0.75rem;
+  display: grid;
+  grid-template-columns: 3.25rem minmax(0, 1fr);
+  gap: 0.65rem;
+}
+
+.nuoma-flow-v2-node-media img {
+  height: 4.3rem;
+  width: 3.25rem;
+  border-radius: 0.3rem;
+  object-fit: cover;
+}
+
+.nuoma-flow-v2-node-caption {
+  display: block;
+  color: #d8e3ea;
+  font-size: 0.67rem;
+  line-height: 1.45;
+}
+
+.nuoma-flow-v2-node-start {
+  left: 4.8%;
+  top: 12.5%;
+}
+
+.nuoma-flow-v2-node-primary {
+  left: 4.8%;
+  top: 30%;
+}
+
+.nuoma-flow-v2-node-wait-left {
+  left: 4.8%;
+  top: 58.5%;
+}
+
+.nuoma-flow-v2-node-condition {
+  left: 31%;
+  top: 34.8%;
+  display: grid;
+  gap: 0.56rem;
+  width: 11.2rem;
+}
+
+.nuoma-flow-v2-node-secondary {
+  left: 58.2%;
+  top: 22%;
+  width: 10.8rem;
+}
+
+.nuoma-flow-v2-node-wait-right {
+  left: 58.2%;
+  top: 46.6%;
+  width: 10.8rem;
+}
+
+.nuoma-flow-v2-node-reengage {
+  left: 58.2%;
+  top: 66.6%;
+  width: 10.8rem;
+}
+
+.nuoma-flow-v2-node-end {
+  left: 83.5%;
+  top: 54.5%;
+  width: 9.1rem;
+}
+
+.nuoma-flow-v2-branch {
+  display: grid;
+  gap: 0.12rem;
+  border-radius: 0.35rem;
+  border: 1px solid transparent;
+  padding: 0.62rem 0.7rem;
+  text-align: left;
+  font-size: 0.68rem;
+  line-height: 1.2;
+}
+
+.nuoma-flow-v2-branch span:first-child {
+  font-weight: 750;
+}
+
+.nuoma-flow-v2-branch span:last-child {
+  color: #c6d0d8;
+}
+
+.nuoma-flow-v2-branch-yes {
+  border-color: rgba(37, 211, 107, 0.34);
+  background: rgba(37, 211, 107, 0.13);
+  color: #36df7a;
+}
+
+.nuoma-flow-v2-branch-no {
+  border-color: rgba(214, 162, 60, 0.5);
+  background: rgba(214, 162, 60, 0.14);
+  color: #e0ad45;
+}
+
+.nuoma-flow-v2-minimap {
+  position: absolute;
+  bottom: 1rem;
+  left: 1.35rem;
+  z-index: 4;
+  display: grid;
+  width: 10.65rem;
+  gap: 0.65rem;
+}
+
+.nuoma-flow-v2-minimap-screen {
+  position: relative;
+  height: 5rem;
+  overflow: hidden;
+  border: 1px solid rgba(var(--color-brand-teal), 0.68);
+  border-radius: 0.35rem;
+  background: rgba(12, 23, 33, 0.88);
+  box-shadow: inset 0 0 0 1px rgba(var(--color-brand-teal), 0.08);
+}
+
+.nuoma-flow-v2-minimap-screen span {
+  position: absolute;
+  display: block;
+  border-radius: 0.2rem;
+  background: #243241;
+}
+
+.nuoma-flow-v2-minimap-screen .a {
+  left: 0.55rem;
+  top: 1rem;
+  height: 0.9rem;
+  width: 1.8rem;
+}
+.nuoma-flow-v2-minimap-screen .b {
+  left: 2.7rem;
+  top: 1.45rem;
+  height: 1.1rem;
+  width: 2.05rem;
+}
+.nuoma-flow-v2-minimap-screen .c {
+  right: 1.05rem;
+  top: 0.7rem;
+  height: 1rem;
+  width: 2rem;
+}
+.nuoma-flow-v2-minimap-screen .d {
+  right: 1.1rem;
+  bottom: 0.85rem;
+  height: 1.2rem;
+  width: 2.15rem;
+}
+.nuoma-flow-v2-minimap-screen .e {
+  left: 0.55rem;
+  bottom: 1.05rem;
+  height: 0.85rem;
+  width: 1.95rem;
+}
+
+.nuoma-flow-v2-minimap-controls {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.45rem;
+  border: 1px solid rgba(92, 112, 129, 0.28);
+  border-radius: 0.35rem;
+  background: rgba(12, 23, 33, 0.88);
+  padding: 0.45rem;
+  color: #a9b6c1;
+}
+
+.nuoma-flow-v2-minimap-controls svg {
+  margin: auto;
+}
+
+.nuoma-flow-v2-editor-panels {
+  position: relative;
+  z-index: 3;
+  min-height: 34rem;
+  border-top: 1px solid rgba(92, 112, 129, 0.22);
+  background: #0a121b;
+  padding: 1rem;
+}
+
+.nuoma-flow-v2-inspector {
+  display: grid;
+  align-content: start;
+  gap: 0.82rem;
+  border-left: 1px solid var(--flow-v2-border);
+  background: #081019;
+  padding: 1.5rem 0.85rem 1rem;
+}
+
+.nuoma-flow-v2-inspector h2 {
+  color: #dfeaf1;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.nuoma-flow-v2-inspector-card {
+  border: 1px solid rgba(92, 112, 129, 0.28);
+  border-radius: 0.45rem;
+  background: #0e1822;
+  padding: 0.9rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.nuoma-flow-v2-valid-card {
+  border-color: rgba(37, 211, 107, 0.24);
+  background:
+    radial-gradient(circle at 85% 50%, rgba(37, 211, 107, 0.12), transparent 9rem), #0d1d1b;
+}
+
+.nuoma-flow-v2-card-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.7rem;
+}
+
+.nuoma-flow-v2-card-head strong {
+  display: block;
+  color: #f1f7fb;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.nuoma-flow-v2-card-head span,
+.nuoma-flow-v2-inspector-card p {
+  color: #a5b2bd;
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.nuoma-flow-v2-card-icon {
+  display: grid;
+  height: 1.65rem;
+  width: 1.65rem;
+  place-items: center;
+  border-radius: 0.36rem;
+  background: rgba(var(--color-brand-teal), 0.12);
+  color: rgb(var(--color-brand-teal));
+}
+
+.nuoma-flow-v2-card-icon.is-success {
+  background: rgba(37, 211, 107, 0.14);
+  color: #25d36b;
+}
+
+.nuoma-flow-v2-card-icon.is-warning {
+  background: rgba(214, 162, 60, 0.14);
+  color: rgb(var(--color-brand-blue));
+}
+
+.nuoma-flow-v2-toggle {
+  position: relative;
+  display: block;
+  height: 1rem;
+  width: 1.75rem;
+  border-radius: 999px;
+  background: rgb(var(--color-brand-teal));
+}
+
+.nuoma-flow-v2-toggle::after {
+  content: "";
+  position: absolute;
+  right: 0.15rem;
+  top: 0.15rem;
+  height: 0.7rem;
+  width: 0.7rem;
+  border-radius: 999px;
+  background: #07131d;
+}
+
+.nuoma-flow-v2-safe-grid {
+  margin-top: 0.8rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
+  border: 1px solid rgba(92, 112, 129, 0.2);
+  border-radius: 0.35rem;
+}
+
+.nuoma-flow-v2-safe-grid div {
+  display: grid;
+  gap: 0.28rem;
+  border-bottom: 1px solid rgba(92, 112, 129, 0.18);
+  padding: 0.6rem 0.72rem;
+}
+
+.nuoma-flow-v2-safe-grid div:last-child {
+  grid-column: 1 / -1;
+  border-bottom: 0;
+}
+
+.nuoma-flow-v2-safe-grid div:nth-child(odd) {
+  border-right: 1px solid rgba(92, 112, 129, 0.18);
+}
+
+.nuoma-flow-v2-safe-grid span {
+  color: #93a1ae;
+  font-size: 0.63rem;
+}
+
+.nuoma-flow-v2-safe-grid strong {
+  color: #f2f7fb;
+  font-size: 0.72rem;
+}
+
+.nuoma-flow-v2-audience-value {
+  margin-top: 0.78rem;
+  color: #f5fbff;
+  font-size: 1.28rem;
+  font-weight: 500;
+}
+
+.nuoma-flow-v2-audience-foot {
+  margin-top: 0.35rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: #a5b2bd;
+  font-size: 0.68rem;
+}
+
+.nuoma-flow-v2-audience-foot strong {
+  color: #25d36b;
+  font-size: 0.68rem;
+}
+
+.nuoma-flow-v2-compact-card .nuoma-flow-v2-card-head {
+  align-items: center;
+}
+
+.nuoma-flow-v2-compact-card button,
+.nuoma-flow-v2-alert-copy button {
+  border: 0;
+  background: transparent;
+  color: rgb(var(--color-brand-teal));
+  font-size: 0.68rem;
+  font-weight: 650;
+}
+
+.nuoma-flow-v2-alert-card .nuoma-flow-v2-card-head > span:last-child {
+  color: rgb(var(--color-brand-blue));
+  font-size: 0.68rem;
+  font-weight: 650;
+}
+
+.nuoma-flow-v2-alert-copy {
+  margin-top: 0.8rem;
+  border-left: 2px solid rgb(var(--color-brand-blue));
+  padding-left: 0.7rem;
+}
+
+.nuoma-flow-v2-alert-copy strong {
+  color: rgb(var(--color-brand-blue));
+  font-size: 0.7rem;
+}
+
+.nuoma-flow-v2-alert-copy p {
+  margin-top: 0.18rem;
+}
+
+.nuoma-flow-v2-inspector-actions {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.nuoma-flow-v2-submit,
+.nuoma-flow-v2-save {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.45rem;
+  font-size: 0.74rem;
+  font-weight: 750;
+}
+
+.nuoma-flow-v2-submit {
+  border: 0;
+  background: rgb(var(--color-brand-teal));
+  color: #031019;
+  box-shadow: 0 0 24px rgba(var(--color-brand-teal), 0.26);
+}
+
+.nuoma-flow-v2-submit:disabled {
+  opacity: 0.7;
+}
+
+.nuoma-flow-v2-save {
+  border: 1px solid rgba(var(--color-brand-teal), 0.55);
+  background: transparent;
+  color: rgb(var(--color-brand-teal));
+}
+
+.nuoma-flow-v2-inspector-meta {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .nuoma-flow-v2-topbar {
+    height: auto;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.85rem;
+    padding: 1rem;
+  }
+
+  .nuoma-flow-v2-search {
+    display: none;
+  }
+
+  .nuoma-flow-v2-account {
+    justify-content: start;
+  }
+
+  .nuoma-flow-v2-actionbar {
+    height: auto;
+    justify-content: start;
+    gap: 0.65rem;
+    overflow-x: auto;
+    padding: 0.8rem 1rem;
+  }
+
+  .nuoma-flow-v2-actionbar > * {
+    flex: 0 0 auto;
+  }
+
+  .nuoma-flow-v2-body {
+    display: block;
+    min-height: auto;
+  }
+
+  .nuoma-flow-v2-rail {
+    border-right: 0;
+    border-bottom: 1px solid var(--flow-v2-border);
+    padding: 1rem;
+  }
+
+  .nuoma-flow-v2-rail-title {
+    margin-bottom: 0.75rem;
+  }
+
+  .nuoma-flow-v2-tabs {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(8.75rem, 1fr);
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+  }
+
+  .nuoma-flow-v2-tabs::before {
+    display: none;
+  }
+
+  .nuoma-flow-v2-step-tab {
+    min-height: 3.8rem;
+    grid-template-columns: 1.55rem minmax(0, 1fr);
+    gap: 0.65rem;
+    border: 1px solid rgba(92, 112, 129, 0.2);
+    border-radius: 0.45rem;
+    background: rgba(12, 23, 33, 0.86) !important;
+    padding: 0.7rem;
+  }
+
+  .nuoma-flow-v2-stage {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .nuoma-flow-v2-board {
+    min-height: 38rem;
+    min-width: 60rem;
+  }
+
+  .nuoma-flow-v2-inspector {
+    border-left: 0;
+    border-top: 1px solid var(--flow-v2-border);
+    padding: 1rem;
+  }
+
+  .nuoma-flow-v2-inspector-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.nuoma-automation-studio-grid {
+  min-height: calc(100vh - 12rem);
+}
+
+.nuoma-automation-studio [data-testid="automation-action-row"] > .grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+@media (min-width: 768px) {
+  .nuoma-campaign-tabs {
+    width: auto;
+    grid-template-columns: repeat(4, minmax(7.75rem, 1fr));
+  }
+
+  .nuoma-campaign-tabs-compact {
+    grid-template-columns: repeat(4, minmax(6.75rem, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .nuoma-flow-studio-titlebar {
+    grid-template-columns: minmax(20rem, 1fr) minmax(25rem, 31rem) auto;
+  }
+
+  .nuoma-flow-title-search {
+    display: flex;
+    min-width: 0;
+    height: 2.45rem;
+    align-items: center;
+    gap: 0.7rem;
+    border-radius: 0.375rem;
+    padding: 0 0.7rem;
+    color: rgb(var(--color-fg-muted));
+    background: rgba(var(--color-bg-sunken), 0.72);
+    border: 1px solid rgba(var(--color-border-subtle), 0.22);
+    box-shadow: var(--shadow-pressed-sm);
+  }
+
+  .nuoma-flow-title-search span {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+    font-size: 0.82rem;
+  }
+
+  .nuoma-flow-title-search kbd {
+    border-radius: 0.25rem;
+    padding: 0.15rem 0.35rem;
+    background: rgba(var(--color-bg-base), 0.9);
+    font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.65rem;
+    color: rgb(var(--color-fg-dim));
+  }
+
+  .nuoma-flow-title-actions {
+    grid-column: 1 / -1;
+    justify-self: end;
+    padding-top: 0.65rem;
+  }
+
+  .nuoma-flow-studio-grid {
+    grid-template-columns: 15rem minmax(0, 1fr) 20rem;
+  }
+
+  .nuoma-flow-studio:not(.nuoma-automation-studio) .nuoma-flow-studio-grid {
+    grid-template-columns: 10.75rem minmax(0, 1fr) 17.5rem;
+  }
+
+  .nuoma-flow-studio:not(.nuoma-automation-studio) .nuoma-flow-studio-rail,
+  .nuoma-flow-studio:not(.nuoma-automation-studio) .nuoma-flow-studio-inspector {
+    padding: 0.85rem;
+  }
+
+  .nuoma-flow-studio:not(.nuoma-automation-studio) .nuoma-flow-studio-canvas-header {
+    display: none;
+  }
+
+  .nuoma-automation-studio-grid {
+    grid-template-columns: 16rem minmax(0, 1fr) 19rem;
+  }
+
+  .nuoma-flow-studio-rail {
+    border-right: 1px solid rgba(var(--color-border-subtle), 0.14);
+    border-bottom: 0;
+  }
+
+  .nuoma-flow-studio-tabs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .nuoma-flow-studio-inspector {
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 8rem);
+    overflow-y: auto;
+    border-top: 0;
+    border-left: 1px solid rgba(var(--color-border-subtle), 0.14);
+  }
+
+  .nuoma-flow-board {
+    min-height: 43rem;
+  }
+
+  .nuoma-flow-board-toolbar {
+    position: absolute;
+    left: 1rem;
+    top: 1rem;
+  }
+
+  .nuoma-flow-board-lines {
+    position: absolute;
+    inset: 4.25rem 1.1rem 1.1rem;
+    z-index: 1;
+    display: block;
+    width: calc(100% - 2.2rem);
+    height: calc(100% - 5.35rem);
+    overflow: visible;
+  }
+
+  .nuoma-flow-board-lines path {
+    fill: none;
+    stroke: rgba(210, 224, 230, 0.62);
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+
+  .nuoma-flow-node {
+    position: absolute;
+    width: 11rem;
+  }
+
+  .nuoma-flow-node-start {
+    left: 2rem;
+    top: 6.5rem;
+  }
+
+  .nuoma-flow-node-primary {
+    left: 2rem;
+    top: 15.25rem;
+  }
+
+  .nuoma-flow-node-wait-left {
+    left: 2rem;
+    top: 30.1rem;
+  }
+
+  .nuoma-flow-node-condition {
+    left: calc(46% - 5rem);
+    top: 19rem;
+    width: 12rem;
+  }
+
+  .nuoma-flow-node-secondary {
+    right: 7rem;
+    top: 10.5rem;
+  }
+
+  .nuoma-flow-node-wait-right {
+    right: 7rem;
+    top: 24.8rem;
+  }
+
+  .nuoma-flow-node-reengage {
+    right: 7rem;
+    top: 35.2rem;
+  }
+
+  .nuoma-flow-node-end {
+    right: 0.85rem;
+    top: 26.2rem;
+    width: 8.5rem;
+  }
+
+  .nuoma-flow-minimap {
+    position: absolute;
+    left: 1rem;
+    bottom: 1rem;
+    z-index: 3;
+    display: grid;
+    width: 10.5rem;
+    gap: 0.55rem;
+  }
+
+  .nuoma-flow-minimap-screen {
+    height: 4.2rem;
+    border-radius: 0.375rem;
+    border: 1px solid rgba(var(--color-brand-cyan), 0.44);
+    background:
+      linear-gradient(
+        90deg,
+        transparent 12%,
+        rgba(var(--color-brand-cyan), 0.12) 12% 34%,
+        transparent 34%
+      ),
+      linear-gradient(rgba(var(--color-brand-cyan), 0.1) 0 0) 50% 35% / 74% 0.5rem no-repeat,
+      rgba(var(--color-bg-panel), 0.82);
+    box-shadow: var(--shadow-flat);
+  }
+
+  .nuoma-flow-minimap-controls {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.45rem;
+    padding: 0.45rem;
+    border-radius: 0.375rem;
+    background: rgba(var(--color-bg-panel), 0.78);
+    border: 1px solid rgba(var(--color-border-subtle), 0.14);
+  }
+
+  .nuoma-flow-minimap-controls span {
+    height: 1.5rem;
+    border-radius: 999px;
+    background: rgba(var(--color-bg-base), 0.9);
+    box-shadow: var(--shadow-pressed-sm);
+  }
 }
 
 .botforge-surface::after {
@@ -548,7 +3167,7 @@ body::before {
 .botforge-display {
   font-family: "Geist Variable", "Geist", system-ui, sans-serif;
   font-weight: 780;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
   line-height: 1.02;
   color: rgb(var(--color-fg-primary));
   text-wrap: balance;
@@ -591,9 +3210,10 @@ body::before {
 .nuoma-ai-orb {
   background: conic-gradient(
     from 0deg,
-    rgb(var(--color-brand-cyan)),
-    rgb(var(--color-brand-gold-soft)),
-    rgb(var(--color-brand-cyan))
+    rgb(var(--color-brand-teal)),
+    rgb(var(--color-brand-green)),
+    rgb(var(--color-brand-blue-soft)),
+    rgb(var(--color-brand-teal))
   );
   animation: nuoma-ai-sweep 4s linear infinite;
 }
@@ -603,4 +3223,1397 @@ body::before {
   .nuoma-ai-orb {
     animation: none !important;
   }
+}
+
+/* Nuoma concept operations split. */
+.nuoma-ops-split {
+  display: grid;
+  min-height: calc(100vh - 12rem);
+  grid-template-columns: minmax(18rem, 22rem) minmax(0, 1fr) minmax(18rem, 22rem);
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid rgba(92, 112, 129, 0.28);
+  border-radius: 0.55rem;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(var(--color-brand-teal), 0.05), transparent 26rem),
+    #081019;
+}
+
+.nuoma-ops-panel {
+  min-width: 0;
+  overflow: hidden;
+  border-right: 1px solid rgba(92, 112, 129, 0.24);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 48%), rgba(9, 18, 27, 0.88);
+  padding: 1rem;
+}
+
+.nuoma-ops-panel:last-child {
+  border-right: 0;
+}
+
+.nuoma-ops-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem;
+  margin-bottom: 0.9rem;
+}
+
+.nuoma-ops-panel h2,
+.nuoma-ops-panel-head h2 {
+  margin: 0;
+  color: #edf6fb;
+  font-size: 0.94rem;
+  font-weight: 720;
+  letter-spacing: 0;
+}
+
+.nuoma-ops-panel p,
+.nuoma-ops-panel-head p {
+  margin: 0.28rem 0 0;
+  color: #8fa0ad;
+  font-size: 0.78rem;
+}
+
+.nuoma-ops-search {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 0.8rem;
+  border-radius: 0.46rem;
+  background: rgba(5, 11, 18, 0.72);
+  padding: 0 0.85rem;
+  color: #81919f;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.nuoma-contact-list {
+  display: flex;
+  max-height: calc(100vh - 24rem);
+  flex-direction: column;
+  gap: 0.35rem;
+  overflow-y: auto;
+  margin: 0.95rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nuoma-contact-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 0.48rem;
+  padding: 0.72rem;
+  color: #d9e5ed;
+}
+
+.nuoma-contact-list li.is-active {
+  border-color: rgba(var(--color-brand-teal), 0.42);
+  background: rgba(var(--color-brand-teal), 0.11);
+}
+
+.nuoma-contact-avatar {
+  display: inline-flex;
+  height: 2.35rem;
+  width: 2.35rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(var(--color-brand-teal), 0.22);
+  border-radius: 999px;
+  background: rgba(var(--color-brand-teal), 0.11);
+  color: #c9fbff;
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.nuoma-contact-avatar.is-large {
+  height: 3.7rem;
+  width: 3.7rem;
+  font-size: 1rem;
+}
+
+.nuoma-contact-list strong {
+  display: block;
+  overflow: hidden;
+  color: #edf6fb;
+  font-size: 0.86rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nuoma-contact-list em {
+  display: block;
+  overflow: hidden;
+  color: #8796a3;
+  font-size: 0.72rem;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nuoma-contact-list li > span:nth-child(2) > span {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.36rem;
+}
+
+.nuoma-contact-detail-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  background:
+    linear-gradient(90deg, rgba(var(--color-brand-teal), 0.025), transparent 38%),
+    rgba(7, 14, 22, 0.94);
+}
+
+.nuoma-contact-titlebar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.8rem;
+  border-bottom: 1px solid rgba(92, 112, 129, 0.24);
+  padding-bottom: 1rem;
+}
+
+.nuoma-contact-titlebar h2 {
+  overflow: hidden;
+  margin: 0;
+  color: #edf6fb;
+  font-size: 1.35rem;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nuoma-contact-titlebar p {
+  color: #a4b3bf;
+  font-size: 0.82rem;
+}
+
+.nuoma-contact-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.nuoma-contact-metrics > div {
+  min-width: 0;
+  border: 1px solid rgba(92, 112, 129, 0.18);
+  border-radius: 0.45rem;
+  background: rgba(12, 24, 35, 0.8);
+  padding: 0.85rem;
+}
+
+.nuoma-contact-metrics svg {
+  color: rgb(var(--color-brand-teal));
+}
+
+.nuoma-contact-metrics span {
+  display: block;
+  margin-top: 0.55rem;
+  color: #8393a0;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
+.nuoma-contact-metrics strong {
+  display: block;
+  overflow: hidden;
+  margin-top: 0.18rem;
+  color: #edf6fb;
+  font-size: 0.92rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nuoma-contact-thread {
+  display: flex;
+  min-height: 18rem;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1.1rem;
+  border-block: 1px solid rgba(92, 112, 129, 0.2);
+  background:
+    radial-gradient(circle at 50% 10%, rgba(var(--color-brand-teal), 0.04), transparent 20rem),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 32px);
+  padding: 1.25rem;
+}
+
+.nuoma-contact-message {
+  width: min(34rem, 86%);
+  border: 1px solid rgba(92, 112, 129, 0.3);
+  border-radius: 0.58rem;
+  background: rgba(19, 31, 43, 0.9);
+  padding: 0.9rem 1rem;
+}
+
+.nuoma-contact-message.is-outbound {
+  align-self: flex-end;
+  border-color: rgba(var(--color-brand-teal), 0.42);
+  background: linear-gradient(135deg, rgba(16, 111, 107, 0.7), rgba(21, 61, 86, 0.78));
+}
+
+.nuoma-contact-message span {
+  display: block;
+  color: #8ea0ad;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+}
+
+.nuoma-contact-message p {
+  margin-top: 0.5rem;
+  color: #edf6fb;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.nuoma-contact-composer {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.nuoma-contact-composer button,
+.nuoma-contact-action-grid button {
+  display: inline-flex;
+  min-height: 2.45rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: 1px solid rgba(92, 112, 129, 0.28);
+  border-radius: 0.42rem;
+  background: rgba(13, 24, 35, 0.86);
+  color: #dce8ef;
+  font-size: 0.8rem;
+}
+
+.nuoma-contact-side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.nuoma-contact-side-panel section {
+  border-bottom: 1px solid rgba(92, 112, 129, 0.22);
+  padding-bottom: 1.1rem;
+}
+
+.nuoma-contact-side-panel section:last-child {
+  border-bottom: 0;
+}
+
+.nuoma-contact-action-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.nuoma-contact-action-grid button {
+  min-height: 3.1rem;
+  flex-direction: column;
+}
+
+.nuoma-contact-health {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  border-radius: 0.5rem;
+  background: rgba(37, 211, 107, 0.12);
+  padding: 0.85rem;
+  color: #25d36b;
+}
+
+.nuoma-contact-health strong {
+  font-size: 1.85rem;
+  line-height: 1;
+}
+
+.nuoma-contact-facts {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.55rem;
+  margin-top: 0.8rem;
+  color: #dce8ef;
+  font-size: 0.8rem;
+}
+
+.nuoma-contact-facts dt {
+  color: #8495a3;
+}
+
+.nuoma-contact-facts dd {
+  margin: 0;
+  font-family: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
+}
+
+.nuoma-contact-audit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nuoma-contact-audit li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: #dce8ef;
+}
+
+.nuoma-contact-audit svg {
+  color: rgb(var(--color-brand-teal));
+}
+
+.nuoma-contact-audit strong,
+.nuoma-contact-audit em {
+  display: block;
+  font-size: 0.78rem;
+  font-style: normal;
+}
+
+.nuoma-contact-audit em {
+  color: #8495a3;
+  font-size: 0.7rem;
+}
+
+@media (max-width: 1180px) {
+  .nuoma-ops-split {
+    grid-template-columns: 1fr;
+  }
+
+  .nuoma-ops-panel {
+    border-right: 0;
+    border-bottom: 1px solid rgba(92, 112, 129, 0.22);
+  }
+}
+
+@media (max-width: 760px) {
+  .nuoma-contact-titlebar,
+  .nuoma-contact-metrics,
+  .nuoma-contact-composer,
+  .nuoma-contact-action-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.nuoma-jobs-board {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.nuoma-jobs-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.nuoma-jobs-stat {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(92, 112, 129, 0.24);
+  border-radius: 0.55rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 62%), #0b1722;
+  padding: 0.9rem;
+}
+
+.nuoma-jobs-stat::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  background: var(--jobs-tone, rgb(var(--color-brand-teal)));
+  opacity: 0.65;
+}
+
+.nuoma-jobs-stat[data-tone="cyan"] {
+  --jobs-tone: rgb(var(--color-brand-teal));
+}
+
+.nuoma-jobs-stat[data-tone="green"] {
+  --jobs-tone: #25d36b;
+}
+
+.nuoma-jobs-stat[data-tone="amber"] {
+  --jobs-tone: rgb(var(--color-brand-blue));
+}
+
+.nuoma-jobs-stat > span {
+  display: inline-flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.45rem;
+  background: color-mix(in srgb, var(--jobs-tone) 16%, transparent);
+  color: var(--jobs-tone);
+}
+
+.nuoma-jobs-stat em {
+  display: block;
+  margin-top: 0.75rem;
+  color: #8fa0ad;
+  font-size: 0.68rem;
+  font-style: normal;
+  text-transform: uppercase;
+}
+
+.nuoma-jobs-stat strong {
+  display: block;
+  margin-top: 0.2rem;
+  color: #edf6fb;
+  font-size: 1.55rem;
+  font-weight: 760;
+  line-height: 1;
+}
+
+.nuoma-jobs-stat small {
+  display: block;
+  margin-top: 0.35rem;
+  color: #8fa0ad;
+  font-size: 0.74rem;
+}
+
+.nuoma-jobs-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+  gap: 0.8rem;
+}
+
+.nuoma-jobs-main,
+.nuoma-jobs-side {
+  min-width: 0;
+  border: 1px solid rgba(92, 112, 129, 0.26);
+  border-radius: 0.55rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 54%), #081019;
+  padding: 0.85rem;
+}
+
+.nuoma-jobs-tabs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+}
+
+.nuoma-jobs-table {
+  display: flex;
+  flex-direction: column;
+  overflow-x: auto;
+}
+
+.nuoma-jobs-row {
+  display: grid;
+  min-width: 46rem;
+  grid-template-columns: 5.5rem minmax(12rem, 1fr) 8rem 8rem 7rem;
+  align-items: center;
+  gap: 0.75rem;
+  border-top: 1px solid rgba(92, 112, 129, 0.18);
+  padding: 0.7rem 0.25rem;
+  color: #dce8ef;
+  font-size: 0.82rem;
+}
+
+.nuoma-jobs-row.is-head {
+  border-top: 0;
+  color: #81919f;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+}
+
+.nuoma-jobs-row-action {
+  color: rgb(var(--color-brand-teal));
+  font-size: 0.76rem;
+}
+
+.nuoma-jobs-side {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.nuoma-jobs-side section {
+  border-bottom: 1px solid rgba(92, 112, 129, 0.22);
+  padding-bottom: 1rem;
+}
+
+.nuoma-jobs-side section:last-child {
+  border-bottom: 0;
+}
+
+.nuoma-jobs-side h2 {
+  margin: 0 0 0.7rem;
+  color: #edf6fb;
+  font-size: 0.88rem;
+  font-weight: 720;
+  letter-spacing: 0;
+}
+
+.nuoma-jobs-gates {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.nuoma-jobs-gates span,
+.nuoma-jobs-side button {
+  display: flex;
+  min-height: 2.35rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  border: 1px solid rgba(92, 112, 129, 0.22);
+  border-radius: 0.42rem;
+  background: rgba(12, 24, 35, 0.74);
+  padding: 0 0.75rem;
+  color: #dce8ef;
+  font-size: 0.8rem;
+}
+
+.nuoma-jobs-gates svg,
+.nuoma-jobs-side button svg {
+  color: rgb(var(--color-brand-teal));
+}
+
+.nuoma-jobs-gates b {
+  margin-left: auto;
+  color: #25d36b;
+  font-family: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+}
+
+.nuoma-jobs-side button {
+  width: 100%;
+  justify-content: flex-start;
+  margin-top: 0.5rem;
+}
+
+.nuoma-jobs-timeline {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.nuoma-jobs-timeline span {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #8fa0ad;
+  font-size: 0.78rem;
+}
+
+.nuoma-jobs-timeline span::before {
+  content: "";
+  height: 0.65rem;
+  width: 0.65rem;
+  border-radius: 999px;
+  background: #263545;
+}
+
+.nuoma-jobs-timeline .is-done {
+  color: #edf6fb;
+}
+
+.nuoma-jobs-timeline .is-done::before {
+  background: #25d36b;
+}
+
+.nuoma-jobs-timeline .is-alert::before {
+  background: rgb(var(--color-brand-blue));
+}
+
+@media (max-width: 1080px) {
+  .nuoma-jobs-stats,
+  .nuoma-jobs-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.nuoma-settings-v2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+  gap: 0.85rem;
+  align-items: start;
+}
+
+.nuoma-settings-main,
+.nuoma-settings-side {
+  min-width: 0;
+  border: 1px solid rgba(92, 112, 129, 0.26);
+  border-radius: 0.55rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 56%), #081019;
+  padding: 0.85rem;
+}
+
+.nuoma-settings-main [role="tablist"] {
+  margin-bottom: 0.85rem;
+}
+
+.nuoma-settings-side {
+  display: flex;
+  position: sticky;
+  top: 0.85rem;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.nuoma-settings-side section {
+  border-bottom: 1px solid rgba(92, 112, 129, 0.22);
+  padding-bottom: 1rem;
+}
+
+.nuoma-settings-side section:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.nuoma-settings-side h2 {
+  margin: 0 0 0.7rem;
+  color: #edf6fb;
+  font-size: 0.88rem;
+  font-weight: 720;
+  letter-spacing: 0;
+}
+
+.nuoma-settings-side p {
+  margin-top: 0.65rem;
+  color: #8fa0ad;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.nuoma-settings-gates {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.nuoma-settings-gates span {
+  display: grid;
+  min-height: 2.35rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid rgba(92, 112, 129, 0.22);
+  border-radius: 0.42rem;
+  background: rgba(12, 24, 35, 0.74);
+  padding: 0 0.75rem;
+  color: #dce8ef;
+  font-size: 0.8rem;
+}
+
+.nuoma-settings-gates b {
+  color: #25d36b;
+  font-family: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+}
+
+.nuoma-settings-side dl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.55rem;
+  margin: 0;
+  color: #dce8ef;
+  font-size: 0.8rem;
+}
+
+.nuoma-settings-side dt {
+  color: #8495a3;
+}
+
+.nuoma-settings-side dd {
+  margin: 0;
+  font-family: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
+}
+
+@media (max-width: 1080px) {
+  .nuoma-settings-v2 {
+    grid-template-columns: 1fr;
+  }
+
+  .nuoma-settings-side {
+    position: static;
+  }
+}
+
+/* Nuoma V2 command workspaces. */
+.nuoma-automation-v2,
+.nuoma-chatbots-v2,
+.nuoma-evidence-v2,
+.nuoma-implementation-v2 {
+  display: grid;
+  gap: 0.85rem;
+  align-items: start;
+}
+
+.nuoma-automation-v2 {
+  grid-template-columns: minmax(18rem, 1fr) minmax(18rem, 22rem);
+}
+
+.nuoma-chatbots-v2 {
+  grid-template-columns: minmax(16rem, 20rem) minmax(0, 1fr) minmax(18rem, 23rem);
+}
+
+.nuoma-evidence-v2 {
+  grid-template-columns: minmax(16rem, 19rem) minmax(0, 1fr) minmax(17rem, 21rem);
+}
+
+.nuoma-implementation-v2 {
+  grid-template-columns: minmax(16rem, 19rem) minmax(0, 1fr) minmax(20rem, 26rem);
+}
+
+.nuoma-automation-rail,
+.nuoma-automation-inspector,
+.nuoma-evidence-rail,
+.nuoma-evidence-side,
+.nuoma-implementation-rail,
+.nuoma-implementation-board,
+.nuoma-implementation-markdown {
+  min-width: 0;
+  border: 1px solid rgba(92, 112, 129, 0.26);
+  border-radius: 0.55rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 56%), #081019;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+}
+
+.nuoma-automation-rail,
+.nuoma-automation-inspector,
+.nuoma-evidence-rail,
+.nuoma-evidence-side,
+.nuoma-implementation-rail,
+.nuoma-implementation-markdown {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0.85rem;
+}
+
+.nuoma-automation-rail {
+  display: grid;
+  grid-template-columns: minmax(18rem, 1.15fr) minmax(14rem, 0.7fr) minmax(16rem, 0.85fr);
+  align-items: stretch;
+}
+
+.nuoma-automation-inspector {
+  grid-column: 2;
+  grid-row: 1;
+  max-height: 19rem;
+  overflow: auto;
+}
+
+.nuoma-automation-rail > section,
+.nuoma-automation-inspector > section,
+.nuoma-evidence-rail > section,
+.nuoma-evidence-side > section,
+.nuoma-implementation-rail > section,
+.nuoma-implementation-markdown > section {
+  border-bottom: 1px solid rgba(92, 112, 129, 0.2);
+  padding-bottom: 1rem;
+}
+
+.nuoma-automation-rail > section {
+  border-right: 1px solid rgba(92, 112, 129, 0.2);
+  border-bottom: 0;
+  padding-right: 1rem;
+  padding-bottom: 0;
+}
+
+.nuoma-automation-rail > section:last-child {
+  border-right: 0;
+  padding-right: 0;
+}
+
+.nuoma-automation-rail > section:last-child,
+.nuoma-automation-inspector > section:last-child,
+.nuoma-evidence-rail > section:last-child,
+.nuoma-evidence-side > section:last-child,
+.nuoma-implementation-rail > section:last-child,
+.nuoma-implementation-markdown > section:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.nuoma-automation-stage {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-width: 0;
+}
+
+.nuoma-automation-stage .nuoma-flow-studio {
+  min-height: calc(100vh - 12rem);
+}
+
+.nuoma-automation-icon {
+  display: inline-flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.42rem;
+  background: rgba(var(--color-brand-teal), 0.12);
+  color: rgb(var(--color-brand-teal));
+}
+
+.nuoma-automation-icon.is-green {
+  background: rgba(37, 211, 107, 0.13);
+  color: #25d36b;
+}
+
+.nuoma-automation-probe {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(10rem, 1fr) auto;
+  gap: 0.55rem;
+}
+
+.nuoma-automation-probe input {
+  background: rgba(5, 11, 18, 0.68);
+}
+
+.nuoma-automation-primary {
+  min-width: 8rem;
+  background: rgb(var(--color-brand-teal)) !important;
+  color: #031019 !important;
+}
+
+.nuoma-automation-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.nuoma-automation-metrics div,
+.nuoma-implementation-tile,
+.nuoma-evidence-tile {
+  min-width: 0;
+  border: 1px solid rgba(92, 112, 129, 0.2);
+  border-radius: 0.42rem;
+  background: rgba(12, 24, 35, 0.76);
+  padding: 0.75rem;
+}
+
+.nuoma-automation-metrics span,
+.nuoma-implementation-tile > div:first-child,
+.nuoma-evidence-tile > div:first-child {
+  display: block;
+  color: #8495a3;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+}
+
+.nuoma-automation-metrics strong {
+  display: block;
+  margin-top: 0.18rem;
+  color: #edf6fb;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.nuoma-automation-gates,
+.nuoma-settings-gates {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.nuoma-automation-gates span {
+  display: grid;
+  min-height: 2.35rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid rgba(92, 112, 129, 0.22);
+  border-radius: 0.42rem;
+  background: rgba(12, 24, 35, 0.74);
+  padding: 0 0.75rem;
+  color: #dce8ef;
+  font-size: 0.8rem;
+}
+
+.nuoma-automation-gates svg {
+  color: rgb(var(--color-brand-teal));
+}
+
+.nuoma-automation-gates b {
+  color: #25d36b;
+  font-family: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+}
+
+.nuoma-automation-list {
+  display: flex;
+  max-height: 12rem;
+  flex-direction: column;
+  gap: 0.45rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nuoma-automation-list li {
+  display: grid;
+  gap: 0.65rem;
+  border: 1px solid rgba(92, 112, 129, 0.2);
+  border-radius: 0.46rem;
+  background: rgba(11, 21, 31, 0.72);
+  padding: 0.75rem;
+}
+
+.nuoma-automation-list strong {
+  display: block;
+  overflow: hidden;
+  color: #edf6fb;
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nuoma-automation-list li > div:first-child span {
+  color: #8495a3;
+  font-family: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
+  font-size: 0.68rem;
+}
+
+.nuoma-automation-list li > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.nuoma-automation-list button[data-testid="automation-overlay-toggle"] {
+  background: rgb(var(--color-brand-teal)) !important;
+  color: #031019 !important;
+}
+
+.nuoma-automation-list button[data-testid="automation-overlay-toggle"] span {
+  color: #031019 !important;
+}
+
+.nuoma-chatbots-rail,
+.nuoma-chatbots-builder,
+.nuoma-chatbots-inspector {
+  min-width: 0;
+}
+
+.nuoma-chatbots-rail,
+.nuoma-chatbots-inspector {
+  position: sticky;
+  top: 0.85rem;
+}
+
+.nuoma-chatbots-card {
+  border: 1px solid rgba(92, 112, 129, 0.26) !important;
+  border-radius: 0.55rem !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 58%), #081019 !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22) !important;
+}
+
+.nuoma-chatbots-card .botforge-surface::after {
+  display: none;
+}
+
+.nuoma-chatbots-rail [data-testid="chatbots-ab-test-summary"] > div:last-child {
+  grid-template-columns: 1fr !important;
+}
+
+.nuoma-chatbots-rail [data-testid="chatbot-ab-dry-run-result"],
+.nuoma-chatbots-rail [data-testid="chatbot-execution-history"] {
+  grid-column: auto !important;
+}
+
+.nuoma-chatbots-card [data-testid="chatbot-card"],
+.nuoma-chatbots-card [data-testid="chatbot-rule-item"],
+.nuoma-chatbots-card [data-testid="chatbot-ab-variant-stats"] {
+  border-color: rgba(92, 112, 129, 0.22) !important;
+  border-radius: 0.46rem !important;
+  background: rgba(12, 24, 35, 0.74) !important;
+}
+
+.nuoma-chatbots-card label > span,
+.nuoma-chatbots-card [data-testid="chatbot-execution-history"] span:first-child {
+  letter-spacing: 0;
+}
+
+.nuoma-evidence-grid-panel {
+  min-width: 0;
+}
+
+.nuoma-evidence-grid {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.nuoma-evidence-card {
+  min-width: 0;
+  border: 1px solid rgba(92, 112, 129, 0.24);
+  border-radius: 0.55rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 56%), #081019;
+  padding: 0.85rem;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.2);
+}
+
+.nuoma-evidence-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.nuoma-evidence-tile > div:last-child {
+  letter-spacing: 0;
+}
+
+.nuoma-evidence-filters {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.nuoma-evidence-filters button {
+  min-height: 2.35rem;
+  border: 1px solid rgba(92, 112, 129, 0.22);
+  border-radius: 0.42rem;
+  background: rgba(12, 24, 35, 0.74);
+  color: #dce8ef;
+  font-family: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
+  font-size: 0.68rem;
+  text-align: left;
+  text-transform: uppercase;
+  padding: 0 0.75rem;
+}
+
+.nuoma-evidence-filters button.is-active {
+  border-color: rgba(var(--color-brand-teal), 0.5);
+  background: rgba(var(--color-brand-teal), 0.11);
+  color: rgb(var(--color-brand-teal));
+}
+
+.nuoma-evidence-refresh {
+  width: 100%;
+  margin-top: 0.7rem;
+}
+
+.nuoma-evidence-root,
+.nuoma-evidence-latest {
+  overflow: hidden;
+  border: 1px solid rgba(92, 112, 129, 0.2);
+  border-radius: 0.42rem;
+  background: rgba(12, 24, 35, 0.76);
+  color: #dce8ef;
+  font-family: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  padding: 0.75rem;
+  text-overflow: ellipsis;
+}
+
+.nuoma-evidence-empty {
+  border: 1px solid rgba(92, 112, 129, 0.24);
+  border-radius: 0.55rem;
+  background: #081019;
+  padding: 2rem;
+}
+
+.nuoma-evidence-queue {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nuoma-evidence-queue li {
+  border-left: 2px solid rgba(var(--color-brand-teal), 0.55);
+  background: rgba(12, 24, 35, 0.68);
+  padding: 0.55rem 0.7rem;
+}
+
+.nuoma-evidence-queue span,
+.nuoma-evidence-queue strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nuoma-evidence-queue span {
+  color: #8495a3;
+  font-size: 0.66rem;
+}
+
+.nuoma-evidence-queue strong {
+  margin-top: 0.18rem;
+  color: #edf6fb;
+  font-size: 0.78rem;
+}
+
+.nuoma-implementation-rail,
+.nuoma-implementation-markdown {
+  max-height: calc(100vh - 8rem);
+  overflow-y: auto;
+}
+
+.nuoma-implementation-progress {
+  display: grid;
+  min-height: 9rem;
+  place-items: center;
+  border: 1px solid rgba(var(--color-brand-teal), 0.24);
+  border-radius: 0.55rem;
+  background:
+    radial-gradient(circle, rgba(var(--color-brand-teal), 0.14), transparent 62%),
+    rgba(12, 24, 35, 0.76);
+}
+
+.nuoma-implementation-progress strong {
+  color: rgb(var(--color-brand-teal));
+  font-size: 3.2rem;
+  font-weight: 780;
+  line-height: 1;
+}
+
+.nuoma-implementation-progress span {
+  color: #a5b2bd;
+  font-size: 0.76rem;
+}
+
+.nuoma-implementation-summary {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.nuoma-implementation-source-path {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid rgba(92, 112, 129, 0.2);
+  border-radius: 0.42rem;
+  background: rgba(12, 24, 35, 0.76);
+  color: #dce8ef;
+  padding: 0.75rem;
+}
+
+.nuoma-implementation-source-path svg {
+  color: rgb(var(--color-brand-teal));
+}
+
+.nuoma-implementation-source-path span {
+  overflow: hidden;
+  font-family: "Geist Mono Variable", "Geist Mono", ui-monospace, monospace;
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nuoma-implementation-board {
+  padding: 0.85rem;
+}
+
+.nuoma-implementation-board-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.nuoma-implementation-board-head h2,
+.nuoma-implementation-column h3 {
+  margin: 0;
+  color: #edf6fb;
+  font-size: 0.94rem;
+  font-weight: 720;
+  letter-spacing: 0;
+}
+
+.nuoma-implementation-board-head p,
+.nuoma-implementation-column-head span {
+  margin-top: 0.28rem;
+  color: #8fa0ad;
+  font-size: 0.78rem;
+}
+
+.nuoma-implementation-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.nuoma-implementation-column {
+  min-width: 0;
+  border: 1px solid rgba(92, 112, 129, 0.22);
+  border-radius: 0.5rem;
+  background: rgba(10, 20, 30, 0.72);
+  padding: 0.7rem;
+}
+
+.nuoma-implementation-column[data-status="done"] {
+  border-top-color: rgba(37, 211, 107, 0.64);
+}
+
+.nuoma-implementation-column[data-status="partial"] {
+  border-top-color: rgba(214, 162, 60, 0.72);
+}
+
+.nuoma-implementation-column-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.nuoma-implementation-column ul {
+  display: flex;
+  max-height: calc(100vh - 18rem);
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nuoma-implementation-column li {
+  border: 1px solid rgba(92, 112, 129, 0.18);
+  border-radius: 0.42rem;
+  background: rgba(12, 24, 35, 0.78);
+  padding: 0.7rem;
+}
+
+.nuoma-implementation-pre {
+  max-height: calc(100vh - 15rem);
+  overflow: auto;
+  border: 1px solid rgba(92, 112, 129, 0.18);
+  border-radius: 0.42rem;
+  background: rgba(5, 11, 18, 0.72);
+  color: #a5b2bd;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  padding: 0.8rem;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 1320px) {
+  .nuoma-automation-v2,
+  .nuoma-chatbots-v2,
+  .nuoma-evidence-v2,
+  .nuoma-implementation-v2 {
+    grid-template-columns: 1fr;
+  }
+
+  .nuoma-automation-rail,
+  .nuoma-automation-inspector,
+  .nuoma-chatbots-rail,
+  .nuoma-chatbots-inspector,
+  .nuoma-evidence-rail,
+  .nuoma-evidence-side,
+  .nuoma-implementation-rail,
+  .nuoma-implementation-markdown {
+    position: static;
+    max-height: none;
+  }
+
+  .nuoma-automation-rail,
+  .nuoma-evidence-rail,
+  .nuoma-implementation-rail {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .nuoma-automation-inspector,
+  .nuoma-automation-stage {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 860px) {
+  .nuoma-automation-rail,
+  .nuoma-evidence-rail,
+  .nuoma-implementation-rail,
+  .nuoma-evidence-grid,
+  .nuoma-implementation-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+[data-testid="inbox-grid"] .text-fg-dim {
+  color: #dce8ef !important;
+}
+
+[data-testid="inbox-grid"] .text-fg-muted {
+  color: #dce8ef !important;
+}
+
+[data-testid="inbox-grid"] .text-semantic-success {
+  color: #38f28a !important;
+}
+
+[data-testid="inbox-grid"] button[class*="bg-bg-surface"] span,
+[data-testid="inbox-grid"] button[data-testid="inbox-open-tags-tab"] span,
+[data-testid="inbox-grid"] button[data-testid="inbox-automation-trigger"] span,
+[data-testid="inbox-grid"] select {
+  color: #edf6fb !important;
+}
+
+[data-testid="inbox-grid"] button[class*="hover:text-bg-deep"] span {
+  color: #031019 !important;
+}
+
+[data-testid="inbox-message-bubble"] {
+  background: #0b1722 !important;
+}
+
+[data-testid="inbox-message-bubble"] .text-fg-dim {
+  color: #edf6fb !important;
+}
+
+.nuoma-contacts-v2 .text-brand-cyan {
+  color: #7ff6ff !important;
+}
+
+.nuoma-contacts-v2 .text-semantic-success {
+  color: #74f7a8 !important;
+}
+
+.nuoma-contacts-v2 .text-semantic-warning,
+.nuoma-jobs-board .text-semantic-warning {
+  color: #ffd27a !important;
+}
+
+.nuoma-contacts-v2 .bg-bg-base.text-brand-cyan,
+.nuoma-contacts-v2 .bg-bg-base.text-semantic-success,
+.nuoma-contacts-v2 .bg-bg-base.text-semantic-warning,
+.nuoma-jobs-board .bg-bg-base.text-semantic-warning {
+  color: #031019 !important;
+}
+
+.nuoma-contacts-v2 .bg-bg-base.text-brand-cyan {
+  background: #7ff6ff !important;
+}
+
+.nuoma-contacts-v2 .bg-bg-base.text-semantic-success {
+  background: #74f7a8 !important;
+}
+
+.nuoma-contacts-v2 .bg-bg-base.text-semantic-warning,
+.nuoma-jobs-board .bg-bg-base.text-semantic-warning {
+  background: #ffd27a !important;
+}
+
+.nuoma-contacts-v2 button[role="radio"] {
+  background: rgb(var(--color-brand-teal)) !important;
+  color: #031019 !important;
 }

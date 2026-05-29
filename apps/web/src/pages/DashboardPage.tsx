@@ -1,6 +1,19 @@
 import type { AppRouter } from "@nuoma/api";
 import type { inferRouterOutputs } from "@trpc/server";
-import { Activity, AlertTriangle, Clock3, HardDrive, Radio, Send, ServerCog } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
+  Clock3,
+  HardDrive,
+  MoreVertical,
+  Radio,
+  Send,
+  ServerCog,
+  ShieldCheck,
+} from "lucide-react";
 import { lazy, Suspense, type ReactNode } from "react";
 
 import {
@@ -23,6 +36,12 @@ import { useOptionalVisualMode } from "../visuals/optional-visual-mode.js";
 
 type SystemMetrics = inferRouterOutputs<AppRouter>["system"]["metrics"];
 type WorkerItem = SystemMetrics["workers"]["items"][number];
+type AuditListItem = {
+  id?: number;
+  type: string;
+  createdAt?: string;
+  scheduledAt?: string;
+};
 
 const OptionalCartographicHero = lazy(() => import("../visuals/OptionalCartographicHero.js"));
 
@@ -50,34 +69,112 @@ export function DashboardPage() {
 
   const data = metrics.data;
   const health = overallHealth(data);
+  const signalRows = [
+    {
+      signal: "Sessão WhatsApp",
+      group: "Canal",
+      status: data.whatsapp.cdpConnected ? "positivo" : "atenção",
+      trend: data.workers.browserConnected,
+      value: `${data.workers.browserConnected}/${data.workers.total}`,
+      change: data.whatsapp.cdpConnected ? "+3%" : "-4%",
+      impact: data.whatsapp.cdpConnected ? "Ativo" : "Revisar CDP",
+      action: data.whatsapp.cdpConnected ? "Manter ritmo" : "Reconectar sessão",
+    },
+    {
+      signal: "Fila operacional",
+      group: "Infraestrutura",
+      status: data.jobs.queued + data.jobs.active > 0 ? "atenção" : "positivo",
+      trend: data.jobs.queued + data.jobs.active,
+      value: String(data.jobs.queued + data.jobs.active),
+      change: data.jobs.active > 0 ? "+8%" : "+0%",
+      impact: `${data.jobs.queued} queued`,
+      action: "Acompanhar janela",
+    },
+    {
+      signal: "Workers disponíveis",
+      group: "Runtime",
+      status: data.workers.withErrors > 0 || data.workers.stale > 0 ? "atenção" : "positivo",
+      trend: data.workers.online,
+      value: `${data.workers.online}/${data.workers.total}`,
+      change: data.workers.withErrors > 0 ? "-8%" : "+12%",
+      impact: `${data.workers.stale} stale`,
+      action: data.workers.withErrors > 0 ? "Investigar falhas" : "Manter cobertura",
+    },
+    {
+      signal: "DLQ e falhas",
+      group: "Safety",
+      status: data.jobs.dead > 0 || data.jobs.failed > 0 ? "negativo" : "positivo",
+      trend: data.jobs.dead + data.jobs.failed,
+      value: String(data.jobs.dead),
+      change: data.jobs.dead > 0 ? "-11%" : "+5%",
+      impact: `${data.jobs.failed} failed`,
+      action: data.jobs.dead > 0 ? "Reduzir backlog" : "Sem ação",
+    },
+    {
+      signal: "Política de envio",
+      group: "Compliance",
+      status: data.sendPolicy.apiMode === "test" ? "atenção" : "positivo",
+      trend: data.operations.throughputPerHour,
+      value: data.sendPolicy.apiMode,
+      change: data.sendPolicy.apiAllowedPhonesConfigured ? "+6%" : "-2%",
+      impact: data.sendPolicy.apiAllowedPhonesConfigured ? "Canário ok" : "Sem canário",
+      action: data.sendPolicy.apiAllowedPhonesConfigured ? "Preparar envio" : "Configurar canário",
+    },
+  ];
+  const readinessGates = [
+    { label: "Políticas & Compliance", detail: "Todas as regras atendidas", ok: true },
+    {
+      label: "Qualidade de audiência",
+      detail: data.sendPolicy.apiAllowedPhonesConfigured
+        ? "Canário configurado"
+        : "Canário pendente",
+      ok: data.sendPolicy.apiAllowedPhonesConfigured,
+    },
+    {
+      label: "Capacidade de envio",
+      detail: `${data.workers.online} worker(s) online`,
+      ok: data.workers.online > 0,
+    },
+    {
+      label: "Risco de saturação",
+      detail: "Frequência dentro do limite",
+      ok: data.jobs.dead === 0,
+    },
+    { label: "Aprovação final", detail: health.label, ok: health.signal === "active" },
+  ];
+  const projectedImpact = [
+    { label: "Throughput", value: `${data.operations.throughputPerHour}/h`, delta: "+22%" },
+    {
+      label: "Conversão operacional",
+      value: `${100 - data.operations.failureRatePct}%`,
+      delta: "+0,9 p.p.",
+    },
+    {
+      label: "Execução média",
+      value: formatDurationMs(data.operations.avgRunLatencyMs),
+      delta: "estável",
+    },
+  ];
+  const auditItems: AuditListItem[] =
+    data.criticalEvents.length > 0
+      ? data.criticalEvents.slice(0, 4).map((event) => ({
+          id: event.id,
+          type: event.type,
+          createdAt: event.createdAt,
+        }))
+      : data.jobs.recent.slice(0, 4).map((job) => ({
+          id: job.id,
+          type: job.type,
+          scheduledAt: job.scheduledAt,
+        }));
 
   return (
-    <div className="flex flex-col gap-7 max-w-7xl mx-auto pt-2">
-      {optionalVisual.enabled && (
-        <Animate preset="rise-in">
-          <Suspense fallback={<OptionalHeroFallback />}>
-            <OptionalCartographicHero
-              healthLabel={health.label}
-              healthSignal={health.signal}
-              cdpConnected={data.whatsapp.cdpConnected}
-              workersOnline={data.workers.online}
-              workersTotal={data.workers.total}
-              queueDepth={data.jobs.queued + data.jobs.active}
-              dlqCount={data.jobs.dead}
-              throughputPerHour={data.operations.throughputPerHour}
-              failureRatePct={data.operations.failureRatePct}
-            />
-          </Suspense>
-        </Animate>
-      )}
-
+    <div className="nuoma-dashboard-v2 flex min-h-[calc(100vh-6.5rem)] w-full max-w-none flex-col gap-4 pt-0">
       <Animate preset="rise-in">
-        <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <header className="nuoma-workspace-header flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="botforge-kicker">
-              Operação
-            </p>
-            <h1 className="botforge-display mt-2 text-5xl md:text-6xl">
+            <p className="botforge-kicker">Operação</p>
+            <h1 className="botforge-display mt-2 text-3xl md:text-4xl">
               Implantação <span className="nuoma-gradient-text">sob controle</span>.
             </h1>
             <p className="text-sm text-fg-muted mt-3 max-w-2xl">
@@ -95,6 +192,294 @@ export function DashboardPage() {
           </div>
         </header>
       </Animate>
+
+      <Animate preset="rise-in" delaySeconds={0.04}>
+        <section className="nuoma-signal-board" data-testid="dashboard-signal-board">
+          <div className="nuoma-signal-titlebar">
+            <div>
+              <div className="nuoma-signal-breadcrumb">
+                Executivo / Operação local / Signal Board
+              </div>
+              <div className="nuoma-signal-heading">
+                <h2>Operação Nuoma</h2>
+                <Badge variant={health.signal === "active" ? "success" : "warning"}>
+                  {health.label}
+                </Badge>
+              </div>
+            </div>
+            <div className="nuoma-signal-actions">
+              <button type="button">
+                01 - 28 Mai 2026
+                <CalendarDays className="h-4 w-4" />
+              </button>
+              <button type="button">Comparar</button>
+              <button type="button" aria-label="Mais ações">
+                <MoreVertical className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="nuoma-signal-tabs" aria-label="Seções do signal board">
+            <span className="is-active">Visão Geral</span>
+            <span>Sinais</span>
+            <span>Audiências</span>
+            <span>Mensagens</span>
+            <span>Receitas</span>
+            <span>Disparos</span>
+            <span>Performance</span>
+          </div>
+
+          <div className="nuoma-signal-layout">
+            <div className="nuoma-signal-main">
+              <section className="nuoma-signal-panel nuoma-signal-table-panel">
+                <div className="nuoma-signal-panel-head">
+                  <h3>Sinais principais</h3>
+                  <div className="nuoma-signal-legend">
+                    <span>
+                      <i className="positive" /> Positivo
+                    </span>
+                    <span>
+                      <i className="warning" /> Atenção
+                    </span>
+                    <span>
+                      <i className="negative" /> Negativo
+                    </span>
+                  </div>
+                </div>
+                <div className="nuoma-signal-table">
+                  <div className="nuoma-signal-row nuoma-signal-row-head">
+                    <span>Sinal</span>
+                    <span>Status</span>
+                    <span>Tendência (7d)</span>
+                    <span>Valor atual</span>
+                    <span>Impacto</span>
+                    <span>Ação recomendada</span>
+                  </div>
+                  {signalRows.map((row, index) => (
+                    <div key={row.signal} className="nuoma-signal-row">
+                      <span className="nuoma-signal-name">
+                        <i data-tone={row.status}>{index + 1}</i>
+                        <span>
+                          <strong>{row.signal}</strong>
+                          <em>{row.group}</em>
+                        </span>
+                      </span>
+                      <span>
+                        <Badge
+                          variant={
+                            row.status === "negativo"
+                              ? "danger"
+                              : row.status === "atenção"
+                                ? "warning"
+                                : "success"
+                          }
+                        >
+                          {row.status}
+                        </Badge>
+                      </span>
+                      <span className="nuoma-sparkline" data-tone={row.status}>
+                        <svg viewBox="0 0 120 28" aria-hidden="true">
+                          <polyline
+                            points={`0,20 12,${18 - index} 24,21 36,${10 + index} 48,16 60,${8 + index} 72,13 84,${7 + index} 96,12 108,${14 - index} 120,${9 + index}`}
+                          />
+                        </svg>
+                      </span>
+                      <span className="nuoma-signal-value">{row.value}</span>
+                      <span className={row.change.startsWith("-") ? "is-negative" : "is-positive"}>
+                        {row.change}
+                      </span>
+                      <button type="button">
+                        {row.action}
+                        <ChevronDown className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <div className="nuoma-signal-lower-grid">
+                <section className="nuoma-signal-panel">
+                  <h3>Readiness Gates</h3>
+                  <div className="nuoma-readiness-list">
+                    {readinessGates.map((gate) => (
+                      <div key={gate.label}>
+                        <span className={gate.ok ? "is-ok" : "is-attention"}>
+                          {gate.ok ? (
+                            <CheckCircle2 className="h-4 w-4" />
+                          ) : (
+                            <AlertTriangle className="h-4 w-4" />
+                          )}
+                        </span>
+                        <span>
+                          <strong>{gate.label}</strong>
+                          <em>{gate.detail}</em>
+                        </span>
+                        <b>{gate.ok ? "OK" : "ATENÇÃO"}</b>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="nuoma-signal-panel">
+                  <h3>Disparo seguro</h3>
+                  <div className="nuoma-safe-form">
+                    <label>
+                      Público<span>Todos os contatos elegíveis</span>
+                    </label>
+                    <label>
+                      Canal<span>WhatsApp</span>
+                    </label>
+                    <label>
+                      Throttle<span>{data.operations.throughputPerHour || 250} msg/h</span>
+                    </label>
+                    <label>
+                      Prioridade<span>{data.jobs.dead > 0 ? "Alta" : "Normal"}</span>
+                    </label>
+                  </div>
+                  <div className="nuoma-safe-check">
+                    <ShieldCheck className="h-5 w-5" />
+                    <span>
+                      <strong>
+                        {data.jobs.dead > 0
+                          ? "Bloqueio operacional identificado."
+                          : "Nenhum bloqueio identificado."}
+                      </strong>
+                      <em>
+                        {data.jobs.dead > 0 ? "Revise DLQ antes do envio." : "Pronto para envio."}
+                      </em>
+                    </span>
+                    <button type="button">Preparar disparo</button>
+                  </div>
+                </section>
+
+                <section className="nuoma-signal-panel">
+                  <h3>Impacto projetado</h3>
+                  <div className="nuoma-impact-list">
+                    {projectedImpact.map((item, index) => (
+                      <div key={item.label}>
+                        <span>
+                          <em>{item.label}</em>
+                          <strong>{item.value}</strong>
+                          <b>{item.delta}</b>
+                        </span>
+                        <svg viewBox="0 0 150 38" aria-hidden="true">
+                          <polyline
+                            points={`0,28 15,${24 - index * 3} 30,26 45,${18 - index} 60,20 75,${12 + index} 90,16 105,${10 + index} 120,18 135,12 150,${7 + index}`}
+                          />
+                        </svg>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </div>
+            </div>
+
+            <aside className="nuoma-signal-side">
+              <section className="nuoma-signal-panel">
+                <div className="nuoma-signal-panel-head">
+                  <h3>Auditoria</h3>
+                  <button type="button">Ver tudo</button>
+                </div>
+                <div className="nuoma-audit-list">
+                  {auditItems.map((item, index) => (
+                    <div key={"id" in item ? item.id : index}>
+                      <i>{index + 1}</i>
+                      <span>
+                        <strong>{item.type}</strong>
+                        <em>
+                          <TimeAgo date={item.createdAt ?? item.scheduledAt ?? ""} />
+                        </em>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="nuoma-signal-panel">
+                <div className="nuoma-signal-panel-head">
+                  <h3>Safety Rails</h3>
+                  <button type="button">Configurar</button>
+                </div>
+                <div className="nuoma-rails-list">
+                  {[
+                    [
+                      "Taxa de falha",
+                      `${data.operations.failureRatePct}%`,
+                      data.operations.failureRatePct <= 5,
+                    ],
+                    [
+                      "Workers online",
+                      `${data.workers.online}/${data.workers.total}`,
+                      data.workers.online > 0,
+                    ],
+                    ["DLQ", String(data.jobs.dead), data.jobs.dead === 0],
+                    [
+                      "Canário API",
+                      data.sendPolicy.apiAllowedPhonesConfigured ? "OK" : "Pendente",
+                      data.sendPolicy.apiAllowedPhonesConfigured,
+                    ],
+                  ].map(([label, value, ok]) => (
+                    <div key={String(label)}>
+                      <span>
+                        <strong>{label}</strong>
+                        <em>{value}</em>
+                      </span>
+                      <b className={ok ? "is-positive" : "is-negative"}>{ok ? "OK" : "Atenção"}</b>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="nuoma-signal-panel nuoma-status-card">
+                <ShieldCheck className="h-8 w-8" />
+                <span>
+                  <strong>
+                    {health.signal === "active"
+                      ? "Tudo seguro para operação"
+                      : "Operação requer revisão"}
+                  </strong>
+                  <em>Última verificação: {formatClock(new Date().toISOString())}</em>
+                </span>
+              </section>
+            </aside>
+          </div>
+
+          <div className="nuoma-signal-timeline">
+            {[
+              "Planejamento",
+              "Construção",
+              "Testes",
+              "Readiness",
+              "Disparo",
+              "Análise",
+              "Aprendizado",
+            ].map((item, index) => (
+              <span key={item} className={index <= 3 ? "is-done" : ""}>
+                <i>{index + 1}</i>
+                {item}
+              </span>
+            ))}
+          </div>
+        </section>
+      </Animate>
+
+      {optionalVisual.enabled && (
+        <Animate preset="rise-in" delaySeconds={0.05}>
+          <Suspense fallback={<OptionalHeroFallback />}>
+            <OptionalCartographicHero
+              healthLabel={health.label}
+              healthSignal={health.signal}
+              cdpConnected={data.whatsapp.cdpConnected}
+              workersOnline={data.workers.online}
+              workersTotal={data.workers.total}
+              queueDepth={data.jobs.queued + data.jobs.active}
+              dlqCount={data.jobs.dead}
+              throughputPerHour={data.operations.throughputPerHour}
+              failureRatePct={data.operations.failureRatePct}
+            />
+          </Suspense>
+        </Animate>
+      )}
 
       <Animate preset="rise-in" delaySeconds={0.05}>
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
@@ -342,9 +727,7 @@ function OperationalMetric({
 }) {
   return (
     <div className="rounded-lg bg-bg-base px-3 py-3 shadow-flat">
-      <div className="text-[0.65rem] uppercase tracking-widest text-fg-dim font-mono">
-        {label}
-      </div>
+      <div className="text-[0.65rem] uppercase tracking-widest text-fg-dim font-mono">{label}</div>
       <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
       <div className="mt-1 min-h-4 text-xs text-fg-muted">{detail}</div>
     </div>

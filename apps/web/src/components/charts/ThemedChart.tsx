@@ -44,13 +44,13 @@ const VAR_NAMES = {
 } as const;
 
 const FALLBACK = {
-  cyan: "rgb(120 216 213)",
-  gold: "rgb(202 166 106)",
-  whatsapp: "rgb(120 202 220)",
-  violet: "rgb(141 146 191)",
+  cyan: "rgb(91 155 173)",
+  gold: "rgb(75 119 154)",
+  whatsapp: "rgb(35 168 102)",
+  violet: "rgb(75 119 154)",
   danger: "rgb(211 100 100)",
-  success: "rgb(120 202 220)",
-  warning: "rgb(215 178 101)",
+  success: "rgb(35 168 102)",
+  warning: "rgb(86 143 189)",
   text: "rgb(240 242 246)",
   muted: "rgb(126 134 149)",
   grid: "rgb(94 101 117)",
@@ -65,9 +65,7 @@ export function useChartPalette(): ChartPalette {
   return useMemo(() => {
     const read = (cssVar: string, fallback: string): string => {
       if (typeof window === "undefined") return fallback;
-      const raw = getComputedStyle(document.documentElement)
-        .getPropertyValue(cssVar)
-        .trim();
+      const raw = getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim();
       return raw ? `rgb(${raw})` : fallback;
     };
     const colors = Object.fromEntries(
@@ -136,10 +134,7 @@ export function LineAreaChart({ data, xKey, series, height = 280 }: LineAreaChar
         <XAxis dataKey={xKey} stroke={palette.muted} tick={AXIS_TICK} tickLine={false} />
         <YAxis stroke={palette.muted} tick={AXIS_TICK} tickLine={false} axisLine={false} />
         <Tooltip {...tip} cursor={{ stroke: palette.grid }} />
-        <Legend
-          iconType="circle"
-          wrapperStyle={{ fontSize: 11, color: palette.muted }}
-        />
+        <Legend iconType="circle" wrapperStyle={{ fontSize: 11, color: palette.muted }} />
         {series.map((def, index) =>
           index === 0 ? (
             <Area
@@ -219,11 +214,7 @@ export function HorizontalBarChart({ data, height = 280 }: HorizontalBarChartPro
     value >= 85 ? palette.cyan : value >= 70 ? palette.gold : palette.warning;
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <BarChart
-        data={data}
-        layout="vertical"
-        margin={{ top: 4, right: 16, bottom: 4, left: 12 }}
-      >
+      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 12 }}>
         <CartesianGrid stroke={palette.grid} strokeOpacity={0.4} horizontal={false} />
         <XAxis type="number" stroke={palette.muted} tick={AXIS_TICK} tickLine={false} />
         <YAxis

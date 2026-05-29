@@ -696,8 +696,9 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                 variant="soft"
                 leftIcon={<Megaphone className="h-3 w-3" />}
                 data-testid="inbox-campaign-trigger"
+                className="bg-brand-cyan text-bg-deep shadow-glow-cyan hover:text-bg-deep"
               >
-                Campanha
+                Rodar campanha
               </Button>
             </PopoverTrigger>
             <PopoverContent
@@ -710,7 +711,7 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 text-sm font-medium">
                       <Megaphone className="h-4 w-4 text-brand-cyan" />
-                      <span>Disparar campanha</span>
+                      <span>Rodar campanha</span>
                     </div>
                     <div className="mt-1 truncate font-mono text-[0.65rem] uppercase tracking-widest text-fg-dim">
                       {campaignCandidates.data?.conversation.phone ?? (phone || "sem telefone")}

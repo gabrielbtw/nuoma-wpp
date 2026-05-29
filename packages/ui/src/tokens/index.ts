@@ -1,8 +1,10 @@
 /**
- * Nuoma premium dark/glass design tokens.
+ * Nuoma solid operations design tokens.
  *
- * Nuoma 2026 uses a matte graphite canvas. Gold is reserved for brand
- * accents, while cyan marks operational focus and live state.
+ * Nuoma V3 uses a matte graphite canvas, deep green for primary action,
+ * petroleum/steel blue for product structure, and muted teal only for focus,
+ * live state, and verified activity. No yellow, gold, orange, neon, or purple
+ * is part of the visual language.
  */
 
 export const colors = {
@@ -21,46 +23,53 @@ export const colors = {
     faint: "oklch(0.43 0.030 132)",
   },
   channels: {
-    whatsapp: "oklch(0.78 0.10 215)",
-    instagram: "oklch(0.72 0.12 55)",
-    system: "oklch(0.78 0.10 195)",
+    whatsapp: "oklch(0.64 0.105 151)",
+    instagram: "oklch(0.62 0.105 18)",
+    system: "oklch(0.63 0.055 185)",
   },
   semantic: {
-    success: "oklch(0.78 0.10 215)",
-    warning: "oklch(0.78 0.12 82)",
-    danger: "oklch(0.64 0.18 28)",
-    info: "oklch(0.78 0.10 195)",
+    success: "oklch(0.64 0.105 151)",
+    warning: "oklch(0.66 0.090 210)",
+    danger: "oklch(0.59 0.155 28)",
+    info: "oklch(0.63 0.055 185)",
   },
   brand: {
-    green: "oklch(0.52 0.018 260)",
-    greenSoft: "oklch(0.66 0.020 260)",
-    greenGlow: "oklch(0.66 0.020 260 / 0.22)",
-    gold: "oklch(0.72 0.115 82)",
-    goldSoft: "oklch(0.84 0.095 86)",
-    goldGlow: "oklch(0.72 0.115 82 / 0.34)",
-    cyan: "oklch(0.78 0.10 195)",
-    cyanSoft: "oklch(0.88 0.065 190)",
-    cyanGlow: "oklch(0.78 0.10 195 / 0.28)",
-    violet: "oklch(0.72 0.115 82)",
-    violetSoft: "oklch(0.84 0.095 86)",
-    violetGlow: "oklch(0.72 0.115 82 / 0.34)",
-    lime: "oklch(0.78 0.10 215)",
-    limeGlow: "oklch(0.78 0.10 215 / 0.22)",
+    blue: "oklch(0.59 0.070 222)",
+    blueSoft: "oklch(0.77 0.050 218)",
+    blueGlow: "oklch(0.59 0.070 222 / 0.16)",
+    green: "oklch(0.58 0.105 151)",
+    greenSoft: "oklch(0.76 0.070 151)",
+    greenGlow: "oklch(0.58 0.105 151 / 0.16)",
+    teal: "oklch(0.63 0.055 185)",
+    tealSoft: "oklch(0.79 0.045 180)",
+    tealGlow: "oklch(0.63 0.055 185 / 0.14)",
+    /** Compatibility aliases: old gold/violet slots now resolve to blue. */
+    gold: "oklch(0.59 0.070 222)",
+    goldSoft: "oklch(0.77 0.050 218)",
+    goldGlow: "oklch(0.59 0.070 222 / 0.16)",
+    cyan: "oklch(0.63 0.055 185)",
+    cyanSoft: "oklch(0.79 0.045 180)",
+    cyanGlow: "oklch(0.63 0.055 185 / 0.14)",
+    violet: "oklch(0.59 0.070 222)",
+    violetSoft: "oklch(0.77 0.050 218)",
+    violetGlow: "oklch(0.59 0.070 222 / 0.16)",
+    lime: "oklch(0.58 0.105 151)",
+    limeGlow: "oklch(0.58 0.105 151 / 0.16)",
   },
   shadow: {
-    light: "oklch(0.72 0.115 82 / 0.20)",
-    lightSoft: "oklch(0.72 0.115 82 / 0.12)",
+    light: "oklch(0.59 0.070 222 / 0.16)",
+    lightSoft: "oklch(0.63 0.055 185 / 0.10)",
     dark: "oklch(0.04 0.010 260 / 0.68)",
     darkSoft: "oklch(0.04 0.010 260 / 0.42)",
   },
   contour: {
-    line: "oklch(0.72 0.115 82 / 0.38)",
+    line: "oklch(0.59 0.070 222 / 0.34)",
     lineMuted: "oklch(0.62 0.018 260 / 0.28)",
-    accent: "oklch(0.72 0.115 82 / 0.58)",
+    accent: "oklch(0.63 0.055 185 / 0.46)",
     grid: "oklch(0.64 0.018 260 / 0.12)",
   },
   signal: {
-    active: "oklch(0.78 0.10 215)",
+    active: "oklch(0.63 0.055 185)",
     idle: "oklch(0.52 0.018 260)",
     error: "oklch(0.68 0.20 28)",
     degraded: "oklch(0.80 0.13 82)",
@@ -70,36 +79,35 @@ export const colors = {
 export const glass = {
   subtle: {
     background: "oklch(0.18 0.012 260 / 0.92)",
-    border: "oklch(0.72 0.115 82 / 0.14)",
+    border: "oklch(0.59 0.070 222 / 0.12)",
     blur: "8px",
   },
   panel: {
     background: "oklch(0.19 0.012 260 / 0.95)",
-    border: "oklch(0.72 0.115 82 / 0.20)",
+    border: "oklch(0.59 0.070 222 / 0.16)",
     blur: "10px",
   },
   elevated: {
     background: "oklch(0.22 0.014 260 / 0.96)",
-    border: "oklch(0.78 0.10 195 / 0.24)",
+    border: "oklch(0.63 0.055 185 / 0.20)",
     blur: "12px",
   },
   modal: {
     background: "oklch(0.14 0.010 260 / 0.98)",
-    border: "oklch(0.84 0.095 86 / 0.30)",
+    border: "oklch(0.77 0.050 218 / 0.26)",
     blur: "16px",
   },
-  /** Layered feature surface — Orielo 2026, permitted on feature cards. */
+  /** Layered feature surface, permitted on inspector panels and overlays. */
   layered: {
     background: "oklch(0.20 0.013 260 / 0.94)",
-    border: "oklch(0.78 0.10 195 / 0.20)",
+    border: "oklch(0.63 0.055 185 / 0.16)",
     blur: "20px",
   },
 } as const;
 
 /**
- * Orielo 2026 accent gradients. Built from theme color vars at runtime so they
- * shift with each theme. Reserved for headers, KPIs, empty states and hero
- * accents — never behind dense data.
+ * Restrained accent gradients. Reserved for small headers, KPI emphasis,
+ * and empty states; never behind dense data.
  */
 export const gradients = {
   accent: "var(--gradient-accent)",
@@ -108,8 +116,8 @@ export const gradients = {
 } as const;
 
 /**
- * Letter-spacing scale. Negative tracking is permitted on display type only
- * (Orielo 2026 contract).
+ * Letter-spacing scale. Product text uses normal tracking; display type can
+ * tighten slightly when space is intentionally large.
  */
 export const letterSpacing = {
   tight: "-0.02em",
@@ -160,8 +168,8 @@ export const blurs = {
 } as const;
 
 /**
- * Premium glass shadow recipes. Names stay stable for compatibility with
- * existing components.
+ * Solid shadow recipes. Compatibility names remain, but "glow" utilities now
+ * resolve to restrained rings rather than neon lighting.
  */
 export const shadows = {
   none: "none",
@@ -178,12 +186,12 @@ export const shadows = {
   flat: "0 0 0 1px oklch(0.70 0.018 260 / 0.28)",
   flatSubtle: "0 0 0 1px oklch(0.62 0.018 260 / 0.24)",
   glow: {
-    violet: "0 0 0 1px oklch(0.72 0.115 82 / 0.64), 0 0 24px oklch(0.72 0.115 82 / 0.18)",
-    gold: "0 0 0 1px oklch(0.72 0.115 82 / 0.64), 0 0 24px oklch(0.72 0.115 82 / 0.18)",
-    cyan: "0 0 0 1px oklch(0.78 0.10 195 / 0.62), 0 0 24px oklch(0.78 0.10 195 / 0.16)",
-    lime: "0 0 0 1px oklch(0.78 0.10 215 / 0.48), 0 0 16px oklch(0.78 0.10 215 / 0.10)",
-    danger: "0 0 0 1px oklch(0.64 0.18 28 / 0.74), 0 0 24px oklch(0.64 0.18 28 / 0.18)",
-    aura: "0 0 0 1px oklch(0.78 0.10 195 / 0.40), 0 0 40px oklch(0.78 0.10 195 / 0.20), 0 0 80px oklch(0.72 0.115 82 / 0.10)",
+    violet: "0 0 0 1px oklch(0.59 0.070 222 / 0.50), 0 10px 26px oklch(0.04 0.010 260 / 0.18)",
+    gold: "0 0 0 1px oklch(0.59 0.070 222 / 0.50), 0 10px 26px oklch(0.04 0.010 260 / 0.18)",
+    cyan: "0 0 0 1px oklch(0.63 0.055 185 / 0.52), 0 10px 24px oklch(0.04 0.010 260 / 0.16)",
+    lime: "0 0 0 1px oklch(0.58 0.105 151 / 0.42), 0 8px 20px oklch(0.04 0.010 260 / 0.14)",
+    danger: "0 0 0 1px oklch(0.59 0.155 28 / 0.62), 0 10px 24px oklch(0.04 0.010 260 / 0.18)",
+    aura: "0 0 0 1px oklch(0.63 0.055 185 / 0.36), 0 16px 38px oklch(0.04 0.010 260 / 0.22)",
   },
   lift: "0 0 0 1px oklch(0.70 0.018 260 / 0.30), 0 24px 80px oklch(0.04 0.010 260 / 0.62)",
 } as const;

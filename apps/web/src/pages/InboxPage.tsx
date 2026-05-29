@@ -303,22 +303,25 @@ export function InboxPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] min-h-[620px] flex-col gap-3 -mt-2 overflow-hidden">
+    <div className="-mt-1 flex h-[calc(100vh-7rem)] min-h-[620px] flex-col gap-3 overflow-hidden">
       <header
         data-testid="inbox-realtime-header"
-        className="flex min-h-12 flex-wrap items-center justify-between gap-3 rounded-xxl bg-bg-base px-4 py-2.5 shadow-raised-md"
+        className="nuoma-workspace-header botforge-surface flex min-h-14 flex-wrap items-center justify-between gap-3 rounded-lg px-4 py-2.5"
       >
         <div className="min-w-0">
-          <div className="text-sm font-medium text-fg-primary">Inbox</div>
+          <div className="flex items-center gap-2">
+            <p className="botforge-kicker text-brand-cyan">Inbox</p>
+            <Badge variant="cyan">operador</Badge>
+          </div>
           <div className="mt-0.5 truncate font-mono text-[0.65rem] uppercase tracking-widest text-fg-dim">
-            {conversations.data?.conversations.length ?? 0} conversas · realtime SSE
+            {conversations.data?.conversations.length ?? 0} conversas · CRM, notas, anexos e campanhas
           </div>
         </div>
         <RealtimeStatus state={realtime} />
       </header>
       <div
         data-testid="inbox-grid"
-        className="grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_320px]"
+        className="grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_360px]"
       >
         <ConversationList selectedId={selectedId} onSelect={setSelectedId} />
         <div className="flex min-w-0 flex-col gap-3 overflow-hidden">
