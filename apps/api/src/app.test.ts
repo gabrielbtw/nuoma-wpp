@@ -764,6 +764,18 @@ describe("api health", () => {
       externalThreadId: "5531982066263",
       title: "5531982066263",
     });
+    await repos.sendAuditEvents.create({
+      userId: user.id,
+      conversationId: conversation.id,
+      jobId: claimed?.id ?? null,
+      channel: "whatsapp",
+      phase: "failed",
+      latencyMs: 1234,
+      errorCode: "invalid_recipient",
+      errorMessage: "invalid recipient",
+      workerId: "worker-1",
+      metadata: { source: "api-test" },
+    });
 
     const app = await buildApiApp({
       env: loadApiEnv({
@@ -779,6 +791,8 @@ describe("api health", () => {
     try {
       const unauthenticated = await trpcCall(app, "GET", "jobs.listDead", undefined);
       expect(unauthenticated.statusCode).toBe(401);
+      const auditUnauthenticated = await trpcCall(app, "GET", "system.sendAuditEvents", undefined);
+      expect(auditUnauthenticated.statusCode).toBe(401);
 
       const login = await trpcCall<{ csrfToken: string }>(app, "POST", "auth.login", {
         email: "admin@nuoma.local",
@@ -806,6 +820,30 @@ describe("api health", () => {
           type: "sync.dom_changed",
           severity: "warn",
           payload: { reason: "test" },
+        }),
+      ]);
+
+      const sendAuditEvents = await trpcCall<{
+        events: Array<{
+          channel: string;
+          phase: string;
+          latencyMs: number | null;
+          errorCode: string | null;
+          errorMessage: string | null;
+          workerId: string | null;
+          metadata: unknown;
+        }>;
+      }>(app, "GET", "system.sendAuditEvents", { phase: "failed", limit: 5 }, { cookie: cookies });
+      expect(sendAuditEvents.statusCode).toBe(200);
+      expect(sendAuditEvents.data?.events).toEqual([
+        expect.objectContaining({
+          channel: "whatsapp",
+          phase: "failed",
+          latencyMs: 1234,
+          errorCode: "invalid_recipient",
+          errorMessage: "invalid recipient",
+          workerId: "worker-1",
+          metadata: { source: "api-test" },
         }),
       ]);
 
@@ -3725,9 +3763,7 @@ describe("api health", () => {
         ]),
       );
       expect(cappedAfterRejected.data?.rejected).not.toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ reason: "max_recipients_exceeded" }),
-        ]),
+        expect.arrayContaining([expect.objectContaining({ reason: "max_recipients_exceeded" })]),
       );
 
       const ready = await trpcCall<{

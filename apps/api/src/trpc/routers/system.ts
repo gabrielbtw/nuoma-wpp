@@ -7,6 +7,16 @@ import { adminProcedure, publicProcedure, router } from "../init.js";
 
 const startedAt = new Date();
 const workerStaleAfterMs = 90_000;
+const sendAuditPhaseSchema = z.enum([
+  "queued",
+  "dispatching",
+  "sent",
+  "delivered",
+  "read",
+  "failed",
+  "duplicate",
+  "policy_block",
+]);
 
 export const systemRouter = router({
   health: publicProcedure.query((): HealthResponse => {
@@ -39,6 +49,32 @@ export const systemRouter = router({
       return { events };
     }),
 
+  sendAuditEvents: adminProcedure
+    .input(
+      z
+        .object({
+          campaignId: z.number().int().positive().optional(),
+          contactId: z.number().int().positive().optional(),
+          conversationId: z.number().int().positive().optional(),
+          jobId: z.number().int().positive().optional(),
+          phase: sendAuditPhaseSchema.optional(),
+          limit: z.number().int().min(1).max(200).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const events = await ctx.repos.sendAuditEvents.list({
+        userId: ctx.user.id,
+        campaignId: input?.campaignId,
+        contactId: input?.contactId,
+        conversationId: input?.conversationId,
+        jobId: input?.jobId,
+        phase: input?.phase,
+        limit: input?.limit ?? 50,
+      });
+      return { events };
+    }),
+
   metrics: adminProcedure.query(async ({ ctx }) => {
     const metricsSince = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const [
@@ -49,27 +85,26 @@ export const systemRouter = router({
       workers,
       warnEvents,
       errorEvents,
-    ] =
-      await Promise.all([
-        ctx.repos.jobs.countByStatus(ctx.user.id),
-        ctx.repos.jobs.countDead(ctx.user.id),
-        ctx.repos.jobs.list(ctx.user.id),
-        ctx.repos.jobs.operationalMetrics({
-          userId: ctx.user.id,
-          since: metricsSince,
-        }),
-        ctx.repos.workerState.list(),
-        ctx.repos.systemEvents.list({
-          userId: ctx.user.id,
-          severity: "warn",
-          limit: 20,
-        }),
-        ctx.repos.systemEvents.list({
-          userId: ctx.user.id,
-          severity: "error",
-          limit: 20,
-        }),
-      ]);
+    ] = await Promise.all([
+      ctx.repos.jobs.countByStatus(ctx.user.id),
+      ctx.repos.jobs.countDead(ctx.user.id),
+      ctx.repos.jobs.list(ctx.user.id),
+      ctx.repos.jobs.operationalMetrics({
+        userId: ctx.user.id,
+        since: metricsSince,
+      }),
+      ctx.repos.workerState.list(),
+      ctx.repos.systemEvents.list({
+        userId: ctx.user.id,
+        severity: "warn",
+        limit: 20,
+      }),
+      ctx.repos.systemEvents.list({
+        userId: ctx.user.id,
+        severity: "error",
+        limit: 20,
+      }),
+    ]);
 
     const now = Date.now();
     const workerItems = workers.map((worker) => {
@@ -155,7 +190,9 @@ function statusCount(counts: Record<string, number>, status: string): number {
   return counts[status] ?? 0;
 }
 
-function latestInstagramSession(workers: Array<{ metrics: Record<string, unknown>; stale: boolean }>) {
+function latestInstagramSession(
+  workers: Array<{ metrics: Record<string, unknown>; stale: boolean }>,
+) {
   for (const worker of workers) {
     if (worker.stale) continue;
     const instagram = worker.metrics.instagram;

@@ -36,6 +36,8 @@ import { useOptionalVisualMode } from "../visuals/optional-visual-mode.js";
 
 type SystemMetrics = inferRouterOutputs<AppRouter>["system"]["metrics"];
 type WorkerItem = SystemMetrics["workers"]["items"][number];
+type SendAuditEventItem =
+  inferRouterOutputs<AppRouter>["system"]["sendAuditEvents"]["events"][number];
 type AuditListItem = {
   id?: number;
   type: string;
@@ -50,6 +52,12 @@ export function DashboardPage() {
   const metrics = trpc.system.metrics.useQuery(undefined, {
     refetchInterval: 10_000,
   });
+  const sendAudit = trpc.system.sendAuditEvents.useQuery(
+    { limit: 4 },
+    {
+      refetchInterval: 10_000,
+    },
+  );
 
   if (metrics.isLoading) {
     return (
@@ -68,6 +76,7 @@ export function DashboardPage() {
   }
 
   const data = metrics.data;
+  const sendAuditItems = sendAudit.data?.events ?? [];
   const health = overallHealth(data);
   const signalRows = [
     {
@@ -377,21 +386,44 @@ export function DashboardPage() {
             <aside className="nuoma-signal-side">
               <section className="nuoma-signal-panel">
                 <div className="nuoma-signal-panel-head">
-                  <h3>Auditoria</h3>
+                  <h3>Auditoria de envio</h3>
                   <button type="button">Ver tudo</button>
                 </div>
                 <div className="nuoma-audit-list">
-                  {auditItems.map((item, index) => (
-                    <div key={"id" in item ? item.id : index}>
-                      <i>{index + 1}</i>
+                  {sendAudit.isLoading ? (
+                    <div>
+                      <i>...</i>
                       <span>
-                        <strong>{item.type}</strong>
-                        <em>
-                          <TimeAgo date={item.createdAt ?? item.scheduledAt ?? ""} />
-                        </em>
+                        <strong>Carregando</strong>
+                        <em>send_audit_events</em>
                       </span>
                     </div>
-                  ))}
+                  ) : sendAudit.error ? (
+                    <div>
+                      <i>!</i>
+                      <span>
+                        <strong>Auditoria indisponível</strong>
+                        <em>{sendAudit.error.message}</em>
+                      </span>
+                      <Badge variant="danger">erro</Badge>
+                    </div>
+                  ) : sendAuditItems.length > 0 ? (
+                    sendAuditItems.map((event) => (
+                      <SendAuditCompactRow key={event.id} event={event} />
+                    ))
+                  ) : (
+                    auditItems.map((item, index) => (
+                      <div key={"id" in item ? item.id : index}>
+                        <i>{index + 1}</i>
+                        <span>
+                          <strong>{item.type}</strong>
+                          <em>
+                            <TimeAgo date={item.createdAt ?? item.scheduledAt ?? ""} />
+                          </em>
+                        </span>
+                      </div>
+                    ))
+                  )}
                 </div>
               </section>
 
@@ -707,6 +739,25 @@ export function DashboardPage() {
   );
 }
 
+function SendAuditCompactRow({ event }: { event: SendAuditEventItem }) {
+  return (
+    <div>
+      <i>{sendAuditPhaseGlyph(event.phase)}</i>
+      <span>
+        <strong>
+          {sendAuditPhaseLabel(event.phase)} · {event.channel}
+        </strong>
+        <em>
+          <TimeAgo date={event.occurredAt} />
+          {event.jobId ? ` · job #${event.jobId}` : ""}
+          {event.latencyMs != null ? ` · ${formatDurationMs(event.latencyMs)}` : ""}
+        </em>
+      </span>
+      <Badge variant={sendAuditPhaseVariant(event.phase)}>{event.phase}</Badge>
+    </div>
+  );
+}
+
 function OptionalHeroFallback() {
   return (
     <section
@@ -851,6 +902,35 @@ function jobStatusVariant(status: string): "neutral" | "info" | "success" | "war
   if (status === "claimed" || status === "running") return "info";
   if (status === "queued") return "warning";
   return "neutral";
+}
+
+function sendAuditPhaseVariant(
+  phase: string,
+): "neutral" | "info" | "success" | "warning" | "danger" {
+  if (phase === "failed" || phase === "policy_block") return "danger";
+  if (phase === "duplicate") return "warning";
+  if (phase === "sent" || phase === "delivered" || phase === "read") return "success";
+  if (phase === "dispatching") return "info";
+  return "neutral";
+}
+
+function sendAuditPhaseGlyph(phase: string): string {
+  if (phase === "failed" || phase === "policy_block") return "!";
+  if (phase === "duplicate") return "2x";
+  if (phase === "sent" || phase === "delivered" || phase === "read") return "ok";
+  if (phase === "dispatching") return ">";
+  return "q";
+}
+
+function sendAuditPhaseLabel(phase: string): string {
+  if (phase === "policy_block") return "bloqueio de política";
+  if (phase === "duplicate") return "duplicado bloqueado";
+  if (phase === "dispatching") return "em envio";
+  if (phase === "sent") return "enviado";
+  if (phase === "delivered") return "entregue";
+  if (phase === "read") return "lido";
+  if (phase === "failed") return "falhou";
+  return "enfileirado";
 }
 
 function sessionLabel(status: string): string {
