@@ -41,6 +41,16 @@ export interface JobHandlerContext {
   logger: Logger;
   sync?: SyncEngineRuntime;
   instagram?: InstagramRuntime;
+  sendSession?: JobHandlerSendSession;
+}
+
+export interface JobHandlerSendSession {
+  beginWhatsAppContact: (input: {
+    userId: number;
+    conversationId: number;
+    phone: string;
+    reason: string;
+  }) => Promise<void>;
 }
 
 export class PermanentJobError extends Error {
@@ -1043,6 +1053,11 @@ async function ensureCampaignTemporaryMessages(
     throw new Error("temporary_messages requires a connected WhatsApp runtime");
   }
   const targetPhone = await resolveCampaignStepTargetPhone(job, context, input);
+  await beginWhatsAppContactSession(job, context, {
+    conversationId: input.conversationId,
+    phone: targetPhone,
+    reason: ensureInput.phase,
+  });
   return context.sync.ensureTemporaryMessages({
     userId: job.userId,
     conversationId: input.conversationId,
@@ -2079,6 +2094,11 @@ async function sendVoiceToConversation(
     tempDir: path.resolve(process.cwd(), context.env.WORKER_TEMP_DIR),
   });
   const sendPath = prepared.pttPath;
+  await beginWhatsAppContactSession(job, context, {
+    conversationId: input.conversationId,
+    phone: targetPhone,
+    reason: input.reason,
+  });
   const result = await dispatchWithIdempotencyGuard(job, context, {
     idempotencyKey,
     phone: targetPhone,
@@ -2223,6 +2243,11 @@ async function sendDocumentToConversation(
   const targetPhone = await enforceSendPolicy(job, context, "send_document", phone);
 
   await fs.access(input.documentPath);
+  await beginWhatsAppContactSession(job, context, {
+    conversationId: input.conversationId,
+    phone: targetPhone,
+    reason: input.reason,
+  });
   return dispatchWithIdempotencyGuard(job, context, {
     idempotencyKey,
     phone: targetPhone,
@@ -2325,6 +2350,11 @@ async function sendNativeMediaToConversation(
   for (const file of mediaFiles) {
     await fs.access(file.mediaPath);
   }
+  await beginWhatsAppContactSession(job, context, {
+    conversationId: input.conversationId,
+    phone: targetPhone,
+    reason: input.reason,
+  });
   return dispatchWithIdempotencyGuard(job, context, {
     idempotencyKey,
     phone: targetPhone,
@@ -2613,6 +2643,11 @@ async function sendTextToConversation(
     return skippedDuplicate;
   }
   const targetPhone = await enforceSendPolicy(job, context, "send_message", phone);
+  await beginWhatsAppContactSession(job, context, {
+    conversationId: input.conversationId,
+    phone: targetPhone,
+    reason: input.reason,
+  });
 
   return dispatchWithIdempotencyGuard(job, context, {
     idempotencyKey,
@@ -2637,6 +2672,35 @@ async function sendTextToConversation(
         body: input.body,
         reason: input.reason,
       }),
+  });
+}
+
+async function beginWhatsAppContactSession(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    conversationId: number;
+    phone: string;
+    reason: string;
+  },
+): Promise<void> {
+  if (!context.sync?.connected || !context.sync.beginContactSession) {
+    return;
+  }
+  if (context.sendSession) {
+    await context.sendSession.beginWhatsAppContact({
+      userId: job.userId,
+      conversationId: input.conversationId,
+      phone: input.phone,
+      reason: input.reason,
+    });
+    return;
+  }
+  await context.sync.beginContactSession({
+    userId: job.userId,
+    conversationId: input.conversationId,
+    phone: input.phone,
+    reason: input.reason,
   });
 }
 
@@ -3707,7 +3771,9 @@ function renderJobTemplate(
     return variables[key] ?? "";
   });
   if (missing.size > 0) {
-    throw new PermanentJobError(`${context} missing template variables: ${[...missing].join(", ")}`);
+    throw new PermanentJobError(
+      `${context} missing template variables: ${[...missing].join(", ")}`,
+    );
   }
   const body = rendered.trim();
   if (!body) {

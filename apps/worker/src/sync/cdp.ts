@@ -48,6 +48,9 @@ export interface SyncEngineMetrics extends SyncHandlerMetrics {
 export interface SyncEngineRuntime {
   connected: boolean;
   metrics: SyncEngineMetrics;
+  beginContactSession?: (
+    input: SyncBeginContactSessionInput,
+  ) => Promise<SyncBeginContactSessionResult>;
   forceConversation: (input: SyncForceConversationInput) => Promise<SyncForceConversationResult>;
   ensureTemporaryMessages?: (
     input: SyncEnsureTemporaryMessagesInput,
@@ -286,6 +289,21 @@ export interface SyncSendTextMessageInput {
   phone: string;
   body: string;
   reason?: string;
+}
+
+export interface SyncBeginContactSessionInput {
+  userId: number;
+  conversationId: number;
+  phone: string;
+  reason?: string;
+}
+
+export interface SyncBeginContactSessionResult {
+  mode: "contact-session";
+  conversationId: number;
+  phone: string;
+  reason: string;
+  navigationMode: "navigated" | "reused-open-chat";
 }
 
 export interface SyncSendTextMessageResult {
@@ -1736,6 +1754,38 @@ export async function startSyncEngine(input: {
       phone: null,
       reason,
       ...(history ? { history } : {}),
+    };
+  }
+
+  async function beginContactSession(
+    sessionInput: SyncBeginContactSessionInput,
+  ): Promise<SyncBeginContactSessionResult> {
+    if (!client) {
+      throw new Error("sync engine is not connected");
+    }
+    const phone = normalizePhone(sessionInput.phone);
+    if (!phone) {
+      throw new Error("contact session requires a valid WhatsApp phone");
+    }
+    const reason = sessionInput.reason ?? "send.contact_session";
+    const navigationMode = await navigateWhatsAppPhoneForSend({
+      phone,
+      userId: sessionInput.userId,
+      conversationId: sessionInput.conversationId,
+    });
+    await assertActiveSendTarget({
+      expectedPhone: phone,
+      operation: "contact_session",
+      userId: sessionInput.userId,
+      conversationId: sessionInput.conversationId,
+      requireLivePhoneEvidence: true,
+    });
+    return {
+      mode: "contact-session",
+      conversationId: sessionInput.conversationId,
+      phone,
+      reason,
+      navigationMode,
     };
   }
 
@@ -4517,6 +4567,7 @@ export async function startSyncEngine(input: {
       return metrics.connected;
     },
     metrics,
+    beginContactSession,
     forceConversation,
     ensureTemporaryMessages,
     sendTextMessage,

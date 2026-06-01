@@ -1,7 +1,7 @@
 import { setTimeout as sleep } from "node:timers/promises";
 
 import type { WorkerEnv } from "@nuoma/config";
-import type { Job } from "@nuoma/contracts";
+import { normalizePhone, type Job } from "@nuoma/contracts";
 import type { Repositories } from "@nuoma/db";
 import type { Logger } from "pino";
 
@@ -23,6 +23,8 @@ export interface WorkerMetrics {
   emptyPolls: number;
   errors: number;
   reaped: number;
+  contactSessionsStarted: number;
+  contactSessionReuses: number;
 }
 
 export interface JobLoopState {
@@ -53,6 +55,8 @@ export function createJobLoop(input: {
       emptyPolls: 0,
       errors: 0,
       reaped: 0,
+      contactSessionsStarted: 0,
+      contactSessionReuses: 0,
     },
     lastError: null,
   };
@@ -93,33 +97,90 @@ export function createJobLoop(input: {
   }
 
   async function processClaimedJobChain(firstJob: Job, excludeTypes: Job["type"][]): Promise<void> {
+    const previousSendSession = input.handlerContext.sendSession;
+    input.handlerContext.sendSession = isSendJobType(firstJob.type)
+      ? createContactSendSession()
+      : previousSendSession;
     let job: Job | null = firstJob;
     let drainedJobs = 0;
-    while (job) {
-      const completed = await processClaimedJob(job);
-      if (!completed || !isSendJobType(job.type)) {
-        return;
-      }
-      if (drainedJobs >= SERIAL_TARGET_DRAIN_LIMIT) {
-        input.logger.warn(
-          { jobId: job.id, type: job.type, drainLimit: SERIAL_TARGET_DRAIN_LIMIT },
-          "serial target drain limit reached",
-        );
-        return;
-      }
+    try {
+      while (job) {
+        const completed = await processClaimedJob(job);
+        if (!completed || !isSendJobType(job.type)) {
+          return;
+        }
+        if (drainedJobs >= SERIAL_TARGET_DRAIN_LIMIT) {
+          input.logger.warn(
+            { jobId: job.id, type: job.type, drainLimit: SERIAL_TARGET_DRAIN_LIMIT },
+            "serial target drain limit reached",
+          );
+          return;
+        }
 
-      const nextJob = await input.repos.jobs.claimNextDueSerialJobForTarget({
-        workerId: input.env.WORKER_ID,
-        completedJobId: job.id,
-        excludeTypes,
-      });
-      if (!nextJob) {
-        return;
+        const nextJob = await input.repos.jobs.claimNextDueSerialJobForTarget({
+          workerId: input.env.WORKER_ID,
+          completedJobId: job.id,
+          excludeTypes,
+        });
+        if (!nextJob) {
+          return;
+        }
+        drainedJobs += 1;
+        recordClaimedJob(nextJob, { serialTargetDrainIndex: drainedJobs });
+        job = nextJob;
       }
-      drainedJobs += 1;
-      recordClaimedJob(nextJob, { serialTargetDrainIndex: drainedJobs });
-      job = nextJob;
+    } finally {
+      input.handlerContext.sendSession = previousSendSession;
     }
+  }
+
+  function createContactSendSession(): NonNullable<JobHandlerContext["sendSession"]> {
+    let activeTargetKey: string | null = null;
+    let opened = false;
+    return {
+      async beginWhatsAppContact(sessionInput) {
+        const phone = normalizePhone(sessionInput.phone);
+        if (!phone || !input.handlerContext.sync?.connected) {
+          return;
+        }
+        const targetKey = `wa:${phone}`;
+        if (opened && activeTargetKey === targetKey) {
+          state.metrics.contactSessionReuses += 1;
+          input.logger.debug(
+            {
+              conversationId: sessionInput.conversationId,
+              phone,
+              reason: sessionInput.reason,
+              targetKey,
+            },
+            "contact send session reused open WhatsApp chat",
+          );
+          return;
+        }
+        if (!input.handlerContext.sync.beginContactSession) {
+          return;
+        }
+        const result = await input.handlerContext.sync.beginContactSession({
+          userId: sessionInput.userId,
+          conversationId: sessionInput.conversationId,
+          phone,
+          reason: sessionInput.reason,
+        });
+        activeTargetKey = targetKey;
+        opened = true;
+        state.metrics.contactSessionsStarted += 1;
+        input.logger.info(
+          {
+            conversationId: sessionInput.conversationId,
+            phone,
+            reason: sessionInput.reason,
+            targetKey,
+            navigationMode: result.navigationMode,
+          },
+          "contact send session opened WhatsApp chat",
+        );
+      },
+    };
   }
 
   function recordClaimedJob(job: Job, extra: Record<string, unknown> = {}): void {

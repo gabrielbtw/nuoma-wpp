@@ -242,14 +242,29 @@ describe("worker job loop", () => {
       scheduledAt: "2026-04-30T12:00:00.000Z",
       maxAttempts: 2,
     });
+    const events: string[] = [];
     const calls: Array<{ conversationId: number; body: string; phone: string }> = [];
+    const beginContactSession = vi.fn(
+      async (input: { conversationId: number; phone: string; reason?: string }) => {
+        events.push(`begin:${input.phone}`);
+        return {
+          mode: "contact-session" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "send_message",
+          navigationMode: "navigated" as const,
+        };
+      },
+    );
     const sync = {
       connected: true,
       metrics: {} as never,
+      beginContactSession,
       forceConversation: async () => {
         throw new Error("unexpected force sync");
       },
       sendTextMessage: async (input: { conversationId: number; body: string; phone: string }) => {
+        events.push(`send:${input.body}`);
         calls.push(input);
         return {
           mode: "text-message" as const,
@@ -286,6 +301,19 @@ describe("worker job loop", () => {
     await expect(loop.processOne()).resolves.toBe(true);
 
     expect(loop.state.lastError).toBeNull();
+    expect(beginContactSession).toHaveBeenCalledTimes(1);
+    expect(beginContactSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: firstConversation.id,
+        phone: "5531982066263",
+        reason: "send_message",
+      }),
+    );
+    expect(events).toEqual([
+      "begin:5531982066263",
+      "send:primeira mensagem do contato",
+      "send:segunda mensagem do mesmo contato",
+    ]);
     expect(calls.map((call) => call.body)).toEqual([
       "primeira mensagem do contato",
       "segunda mensagem do mesmo contato",
@@ -293,6 +321,8 @@ describe("worker job loop", () => {
     expect(calls.every((call) => call.conversationId === firstConversation.id)).toBe(true);
     expect(loop.state.metrics.claimed).toBe(2);
     expect(loop.state.metrics.completed).toBe(2);
+    expect(loop.state.metrics.contactSessionsStarted).toBe(1);
+    expect(loop.state.metrics.contactSessionReuses).toBe(1);
     const queued = await repos.jobs.list(user.id, "queued");
     expect(queued).toEqual([
       expect.objectContaining({
@@ -991,10 +1021,24 @@ describe("worker job loop", () => {
     const forceConversation = vi.fn(async () => {
       throw new Error("unexpected force sync");
     });
+    const events: string[] = [];
+    const beginContactSession = vi.fn(
+      async (input: { conversationId: number; phone: string; reason?: string }) => {
+        events.push(`begin:${input.phone}`);
+        return {
+          mode: "contact-session" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "campaign_step",
+          navigationMode: "navigated" as const,
+        };
+      },
+    );
     const sends: Array<{ kind: string; phone: string; body?: string; fileName?: string }> = [];
     const sync = {
       connected: true,
       metrics: {} as never,
+      beginContactSession,
       forceConversation,
       sendTextMessage: async (input: {
         conversationId: number;
@@ -1002,6 +1046,7 @@ describe("worker job loop", () => {
         body: string;
         reason?: string;
       }) => {
+        events.push("send:text");
         sends.push({ kind: "text", phone: input.phone, body: input.body });
         return {
           mode: "text-message" as const,
@@ -1028,6 +1073,7 @@ describe("worker job loop", () => {
         caption?: string | null;
         reason?: string;
       }) => {
+        events.push("send:document");
         sends.push({ kind: "document", phone: input.phone, fileName: input.fileName });
         return {
           mode: "document-message" as const,
@@ -1056,6 +1102,7 @@ describe("worker job loop", () => {
         files?: Array<{ filePath: string; fileName: string; mimeType: string }>;
         reason?: string;
       }) => {
+        events.push(`send:${input.mediaType}`);
         sends.push({ kind: input.mediaType, phone: input.phone, fileName: input.fileName });
         return {
           mode: "media-message" as const,
@@ -1090,11 +1137,22 @@ describe("worker job loop", () => {
     await expect(loop.processOne()).resolves.toBe(true);
 
     expect(forceConversation).not.toHaveBeenCalled();
+    expect(beginContactSession).toHaveBeenCalledTimes(1);
+    expect(beginContactSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: conversation.id,
+        phone: "5531982066263",
+        reason: "campaign_step",
+      }),
+    );
+    expect(events).toEqual(["begin:5531982066263", "send:text", "send:document", "send:image"]);
     expect(sends).toEqual([
       { kind: "text", phone: "5531982066263", body: "Oi Gabriel" },
       { kind: "document", phone: "5531982066263", fileName: "procedimento-Gabriel.pdf" },
       { kind: "image", phone: "5531982066263", fileName: "batch-image.jpg" },
     ]);
+    expect(loop.state.metrics.contactSessionsStarted).toBe(1);
+    expect(loop.state.metrics.contactSessionReuses).toBe(2);
     const completed = await repos.jobs.list(user.id, "completed");
     expect(completed.map((job) => job.id).sort((a, b) => a - b)).toEqual([
       textJob.id,
@@ -4004,10 +4062,24 @@ describe("worker job loop", () => {
       throw new Error("expected future campaign batch jobs");
     }
 
+    const events: string[] = [];
     const sendCalls: string[] = [];
+    const beginContactSession = vi.fn(
+      async (input: { conversationId: number; phone: string; reason?: string }) => {
+        events.push(`begin:${input.phone}`);
+        return {
+          mode: "contact-session" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "campaign_step",
+          navigationMode: "navigated" as const,
+        };
+      },
+    );
     const sync = {
       connected: true,
       metrics: {} as never,
+      beginContactSession,
       forceConversation: async () => {
         throw new Error("unexpected force sync");
       },
@@ -4017,6 +4089,7 @@ describe("worker job loop", () => {
         body: string;
         reason?: string;
       }) => {
+        events.push(`send:${input.body}`);
         sendCalls.push(input.body);
         return {
           mode: "text-message" as const,
@@ -4051,7 +4124,18 @@ describe("worker job loop", () => {
 
     await expect(loop.processOne()).resolves.toBe(true);
 
+    expect(beginContactSession).toHaveBeenCalledTimes(1);
+    expect(beginContactSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: conversation.id,
+        phone: "5531982066263",
+        reason: "campaign_step",
+      }),
+    );
+    expect(events).toEqual(["begin:5531982066263", "send:Agora Gabriel"]);
     expect(sendCalls).toEqual(["Agora Gabriel"]);
+    expect(loop.state.metrics.contactSessionsStarted).toBe(1);
+    expect(loop.state.metrics.contactSessionReuses).toBe(0);
     const jobs = await repos.jobs.list(user.id);
     expect(jobs.find((job) => job.id === firstJob.id)?.status).toBe("completed");
     expect(jobs.find((job) => job.id === futureJob.id)?.status).toBe("queued");

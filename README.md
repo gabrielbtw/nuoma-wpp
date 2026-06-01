@@ -217,10 +217,11 @@ checkboxes below parseable.
   records the Xcode/converter/proof blockers, but real Safari acceptance still
   depends on full Xcode and manual Safari enablement.
 - [~] **Sequential-per-contact runtime** - Current worker claim/drain logic keeps
-  the same canonical target serialized and drains campaign batch siblings, but
-  the full MVP runtime of opening one contact, executing every due step in that
-  chat without refresh, and only then moving to the next contact is not yet a
-  dedicated contact-session runner.
+  the same canonical target serialized, opens/verifies the WhatsApp contact
+  once per send chain and drains campaign batch siblings through the same
+  contact session. The remaining proof is a browser-real acceptance that every
+  due step executes without navigation/refresh before the worker moves to the
+  next contact.
 - [~] **UI/product polish** - Campaign canvas, inbox filters, `/operations`,
   contact inline validation, automation dry-run validation and automation
   canvas proof exist; campaign builder, automation canvas and operations mobile
