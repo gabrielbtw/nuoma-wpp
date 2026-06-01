@@ -18,13 +18,19 @@ Nuoma is a WhatsApp operations tool for inbox handling, contacts, campaigns,
 automations, chatbots, evidence review and guarded real dispatch. The product is
 not a landing page or generic marketing surface; it is a dense CRM/ops console.
 
-The current product gate is WhatsApp-only and operationally usable:
+The current product gate is browser-driven WhatsApp plus guarded Instagram
+Direct. There is no official Meta Graph/Cloud API dependency in the send path;
+both channels are controlled by the worker/companion runtime and local policy
+guards:
 
 - V2.1-V2.6 base is closed: foundations, domain/API/auth, sender runtime and
   sync engine are implemented.
 - local and hosted API/Web/Worker flow implemented;
 - real WhatsApp text, media and native voice sending implemented through the
   guarded worker runtime;
+- browser-driven Instagram Direct send is enabled only behind allowlists, 24h
+  inbound-window checks, token-bucket pacing and challenge/suspicious-activity
+  guards;
 - inbox, contacts, campaigns, automations, chatbots, jobs, evidence, settings
   and implementation status screens implemented;
 - campaign-by-button and overlay-triggered campaign execution implemented
@@ -37,26 +43,25 @@ The current product gate is WhatsApp-only and operationally usable:
 
 ## Estado Atual Do Worktree
 
-This README documents the current dirty worktree, not only the last committed
-state. As of 2026-05-26, the active local changes are intentionally broad:
+This README documents the current V2 implementation contract. As of
+2026-06-01, the active integration branch is expected to be committed in small
+PR-style checkpoints instead of one broad dirty worktree:
 
-- documentation consolidation is in progress: product MDs under `docs/`,
-  app-level extension READMEs and `AGENTS.md` were folded into this README;
-- `/implementation` now reads this README through the existing Markdown checkbox
-  parser, so the `Feito`, `Parcial` and `Falta` sections must remain stable;
-- campaign go-live hardening is present across API, scheduler, send policy,
-  overlay bridge, worker job handling and focused tests;
-- the web app is mid-upgrade around DS Nuoma 2026 surfaces, brand assets,
-  PWA metadata, component inventory and operational screen polish;
-- the worker/CDP layer has active changes around overlay injection, sync,
-  browser handling and send job execution;
-- M30.3 proof files under `data/` still exist as operational evidence; the
-  retention policy preserves them and any tracked `data/**` files until a human
-  explicitly removes them from Git tracking with `git rm --cached`;
-- generated docs/build artifacts should stay out of version control.
+- `/implementation` reads this README through the Markdown checkbox parser, so
+  the `Feito`, `Parcial` and `Falta` sections must remain parseable;
+- IF-01 dispatch reliability is committed in the code path: idempotency keys,
+  dispatch attempts, duplicate skipping, stale-claim reaping and crash-after-send
+  retry proof are part of the worker/DB test surface;
+- canonical WhatsApp identity is committed in the data path: `phone_e164` and
+  `wa_jid` are stored on contacts/conversations, raw SQL writes are backfilled by
+  DB triggers and guarded by a smoke;
+- CI is versioned under `.github/workflows/ci.yml` and runs the critical
+  messaging/identity tests in addition to lint, typecheck, build and unit tests;
+- M30.3 proof files under `data/` can still exist as local operational evidence;
+  generated docs/build artifacts should stay out of version control.
 
-Treat uncommitted code as part of the current project state when documenting or
-testing this checkout. Do not revert unrelated local changes.
+Use `git status --short --branch` as the source of truth before editing. Do not
+revert unrelated local changes.
 
 ## Arquitetura E Apps/Packages
 
@@ -175,6 +180,25 @@ checkboxes below parseable.
 - [x] **P2 Product-confidence tests** - Focused API/worker/static smokes cover
       campaign button guardrails, overlay mutation/M30.3 gates, production canary
       allowlists, retention defaults and Safari/go-live external gates.
+- [x] **IF-01 Dispatch reliability** - Outbound jobs carry idempotency keys,
+      messages are upserted by key before CDP send, duplicate retries record
+      `skipped_duplicate`, stale claims are reaped only behind the guard and the
+      crash-after-send retry smoke proves CDP is not called twice.
+- [x] **Canonical WhatsApp identity** - Contacts and conversations persist
+      `phone_e164`/`wa_jid`, overlay/sync resolve by canonical identity instead
+      of display title and raw SQL contact/conversation writes are backfilled.
+- [x] **Worker pacing and serial dispatch** - WhatsApp/Instagram sends use
+      token buckets by target and the job claim/drain path keeps serial send
+      targets from running concurrently.
+- [x] **Instagram Direct browser runtime** - Instagram sends are browser-driven,
+      allowlisted, blocked outside the 24h inbound window and guarded against
+      login/challenge/suspicious-activity pages.
+- [x] **Operations visibility** - `/operations`, dashboard health cards, queue
+      indicators and `send_audit_events` expose worker/CDP/fila and delivery
+      status signals.
+- [x] **Flow/inbox operator UX** - Campaign flow builder has a visual
+      `@xyflow/react` canvas, inbox filters cover channel/unread/failure/tag and
+      contact editing has inline validation.
 
 ## Parcial
 
@@ -388,12 +412,16 @@ npm test
 npm run build
 ```
 
-Focused smoke/check scripts may include:
+Critical messaging reliability checks:
 
 ```bash
-npm run test:v21-foundations
-npm run worker:status
-curl -s http://127.0.0.1:3001/health
+npm run test --workspace @nuoma/contracts -- src/idempotency.test.ts
+npm run test --workspace @nuoma/db -- src/contact-identity-backfill.test.ts src/repositories.test.ts -t "wa_jid|worker send token buckets|serial"
+npm run test --workspace @nuoma/api -- src/services/extension-overlay.test.ts src/services/automation-engine-daemon.test.ts
+npm run test --workspace @nuoma/worker -- src/sync/handler.test.ts -t "saved-name|wa_jid|canonical identity|canonical"
+npm run test --workspace @nuoma/worker -- src/job-loop.test.ts -t "Instagram|token bucket|24h|canonical wa_jid|rate|chatbot_reply"
+npm run test --workspace @nuoma/worker -- src/instagram/guard.test.ts src/instagram/assisted.test.ts src/voice/audio.test.ts
+npm run test:contact-identity-raw-sql
 ```
 
 Expected coverage rules:
