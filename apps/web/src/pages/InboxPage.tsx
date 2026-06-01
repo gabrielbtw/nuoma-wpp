@@ -7,6 +7,7 @@ import { Composer } from "../inbox/Composer.js";
 import { ContactSidebar } from "../inbox/ContactSidebar.js";
 import { ConversationList } from "../inbox/ConversationList.js";
 import { MessageTimeline } from "../inbox/MessageTimeline.js";
+import { resolveConversationSyncPhone } from "../inbox/conversation-sync-target.js";
 import { INBOX_CONVERSATION_LIMIT } from "../inbox/conversation-list-config.js";
 import { conversationDisplayTitle } from "../inbox/conversation-display.js";
 import type { MessageActionDraft } from "../inbox/message-action-draft.js";
@@ -107,19 +108,19 @@ export function InboxPage() {
 
   function onForceSync() {
     if (!conversation) return;
-    const phone = conversation.externalThreadId.replace(/\D/g, "");
+    const phone = resolveConversationSyncPhone(conversation);
     forceSync.mutate({
       id: conversation.id,
-      phone: phone.length >= 10 ? phone : undefined,
+      phone,
     });
   }
 
   function onForceHistorySync(maxScrolls: number) {
     if (!conversation) return;
-    const phone = conversation.externalThreadId.replace(/\D/g, "");
+    const phone = resolveConversationSyncPhone(conversation);
     forceHistorySync.mutate({
       id: conversation.id,
-      phone: phone.length >= 10 ? phone : undefined,
+      phone,
       maxScrolls,
     });
   }
@@ -314,7 +315,8 @@ export function InboxPage() {
             <Badge variant="cyan">operador</Badge>
           </div>
           <div className="mt-0.5 truncate font-mono text-[0.65rem] uppercase tracking-widest text-fg-dim">
-            {conversations.data?.conversations.length ?? 0} conversas · CRM, notas, anexos e campanhas
+            {conversations.data?.conversations.length ?? 0} conversas · CRM, notas, anexos e
+            campanhas
           </div>
         </div>
         <RealtimeStatus state={realtime} />
