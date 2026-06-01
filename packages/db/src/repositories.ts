@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, gte, inArray, isNull, like, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, like, lt, lte, or, sql } from "drizzle-orm";
 
 import {
   attendantSchema,
@@ -3780,7 +3780,9 @@ export function createRepositories(handle: DbHandle) {
           input.campaignId !== undefined
             ? eq(sendAuditEvents.campaignId, input.campaignId)
             : undefined,
-          input.contactId !== undefined ? eq(sendAuditEvents.contactId, input.contactId) : undefined,
+          input.contactId !== undefined
+            ? eq(sendAuditEvents.contactId, input.contactId)
+            : undefined,
           input.conversationId !== undefined
             ? eq(sendAuditEvents.conversationId, input.conversationId)
             : undefined,
@@ -3795,6 +3797,28 @@ export function createRepositories(handle: DbHandle) {
           .orderBy(desc(sendAuditEvents.occurredAt), desc(sendAuditEvents.id))
           .limit(Math.min(input.limit ?? 100, 500));
         return rows.map(mapSendAuditEvent);
+      },
+      async countOlderThan(input: { occurredBefore: string; userId?: number }): Promise<number> {
+        const clauses = [
+          lt(sendAuditEvents.occurredAt, input.occurredBefore),
+          input.userId !== undefined ? eq(sendAuditEvents.userId, input.userId) : undefined,
+        ].filter(Boolean);
+        const [row] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(sendAuditEvents)
+          .where(and(...clauses));
+        return Number(row?.count ?? 0);
+      },
+      async deleteOlderThan(input: { occurredBefore: string; userId?: number }): Promise<number> {
+        const clauses = [
+          lt(sendAuditEvents.occurredAt, input.occurredBefore),
+          input.userId !== undefined ? eq(sendAuditEvents.userId, input.userId) : undefined,
+        ].filter(Boolean);
+        const rows = await db
+          .delete(sendAuditEvents)
+          .where(and(...clauses))
+          .returning({ id: sendAuditEvents.id });
+        return rows.length;
       },
     },
 

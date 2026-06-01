@@ -436,6 +436,7 @@ npm run test --workspace @nuoma/worker -- src/job-loop.test.ts -t "Instagram|tok
 npm run test --workspace @nuoma/worker -- src/instagram/guard.test.ts src/instagram/assisted.test.ts src/voice/audio.test.ts
 npm run test:contact-identity-raw-sql
 npm run test:worker-contact-session
+npm run test:send-audit-retention
 npm run test:v211-operations-mobile
 ```
 
@@ -581,6 +582,9 @@ Current cleanup tooling:
 - audit: `npm run artifacts:retention:audit`
 - apply: `ARTIFACT_RETENTION_CONFIRM=SIM npm run artifacts:retention:apply`
 - smoke: `npm run test:artifact-retention`
+- send audit dry-run: `npm run send-audit:retention:audit`
+- send audit apply: `SEND_AUDIT_RETENTION_CONFIRM=SIM npm run send-audit:retention:apply`
+- send audit smoke: `npm run test:send-audit-retention`
 
 ## Go-live Canary Proof
 

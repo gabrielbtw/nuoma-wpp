@@ -2149,4 +2149,67 @@ describe("repositories", () => {
       }),
     );
   });
+
+  it("purges structured send audit events older than a retention cutoff", async () => {
+    const repos = createRepositories(handle);
+    const user = await repos.users.create({
+      email: "send-audit-retention@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const otherUser = await repos.users.create({
+      email: "send-audit-retention-other@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+
+    await repos.sendAuditEvents.create({
+      occurredAt: "2026-01-01T10:00:00.000Z",
+      userId: user.id,
+      channel: "whatsapp",
+      phase: "dispatching",
+      metadata: { source: "old" },
+    });
+    await repos.sendAuditEvents.create({
+      occurredAt: "2026-05-01T10:00:00.000Z",
+      userId: user.id,
+      channel: "whatsapp",
+      phase: "sent",
+      metadata: { source: "fresh" },
+    });
+    await repos.sendAuditEvents.create({
+      occurredAt: "2026-04-01T00:00:00.000Z",
+      userId: user.id,
+      channel: "whatsapp",
+      phase: "read",
+      metadata: { source: "boundary" },
+    });
+    await repos.sendAuditEvents.create({
+      occurredAt: "2026-01-01T10:00:00.000Z",
+      userId: otherUser.id,
+      channel: "instagram",
+      phase: "sent",
+      metadata: { source: "other-user-old" },
+    });
+
+    const cutoff = "2026-04-01T00:00:00.000Z";
+    await expect(
+      repos.sendAuditEvents.countOlderThan({ occurredBefore: cutoff, userId: user.id }),
+    ).resolves.toBe(1);
+
+    await expect(
+      repos.sendAuditEvents.deleteOlderThan({ occurredBefore: cutoff, userId: user.id }),
+    ).resolves.toBe(1);
+
+    await expect(
+      repos.sendAuditEvents.countOlderThan({ occurredBefore: cutoff, userId: user.id }),
+    ).resolves.toBe(0);
+    await expect(
+      repos.sendAuditEvents.countOlderThan({ occurredBefore: cutoff, userId: otherUser.id }),
+    ).resolves.toBe(1);
+
+    const remaining = await repos.sendAuditEvents.list({ userId: user.id, limit: 10 });
+    expect(remaining).toHaveLength(2);
+    expect(remaining.map((event) => event.metadata.source)).toEqual(["fresh", "boundary"]);
+  });
 });
