@@ -64,7 +64,10 @@ export function OperationsPage() {
   const auditEvents = sendAudit.data?.events ?? [];
 
   return (
-    <div className="flex min-h-[calc(100vh-6.5rem)] w-full max-w-none flex-col gap-4 pt-0">
+    <div
+      className="flex min-h-[calc(100vh-6.5rem)] w-full max-w-none flex-col gap-4 pt-0"
+      data-testid="operations-health-page"
+    >
       <Animate preset="rise-in">
         <header className="nuoma-workspace-header flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>

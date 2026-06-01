@@ -73,6 +73,14 @@ const routes = [
     details: "Fila duravel, jobs recentes e dead-letter queue.",
   },
   {
+    version: "V2.11",
+    name: "Operações",
+    path: "/operations",
+    waitTestId: "operations-health-page",
+    file: "08b-v211-operations.png",
+    details: "Worker, CDP, fila, readiness e send_audit_events em tela operacional dedicada.",
+  },
+  {
     version: "V2.1-V2.15",
     name: "Status de implementação",
     path: "/implementation",
