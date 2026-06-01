@@ -249,6 +249,107 @@ describe("sync event handler", () => {
     expect(handler.metrics.messagesDeleted).toBe(1);
   });
 
+  it("records delivered and read send audit events for outbound delivery status updates", async () => {
+    const repos = createRepositories(db);
+    const user = await repos.users.create({
+      email: "delivery-audit@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const handler = createSyncEventHandler({
+      repos,
+      logger: pino({ level: "silent" }),
+      userId: user.id,
+    });
+    const externalId = "true_5531982066263@c.us_DELIVERY";
+
+    await handler.handle({
+      type: "message-added",
+      source: "wa-web",
+      observedAtUtc: "2026-04-30T18:34:42.123Z",
+      thread,
+      message: {
+        externalId,
+        direction: "outbound",
+        contentType: "text",
+        status: "sent",
+        body: "Mensagem auditada",
+        displayedAtText: "[15:34, 30/04/2026] Eu: ",
+        waDisplayedAt: null,
+        timestampPrecision: "unknown",
+        messageSecond: null,
+        waInferredSecond: 59,
+        observedAtUtc: "2026-04-30T18:34:42.123Z",
+        raw: { source: "test", jobId: 123 },
+      },
+    });
+    await handler.handle({
+      type: "delivery-status",
+      source: "wa-web",
+      observedAtUtc: "2026-04-30T18:35:00.000Z",
+      thread,
+      externalId,
+      status: "delivered",
+    });
+    await handler.handle({
+      type: "delivery-status",
+      source: "wa-web",
+      observedAtUtc: "2026-04-30T18:36:00.000Z",
+      thread,
+      externalId,
+      status: "read",
+    });
+
+    const conversation = await repos.conversations.findByExternalThread({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: thread.externalThreadId,
+    });
+    const messages = await repos.messages.listByConversation({
+      userId: user.id,
+      conversationId: conversation?.id ?? 0,
+    });
+    const deliveredAudit = await repos.sendAuditEvents.list({
+      userId: user.id,
+      conversationId: conversation?.id ?? 0,
+      phase: "delivered",
+    });
+    const readAudit = await repos.sendAuditEvents.list({
+      userId: user.id,
+      conversationId: conversation?.id ?? 0,
+      phase: "read",
+    });
+
+    expect(messages[0]?.status).toBe("read");
+    expect(deliveredAudit).toEqual([
+      expect.objectContaining({
+        channel: "whatsapp",
+        phase: "delivered",
+        messageId: messages[0]?.id,
+        payloadHash: null,
+        metadata: expect.objectContaining({
+          externalId,
+          previousStatus: "sent",
+          status: "delivered",
+          jobId: 123,
+        }),
+      }),
+    ]);
+    expect(readAudit).toEqual([
+      expect.objectContaining({
+        channel: "whatsapp",
+        phase: "read",
+        messageId: messages[0]?.id,
+        metadata: expect.objectContaining({
+          externalId,
+          previousStatus: "delivered",
+          status: "read",
+        }),
+      }),
+    ]);
+    expect(handler.metrics.statusesUpdated).toBe(2);
+  });
+
   it("counts messages inserted by forced reconcile as safety-net pickups", async () => {
     const repos = createRepositories(db);
     const user = await repos.users.create({

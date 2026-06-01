@@ -211,6 +211,11 @@ export function createSyncEventHandler(input: {
     if (!conversation) {
       return;
     }
+    const existing = await input.repos.messages.findByExternalId({
+      userId,
+      conversationId: conversation.id,
+      externalId: event.externalId,
+    });
     const updated = await input.repos.messages.updateStatusByExternalId({
       userId,
       conversationId: conversation.id,
@@ -219,7 +224,49 @@ export function createSyncEventHandler(input: {
     });
     if (updated) {
       metrics.statusesUpdated += 1;
+      await recordDeliverySendAudit(event, conversation, existing);
     }
+  }
+
+  async function recordDeliverySendAudit(
+    event: SyncDeliveryStatusEvent,
+    conversation: NonNullable<Awaited<ReturnType<typeof findConversation>>>,
+    existing: Awaited<ReturnType<Repositories["messages"]["findByExternalId"]>>,
+  ): Promise<void> {
+    if (
+      !existing ||
+      existing.direction !== "outbound" ||
+      (event.status !== "delivered" && event.status !== "read") ||
+      existing.status === event.status
+    ) {
+      return;
+    }
+    await input.repos.sendAuditEvents.create({
+      userId,
+      campaignId: null,
+      contactId: existing.contactId ?? conversation.contactId,
+      conversationId: conversation.id,
+      messageId: existing.id,
+      jobId: null,
+      channel: event.thread.channel,
+      phase: event.status,
+      latencyMs: null,
+      errorCode: null,
+      errorMessage: null,
+      payloadHash: existing.idempotencyKey,
+      workerId: null,
+      metadata: {
+        source: event.source,
+        syncEventType: event.type,
+        externalId: event.externalId,
+        previousStatus: existing.status,
+        status: event.status,
+        observedAtUtc: event.observedAtUtc,
+        idempotencyKey: existing.idempotencyKey,
+        jobId: numberFromRaw(existing.raw?.jobId),
+        thread: event.thread,
+      },
+    });
   }
 
   async function handleMessageRemoved(event: SyncMessageRemovedEvent): Promise<void> {
@@ -869,6 +916,11 @@ function appendEditHistory(
     ...base,
     editHistory: [...current, entry],
   };
+}
+
+function numberFromRaw(value: unknown): number | null {
+  const number = typeof value === "number" ? value : Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(number) && number > 0 ? number : null;
 }
 
 function assertNever(value: never): never {
