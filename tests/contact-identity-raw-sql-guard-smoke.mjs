@@ -28,30 +28,49 @@ const allowedRawSqlFixtures = new Map([
 ]);
 
 const rawContactInsertPattern = /\bINSERT\s+INTO\s+[`"]?contacts[`"]?\b/gi;
+const rawConversationInsertPattern = /\bINSERT\s+INTO\s+[`"]?conversations[`"]?\b/gi;
 const backfillPattern = /\bbackfillSmokeWhatsappIdentity\s*\(/;
 const phoneE164Pattern = /\bphone_e164\b/i;
 const waJidPattern = /\bwa_jid\b/i;
 
 const files = await collectSourceFiles(scanRoots);
 const contactInsertFiles = [];
+const conversationInsertFiles = [];
 const violations = [];
 
 for (const relativePath of files) {
   const absolutePath = path.join(repoRoot, relativePath);
   const source = await fs.readFile(absolutePath, "utf8");
   const contactInsertStatements = extractRawContactInsertStatements(source);
-  if (contactInsertStatements.length === 0) {
+  const conversationInsertStatements = extractRawConversationInsertStatements(source);
+  if (contactInsertStatements.length === 0 && conversationInsertStatements.length === 0) {
     continue;
   }
 
-  contactInsertFiles.push(relativePath);
+  if (contactInsertStatements.length > 0) {
+    contactInsertFiles.push(relativePath);
+  }
+  if (conversationInsertStatements.length > 0) {
+    conversationInsertFiles.push(relativePath);
+  }
   const hasBackfill = backfillPattern.test(source);
   const allowedReason = allowedRawSqlFixtures.get(relativePath);
   const everyInsertHasIdentityColumns = contactInsertStatements.every(
     (statement) => phoneE164Pattern.test(statement) && waJidPattern.test(statement),
   );
-  if (!everyInsertHasIdentityColumns && !hasBackfill && !allowedReason) {
-    violations.push(relativePath);
+  const everyConversationInsertHasWaJid = conversationInsertStatements.every((statement) =>
+    waJidPattern.test(statement),
+  );
+  const contactIdentityViolation =
+    contactInsertStatements.length > 0 && !everyInsertHasIdentityColumns && !hasBackfill;
+  const conversationIdentityViolation =
+    conversationInsertStatements.length > 0 && !everyConversationInsertHasWaJid && !hasBackfill;
+  if ((contactIdentityViolation || conversationIdentityViolation) && !allowedReason) {
+    violations.push({
+      path: relativePath,
+      contactIdentityViolation,
+      conversationIdentityViolation,
+    });
   }
 }
 
@@ -59,10 +78,16 @@ if (violations.length > 0) {
   throw new Error(
     [
       "contact identity raw SQL guard failed:",
-      ...violations.map(
-        (file) =>
-          `- ${file}: add phone_e164/wa_jid columns or call backfillSmokeWhatsappIdentity after INSERT INTO contacts`,
-      ),
+      ...violations.map((violation) => {
+        const fixes = [];
+        if (violation.contactIdentityViolation) {
+          fixes.push("add phone_e164/wa_jid columns or call backfillSmokeWhatsappIdentity after INSERT INTO contacts");
+        }
+        if (violation.conversationIdentityViolation) {
+          fixes.push("add wa_jid or call backfillSmokeWhatsappIdentity after INSERT INTO conversations");
+        }
+        return `- ${violation.path}: ${fixes.join("; ")}`;
+      }),
     ].join("\n"),
   );
 }
@@ -72,6 +97,7 @@ console.log(
     "contact-identity-raw-sql-guard",
     `scanned=${files.length}`,
     `contactInsertFiles=${contactInsertFiles.length}`,
+    `conversationInsertFiles=${conversationInsertFiles.length}`,
     `allowedRawSqlFixtures=${allowedRawSqlFixtures.size}`,
     "status=ok",
   ].join("|"),
@@ -86,8 +112,16 @@ async function collectSourceFiles(roots) {
 }
 
 function extractRawContactInsertStatements(source) {
+  return extractRawInsertStatements(source, rawContactInsertPattern);
+}
+
+function extractRawConversationInsertStatements(source) {
+  return extractRawInsertStatements(source, rawConversationInsertPattern);
+}
+
+function extractRawInsertStatements(source, pattern) {
   const statements = [];
-  for (const match of source.matchAll(rawContactInsertPattern)) {
+  for (const match of source.matchAll(pattern)) {
     const start = match.index ?? 0;
     const runIndex = source.indexOf(").run", start);
     const end = runIndex > start ? runIndex : start + 1_200;
