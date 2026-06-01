@@ -23,6 +23,7 @@ import type { AutomationAction, ChatbotRuleMatch } from "@nuoma/contracts";
 import { Bot, FlaskConical, GripVertical, Plus, Regex } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
+import { validateChatbotDryRun } from "../chatbots/dry-run-validation.js";
 import { trpc } from "../lib/trpc.js";
 
 interface AbTestSummary {
@@ -68,6 +69,7 @@ export function ChatbotsPage() {
   const [body, setBody] = useState("Qual o preco?");
   const [phone, setPhone] = useState("5531982066263");
   const [dryRunChannel, setDryRunChannel] = useState<DryRunChannel>("whatsapp");
+  const [dryRunAttempted, setDryRunAttempted] = useState(false);
   const [selectedChatbotId, setSelectedChatbotId] = useState("");
   const [ruleName, setRuleName] = useState("Resposta preço");
   const [priority, setPriority] = useState("10");
@@ -87,8 +89,13 @@ export function ChatbotsPage() {
   const selectedChatbot = chatbots.data?.chatbots.find(
     (chatbot) => chatbot.id === selectedChatbotIdNumber,
   );
-  const dryRunIdentity =
-    dryRunChannel === "instagram" ? phone.trim().replace(/^@+/, "") : phone.replace(/\D/g, "");
+  const dryRunValidation = validateChatbotDryRun({
+    channel: dryRunChannel,
+    identity: phone,
+    body,
+  });
+  const showDryRunIdentityError = dryRunAttempted && Boolean(dryRunValidation.errors.identity);
+  const showDryRunBodyError = dryRunAttempted && Boolean(dryRunValidation.errors.body);
   const dryRunIdentityLabel =
     dryRunChannel === "instagram" ? "Instagram do teste" : "Telefone do teste";
   const dryRunIdentityPlaceholder = dryRunChannel === "instagram" ? "@perfil" : "5531982066263";
@@ -146,6 +153,7 @@ export function ChatbotsPage() {
 
   function updateDryRunChannel(channel: DryRunChannel) {
     setDryRunChannel(channel);
+    setDryRunAttempted(false);
     setPhone((currentValue) => {
       const value = currentValue.trim();
       const looksLikePhone = /^\+?\d[\d\s().-]*$/.test(value);
@@ -156,6 +164,21 @@ export function ChatbotsPage() {
         return "5531982066263";
       }
       return currentValue;
+    });
+  }
+
+  function handleDryRunSubmit() {
+    setDryRunAttempted(true);
+    if (!dryRunValidation.valid) {
+      return;
+    }
+    dryRun.mutate({
+      ...(Number.isInteger(selectedChatbotIdNumber) && selectedChatbotIdNumber > 0
+        ? { chatbotId: selectedChatbotIdNumber }
+        : {}),
+      channel: dryRunValidation.values.channel,
+      phone: dryRunValidation.values.identity,
+      body: dryRunValidation.values.body,
     });
   }
 
@@ -261,33 +284,58 @@ export function ChatbotsPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Input
-                  value={phone}
-                  inputMode={dryRunChannel === "instagram" ? "text" : "tel"}
-                  aria-label={dryRunIdentityLabel}
-                  placeholder={dryRunIdentityPlaceholder}
-                  onChange={(event) => setPhone(event.target.value)}
-                />
-                <Input
-                  value={body}
-                  aria-label="Mensagem do teste"
-                  onChange={(event) => setBody(event.target.value)}
-                />
+                <div className="grid gap-1">
+                  <Input
+                    value={phone}
+                    inputMode={dryRunChannel === "instagram" ? "text" : "tel"}
+                    aria-label={dryRunIdentityLabel}
+                    placeholder={dryRunIdentityPlaceholder}
+                    invalid={showDryRunIdentityError}
+                    aria-invalid={showDryRunIdentityError}
+                    aria-describedby={
+                      showDryRunIdentityError ? "chatbot-dry-run-identity-error" : undefined
+                    }
+                    data-testid="chatbot-dry-run-identity"
+                    onChange={(event) => setPhone(event.target.value)}
+                  />
+                  {showDryRunIdentityError ? (
+                    <p
+                      id="chatbot-dry-run-identity-error"
+                      className="text-xs text-semantic-danger"
+                      data-testid="chatbot-dry-run-identity-error"
+                    >
+                      {dryRunValidation.errors.identity}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="grid gap-1">
+                  <Input
+                    value={body}
+                    aria-label="Mensagem do teste"
+                    invalid={showDryRunBodyError}
+                    aria-invalid={showDryRunBodyError}
+                    aria-describedby={
+                      showDryRunBodyError ? "chatbot-dry-run-body-error" : undefined
+                    }
+                    data-testid="chatbot-dry-run-body"
+                    onChange={(event) => setBody(event.target.value)}
+                  />
+                  {showDryRunBodyError ? (
+                    <p
+                      id="chatbot-dry-run-body-error"
+                      className="text-xs text-semantic-danger"
+                      data-testid="chatbot-dry-run-body-error"
+                    >
+                      {dryRunValidation.errors.body}
+                    </p>
+                  ) : null}
+                </div>
                 <Button
                   variant="accent"
                   loading={dryRun.isPending}
                   leftIcon={<FlaskConical className="h-4 w-4" />}
                   data-testid="chatbot-ab-dry-run-button"
-                  onClick={() =>
-                    dryRun.mutate({
-                      ...(Number.isInteger(selectedChatbotIdNumber) && selectedChatbotIdNumber > 0
-                        ? { chatbotId: selectedChatbotIdNumber }
-                        : {}),
-                      channel: dryRunChannel,
-                      phone: dryRunIdentity,
-                      body,
-                    })
-                  }
+                  onClick={handleDryRunSubmit}
                 >
                   Testar
                 </Button>

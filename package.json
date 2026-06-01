@@ -94,6 +94,7 @@
     "test:contact-identity-raw-sql": "node tests/contact-identity-raw-sql-guard-smoke.mjs",
     "test:worker-contact-session": "npm run test --workspace @nuoma/worker -- src/job-loop.test.ts -t \"same canonical WhatsApp target|mixed WhatsApp|far-future\"",
     "test:send-audit-retention": "tsx tests/send-audit-retention-smoke.mts",
+    "test:chatbot-dry-run-validation": "npm run test --workspace @nuoma/web -- src/chatbots/dry-run-validation.test.ts",
     "test:artifact-retention": "node tests/artifact-retention-policy-smoke.mjs",
     "test:go-live-preflight": "node tests/go-live-canary-preflight-smoke.mjs",
     "test:product-confidence": "node tests/product-confidence-smoke.mjs",

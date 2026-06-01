@@ -439,6 +439,7 @@ npm run test:contact-identity-raw-sql
 npm run test:worker-contact-session
 npm run test:send-audit-retention
 npm run test:m303-campaign-retry-performance-proof-smoke
+npm run test:chatbot-dry-run-validation
 npm run test:v211-operations-mobile
 ```
 

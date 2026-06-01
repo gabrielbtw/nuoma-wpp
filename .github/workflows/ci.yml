@@ -57,3 +57,4 @@ jobs:
           npm run test:worker-contact-session
           npm run test:send-audit-retention
           npm run test:m303-campaign-retry-performance-proof-smoke
+          npm run test:chatbot-dry-run-validation
