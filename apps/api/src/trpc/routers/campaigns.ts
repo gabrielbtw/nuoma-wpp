@@ -1913,10 +1913,7 @@ function deriveConversationInstagramHandle(
   conversation: { channel: ChannelType; externalThreadId: string; title: string } | null,
 ): string | null {
   if (!conversation || conversation.channel !== "instagram") return null;
-  return (
-    normalizeInstagramHandle(conversation.externalThreadId) ??
-    normalizeInstagramHandle(conversation.title)
-  );
+  return normalizeInstagramHandle(conversation.externalThreadId);
 }
 
 function isInstagramCampaignStepSupported(step: Campaign["steps"][number]): boolean {

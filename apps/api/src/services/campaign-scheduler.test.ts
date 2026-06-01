@@ -198,6 +198,13 @@ describe("campaign scheduler tick", () => {
         instagramHandle: "gabriell_braga",
       },
     });
+    await repos.conversations.create({
+      userId: user.id,
+      contactId: null,
+      channel: "instagram",
+      externalThreadId: "direct-thread-123",
+      title: "@gabriell_braga",
+    });
 
     const result = await runCampaignSchedulerTick({
       repos,

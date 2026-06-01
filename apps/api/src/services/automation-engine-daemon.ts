@@ -82,8 +82,7 @@ export function createAutomationEngineDaemon(input: {
         const instagramHandle =
           conversation.channel === "instagram"
             ? (normalizeInstagramHandle(contact?.instagramHandle) ??
-              normalizeInstagramHandle(conversation.externalThreadId) ??
-              normalizeInstagramHandle(conversation.title))
+              normalizeInstagramHandle(conversation.externalThreadId))
             : null;
         if (conversation.channel === "whatsapp" && phone.length < 8) {
           result.skipped.push({ messageId: message.id, reason: "conversation_phone_missing" });

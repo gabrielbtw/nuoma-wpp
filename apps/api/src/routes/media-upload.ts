@@ -7,7 +7,7 @@ import multipart, { type MultipartFields } from "@fastify/multipart";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import type { ApiEnv } from "@nuoma/config";
-import { mediaAssetTypeSchema, type MediaAssetType } from "@nuoma/contracts";
+import { mediaAssetTypeSchema, normalizePhone, type MediaAssetType } from "@nuoma/contracts";
 import type { Repositories } from "@nuoma/db";
 
 import { resolveCrmReadableFile, storeCrmFile } from "../services/crm-file-storage.js";
@@ -231,7 +231,8 @@ async function resolveCrmOwnerKey(input: {
   if (!conversation) {
     return null;
   }
-  const phone = conversation.externalThreadId.replace(/\D/g, "");
+  const phone =
+    normalizePhone(conversation.waJid) ?? normalizePhone(conversation.externalThreadId) ?? "";
   if (phone.length >= 8) {
     return phone;
   }

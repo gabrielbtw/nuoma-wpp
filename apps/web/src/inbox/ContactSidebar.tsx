@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 
+import { normalizePhone } from "@nuoma/contracts";
 import {
   Animate,
   Avatar,
@@ -423,7 +424,8 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
 
   const displayTitle = conversationDisplayTitle(conversation);
   const identity = conversationIdentityLine(conversation);
-  const phone = conversation.externalThreadId.replace(/\D/g, "");
+  const phone =
+    normalizePhone(conversation.waJid) ?? normalizePhone(conversation.externalThreadId) ?? "";
   const initials = displayTitle.slice(0, 2).toUpperCase();
   const profilePhotoShortHash = conversation.profilePhotoSha256?.slice(0, 12) ?? null;
   const avatarUrl = mediaAssetUrl(
