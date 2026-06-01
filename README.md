@@ -219,9 +219,10 @@ checkboxes below parseable.
 - [~] **Sequential-per-contact runtime** - Current worker claim/drain logic keeps
   the same canonical target serialized, opens/verifies the WhatsApp contact
   once per send chain and drains campaign batch siblings through the same
-  contact session. The remaining proof is a browser-real acceptance that every
-  due step executes without navigation/refresh before the worker moves to the
-  next contact.
+  contact session. The campaign proof parser now rejects follow-up steps that
+  do not report `reused-open-chat`. The remaining proof is a browser-real
+  acceptance that every due step executes without navigation/refresh before the
+  worker moves to the next contact.
 - [~] **UI/product polish** - Campaign canvas, inbox filters, `/operations`,
   contact inline validation, automation dry-run validation and automation
   canvas proof exist; campaign builder, automation canvas and operations mobile
@@ -437,6 +438,7 @@ npm run test --workspace @nuoma/worker -- src/instagram/guard.test.ts src/instag
 npm run test:contact-identity-raw-sql
 npm run test:worker-contact-session
 npm run test:send-audit-retention
+npm run test:m303-campaign-retry-performance-proof-smoke
 npm run test:v211-operations-mobile
 ```
 
