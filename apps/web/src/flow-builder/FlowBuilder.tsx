@@ -2137,6 +2137,17 @@ export function AutomationFlowBuilder() {
             </div>
           </div>
 
+          <AutomationFlowCanvasBoard
+            triggerType={triggerType}
+            triggerChannel={triggerChannel}
+            requireWithin24hWindow={requireWithin24hWindow}
+            segmentEnabled={segmentEnabled}
+            segmentCount={segmentDrafts.length}
+            actions={actions}
+            previewActions={previewActions}
+            previewError={previewError}
+          />
+
           <div className="grid gap-3 md:grid-cols-2">
             <LabeledField label="Nome">
               <Input value={name} onChange={(event) => setName(event.target.value)} />
@@ -2244,6 +2255,398 @@ export function AutomationFlowBuilder() {
       </div>
     </Card>
   );
+}
+
+function AutomationFlowCanvasBoard({
+  triggerType,
+  triggerChannel,
+  requireWithin24hWindow,
+  segmentEnabled,
+  segmentCount,
+  actions,
+  previewActions,
+  previewError,
+}: {
+  triggerType: AutomationTrigger["type"];
+  triggerChannel: ChannelType;
+  requireWithin24hWindow: boolean;
+  segmentEnabled: boolean;
+  segmentCount: number;
+  actions: ActionDraft[];
+  previewActions: AutomationAction[];
+  previewError: string | null;
+}) {
+  const graph = useMemo(
+    () =>
+      buildAutomationFlowGraph({
+        triggerType,
+        triggerChannel,
+        requireWithin24hWindow,
+        segmentEnabled,
+        segmentCount,
+        actions,
+        previewActions,
+        previewError,
+      }),
+    [
+      actions,
+      previewActions,
+      previewError,
+      requireWithin24hWindow,
+      segmentCount,
+      segmentEnabled,
+      triggerChannel,
+      triggerType,
+    ],
+  );
+  const [nodes, setNodes, onNodesChange] = useNodesState<AutomationCanvasNode>(graph.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(graph.edges);
+
+  useEffect(() => {
+    setNodes(graph.nodes);
+    setEdges(graph.edges);
+  }, [graph.edges, graph.nodes, setEdges, setNodes]);
+
+  return (
+    <div
+      className="nuoma-flow-v2-board nuoma-automation-canvas-board"
+      data-testid="automation-flow-canvas-board"
+    >
+      <div className="nuoma-flow-v2-board-toolbar" aria-label="Ferramentas do canvas de automação">
+        <button type="button" aria-label="Selecionar" className="is-active" title="Selecionar">
+          <MousePointer2 className="h-4 w-4" />
+        </button>
+        <button type="button" aria-label="Ajustar tela" title="Ajustar tela">
+          <Maximize2 className="h-4 w-4" />
+        </button>
+        <span className="nuoma-flow-v2-toolbar-divider" />
+        <button type="button" aria-label="Canvas de automação bloqueado" title="Canvas bloqueado">
+          <LockKeyhole className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="nuoma-flow-v2-reactflow" data-testid="automation-xyflow-canvas">
+        <ReactFlow<AutomationCanvasNode, Edge>
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={automationFlowNodeTypes}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          fitView
+          fitViewOptions={{ padding: 0.28, includeHiddenNodes: false }}
+          minZoom={0.38}
+          maxZoom={1.35}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable
+          panOnScroll
+          preventScrolling={false}
+        >
+          <Background color="rgba(133, 160, 176, 0.22)" gap={28} size={1.15} />
+          <MiniMap
+            pannable
+            zoomable
+            className="nuoma-flow-v2-xy-minimap"
+            nodeColor={(node) => flowToneColor((node as AutomationCanvasNode).data.tone)}
+          />
+          <Controls className="nuoma-flow-v2-xy-controls" showInteractive={false} />
+        </ReactFlow>
+      </div>
+    </div>
+  );
+}
+
+type AutomationCanvasIconType = AutomationTrigger["type"] | BuilderActionType | "condition" | "end";
+
+type AutomationCanvasNodeData = {
+  label: string;
+  meta: string;
+  summary: string;
+  iconType: AutomationCanvasIconType;
+  tone: CampaignCanvasTone;
+  kind: "trigger" | "condition" | "action" | "branch" | "end" | "error";
+  actionType?: BuilderActionType;
+};
+
+type AutomationCanvasNode = Node<AutomationCanvasNodeData, "automationCanvas">;
+
+const automationFlowNodeTypes: NodeTypes = {
+  automationCanvas: AutomationFlowNode,
+};
+
+function AutomationFlowNode({ data }: NodeProps<AutomationCanvasNode>) {
+  const Icon = automationCanvasIcon(data.iconType);
+  const isTrigger = data.kind === "trigger";
+  const isEnd = data.kind === "end";
+  return (
+    <div
+      className={cn(
+        "nuoma-flow-v2-xy-node",
+        `nuoma-flow-v2-xy-node-${data.tone}`,
+        data.kind === "branch" && "nuoma-flow-v2-xy-node-branch",
+      )}
+      data-testid="automation-canvas-node"
+      data-automation-node-kind={data.kind}
+      data-action-type={data.actionType}
+    >
+      {!isTrigger ? <Handle type="target" position={Position.Left} /> : null}
+      <div className="nuoma-flow-v2-xy-node-head">
+        <span className="nuoma-flow-v2-xy-node-icon">
+          <Icon className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <div className="nuoma-flow-v2-xy-node-title">{data.label}</div>
+          <div className="nuoma-flow-v2-xy-node-meta">
+            {data.meta.split("\n").map((line) => (
+              <span key={line}>{line}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="nuoma-flow-v2-xy-node-summary">{data.summary}</div>
+      {data.kind === "branch" ? (
+        <div className="nuoma-flow-v2-xy-branch-row">
+          <button type="button" className="nodrag">
+            Sim
+          </button>
+          <button type="button" className="nodrag">
+            Não
+          </button>
+        </div>
+      ) : null}
+      {!isEnd ? <Handle type="source" position={Position.Right} /> : null}
+    </div>
+  );
+}
+
+function buildAutomationFlowGraph(inputGraph: {
+  triggerType: AutomationTrigger["type"];
+  triggerChannel: ChannelType;
+  requireWithin24hWindow: boolean;
+  segmentEnabled: boolean;
+  segmentCount: number;
+  actions: ActionDraft[];
+  previewActions: AutomationAction[];
+  previewError: string | null;
+}): { nodes: AutomationCanvasNode[]; edges: Edge[] } {
+  const rowGap = 138;
+  const hasCondition = inputGraph.segmentEnabled || inputGraph.requireWithin24hWindow;
+  const actionX = hasCondition ? 660 : 360;
+  const endX = actionX + 360;
+  const actionCount = Math.max(inputGraph.actions.length, 1);
+  const startY = Math.max(58, (Math.min(actionCount, 4) * rowGap) / 2 - 42);
+  const previewById = new Map(inputGraph.previewActions.map((action) => [action.id, action]));
+  const actionIds = new Set(inputGraph.actions.map((action) => action.id));
+  const nodes: AutomationCanvasNode[] = [
+    {
+      id: "automation-trigger",
+      type: "automationCanvas",
+      position: { x: 36, y: startY },
+      data: {
+        label: automationTriggerLabel(inputGraph.triggerType),
+        meta: `Trigger\n${inputGraph.triggerChannel}`,
+        summary: `Entrada ${inputGraph.triggerType} em ${inputGraph.triggerChannel}.`,
+        iconType: inputGraph.triggerType,
+        tone: inputGraph.triggerChannel === "instagram" ? "ig" : "wa",
+        kind: "trigger",
+      },
+    },
+  ];
+
+  if (hasCondition) {
+    const gates = [
+      inputGraph.segmentEnabled ? `${inputGraph.segmentCount} regra(s) de segmento` : null,
+      inputGraph.requireWithin24hWindow ? "janela 24h exigida" : null,
+    ].filter(Boolean);
+    nodes.push({
+      id: "automation-condition",
+      type: "automationCanvas",
+      position: { x: 360, y: startY },
+      data: {
+        label: "Condição",
+        meta: "Gates\nAND/OR",
+        summary: gates.join(" · ") || "Sem gate ativo.",
+        iconType: "condition",
+        tone: "cyan",
+        kind: "condition",
+      },
+    });
+  }
+
+  inputGraph.actions.forEach((action, index) => {
+    const previewAction = previewById.get(action.id) ?? inputGraph.previewActions[index];
+    const isBranch = action.type === "branch";
+    nodes.push({
+      id: action.id,
+      type: "automationCanvas",
+      position: { x: actionX, y: index * rowGap + 36 },
+      data: {
+        label: previewAction
+          ? automationActionLabel(previewAction)
+          : automationActionDraftLabel(action),
+        meta: `${action.type}\nação ${index + 1}`,
+        summary: previewAction
+          ? automationActionSummary(previewAction)
+          : automationActionDraftCanvasSummary(action),
+        iconType: action.type,
+        tone: automationActionTone(action.type, inputGraph.triggerChannel),
+        kind: isBranch ? "branch" : "action",
+        actionType: action.type,
+      },
+    });
+  });
+
+  if (inputGraph.previewError) {
+    nodes.push({
+      id: "automation-preview-error",
+      type: "automationCanvas",
+      position: { x: actionX, y: inputGraph.actions.length * rowGap + 36 },
+      data: {
+        label: "Revisar ação",
+        meta: "Validação\npreview",
+        summary: inputGraph.previewError,
+        iconType: "condition",
+        tone: "danger",
+        kind: "error",
+      },
+    });
+  }
+
+  nodes.push({
+    id: "automation-end",
+    type: "automationCanvas",
+    position: { x: endX, y: Math.max(36, inputGraph.actions.length * rowGap - 74) },
+    data: {
+      label: "Fim",
+      meta: "Saída\nsem job",
+      summary: "Criar rascunho salva automação, mas não enfileira envio.",
+      iconType: "end",
+      tone: "neutral",
+      kind: "end",
+    },
+  });
+
+  const edges: Edge[] = [];
+  const markerEnd = { type: MarkerType.ArrowClosed, color: "rgba(157, 177, 188, 0.82)" };
+  const defaultEdge = {
+    type: "smoothstep",
+    markerEnd,
+    style: { stroke: "rgba(157, 177, 188, 0.72)", strokeWidth: 2 },
+  };
+  const firstTarget = inputGraph.actions[0]?.id ?? "automation-end";
+
+  edges.push({
+    id: hasCondition ? "trigger-to-condition" : "trigger-to-first",
+    source: "automation-trigger",
+    target: hasCondition ? "automation-condition" : firstTarget,
+    ...defaultEdge,
+  });
+
+  if (hasCondition) {
+    edges.push({
+      id: "condition-to-first",
+      source: "automation-condition",
+      target: firstTarget,
+      label: "ok",
+      ...defaultEdge,
+    });
+  }
+
+  inputGraph.actions.forEach((action, index) => {
+    const nextAction = inputGraph.actions[index + 1];
+    edges.push({
+      id: `${action.id}-next`,
+      source: action.id,
+      target: nextAction?.id ?? "automation-end",
+      label: nextAction ? "próximo" : "concluir",
+      ...defaultEdge,
+    });
+    const targetActionId = action.type === "branch" ? action.branchTargetActionId.trim() : "";
+    if (targetActionId && actionIds.has(targetActionId)) {
+      edges.push({
+        id: `${action.id}-branch`,
+        source: action.id,
+        target: targetActionId,
+        label: action.branchLabel.trim() || "branch",
+        type: "smoothstep",
+        markerEnd,
+        style: { stroke: "rgba(156, 124, 224, 0.86)", strokeWidth: 2 },
+        labelStyle: { fill: "rgb(209, 194, 241)", fontSize: 11, fontWeight: 600 },
+      });
+    }
+  });
+
+  if (inputGraph.previewError) {
+    edges.push({
+      id: "preview-error-to-end",
+      source: "automation-preview-error",
+      target: "automation-end",
+      label: "corrigir",
+      ...defaultEdge,
+      style: { stroke: "rgba(211, 100, 100, 0.76)", strokeWidth: 2 },
+    });
+  }
+
+  return { nodes, edges };
+}
+
+function automationTriggerLabel(type: AutomationTrigger["type"]) {
+  if (type === "campaign_completed") return "Campanha completa";
+  if (type === "tag_applied") return "Tag aplicada";
+  if (type === "tag_removed") return "Tag removida";
+  return "Mensagem recebida";
+}
+
+function automationActionDraftLabel(action: ActionDraft) {
+  if (action.type === "send_step") return action.step.label || "Enviar step";
+  if (action.type === "delay") return action.delayLabel.trim() || "Delay";
+  if (action.type === "branch") return action.branchLabel.trim() || "Branch";
+  if (action.type === "apply_tag") return `Aplicar tag #${action.tagId || "-"}`;
+  if (action.type === "remove_tag") return `Remover tag #${action.tagId || "-"}`;
+  if (action.type === "set_status") return `Status ${action.status || "-"}`;
+  if (action.type === "create_reminder") return action.reminderTitle || "Criar lembrete";
+  if (action.type === "notify_attendant") return "Notificar atendente";
+  return `Disparar automação #${action.triggerAutomationId || "-"}`;
+}
+
+function automationActionDraftCanvasSummary(action: ActionDraft) {
+  if (action.type === "send_step") return stepDraftCanvasSummary(action.step);
+  if (action.type === "delay")
+    return `${action.delayActionSeconds || "0"}s antes das próximas ações`;
+  if (action.type === "branch") {
+    return `${action.branchConditionField} ${action.branchConditionOperator} ${action.branchConditionValue || "-"}`;
+  }
+  if (action.type === "apply_tag" || action.type === "remove_tag") return "Ação de CRM";
+  if (action.type === "set_status") return "Atualiza status do contato";
+  if (action.type === "create_reminder") return action.dueAt || "Data pendente";
+  if (action.type === "notify_attendant") return action.notifyMessage || "Notificação pendente";
+  return "Aciona automação filha com guarda anti-loop";
+}
+
+function automationActionTone(type: BuilderActionType, channel: ChannelType): CampaignCanvasTone {
+  if (type === "branch") return "violet";
+  if (type === "delay" || type === "create_reminder") return "cyan";
+  if (type === "send_step") return channel === "instagram" ? "ig" : "wa";
+  if (type === "notify_attendant" || type === "trigger_automation") return "violet";
+  return "neutral";
+}
+
+function automationCanvasIcon(iconType: AutomationCanvasIconType) {
+  if (iconType === "message_received") return PlayCircle;
+  if (iconType === "campaign_completed") return Flag;
+  if (iconType === "tag_applied") return BadgeCheck;
+  if (iconType === "tag_removed") return Trash2;
+  if (iconType === "condition") return ShieldCheck;
+  if (iconType === "end") return Flag;
+  if (iconType === "send_step") return Send;
+  if (iconType === "delay") return Clock;
+  if (iconType === "branch") return GitBranch;
+  if (iconType === "apply_tag") return BadgeCheck;
+  if (iconType === "remove_tag") return Trash2;
+  if (iconType === "set_status") return CheckCircle2;
+  if (iconType === "create_reminder") return Bell;
+  if (iconType === "notify_attendant") return Bell;
+  return Route;
 }
 
 function AutomationStudioInspector({

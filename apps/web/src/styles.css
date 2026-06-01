@@ -2681,6 +2681,15 @@ body:has(.nuoma-concept-app)::before {
   min-height: calc(100vh - 12rem);
 }
 
+.nuoma-automation-canvas-board {
+  min-height: 29rem;
+  min-width: 0;
+  border-radius: 0.75rem;
+  box-shadow:
+    inset 0 0 0 1px rgba(92, 112, 129, 0.22),
+    0 22px 58px rgba(0, 0, 0, 0.2);
+}
+
 .nuoma-automation-studio [data-testid="automation-action-row"] > .grid {
   grid-template-columns: minmax(0, 1fr) !important;
 }

@@ -222,10 +222,10 @@ checkboxes below parseable.
   chat without refresh, and only then moving to the next contact is not yet a
   dedicated contact-session runner.
 - [~] **UI/product polish** - Campaign canvas, inbox filters, `/operations`,
-  contact inline validation and automation dry-run validation exist; campaign
-  builder and operations mobile smokes cover the current critical mobile
-  surfaces. `CampaignsPage.tsx` now delegates overview, dispatch and recipients
-  panels, but automations do not yet have the same canvas model and broader
+  contact inline validation, automation dry-run validation and automation
+  canvas proof exist; campaign builder, automation canvas and operations mobile
+  smokes cover the current critical mobile surfaces. `CampaignsPage.tsx` now
+  delegates overview, dispatch and recipients panels, but broader
   form-validation proof remains pending.
 
 ## Falta
