@@ -11,9 +11,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  EmptyState,
-  ErrorState,
-  LoadingState,
   Tabs,
   TabsContent,
   TabsList,
@@ -24,19 +21,12 @@ import {
 import { trpc } from "../lib/trpc.js";
 import { CampaignFlowBuilder } from "../flow-builder/FlowBuilder.js";
 import { CampaignsOverviewPanel } from "../campaigns/CampaignsOverviewPanel.js";
-import { SafeRemarketingConsole } from "../campaigns/SafeRemarketingConsole.js";
 import {
-  CampaignAbVariantsPanel,
-  CampaignEvergreenPanel,
-  CampaignMetric,
-  CampaignPauseResumePanel,
-  CampaignRecipientsVirtualTable,
-  CampaignStepStatsPanel,
-  Metric,
-  evergreenEvaluationSummary,
-  formatDuration,
-  pauseResumeSummary,
-} from "../campaigns/CampaignOperationalPanels.js";
+  CampaignsRecipientsPanel,
+  isCampaignOverlayEnabled,
+} from "../campaigns/CampaignsRecipientsPanel.js";
+import { SafeRemarketingConsole } from "../campaigns/SafeRemarketingConsole.js";
+import { CampaignMetric, Metric } from "../campaigns/CampaignOperationalPanels.js";
 
 type CampaignTickResult = inferRouterOutputs<AppRouter>["campaigns"]["tick"];
 type RemarketingBatchInput = inferRouterInputs<AppRouter>["campaigns"]["remarketingBatchReady"];
@@ -185,7 +175,7 @@ export function CampaignsPage() {
   const updateCampaign = trpc.campaigns.update.useMutation({
     async onSuccess(result) {
       await utils.campaigns.list.invalidate();
-      const enabled = isOverlayEnabled(result.campaign?.metadata ?? {});
+      const enabled = isCampaignOverlayEnabled(result.campaign?.metadata ?? {});
       toast.push({
         title: enabled ? "Overlay liberado" : "Overlay removido",
         description: result.campaign
@@ -255,7 +245,7 @@ export function CampaignsPage() {
     tick.mutate({ dryRun: false, campaignId: input.campaignId, confirmText: confirmation });
   };
   const toggleCampaignOverlay = (campaign: CampaignListItem) => {
-    const enabled = !isOverlayEnabled(campaign.metadata);
+    const enabled = !isCampaignOverlayEnabled(campaign.metadata);
     updateCampaign.mutate({
       id: campaign.id,
       metadata: {
@@ -524,157 +514,32 @@ export function CampaignsPage() {
 
         <TabsContent value="recipients" className="space-y-4">
           <Animate preset="rise-in" delaySeconds={0.1}>
-            <Card>
-              <CardHeader>
-                <CardTitle>Existentes</CardTitle>
-                <CardDescription>
-                  {campaigns.data ? `${campaigns.data.campaigns.length} campanhas` : "—"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {campaigns.isLoading ? (
-                  <LoadingState />
-                ) : campaigns.error ? (
-                  <ErrorState description={campaigns.error.message} />
-                ) : !campaigns.data || campaigns.data.campaigns.length === 0 ? (
-                  <EmptyState
-                    title="Nenhuma campanha"
-                    description="Crie um rascunho no builder acima."
-                  />
-                ) : (
-                  <ul className="flex flex-col gap-1">
-                    {campaigns.data.campaigns.map((c) => (
-                      <li
-                        key={c.id}
-                        className="rounded-lg px-3 py-3 transition-shadow hover:bg-bg-base hover:shadow-flat"
-                        data-testid="campaign-list-item"
-                        data-campaign-id={c.id}
-                        data-campaign-status={c.status}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="truncate text-sm">{c.name}</div>
-                            <div className="font-mono text-xs text-fg-dim">
-                              {c.steps.length} step(s) · {c.recipients.length} recipient(s)
-                            </div>
-                          </div>
-                          <div className="flex shrink-0 flex-wrap justify-end gap-1">
-                            {c.evergreen && <Badge variant="cyan">evergreen</Badge>}
-                            <Badge variant={isOverlayEnabled(c.metadata) ? "success" : "neutral"}>
-                              overlay {isOverlayEnabled(c.metadata) ? "sim" : "não"}
-                            </Badge>
-                            <Badge variant={c.status === "running" ? "success" : "neutral"}>
-                              {c.status}
-                            </Badge>
-                          </div>
-                        </div>
-                        <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-                          {isPausableCampaign(c.status) && (
-                            <Button
-                              variant="ghost"
-                              size="xs"
-                              data-testid="campaign-pause-button"
-                              data-campaign-id={c.id}
-                              loading={
-                                pauseCampaign.isPending && pauseCampaign.variables?.id === c.id
-                              }
-                              onClick={() =>
-                                pauseCampaign.mutate({
-                                  id: c.id,
-                                  reason: "manual_pause_v2.10.9",
-                                })
-                              }
-                            >
-                              Pausar
-                            </Button>
-                          )}
-                          {isResumableCampaign(c.status) && (
-                            <Button
-                              variant="accent"
-                              size="xs"
-                              data-testid="campaign-resume-button"
-                              data-campaign-id={c.id}
-                              loading={
-                                resumeCampaign.isPending && resumeCampaign.variables?.id === c.id
-                              }
-                              onClick={() => resumeCampaign.mutate({ id: c.id })}
-                            >
-                              Retomar
-                            </Button>
-                          )}
-                          <Button
-                            variant={isOverlayEnabled(c.metadata) ? "soft" : "accent"}
-                            size="xs"
-                            data-testid="campaign-overlay-toggle"
-                            data-campaign-id={c.id}
-                            loading={
-                              updateCampaign.isPending && updateCampaign.variables?.id === c.id
-                            }
-                            onClick={() => toggleCampaignOverlay(c)}
-                          >
-                            Overlay {isOverlayEnabled(c.metadata) ? "não" : "sim"}
-                          </Button>
-                          <Button
-                            variant="soft"
-                            size="xs"
-                            data-testid="campaign-preview-button"
-                            data-campaign-id={c.id}
-                            loading={isCampaignTickPending(c.id, true)}
-                            onClick={() => tick.mutate({ dryRun: true, campaignId: c.id })}
-                          >
-                            Prévia
-                          </Button>
-                          <Button
-                            variant="soft"
-                            size="xs"
-                            data-testid="campaign-enqueue-button"
-                            data-campaign-id={c.id}
-                            disabled={!isPausableCampaign(c.status)}
-                            loading={isCampaignTickPending(c.id, false)}
-                            onClick={() => runConfirmedTick({ campaignId: c.id, label: c.name })}
-                          >
-                            Enfileirar
-                          </Button>
-                        </div>
-                        <CampaignPauseResumePanel
-                          campaignId={c.id}
-                          summary={pauseResumeSummary(c.metadata)}
-                        />
-                        <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
-                          <CampaignMetric label="eventos" value={c.metrics.timelineEvents} />
-                          <CampaignMetric label="ok" value={c.metrics.completedSteps} />
-                          <CampaignMetric label="falhas" value={c.metrics.failedSteps} />
-                          <CampaignMetric label="navegou" value={c.metrics.navigatedSteps} />
-                          <CampaignMetric label="reuso" value={c.metrics.reusedOpenChatSteps} />
-                          <CampaignMetric
-                            label="tempo"
-                            value={formatDuration(c.metrics.durationSeconds)}
-                          />
-                        </div>
-                        {c.stepStats.length > 0 && (
-                          <CampaignStepStatsPanel campaignId={c.id} stats={c.stepStats} />
-                        )}
-                        {c.abTest && (
-                          <CampaignAbVariantsPanel campaignId={c.id} abTest={c.abTest} />
-                        )}
-                        {c.evergreen && (
-                          <CampaignEvergreenPanel
-                            campaignId={c.id}
-                            summary={evergreenEvaluationSummary(c.metadata)}
-                          />
-                        )}
-                        {c.recipients.length > 0 && (
-                          <CampaignRecipientsVirtualTable
-                            campaignId={c.id}
-                            recipients={c.recipients}
-                          />
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
+            <CampaignsRecipientsPanel
+              campaigns={campaigns.data?.campaigns ?? []}
+              loading={campaigns.isLoading}
+              error={campaigns.error?.message ?? null}
+              onPause={(campaignId) =>
+                pauseCampaign.mutate({
+                  id: campaignId,
+                  reason: "manual_pause_v2.10.9",
+                })
+              }
+              onResume={(campaignId) => resumeCampaign.mutate({ id: campaignId })}
+              onToggleOverlay={toggleCampaignOverlay}
+              onPreview={(campaignId) => tick.mutate({ dryRun: true, campaignId })}
+              onEnqueue={(campaignId, label) => runConfirmedTick({ campaignId, label })}
+              isPausePending={(campaignId) =>
+                pauseCampaign.isPending && pauseCampaign.variables?.id === campaignId
+              }
+              isResumePending={(campaignId) =>
+                resumeCampaign.isPending && resumeCampaign.variables?.id === campaignId
+              }
+              isOverlayPending={(campaignId) =>
+                updateCampaign.isPending && updateCampaign.variables?.id === campaignId
+              }
+              isPreviewPending={(campaignId) => isCampaignTickPending(campaignId, true)}
+              isEnqueuePending={(campaignId) => isCampaignTickPending(campaignId, false)}
+            />
           </Animate>
         </TabsContent>
       </Tabs>
@@ -687,10 +552,6 @@ function usePageIntent() {
     if (typeof window === "undefined") return null;
     return new URLSearchParams(window.location.search).get("intent");
   }, []);
-}
-
-function isOverlayEnabled(metadata: Record<string, unknown>): boolean {
-  return metadata.overlayEnabled === true;
 }
 
 function initialCampaignIdFromUrl() {
@@ -760,12 +621,4 @@ function initialCampaignTabFromUrl(intent: string | null): CampaignTab {
   }
   if (intent === "enqueue") return "dispatch";
   return initialCampaignIdFromUrl() ? "dispatch" : "builder";
-}
-
-function isPausableCampaign(status: string) {
-  return status === "running" || status === "scheduled";
-}
-
-function isResumableCampaign(status: string) {
-  return status === "paused" || status === "draft";
 }
