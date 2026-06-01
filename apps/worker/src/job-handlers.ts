@@ -105,9 +105,8 @@ export async function handleJob(job: Job, context: JobHandlerContext): Promise<v
       await handleSendInstagramMessageJob(job, context);
       return;
     case "chatbot_reply":
-      throw new PermanentJobError(
-        `${job.type} is intentionally disabled in V2.5 safe worker base; no message was sent`,
-      );
+      await handleChatbotReplyJob(job, context);
+      return;
     case "sync_conversation":
     case "sync_history":
     case "sync_inbox_force":
@@ -2402,6 +2401,51 @@ async function handleSendMessageJob(job: Job, context: JobHandlerContext): Promi
   });
 }
 
+async function handleChatbotReplyJob(job: Job, context: JobHandlerContext): Promise<void> {
+  const conversationId = numberFromPayload(job.payload.conversationId);
+  if (!conversationId) {
+    throw new PermanentJobError("chatbot_reply requires payload.conversationId");
+  }
+  const body = chatbotReplyBodyFromPayload(job);
+  if (!body) {
+    throw new PermanentJobError("chatbot_reply requires non-empty reply text");
+  }
+  const conversation = await context.repos.conversations.findById({
+    userId: job.userId,
+    id: conversationId,
+  });
+  if (!conversation) {
+    throw new PermanentJobError("chatbot_reply conversation not found");
+  }
+
+  const result =
+    conversation.channel === "instagram"
+      ? await sendInstagramTextToConversation(job, context, {
+          conversationId,
+          body,
+          reason: "chatbot_reply",
+        })
+      : await sendTextToConversation(job, context, {
+          conversationId,
+          phoneInput: typeof job.payload.phone === "string" ? job.payload.phone : null,
+          body,
+          reason: "chatbot_reply",
+        });
+
+  await context.repos.systemEvents.create({
+    userId: job.userId,
+    type: "sender.chatbot_reply.completed",
+    severity: "info",
+    payload: JSON.stringify({
+      jobId: job.id,
+      chatbotId: numberFromPayload(job.payload.chatbotId),
+      ruleId: numberFromPayload(job.payload.ruleId),
+      sourceMessageId: numberFromPayload(job.payload.sourceMessageId),
+      ...result,
+    }),
+  });
+}
+
 async function sendInstagramTextToConversation(
   job: Job,
   context: JobHandlerContext,
@@ -3480,6 +3524,29 @@ function stringFromPayload(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function chatbotReplyBodyFromPayload(job: Job): string {
+  const variables = variablesFromPayload(job.payload.variables);
+  const direct =
+    stringFromPayload(job.payload.body) ??
+    stringFromPayload(job.payload.text) ??
+    stringFromPayload(job.payload.message);
+  if (direct) {
+    return renderJobTemplate("chatbot_reply", direct, variables);
+  }
+
+  const step = campaignStepSchema.safeParse(job.payload.step);
+  if (!step.success) {
+    return "";
+  }
+  if (step.data.type === "text") {
+    return renderJobTemplate("chatbot_reply", step.data.template, variables);
+  }
+  if (step.data.type === "link") {
+    return renderJobTemplate("chatbot_reply", `${step.data.text}\n${step.data.url}`, variables);
+  }
+  return "";
+}
+
 function campaignJobAuditTarget(job: Job, phone: string | null): Record<string, string | null> {
   const instagramHandle =
     normalizeInstagramHandle(stringFromPayload(job.payload.instagramHandle)) ??
@@ -3623,6 +3690,14 @@ function variablesFromPayload(value: unknown): Record<string, string> {
 }
 
 function renderTemplate(template: string, variables: Record<string, string>): string {
+  return renderJobTemplate("campaign_step", template, variables);
+}
+
+function renderJobTemplate(
+  context: "campaign_step" | "chatbot_reply",
+  template: string,
+  variables: Record<string, string>,
+): string {
   const missing = new Set<string>();
   const rendered = template.replace(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g, (match, key: string) => {
     if (!Object.hasOwn(variables, key)) {
@@ -3632,13 +3707,11 @@ function renderTemplate(template: string, variables: Record<string, string>): st
     return variables[key] ?? "";
   });
   if (missing.size > 0) {
-    throw new PermanentJobError(
-      `campaign_step missing template variables: ${[...missing].join(", ")}`,
-    );
+    throw new PermanentJobError(`${context} missing template variables: ${[...missing].join(", ")}`);
   }
   const body = rendered.trim();
   if (!body) {
-    throw new PermanentJobError("campaign_step rendered an empty message");
+    throw new PermanentJobError(`${context} rendered an empty message`);
   }
   return body;
 }

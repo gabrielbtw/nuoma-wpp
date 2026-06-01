@@ -1881,6 +1881,128 @@ describe("worker job loop", () => {
     ]);
   });
 
+  it("dispatches WhatsApp chatbot_reply jobs through the guarded text sender", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-chatbot-reply-wa",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_ALLOWED_PHONE: "5531982066263",
+    });
+    const user = await repos.users.create({
+      email: "chatbot-reply-wa@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      title: "Gabriel Braga Nuoma",
+    });
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "chatbot_reply",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        phone: "31982066263",
+        body: "Oi {{nome}}, resposta automática.",
+        variables: { nome: "Gabriel" },
+        chatbotId: 10,
+        ruleId: 20,
+        sourceMessageId: 30,
+        idempotencyKey: "chatbot_reply:test-wa",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    if (!job) {
+      throw new Error("expected chatbot_reply job to be created");
+    }
+    const calls: unknown[] = [];
+
+    await handleJob(job, {
+      env,
+      db,
+      repos,
+      logger,
+      sync: {
+        connected: true,
+        metrics: {} as never,
+        forceConversation: async () => {
+          throw new Error("unexpected force sync");
+        },
+        sendTextMessage: async (input) => {
+          calls.push(input);
+          return {
+            mode: "text-message",
+            conversationId: input.conversationId,
+            phone: input.phone,
+            reason: input.reason ?? "chatbot_reply",
+            navigationMode: "reused-open-chat",
+            externalId: "chatbot-wa-after",
+            visibleMessageCountBefore: 1,
+            visibleMessageCountAfter: 2,
+            lastExternalIdBefore: "chatbot-wa-before",
+            lastExternalIdAfter: "chatbot-wa-after",
+          };
+        },
+        sendVoiceMessage: async () => {
+          throw new Error("unexpected voice send");
+        },
+        sendDocumentMessage: async () => {
+          throw new Error("unexpected document send");
+        },
+        sendMediaMessage: async () => {
+          throw new Error("unexpected media send");
+        },
+        close: async () => {},
+      },
+    });
+
+    expect(calls).toEqual([
+      expect.objectContaining({
+        conversationId: conversation.id,
+        phone: "5531982066263",
+        body: "Oi Gabriel, resposta automática.",
+        reason: "chatbot_reply",
+      }),
+    ]);
+    const message = await repos.messages.findByIdempotencyKey({
+      userId: user.id,
+      idempotencyKey: "chatbot_reply:test-wa",
+    });
+    expect(message).toEqual(
+      expect.objectContaining({
+        conversationId: conversation.id,
+        contentType: "text",
+        body: "Oi Gabriel, resposta automática.",
+        status: "sent",
+        externalId: "chatbot-wa-after",
+      }),
+    );
+    const events = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.chatbot_reply.completed",
+    });
+    expect(events).toEqual([
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          jobId: job.id,
+          chatbotId: 10,
+          ruleId: 20,
+          sourceMessageId: 30,
+          reason: "chatbot_reply",
+          externalId: "chatbot-wa-after",
+        }),
+      }),
+    ]);
+  });
+
   it("sends Instagram campaign image steps and materializes the real Direct thread", async () => {
     const repos = createRepositories(db);
     const logger = pino({ level: "silent" });
@@ -1988,6 +2110,106 @@ describe("worker job loop", () => {
         externalId: "ig-mocked-external",
       }),
     );
+  });
+
+  it("dispatches Instagram chatbot_reply jobs inside the 24h browser-driven guard", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-chatbot-reply-ig",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      IG_SEND_ALLOWED_HANDLES: "gabriell_braga",
+    });
+    const user = await repos.users.create({
+      email: "chatbot-reply-ig@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel Braga",
+      phone: null,
+      email: null,
+      primaryChannel: "instagram",
+      instagramHandle: "gabriell_braga",
+      status: "lead",
+      notes: null,
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "instagram",
+      externalThreadId: "ig:gabriell_braga",
+      title: "@gabriell_braga",
+    });
+    await seedInstagramInbound(repos, {
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: contact.id,
+    });
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "chatbot_reply",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        instagramHandle: "gabriell_braga",
+        text: "Resposta automática IG",
+        chatbotId: 11,
+        ruleId: 21,
+        sourceMessageId: 31,
+        idempotencyKey: "chatbot_reply:test-ig",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    if (!job) {
+      throw new Error("expected Instagram chatbot_reply job to be created");
+    }
+
+    await handleJob(job, { env, db, repos, logger });
+
+    expect(sendInstagramTextViaCdp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        username: "gabriell_braga",
+        text: "Resposta automática IG",
+        mediaPaths: [],
+        contentType: "text",
+        reason: "chatbot_reply",
+      }),
+    );
+    const message = await repos.messages.findByIdempotencyKey({
+      userId: user.id,
+      idempotencyKey: "chatbot_reply:test-ig",
+    });
+    expect(message).toEqual(
+      expect.objectContaining({
+        conversationId: conversation.id,
+        contentType: "text",
+        body: "Resposta automática IG",
+        status: "sent",
+        externalId: "ig-mocked-external",
+      }),
+    );
+    const events = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.chatbot_reply.completed",
+    });
+    expect(events).toEqual([
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          jobId: job.id,
+          chatbotId: 11,
+          ruleId: 21,
+          sourceMessageId: 31,
+          reason: "chatbot_reply",
+          externalId: "ig-mocked-external",
+        }),
+      }),
+    ]);
   });
 
   it("marks failed Instagram dispatch drafts and clears terminal campaign awaiting metadata", async () => {
