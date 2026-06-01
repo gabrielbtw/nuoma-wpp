@@ -39,6 +39,9 @@ const ContactsPage = lazy(() =>
 const JobsPage = lazy(() =>
   import("./pages/JobsPage.js").then((module) => ({ default: module.JobsPage })),
 );
+const OperationsPage = lazy(() =>
+  import("./pages/OperationsPage.js").then((module) => ({ default: module.OperationsPage })),
+);
 const ImplementationPage = lazy(() =>
   import("./pages/ImplementationPage.js").then((module) => ({ default: module.ImplementationPage })),
 );
@@ -130,6 +133,12 @@ const jobsRoute = createRoute({
   component: routePage(JobsPage),
 });
 
+const operationsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/operations",
+  component: routePage(OperationsPage),
+});
+
 const implementationRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/implementation",
@@ -163,6 +172,7 @@ const routeTree = rootRoute.addChildren([
     campaignsRoute,
     automationsRoute,
     chatbotsRoute,
+    operationsRoute,
     jobsRoute,
     implementationRoute,
     evidenceRoute,
