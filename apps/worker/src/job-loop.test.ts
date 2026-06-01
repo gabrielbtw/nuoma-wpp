@@ -729,6 +729,266 @@ describe("worker job loop", () => {
     );
   });
 
+  it("drains mixed WhatsApp campaign batch steps in one worker pass without force sync", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const documentPath = path.join(tempDir, "batch-document.pdf");
+    const imagePath = path.join(tempDir, "batch-image.jpg");
+    await fs.writeFile(documentPath, Buffer.from("%PDF-1.4\n% batch document\n"));
+    await fs.writeFile(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xdb, 0x00, 0x43]));
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-mixed-wa-batch-drain",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_ALLOWED_PHONE: "5531982066263",
+    });
+    const user = await repos.users.create({
+      email: "mixed-wa-batch-drain@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel salvo",
+      phone: "31982066263",
+      primaryChannel: "whatsapp",
+      status: "active",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "whatsapp",
+      externalThreadId: "Gabriel salvo no celular",
+      waJid: "5531982066263@s.whatsapp.net",
+      title: "Gabriel salvo no celular",
+    });
+    const documentAsset = await repos.mediaAssets.create({
+      userId: user.id,
+      type: "document",
+      fileName: "batch-document.pdf",
+      mimeType: "application/pdf",
+      sha256: "d".repeat(64),
+      sizeBytes: (await fs.stat(documentPath)).size,
+      durationMs: null,
+      storagePath: documentPath,
+    });
+    const imageAsset = await repos.mediaAssets.create({
+      userId: user.id,
+      type: "image",
+      fileName: "batch-image.jpg",
+      mimeType: "image/jpeg",
+      sha256: "e".repeat(64),
+      sizeBytes: (await fs.stat(imagePath)).size,
+      durationMs: null,
+      storagePath: imagePath,
+    });
+    const basePayload = {
+      campaignId: 303,
+      recipientId: 403,
+      conversationId: conversation.id,
+      phone: "11999999999",
+      campaignBatchId: "mixed-wa-batch-drain",
+      campaignBatchSize: 3,
+      variables: { nome: "Gabriel" },
+    };
+    const textJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        ...basePayload,
+        campaignBatchIndex: 0,
+        isLastStep: false,
+        idempotencyKey: "campaign:mixed-wa-batch-drain:1",
+        step: {
+          id: "mixed-text",
+          label: "Texto",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Oi {{nome}}",
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    const documentJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        ...basePayload,
+        campaignBatchIndex: 1,
+        isLastStep: false,
+        idempotencyKey: "campaign:mixed-wa-batch-drain:2",
+        step: {
+          id: "mixed-document",
+          label: "Documento",
+          type: "document",
+          delaySeconds: 0,
+          conditions: [],
+          mediaAssetId: documentAsset.id,
+          fileName: "procedimento-{{nome}}.pdf",
+          caption: "Documento para {{nome}}",
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:01.000Z",
+      maxAttempts: 2,
+    });
+    const imageJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        ...basePayload,
+        campaignBatchIndex: 2,
+        isLastStep: true,
+        idempotencyKey: "campaign:mixed-wa-batch-drain:3",
+        step: {
+          id: "mixed-image",
+          label: "Imagem",
+          type: "image",
+          delaySeconds: 0,
+          conditions: [],
+          mediaAssetId: imageAsset.id,
+          caption: "Imagem para {{nome}}",
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:02.000Z",
+      maxAttempts: 2,
+    });
+    if (!textJob || !documentJob || !imageJob) {
+      throw new Error("expected mixed WhatsApp campaign_step jobs to be created");
+    }
+    const forceConversation = vi.fn(async () => {
+      throw new Error("unexpected force sync");
+    });
+    const sends: Array<{ kind: string; phone: string; body?: string; fileName?: string }> = [];
+    const sync = {
+      connected: true,
+      metrics: {} as never,
+      forceConversation,
+      sendTextMessage: async (input: {
+        conversationId: number;
+        phone: string;
+        body: string;
+        reason?: string;
+      }) => {
+        sends.push({ kind: "text", phone: input.phone, body: input.body });
+        return {
+          mode: "text-message" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "campaign_step",
+          navigationMode: "reused-open-chat" as const,
+          externalId: "mixed-text-external",
+          visibleMessageCountBefore: 1,
+          visibleMessageCountAfter: 2,
+          lastExternalIdBefore: "before",
+          lastExternalIdAfter: "mixed-text-external",
+        };
+      },
+      sendVoiceMessage: async () => {
+        throw new Error("unexpected voice send");
+      },
+      sendDocumentMessage: async (input: {
+        conversationId: number;
+        phone: string;
+        filePath: string;
+        fileName: string;
+        mimeType: string;
+        caption?: string | null;
+        reason?: string;
+      }) => {
+        sends.push({ kind: "document", phone: input.phone, fileName: input.fileName });
+        return {
+          mode: "document-message" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "campaign_step",
+          navigationMode: "reused-open-chat" as const,
+          externalId: "mixed-document-external",
+          fileName: input.fileName,
+          mimeType: input.mimeType,
+          captionSent: Boolean(input.caption),
+          visibleMessageCountBefore: 2,
+          visibleMessageCountAfter: 3,
+          lastExternalIdBefore: "mixed-text-external",
+          lastExternalIdAfter: "mixed-document-external",
+        };
+      },
+      sendMediaMessage: async (input: {
+        conversationId: number;
+        phone: string;
+        mediaType: "image" | "video";
+        filePath: string;
+        fileName: string;
+        mimeType: string;
+        caption?: string | null;
+        files?: Array<{ filePath: string; fileName: string; mimeType: string }>;
+        reason?: string;
+      }) => {
+        sends.push({ kind: input.mediaType, phone: input.phone, fileName: input.fileName });
+        return {
+          mode: "media-message" as const,
+          contentType: input.mediaType,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "campaign_step",
+          navigationMode: "reused-open-chat" as const,
+          externalId: "mixed-image-external",
+          fileName: input.fileName,
+          mimeType: input.mimeType,
+          fileNames: input.files?.map((file) => file.fileName) ?? [input.fileName],
+          mimeTypes: input.files?.map((file) => file.mimeType) ?? [input.mimeType],
+          mediaCount: input.files?.length ?? 1,
+          captionSent: Boolean(input.caption),
+          visibleMessageCountBefore: 3,
+          visibleMessageCountAfter: 4,
+          lastExternalIdBefore: "mixed-document-external",
+          lastExternalIdAfter: "mixed-image-external",
+        };
+      },
+      close: async () => {},
+    };
+
+    const loop = createJobLoop({
+      env,
+      repos,
+      logger,
+      handlerContext: { env, db, repos, logger, sync },
+    });
+
+    await expect(loop.processOne()).resolves.toBe(true);
+
+    expect(forceConversation).not.toHaveBeenCalled();
+    expect(sends).toEqual([
+      { kind: "text", phone: "5531982066263", body: "Oi Gabriel" },
+      { kind: "document", phone: "5531982066263", fileName: "procedimento-Gabriel.pdf" },
+      { kind: "image", phone: "5531982066263", fileName: "batch-image.jpg" },
+    ]);
+    const completed = await repos.jobs.list(user.id, "completed");
+    expect(completed.map((job) => job.id).sort((a, b) => a - b)).toEqual([
+      textJob.id,
+      documentJob.id,
+      imageJob.id,
+    ]);
+    const drainEvents = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.campaign_step.batch_drained",
+    });
+    expect(drainEvents[0]?.payload).toEqual(
+      expect.objectContaining({
+        rootJobId: textJob.id,
+        campaignBatchId: "mixed-wa-batch-drain",
+        drainedJobs: 2,
+        stopped: false,
+      }),
+    );
+  });
+
   it("does not claim sync jobs when no sync runtime is connected", async () => {
     const repos = createRepositories(db);
     const logger = pino({ level: "silent" });
