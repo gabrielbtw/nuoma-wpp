@@ -4,6 +4,7 @@ import {
   Button,
   EmptyState,
   ErrorState,
+  Field,
   Input,
   LoadingState,
   useToast,
@@ -19,6 +20,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { validateAutomationManualTrigger } from "../automations/manual-trigger-validation.js";
 import { AutomationFlowBuilder } from "../flow-builder/FlowBuilder.js";
 import { trpc } from "../lib/trpc.js";
 
@@ -28,7 +30,15 @@ export function AutomationsPage() {
   const intent = usePageIntent();
   const toast = useToast();
   const [automationId, setAutomationId] = useState("");
-  const [phone, setPhone] = useState("5531982066263");
+  const [phone, setPhone] = useState("31982066263");
+  const [manualTriggerAttempted, setManualTriggerAttempted] = useState(false);
+  const manualTriggerValidation = useMemo(
+    () => validateAutomationManualTrigger({ automationId, phone }),
+    [automationId, phone],
+  );
+  const showAutomationIdError =
+    manualTriggerAttempted && Boolean(manualTriggerValidation.errors.automationId);
+  const showPhoneError = manualTriggerAttempted && Boolean(manualTriggerValidation.errors.phone);
   const trigger = trpc.automations.trigger.useMutation({
     onSuccess(result) {
       toast.push({
@@ -65,14 +75,18 @@ export function AutomationsPage() {
   });
 
   function runDryTrigger() {
-    const id = Number(automationId);
-    if (!Number.isInteger(id) || id <= 0) {
-      toast.push({ title: "Informe o ID da automação", variant: "warning" });
+    setManualTriggerAttempted(true);
+    if (
+      !manualTriggerValidation.valid ||
+      !manualTriggerValidation.automationId ||
+      !manualTriggerValidation.phone
+    ) {
+      toast.push({ title: "Corrija os campos destacados", variant: "warning" });
       return;
     }
     trigger.mutate({
-      id,
-      phone: phone.replace(/\D/g, ""),
+      id: manualTriggerValidation.automationId,
+      phone: manualTriggerValidation.phone,
       dryRun: true,
       allowedPhone: "5531982066263",
     });
@@ -125,18 +139,32 @@ export function AutomationsPage() {
                 </span>
               </div>
               <div className="nuoma-automation-probe">
-                <Input
-                  placeholder="ID automação"
-                  inputMode="numeric"
-                  value={automationId}
-                  onChange={(event) => setAutomationId(event.target.value)}
-                />
-                <Input
-                  placeholder="Telefone"
-                  inputMode="tel"
-                  value={phone}
-                  onChange={(event) => setPhone(event.target.value)}
-                />
+                <Field
+                  label="ID automação"
+                  error={showAutomationIdError ? manualTriggerValidation.errors.automationId : null}
+                >
+                  <Input
+                    placeholder="ID automação"
+                    inputMode="numeric"
+                    value={automationId}
+                    invalid={showAutomationIdError}
+                    aria-invalid={showAutomationIdError}
+                    onChange={(event) => setAutomationId(event.target.value)}
+                  />
+                </Field>
+                <Field
+                  label="Telefone"
+                  error={showPhoneError ? manualTriggerValidation.errors.phone : null}
+                >
+                  <Input
+                    placeholder="Telefone"
+                    inputMode="tel"
+                    value={phone}
+                    invalid={showPhoneError}
+                    aria-invalid={showPhoneError}
+                    onChange={(event) => setPhone(event.target.value)}
+                  />
+                </Field>
                 <Button
                   className="nuoma-automation-primary"
                   loading={trigger.isPending}
