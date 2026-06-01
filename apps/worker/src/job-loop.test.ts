@@ -47,6 +47,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   db.close();
   await fs.rm(tempDir, { recursive: true, force: true });
 });
@@ -3317,6 +3318,134 @@ describe("worker job loop", () => {
         stopped: false,
       }),
     );
+  });
+
+  it("does not claim a far-future campaign batch sibling during drain", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-campaign-batch-future",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_ALLOWED_PHONE: "5531982066263",
+    });
+    const user = await repos.users.create({
+      email: "campaign-batch-future@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      title: "Gabriel Braga Nuoma",
+    });
+    const basePayload = {
+      campaignId: 14,
+      recipientId: 24,
+      conversationId: conversation.id,
+      phone: "5531982066263",
+      campaignBatchId: "batch-future",
+      campaignBatchSize: 2,
+      variables: { nome: "Gabriel" },
+    };
+    const firstJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        ...basePayload,
+        campaignBatchIndex: 0,
+        isLastStep: false,
+        step: {
+          id: "intro",
+          label: "Intro",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Agora {{nome}}",
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    const futureJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        ...basePayload,
+        campaignBatchIndex: 1,
+        isLastStep: true,
+        step: {
+          id: "follow-up",
+          label: "Follow-up",
+          type: "text",
+          delaySeconds: 60,
+          conditions: [],
+          template: "Depois {{nome}}",
+        },
+      },
+      scheduledAt: new Date(Date.now() + 120_000).toISOString(),
+      maxAttempts: 2,
+    });
+    if (!firstJob || !futureJob) {
+      throw new Error("expected future campaign batch jobs");
+    }
+
+    const sendCalls: string[] = [];
+    const sync = {
+      connected: true,
+      metrics: {} as never,
+      forceConversation: async () => {
+        throw new Error("unexpected force sync");
+      },
+      sendTextMessage: async (input: {
+        conversationId: number;
+        phone: string;
+        body: string;
+        reason?: string;
+      }) => {
+        sendCalls.push(input.body);
+        return {
+          mode: "text-message" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "campaign_step",
+          navigationMode: "reused-open-chat" as const,
+          externalId: `external-${sendCalls.length}`,
+          visibleMessageCountBefore: sendCalls.length,
+          visibleMessageCountAfter: sendCalls.length + 1,
+          lastExternalIdBefore: "before",
+          lastExternalIdAfter: `external-${sendCalls.length}`,
+        };
+      },
+      sendVoiceMessage: async () => {
+        throw new Error("unexpected voice send");
+      },
+      sendDocumentMessage: async () => {
+        throw new Error("unexpected document send");
+      },
+      sendMediaMessage: async () => {
+        throw new Error("unexpected media send");
+      },
+      close: async () => {},
+    };
+    const loop = createJobLoop({
+      env,
+      repos,
+      logger,
+      handlerContext: { env, db, repos, logger, sync },
+    });
+
+    await expect(loop.processOne()).resolves.toBe(true);
+
+    expect(sendCalls).toEqual(["Agora Gabriel"]);
+    const jobs = await repos.jobs.list(user.id);
+    expect(jobs.find((job) => job.id === firstJob.id)?.status).toBe("completed");
+    expect(jobs.find((job) => job.id === futureJob.id)?.status).toBe("queued");
   });
 
   it("executes temporary messages control steps without sending a message", async () => {

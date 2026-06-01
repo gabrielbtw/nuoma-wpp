@@ -1,6 +1,5 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { setTimeout as sleep } from "node:timers/promises";
 
 import type { WorkerEnv } from "@nuoma/config";
 import {
@@ -28,6 +27,12 @@ import type {
 import { normalizeInstagramHandle, sendInstagramTextViaCdp } from "./instagram/assisted.js";
 import type { InstagramRuntime } from "./instagram/sync.js";
 import { prepareVoiceAudio } from "./voice/audio.js";
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const CAMPAIGN_BATCH_DRAIN_MAX_WAIT_MS = 30_000;
 
 export interface JobHandlerContext {
   env: WorkerEnv;
@@ -425,7 +430,10 @@ async function drainCampaignStepBatch(
 
     const waitMs = Date.parse(sibling.scheduledAt) - Date.now();
     if (Number.isFinite(waitMs) && waitMs > 0) {
-      await sleep(Math.min(waitMs, 30_000));
+      if (waitMs > CAMPAIGN_BATCH_DRAIN_MAX_WAIT_MS) {
+        return result;
+      }
+      await sleep(waitMs);
     }
 
     const claimed = claimCampaignBatchSibling(context, sibling.id, context.env.WORKER_ID);
@@ -679,9 +687,10 @@ function claimCampaignBatchSibling(
           updated_at = ?
       where id = ?
         and status = 'queued'
+        and scheduled_at <= ?
     `,
     )
-    .run(claimedAt, workerId, claimedAt, jobId);
+    .run(claimedAt, workerId, claimedAt, jobId, claimedAt);
   if (result.changes === 0) {
     return null;
   }
