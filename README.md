@@ -435,6 +435,7 @@ npm run test --workspace @nuoma/worker -- src/sync/handler.test.ts -t "saved-nam
 npm run test --workspace @nuoma/worker -- src/job-loop.test.ts -t "Instagram|token bucket|24h|canonical wa_jid|rate|chatbot_reply"
 npm run test --workspace @nuoma/worker -- src/instagram/guard.test.ts src/instagram/assisted.test.ts src/voice/audio.test.ts
 npm run test:contact-identity-raw-sql
+npm run test:worker-contact-session
 npm run test:v211-operations-mobile
 ```
 

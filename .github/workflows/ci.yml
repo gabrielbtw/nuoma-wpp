@@ -54,3 +54,4 @@ jobs:
           npm run test --workspace @nuoma/worker -- src/job-loop.test.ts -t "Instagram|token bucket|24h|canonical wa_jid|rate"
           npm run test --workspace @nuoma/worker -- src/instagram/guard.test.ts src/instagram/assisted.test.ts src/voice/audio.test.ts
           npm run test:contact-identity-raw-sql
+          npm run test:worker-contact-session
