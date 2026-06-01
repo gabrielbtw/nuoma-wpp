@@ -222,9 +222,10 @@ checkboxes below parseable.
   chat without refresh, and only then moving to the next contact is not yet a
   dedicated contact-session runner.
 - [~] **UI/product polish** - Campaign canvas, inbox filters, `/operations` and
-  contact inline validation exist; automations do not yet have the same canvas
-  model, `CampaignsPage.tsx` still owns substantial orchestration and broader
-  mobile/form-validation proof remains pending.
+  contact inline validation exist; campaign builder and operations mobile smokes
+  cover the current critical mobile surfaces. Automations do not yet have the same
+  canvas model, `CampaignsPage.tsx` still owns substantial orchestration and
+  broader form-validation proof remains pending.
 
 ## Falta
 
@@ -432,6 +433,7 @@ npm run test --workspace @nuoma/worker -- src/sync/handler.test.ts -t "saved-nam
 npm run test --workspace @nuoma/worker -- src/job-loop.test.ts -t "Instagram|token bucket|24h|canonical wa_jid|rate|chatbot_reply"
 npm run test --workspace @nuoma/worker -- src/instagram/guard.test.ts src/instagram/assisted.test.ts src/voice/audio.test.ts
 npm run test:contact-identity-raw-sql
+npm run test:v211-operations-mobile
 ```
 
 Expected coverage rules:

@@ -1,12 +1,5 @@
 import type { inferRouterOutputs } from "@trpc/server";
-import {
-  Activity,
-  AlertTriangle,
-  CheckCircle2,
-  Database,
-  Radio,
-  ServerCog,
-} from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, Database, Radio, ServerCog } from "lucide-react";
 import type { ReactNode } from "react";
 
 import type { AppRouter } from "@nuoma/api";
@@ -90,7 +83,10 @@ export function OperationsPage() {
       </Animate>
 
       <Animate preset="rise-in" delaySeconds={0.06}>
-        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <section
+          className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"
+          data-testid="operations-summary-grid"
+        >
           <OperationTile
             icon={<Radio className="h-4 w-4" />}
             label="WhatsApp CDP"
@@ -125,7 +121,7 @@ export function OperationsPage() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <Animate preset="rise-in" delaySeconds={0.12}>
           <section className="grid gap-4">
-            <Card>
+            <Card data-testid="operations-workers-card">
               <CardHeader>
                 <CardTitle>Workers</CardTitle>
                 <CardDescription>
@@ -145,7 +141,7 @@ export function OperationsPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card data-testid="operations-jobs-card">
               <CardHeader>
                 <CardTitle>Fila recente</CardTitle>
                 <CardDescription>
@@ -156,7 +152,11 @@ export function OperationsPage() {
                 {data.jobs.recent.length === 0 ? (
                   <EmptyState description="Sem jobs recentes." />
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div
+                    className="overflow-x-auto"
+                    tabIndex={0}
+                    aria-label="Tabela de jobs recentes com rolagem horizontal"
+                  >
                     <div className="min-w-[44rem]">
                       <div className="grid grid-cols-[5rem_1fr_7rem_8rem_8rem] gap-3 border-b border-white/10 px-3 pb-2 font-mono text-[0.65rem] uppercase text-fg-dim">
                         <span>ID</span>
@@ -193,7 +193,7 @@ export function OperationsPage() {
 
         <Animate preset="rise-in" delaySeconds={0.18}>
           <aside className="grid content-start gap-4">
-            <Card>
+            <Card data-testid="operations-readiness-card">
               <CardHeader>
                 <CardTitle>Readiness</CardTitle>
                 <CardDescription>Gates mínimos antes de disparar.</CardDescription>
@@ -224,12 +224,10 @@ export function OperationsPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card data-testid="operations-audit-card">
               <CardHeader>
                 <CardTitle>Send audit</CardTitle>
-                <CardDescription>
-                  Últimos eventos estruturados de envio.
-                </CardDescription>
+                <CardDescription>Últimos eventos estruturados de envio.</CardDescription>
               </CardHeader>
               <CardContent>
                 {sendAudit.isLoading ? (
@@ -248,7 +246,7 @@ export function OperationsPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card data-testid="operations-alerts-card">
               <CardHeader>
                 <CardTitle>Alertas</CardTitle>
                 <CardDescription>Warn/error mais recentes.</CardDescription>
@@ -314,7 +312,8 @@ function WorkerRow({ worker }: { worker: WorkerItem }) {
           <span className="truncate font-medium text-fg-primary">{worker.workerId}</span>
         </div>
         <p className="mt-1 truncate text-xs text-fg-muted">
-          {worker.lastError ?? `pid ${worker.pid ?? "—"} · heartbeat ${worker.heartbeatAgeSeconds}s`}
+          {worker.lastError ??
+            `pid ${worker.pid ?? "—"} · heartbeat ${worker.heartbeatAgeSeconds}s`}
         </p>
       </div>
       <Badge variant={status.variant}>{worker.status}</Badge>
