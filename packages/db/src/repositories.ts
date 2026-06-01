@@ -156,6 +156,7 @@ const serialSendJobTypes: NewJob["type"][] = [
   "campaign_step",
   "chatbot_reply",
 ];
+const queuedSendAuditJobTypes = new Set<NewJob["type"]>(serialSendJobTypes);
 
 export interface PushSubscriptionRecord {
   id: number;
@@ -756,6 +757,41 @@ function roundBucketTokens(tokens: number): number {
   return Math.max(0, Math.round(tokens * 1000) / 1000);
 }
 
+function queuedAuditChannel(
+  job: Job,
+  resolvedChannel: NewSendAuditEvent["channel"] | null,
+): NewSendAuditEvent["channel"] {
+  if (resolvedChannel === "whatsapp" || resolvedChannel === "instagram") {
+    return resolvedChannel;
+  }
+  if (
+    job.type === "send_instagram_message" ||
+    normalizeInstagramHandleForAudit(stringFromJson(job.payload.instagramHandle)) ||
+    normalizeInstagramHandleForAudit(stringFromJson(job.payload.username)) ||
+    normalizeInstagramHandleForAudit(stringFromJson(job.payload.recipientNormalizedValue))
+  ) {
+    return "instagram";
+  }
+  return "whatsapp";
+}
+
+function numberFromJson(value: unknown): number | null {
+  const number = typeof value === "number" ? value : Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+function stringFromJson(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizeInstagramHandleForAudit(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+  const handle = value.trim().toLowerCase().replace(/^ig:/, "").replace(/^@/, "");
+  return /^[a-z0-9._]{1,128}$/.test(handle) ? handle : null;
+}
+
 function expectRow<T>(row: T | undefined, context: string): T {
   if (!row) {
     throw new Error(`${context} did not return a row`);
@@ -772,7 +808,115 @@ export function createRepositories(handle: DbHandle) {
       .values({ ...input, payload: encodeJson(input.payload) })
       .onConflictDoNothing()
       .returning();
-    return rows[0] ? mapJob(rows[0]) : null;
+    const row = rows[0];
+    if (!row) {
+      return null;
+    }
+    const job = mapJob(row);
+    await recordQueuedSendAuditForJob(job);
+    return job;
+  }
+
+  async function recordQueuedSendAuditForJob(job: Job): Promise<void> {
+    if (!queuedSendAuditJobTypes.has(job.type)) {
+      return;
+    }
+
+    const conversationId = numberFromJson(job.payload.conversationId);
+    const conversation = conversationId
+      ? await db
+          .select({
+            id: conversations.id,
+            channel: conversations.channel,
+            contactId: conversations.contactId,
+          })
+          .from(conversations)
+          .where(and(eq(conversations.userId, job.userId), eq(conversations.id, conversationId)))
+          .get()
+      : null;
+    const recipientId = numberFromJson(job.payload.recipientId);
+    const recipient = recipientId
+      ? await db
+          .select({
+            campaignId: campaignRecipients.campaignId,
+            contactId: campaignRecipients.contactId,
+            channel: campaignRecipients.channel,
+          })
+          .from(campaignRecipients)
+          .where(
+            and(eq(campaignRecipients.userId, job.userId), eq(campaignRecipients.id, recipientId)),
+          )
+          .get()
+      : null;
+    const campaignId = await existingCampaignId(
+      numberFromJson(job.payload.campaignId) ?? recipient?.campaignId ?? null,
+      job.userId,
+    );
+    const contactId = await existingContactId(
+      numberFromJson(job.payload.contactId) ??
+        conversation?.contactId ??
+        recipient?.contactId ??
+        null,
+      job.userId,
+    );
+    const channel = queuedAuditChannel(job, conversation?.channel ?? recipient?.channel ?? null);
+    const idempotencyKey = stringFromJson(job.payload.idempotencyKey);
+
+    await db.insert(sendAuditEvents).values({
+      userId: job.userId,
+      campaignId,
+      contactId,
+      conversationId: conversation?.id ?? null,
+      messageId: null,
+      jobId: job.id,
+      channel,
+      phase: "queued",
+      latencyMs: null,
+      errorCode: null,
+      errorMessage: null,
+      payloadHash: idempotencyKey ?? job.dedupeKey ?? null,
+      workerId: null,
+      metadata: encodeJson({
+        jobType: job.type,
+        idempotencyKey,
+        dedupeKey: job.dedupeKey,
+        scheduledAt: job.scheduledAt,
+        priority: job.priority,
+        campaignBatchId: stringFromJson(job.payload.campaignBatchId),
+        campaignBatchIndex: numberFromJson(job.payload.campaignBatchIndex),
+        recipientId,
+      }),
+    });
+  }
+
+  async function existingCampaignId(
+    campaignId: number | null,
+    userId: number,
+  ): Promise<number | null> {
+    if (!campaignId) {
+      return null;
+    }
+    const row = await db
+      .select({ id: campaigns.id })
+      .from(campaigns)
+      .where(and(eq(campaigns.userId, userId), eq(campaigns.id, campaignId)))
+      .get();
+    return row?.id ?? null;
+  }
+
+  async function existingContactId(
+    contactId: number | null,
+    userId: number,
+  ): Promise<number | null> {
+    if (!contactId) {
+      return null;
+    }
+    const row = await db
+      .select({ id: contacts.id })
+      .from(contacts)
+      .where(and(eq(contacts.userId, userId), eq(contacts.id, contactId)))
+      .get();
+    return row?.id ?? null;
   }
 
   async function tagIdsForContact(contactId: number): Promise<number[]> {

@@ -969,6 +969,72 @@ describe("repositories", () => {
     });
   });
 
+  it("records a queued send audit event when a send job is created", async () => {
+    const repos = createRepositories(handle);
+    const user = await repos.users.create({
+      email: "queued-send-audit@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Queued Audit",
+      phone: "31982066263",
+      primaryChannel: "whatsapp",
+      status: "active",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263@c.us",
+      title: "Queued Audit",
+    });
+
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        phone: "31982066263",
+        body: "queued audit",
+        idempotencyKey: "manual:queued-audit",
+      },
+      priority: 5,
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 3,
+    });
+    if (!job) {
+      throw new Error("expected send job to be created");
+    }
+
+    const audit = await repos.sendAuditEvents.list({
+      userId: user.id,
+      jobId: job.id,
+      phase: "queued",
+    });
+    expect(audit).toEqual([
+      expect.objectContaining({
+        channel: "whatsapp",
+        campaignId: null,
+        contactId: contact.id,
+        conversationId: conversation.id,
+        messageId: null,
+        jobId: job.id,
+        phase: "queued",
+        payloadHash: "manual:queued-audit",
+        workerId: null,
+        metadata: expect.objectContaining({
+          jobType: "send_message",
+          idempotencyKey: "manual:queued-audit",
+          scheduledAt: "2026-04-30T12:00:00.000Z",
+          priority: 5,
+        }),
+      }),
+    ]);
+  });
+
   it("normalizes legacy v1 campaign steps instead of crashing campaign lists", async () => {
     const repos = createRepositories(handle);
     const user = await repos.users.create({
