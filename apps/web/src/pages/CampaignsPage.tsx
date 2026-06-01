@@ -2,31 +2,16 @@ import { useMemo, useState } from "react";
 import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 
 import type { AppRouter } from "@nuoma/api";
-import {
-  Animate,
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-  useToast,
-} from "@nuoma/ui";
+import { Animate, Button, Tabs, TabsContent, TabsList, TabsTrigger, useToast } from "@nuoma/ui";
 
 import { trpc } from "../lib/trpc.js";
 import { CampaignFlowBuilder } from "../flow-builder/FlowBuilder.js";
+import { CampaignsDispatchPanel } from "../campaigns/CampaignsDispatchPanel.js";
 import { CampaignsOverviewPanel } from "../campaigns/CampaignsOverviewPanel.js";
 import {
   CampaignsRecipientsPanel,
   isCampaignOverlayEnabled,
 } from "../campaigns/CampaignsRecipientsPanel.js";
-import { SafeRemarketingConsole } from "../campaigns/SafeRemarketingConsole.js";
-import { CampaignMetric, Metric } from "../campaigns/CampaignOperationalPanels.js";
 
 type CampaignTickResult = inferRouterOutputs<AppRouter>["campaigns"]["tick"];
 type RemarketingBatchInput = inferRouterInputs<AppRouter>["campaigns"]["remarketingBatchReady"];
@@ -347,7 +332,7 @@ export function CampaignsPage() {
         </TabsContent>
 
         <TabsContent value="dispatch" className="space-y-4">
-          <SafeRemarketingConsole
+          <CampaignsDispatchPanel
             campaigns={campaigns.data?.campaigns ?? []}
             selectedCampaignId={selectedSafeCampaignId}
             selectedValue={safeCampaignId}
@@ -373,137 +358,17 @@ export function CampaignsPage() {
             enqueuePending={
               selectedSafeCampaignId ? isCampaignTickPending(selectedSafeCampaignId, false) : false
             }
+            intent={intent}
+            lastTick={lastTick}
+            globalPreviewPending={isGlobalTickPending(true)}
+            globalEnqueuePending={isGlobalTickPending(false)}
             onReady={runSafeReady}
             onEnqueue={runSafeEnqueue}
             onBatchReady={runBatchReady}
             onBatchDispatch={runBatchDispatch}
+            onGlobalPreview={() => tick.mutate({ dryRun: true })}
+            onGlobalEnqueue={() => runConfirmedTick({ label: "campanhas elegíveis" })}
           />
-
-          {intent === "enqueue" && (
-            <Animate preset="rise-in" delaySeconds={0.08}>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Preparar disparo</CardTitle>
-                  <CardDescription>
-                    A paleta abriu este fluxo em modo seguro. Use prévia antes de enfileirar.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-wrap gap-3">
-                  <Button
-                    variant="accent"
-                    loading={isGlobalTickPending(true)}
-                    onClick={() => tick.mutate({ dryRun: true })}
-                  >
-                    Rodar prévia
-                  </Button>
-                  <Button
-                    variant="soft"
-                    loading={isGlobalTickPending(false)}
-                    onClick={() => runConfirmedTick({ label: "campanhas elegíveis" })}
-                  >
-                    Enfileirar elegíveis
-                  </Button>
-                </CardContent>
-              </Card>
-            </Animate>
-          )}
-
-          {lastTick && (
-            <Animate preset="rise-in" delaySeconds={0.08}>
-              <Card>
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <CardTitle>Último tick</CardTitle>
-                      <CardDescription>
-                        {lastTick.dryRun
-                          ? `${lastTick.plannedJobs.length} job(s) planejado(s), sem alterar fila`
-                          : `${lastTick.jobsCreated} job(s) criado(s)`}
-                      </CardDescription>
-                    </div>
-                    <Badge variant={lastTick.dryRun ? "warning" : "success"}>
-                      {lastTick.dryRun ? "prévia" : "enfileirado"}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-3 md:grid-cols-5">
-                    <Metric label="Campanhas" value={lastTick.campaignsScanned} />
-                    <Metric label="Recipients" value={lastTick.recipientsScanned} />
-                    <Metric
-                      label="Jobs"
-                      value={lastTick.jobsCreated || lastTick.plannedJobs.length}
-                    />
-                    <Metric
-                      label="Evergreen"
-                      value={
-                        lastTick.evergreenRecipientsCreated || lastTick.evergreenRecipientsPlanned
-                      }
-                    />
-                    <Metric label="Pulados" value={lastTick.recipientsSkipped} />
-                  </div>
-                  {lastTick.evergreenCampaignsScanned > 0 && (
-                    <div
-                      className="mt-4 grid gap-2 rounded-lg bg-bg-base p-3 shadow-pressed-sm sm:grid-cols-4"
-                      data-testid="campaign-evergreen-last-tick"
-                      data-planned={lastTick.evergreenRecipientsPlanned}
-                      data-created={lastTick.evergreenRecipientsCreated}
-                    >
-                      <CampaignMetric
-                        label="evergreen campanhas"
-                        value={lastTick.evergreenCampaignsScanned}
-                      />
-                      <CampaignMetric
-                        label="contatos lidos"
-                        value={lastTick.evergreenContactsScanned}
-                      />
-                      <CampaignMetric
-                        label="planejados"
-                        value={lastTick.evergreenRecipientsPlanned}
-                      />
-                      <CampaignMetric label="criados" value={lastTick.evergreenRecipientsCreated} />
-                    </div>
-                  )}
-                  {lastTick.plannedJobs.length > 0 && (
-                    <ul className="mt-4 flex flex-col gap-1">
-                      {lastTick.plannedJobs.map((job) => (
-                        <li
-                          key={`${job.campaignId}-${job.recipientId}-${job.stepId}`}
-                          className="grid gap-2 rounded-lg bg-bg-base px-3 py-2.5 text-xs shadow-flat md:grid-cols-[1fr_auto_auto]"
-                        >
-                          <div className="min-w-0">
-                            <span className="font-mono text-fg-dim">
-                              #{job.campaignId}/{job.recipientId}
-                            </span>{" "}
-                            <span className="text-fg-primary">{job.stepId}</span>
-                            {job.variantId && (
-                              <span className="ml-2 inline-flex rounded-full bg-brand-violet/15 px-2 py-0.5 font-mono text-[0.65rem] text-brand-violet">
-                                A/B {job.variantLabel ?? job.variantId}
-                              </span>
-                            )}
-                          </div>
-                          <span className="font-mono text-fg-muted">{job.phone}</span>
-                          <span className="font-mono text-fg-muted">{job.scheduledAt}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {lastTick.errors.length > 0 && (
-                    <ul className="mt-4 flex flex-col gap-1">
-                      {lastTick.errors.map((error) => (
-                        <li
-                          key={`${error.recipientId}-${error.error}`}
-                          className="text-xs text-semantic-danger"
-                        >
-                          #{error.recipientId}: {error.error}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </CardContent>
-              </Card>
-            </Animate>
-          )}
         </TabsContent>
 
         <TabsContent value="builder" className="space-y-4">
