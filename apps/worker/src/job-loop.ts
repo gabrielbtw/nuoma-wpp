@@ -14,6 +14,7 @@ import {
 } from "./job-handlers.js";
 
 const syncJobTypes: Job["type"][] = ["sync_conversation", "sync_history"];
+const SERIAL_TARGET_DRAIN_LIMIT = 25;
 export interface WorkerMetrics {
   claimed: number;
   completed: number;
@@ -85,14 +86,59 @@ export function createJobLoop(input: {
       return false;
     }
 
+    recordClaimedJob(job);
+
+    await processClaimedJobChain(job, excludeTypes);
+    return true;
+  }
+
+  async function processClaimedJobChain(firstJob: Job, excludeTypes: Job["type"][]): Promise<void> {
+    let job: Job | null = firstJob;
+    let drainedJobs = 0;
+    while (job) {
+      const completed = await processClaimedJob(job);
+      if (!completed || !isSendJobType(job.type)) {
+        return;
+      }
+      if (drainedJobs >= SERIAL_TARGET_DRAIN_LIMIT) {
+        input.logger.warn(
+          { jobId: job.id, type: job.type, drainLimit: SERIAL_TARGET_DRAIN_LIMIT },
+          "serial target drain limit reached",
+        );
+        return;
+      }
+
+      const nextJob = await input.repos.jobs.claimNextDueSerialJobForTarget({
+        workerId: input.env.WORKER_ID,
+        completedJobId: job.id,
+        excludeTypes,
+      });
+      if (!nextJob) {
+        return;
+      }
+      drainedJobs += 1;
+      recordClaimedJob(nextJob, { serialTargetDrainIndex: drainedJobs });
+      job = nextJob;
+    }
+  }
+
+  function recordClaimedJob(job: Job, extra: Record<string, unknown> = {}): void {
     state.metrics.claimed += 1;
     state.currentJobId = job.id;
     state.lastError = null;
     input.logger.info(
-      { jobId: job.id, type: job.type, attempts: job.attempts, maxAttempts: job.maxAttempts },
+      {
+        jobId: job.id,
+        type: job.type,
+        attempts: job.attempts,
+        maxAttempts: job.maxAttempts,
+        ...extra,
+      },
       "job claimed",
     );
+  }
 
+  async function processClaimedJob(job: Job): Promise<boolean> {
     try {
       await handleJob(job, input.handlerContext);
       const completed = await input.repos.jobs.markCompleted(job.id, input.env.WORKER_ID);
@@ -101,7 +147,7 @@ export function createJobLoop(input: {
           { jobId: job.id, type: job.type, workerId: input.env.WORKER_ID },
           "job completion skipped because ownership was lost",
         );
-        return true;
+        return false;
       }
       state.metrics.completed += 1;
       input.logger.info({ jobId: job.id, type: job.type }, "job completed");
@@ -130,7 +176,7 @@ export function createJobLoop(input: {
             "job DLQ transition skipped because ownership was lost",
           );
         }
-        return true;
+        return false;
       }
 
       const retryAfterMs = retryAfterMsForJobError(error);
@@ -160,7 +206,7 @@ export function createJobLoop(input: {
           "job retry release skipped because ownership was lost",
         );
       }
-      return true;
+      return false;
     } finally {
       state.currentJobId = null;
     }

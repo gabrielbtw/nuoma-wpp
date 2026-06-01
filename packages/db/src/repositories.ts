@@ -3112,6 +3112,128 @@ export function createRepositories(handle: DbHandle) {
           .map(mapJob);
       },
 
+      async claimNextDueSerialJobForTarget(input: {
+        workerId: string;
+        completedJobId: number;
+        now?: string;
+        excludeTypes?: NewJob["type"][];
+      }): Promise<Job | null> {
+        const now = input.now ?? nowIso();
+        const claimedAt = nowIso();
+        const excludeTypes = input.excludeTypes ?? [];
+
+        const tx = handle.raw.transaction(() => {
+          const typeFilter =
+            excludeTypes.length > 0
+              ? `AND candidate_jobs.type NOT IN (${excludeTypes.map(() => "?").join(", ")})`
+              : "";
+          const sendTypePlaceholders = serialSendJobTypes.map(() => "?").join(", ");
+          const currentTargetExpr = normalizedJsonSerialTargetSql("current_job");
+          const candidateTargetExpr = normalizedJsonSerialTargetSql("candidate_jobs");
+          const activeTargetExpr = normalizedJsonSerialTargetSql("active_jobs");
+          const candidatePhoneExpr = normalizedJsonPhoneSql("candidate_jobs");
+          const candidateRecipientPhoneExpr = normalizedPhoneSql("candidate_recipients.phone");
+
+          const row = handle.raw
+            .prepare(
+              `SELECT candidate_jobs.id, ${candidateTargetExpr} AS target_key
+               FROM jobs candidate_jobs
+               WHERE candidate_jobs.status = 'queued'
+                 AND candidate_jobs.scheduled_at <= ?
+                 AND candidate_jobs.type IN (${sendTypePlaceholders})
+                 ${typeFilter}
+                 AND ${candidateTargetExpr} != ''
+                 AND ${candidateTargetExpr} = (
+                   SELECT ${currentTargetExpr}
+                   FROM jobs current_job
+                   WHERE current_job.id = ?
+                   LIMIT 1
+                 )
+                 AND NOT (
+                   candidate_jobs.type = 'campaign_step'
+                   AND coalesce(json_extract(candidate_jobs.payload_json, '$.campaignBatchId'), '') != ''
+                   AND EXISTS (
+                     SELECT 1
+                     FROM jobs earlier_campaign_steps
+                     WHERE earlier_campaign_steps.user_id = candidate_jobs.user_id
+                       AND earlier_campaign_steps.type = 'campaign_step'
+                       AND earlier_campaign_steps.id != candidate_jobs.id
+                       AND coalesce(json_extract(earlier_campaign_steps.payload_json, '$.campaignBatchId'), '') =
+                         coalesce(json_extract(candidate_jobs.payload_json, '$.campaignBatchId'), '')
+                       AND cast(coalesce(json_extract(earlier_campaign_steps.payload_json, '$.campaignBatchIndex'), 0) as integer) <
+                         cast(coalesce(json_extract(candidate_jobs.payload_json, '$.campaignBatchIndex'), 0) as integer)
+                       AND earlier_campaign_steps.status != 'completed'
+                   )
+                 )
+                 AND NOT (
+                   candidate_jobs.type = 'campaign_step'
+                   AND coalesce(json_extract(candidate_jobs.payload_json, '$.campaignId'), '') != ''
+                   AND ${candidatePhoneExpr} != ''
+                   AND EXISTS (
+                     SELECT 1
+                     FROM campaign_recipients candidate_recipients
+                     JOIN campaign_recipients earlier_recipients
+                       ON earlier_recipients.user_id = candidate_recipients.user_id
+                      AND earlier_recipients.campaign_id = candidate_recipients.campaign_id
+                      AND earlier_recipients.id < candidate_recipients.id
+                      AND earlier_recipients.status IN ('queued', 'running')
+                     WHERE candidate_recipients.user_id = candidate_jobs.user_id
+                       AND candidate_recipients.campaign_id =
+                         cast(json_extract(candidate_jobs.payload_json, '$.campaignId') as integer)
+                       AND candidate_recipients.channel = 'whatsapp'
+                       AND ${candidateRecipientPhoneExpr} = ${candidatePhoneExpr}
+                   )
+                 )
+                 AND NOT (
+                   EXISTS (
+                     SELECT 1
+                     FROM jobs active_jobs
+                     WHERE active_jobs.id != candidate_jobs.id
+                       AND active_jobs.status IN ('claimed', 'running')
+                       AND active_jobs.type IN (${sendTypePlaceholders})
+                       AND ${activeTargetExpr} = ${candidateTargetExpr}
+                   )
+                 )
+               ORDER BY candidate_jobs.priority ASC, candidate_jobs.scheduled_at ASC, candidate_jobs.id ASC
+               LIMIT 1`,
+            )
+            .get(
+              ...[
+                now,
+                ...serialSendJobTypes,
+                ...excludeTypes,
+                input.completedJobId,
+                ...serialSendJobTypes,
+              ],
+            ) as { id: number; target_key: string | null } | undefined;
+
+          if (!row) {
+            return null;
+          }
+
+          const result = handle.raw
+            .prepare(
+              `UPDATE jobs
+               SET status = 'claimed',
+                   claimed_at = ?,
+                   claimed_by = ?,
+                   attempts = attempts + 1,
+                   updated_at = ?
+               WHERE id = ? AND status = 'queued'`,
+            )
+            .run(claimedAt, input.workerId, claimedAt, row.id);
+
+          return result.changes > 0 ? row.id : null;
+        });
+
+        const id = tx.immediate();
+        if (!id) {
+          return null;
+        }
+        const [row] = await db.select().from(jobs).where(eq(jobs.id, id));
+        return row ? mapJob(row) : null;
+      },
+
       async markCompleted(jobId: number, workerId?: string): Promise<boolean> {
         const completedAt = nowIso();
         const result = workerId

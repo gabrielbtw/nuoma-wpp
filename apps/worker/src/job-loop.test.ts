@@ -175,6 +175,132 @@ describe("worker job loop", () => {
     );
   });
 
+  it("drains the next due job for the same canonical WhatsApp target before polling another contact", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-serial-target-drain",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_ALLOWED_PHONES: "5531982066263,5531999999999",
+    });
+    const user = await repos.users.create({
+      email: "serial-target-drain@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const firstConversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263@c.us",
+      title: "Gabriel salvo",
+    });
+    const otherConversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531999999999@c.us",
+      title: "Outro contato",
+    });
+    await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: firstConversation.id,
+        body: "primeira mensagem do contato",
+        idempotencyKey: "manual:serial-target:first",
+      },
+      priority: 0,
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: otherConversation.id,
+        body: "mensagem de outro contato",
+        idempotencyKey: "manual:serial-target:other",
+      },
+      priority: 0,
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: firstConversation.id,
+        body: "segunda mensagem do mesmo contato",
+        idempotencyKey: "manual:serial-target:second",
+      },
+      priority: 5,
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    const calls: Array<{ conversationId: number; body: string; phone: string }> = [];
+    const sync = {
+      connected: true,
+      metrics: {} as never,
+      forceConversation: async () => {
+        throw new Error("unexpected force sync");
+      },
+      sendTextMessage: async (input: { conversationId: number; body: string; phone: string }) => {
+        calls.push(input);
+        return {
+          mode: "text-message" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: "send_message",
+          navigationMode: "reused-open-chat" as const,
+          externalId: `serial-target-${calls.length}`,
+          visibleMessageCountBefore: calls.length,
+          visibleMessageCountAfter: calls.length + 1,
+          lastExternalIdBefore: calls.length === 1 ? null : `serial-target-${calls.length - 1}`,
+          lastExternalIdAfter: `serial-target-${calls.length}`,
+        };
+      },
+      sendVoiceMessage: async () => {
+        throw new Error("unexpected voice send");
+      },
+      sendDocumentMessage: async () => {
+        throw new Error("unexpected document send");
+      },
+      sendMediaMessage: async () => {
+        throw new Error("unexpected media send");
+      },
+      close: async () => {},
+    };
+
+    const loop = createJobLoop({
+      env,
+      repos,
+      logger,
+      handlerContext: { env, db, repos, logger, sync },
+    });
+
+    await expect(loop.processOne()).resolves.toBe(true);
+
+    expect(loop.state.lastError).toBeNull();
+    expect(calls.map((call) => call.body)).toEqual([
+      "primeira mensagem do contato",
+      "segunda mensagem do mesmo contato",
+    ]);
+    expect(calls.every((call) => call.conversationId === firstConversation.id)).toBe(true);
+    expect(loop.state.metrics.claimed).toBe(2);
+    expect(loop.state.metrics.completed).toBe(2);
+    const queued = await repos.jobs.list(user.id, "queued");
+    expect(queued).toEqual([
+      expect.objectContaining({
+        payload: expect.objectContaining({ conversationId: otherConversation.id }),
+      }),
+    ]);
+  });
+
   it("does not use an Instagram conversation title as the send identity", async () => {
     const repos = createRepositories(db);
     const logger = pino({ level: "silent" });
@@ -3183,9 +3309,10 @@ describe("worker job loop", () => {
     });
 
     await expect(loop.processOne()).resolves.toBe(true);
-    await expect(loop.processOne()).resolves.toBe(true);
 
     expect(calls).toHaveLength(1);
+    expect(loop.state.metrics.claimed).toBe(2);
+    expect(loop.state.metrics.completed).toBe(1);
     expect(loop.state.metrics.dead).toBe(0);
     expect(loop.state.metrics.retried).toBe(1);
     const secondStored = db.raw
