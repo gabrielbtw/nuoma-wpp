@@ -174,6 +174,59 @@ describe("worker job loop", () => {
     );
   });
 
+  it("does not use an Instagram conversation title as the send identity", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-instagram-no-title-identity",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      IG_SEND_ALLOWED_HANDLES: "gabriell_braga",
+    });
+    const user = await repos.users.create({
+      email: "instagram-no-title-identity@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Saved IG Display Name",
+      phone: null,
+      email: null,
+      primaryChannel: "instagram",
+      instagramHandle: null,
+      status: "lead",
+      notes: null,
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "instagram",
+      externalThreadId: "direct-thread-123",
+      title: "@gabriell_braga",
+    });
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "send_instagram_message",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        body: "nao usar titulo",
+        idempotencyKey: "manual:ig-title-not-identity",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 1,
+    });
+    if (!job) throw new Error("expected instagram no-title job");
+
+    await expect(handleJob(job, { env, db, repos, logger })).rejects.toThrow(
+      "send_instagram_message requires instagramHandle or ig thread",
+    );
+    expect(sendInstagramTextViaCdp).not.toHaveBeenCalled();
+  });
+
   it("blocks Instagram sends outside the 24h inbound window before CDP dispatch", async () => {
     const repos = createRepositories(db);
     const logger = pino({ level: "silent" });
@@ -508,10 +561,7 @@ describe("worker job loop", () => {
       }),
     );
     const completed = await repos.jobs.list(user.id, "completed");
-    expect(completed.map((job) => job.id).sort((a, b) => a - b)).toEqual([
-      firstJob.id,
-      nextJob.id,
-    ]);
+    expect(completed.map((job) => job.id).sort((a, b) => a - b)).toEqual([firstJob.id, nextJob.id]);
     const drainEvents = await repos.systemEvents.list({
       userId: user.id,
       type: "sender.campaign_step.batch_drained",
@@ -663,10 +713,7 @@ describe("worker job loop", () => {
       expect.objectContaining({ phone: "5531982066263", body: "Segundo toque Gabriel pelo WA" }),
     ]);
     const completed = await repos.jobs.list(user.id, "completed");
-    expect(completed.map((job) => job.id).sort((a, b) => a - b)).toEqual([
-      firstJob.id,
-      nextJob.id,
-    ]);
+    expect(completed.map((job) => job.id).sort((a, b) => a - b)).toEqual([firstJob.id, nextJob.id]);
     const drainEvents = await repos.systemEvents.list({
       userId: user.id,
       type: "sender.campaign_step.batch_drained",
@@ -775,9 +822,11 @@ describe("worker job loop", () => {
     });
 
     const processed = await guardedLoop.processOne();
-    const released = db.raw.prepare("select status, claimed_at, attempts from jobs where id = ?").get(
-      staleJob.id,
-    ) as { status: string; claimed_at: string | null; attempts: number } | undefined;
+    const released = db.raw
+      .prepare("select status, claimed_at, attempts from jobs where id = ?")
+      .get(staleJob.id) as
+      | { status: string; claimed_at: string | null; attempts: number }
+      | undefined;
 
     expect(processed).toBe(false);
     expect(guardedLoop.state.metrics.reaped).toBe(1);
@@ -1691,7 +1740,9 @@ describe("worker job loop", () => {
       WORKER_JOB_LOOP_ENABLED: "true",
       IG_SEND_ALLOWED_HANDLES: "gabriell_braga",
     });
-    vi.mocked(sendInstagramTextViaCdp).mockRejectedValueOnce(new Error("Instagram composer failed"));
+    vi.mocked(sendInstagramTextViaCdp).mockRejectedValueOnce(
+      new Error("Instagram composer failed"),
+    );
     const user = await repos.users.create({
       email: "instagram-failure@nuoma.local",
       passwordHash: "hash",
@@ -1920,9 +1971,9 @@ describe("worker job loop", () => {
     await loop.processOne();
 
     expect(sendCalls).toBe(1);
-    const storedJob = db.raw.prepare("select status, attempts from jobs where id = ?").get(job.id) as
-      | { status: string; attempts: number }
-      | undefined;
+    const storedJob = db.raw
+      .prepare("select status, attempts from jobs where id = ?")
+      .get(job.id) as { status: string; attempts: number } | undefined;
     expect(storedJob).toEqual({ status: "completed", attempts: 2 });
     const message = await repos.messages.findByIdempotencyKey({
       userId: user.id,

@@ -4168,14 +4168,12 @@ export async function startSyncEngine(input: {
       return false;
     }
     const state = await readActiveSendTargetState();
-    const allowedSelfChatPhones = parseAllowedSendPhones(input.env);
     const canReuse = shouldAllowActiveSendTarget({
       expectedPhone: normalizedPhone,
       state,
       openChatPhone,
       openChatPhoneNavigatedAtMs,
       nowMs: Date.now(),
-      allowedSelfChatPhones,
     });
     if (!canReuse) {
       openChatPhone = null;
@@ -4196,7 +4194,6 @@ export async function startSyncEngine(input: {
     if (!client) {
       throw new Error(`${assertInput.operation} blocked: sync engine is not connected`);
     }
-    const allowedSelfChatPhones = parseAllowedSendPhones(input.env);
     const deadline = Date.now() + 25_000;
     let state = await readActiveSendTargetState();
     let contactInfoChecked = false;
@@ -4208,7 +4205,6 @@ export async function startSyncEngine(input: {
           openChatPhone,
           openChatPhoneNavigatedAtMs,
           nowMs: Date.now(),
-          allowedSelfChatPhones,
           requireLivePhoneEvidence: assertInput.requireLivePhoneEvidence,
         })
       ) {
@@ -4547,18 +4543,11 @@ export function shouldAllowActiveSendTarget(input: {
   openChatPhone: string | null;
   openChatPhoneNavigatedAtMs: number;
   nowMs: number;
-  allowedSelfChatPhones: string[];
-  recentNavigationGraceMs?: number;
   requireLivePhoneEvidence?: boolean;
 }): boolean {
   if (!input.state.hasComposer) {
     return false;
   }
-  const recentNavigationGraceMs = input.recentNavigationGraceMs ?? 45_000;
-  const hasRecentNavigationEvidence =
-    phonesMatchForSendTarget(input.openChatPhone, input.expectedPhone) &&
-    input.nowMs - input.openChatPhoneNavigatedAtMs >= 0 &&
-    input.nowMs - input.openChatPhoneNavigatedAtMs <= recentNavigationGraceMs;
   const livePhoneMismatch =
     (Boolean(input.state.hrefPhone) &&
       !phonesMatchForSendTarget(input.state.hrefPhone, input.expectedPhone)) ||
@@ -4574,15 +4563,7 @@ export function shouldAllowActiveSendTarget(input: {
   if (input.requireLivePhoneEvidence ?? true) {
     return hasLivePhoneEvidence;
   }
-  return (
-    hasLivePhoneEvidence ||
-    (hasRecentNavigationEvidence && !isUsefulSendTitle(input.state.title)) ||
-    isAllowedSelfChatTarget({
-      expectedPhone: input.expectedPhone,
-      allowedPhones: input.allowedSelfChatPhones,
-      title: input.state.title,
-    })
-  );
+  return hasLivePhoneEvidence;
 }
 
 async function selectSyncTarget(env: WorkerEnv): Promise<CDP.Target | undefined> {
@@ -5834,21 +5815,6 @@ function isHttpUrl(value: string): boolean {
   }
 }
 
-function normalizeTitle(value: string): string {
-  return value.replace(/\s+/g, " ").trim().toLowerCase();
-}
-
-function isUsefulSendTitle(value: string | null): boolean {
-  const title = normalizeTitle(value ?? "");
-  return Boolean(
-    title &&
-    title !== "online" &&
-    title !== "whatsapp" &&
-    title !== "whatsapp business" &&
-    !normalizePhone(title),
-  );
-}
-
 function phonesMatchForSendTarget(actual: string | null, expected: string): boolean {
   if (!actual) {
     return false;
@@ -5872,35 +5838,6 @@ function phonesMatchForSendTarget(actual: string | null, expected: string): bool
   return (
     withoutBrazilMobileNinthDigit(normalizedActual) ===
     withoutBrazilMobileNinthDigit(normalizedExpected)
-  );
-}
-
-function parseAllowedSendPhones(env: WorkerEnv): string[] {
-  const phones = new Set<string>();
-  for (const raw of [...(env.WA_SEND_ALLOWED_PHONES ?? "").split(","), env.WA_SEND_ALLOWED_PHONE]) {
-    const phone = normalizePhone(raw);
-    if (phone) {
-      phones.add(phone);
-    }
-  }
-  return [...phones];
-}
-
-function isAllowedSelfChatTarget(input: {
-  expectedPhone: string;
-  allowedPhones: string[];
-  title: string;
-}): boolean {
-  if (!input.allowedPhones.includes(input.expectedPhone)) {
-    return false;
-  }
-  const title = normalizeTitle(input.title);
-  return (
-    title === "mensagens para mim" ||
-    title === "message yourself" ||
-    title.includes("(voce)") ||
-    title.includes("(você)") ||
-    title.includes("(you)")
   );
 }
 

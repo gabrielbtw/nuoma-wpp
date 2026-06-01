@@ -80,7 +80,6 @@ describe("CDP active send target guard", () => {
         openChatPhone: "5531982066263",
         openChatPhoneNavigatedAtMs: nowMs - 60_000,
         nowMs,
-        allowedSelfChatPhones: [],
       }),
     ).toBe(false);
   });
@@ -95,7 +94,6 @@ describe("CDP active send target guard", () => {
         openChatPhone: "5531982066263",
         openChatPhoneNavigatedAtMs: nowMs - 5_000,
         nowMs,
-        allowedSelfChatPhones: [],
       }),
     ).toBe(false);
   });
@@ -111,7 +109,6 @@ describe("CDP active send target guard", () => {
         openChatPhone: null,
         openChatPhoneNavigatedAtMs: 0,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: [],
       }),
     ).toBe(true);
   });
@@ -127,7 +124,6 @@ describe("CDP active send target guard", () => {
         openChatPhone: "5531982066263",
         openChatPhoneNavigatedAtMs: 995_000,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: [],
       }),
     ).toBe(true);
   });
@@ -144,7 +140,6 @@ describe("CDP active send target guard", () => {
         openChatPhone: null,
         openChatPhoneNavigatedAtMs: 0,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: [],
       }),
     ).toBe(true);
   });
@@ -161,7 +156,6 @@ describe("CDP active send target guard", () => {
         openChatPhone: null,
         openChatPhoneNavigatedAtMs: 0,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: [],
       }),
     ).toBe(true);
   });
@@ -178,7 +172,6 @@ describe("CDP active send target guard", () => {
         openChatPhone: null,
         openChatPhoneNavigatedAtMs: 0,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: [],
       }),
     ).toBe(true);
   });
@@ -194,7 +187,6 @@ describe("CDP active send target guard", () => {
         openChatPhone: null,
         openChatPhoneNavigatedAtMs: 0,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: [],
       }),
     ).toBe(false);
   });
@@ -211,7 +203,6 @@ describe("CDP active send target guard", () => {
         openChatPhone: "5531985657732",
         openChatPhoneNavigatedAtMs: 995_000,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: [],
       }),
     ).toBe(true);
   });
@@ -224,7 +215,6 @@ describe("CDP active send target guard", () => {
         openChatPhone: "5531982066263",
         openChatPhoneNavigatedAtMs: 995_000,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: [],
       }),
     ).toBe(false);
   });
@@ -237,7 +227,6 @@ describe("CDP active send target guard", () => {
         openChatPhone: "5531982066263",
         openChatPhoneNavigatedAtMs: 995_000,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: ["5531982066263"],
       }),
     ).toBe(false);
   });
@@ -250,7 +239,6 @@ describe("CDP active send target guard", () => {
         openChatPhone: null,
         openChatPhoneNavigatedAtMs: 0,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: ["5531982066263"],
       }),
     ).toBe(false);
   });
@@ -269,7 +257,6 @@ describe("CDP active send target guard", () => {
         openChatPhone: "5531982066263",
         openChatPhoneNavigatedAtMs: 995_000,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: [],
       }),
     ).toBe(false);
   });
@@ -287,7 +274,6 @@ describe("CDP active send target guard", () => {
         openChatPhone: "5531982066263",
         openChatPhoneNavigatedAtMs: 995_000,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: [],
       }),
     ).toBe(true);
   });

@@ -2613,9 +2613,7 @@ async function resolveInstagramUsername(
     }
   }
 
-  const fromThread =
-    normalizeInstagramHandle(conversation.externalThreadId) ??
-    normalizeInstagramHandle(conversation.title);
+  const fromThread = normalizeInstagramHandle(conversation.externalThreadId);
   if (fromThread) {
     return fromThread;
   }
