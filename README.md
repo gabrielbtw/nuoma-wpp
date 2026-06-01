@@ -187,18 +187,19 @@ checkboxes below parseable.
 - [x] **Canonical WhatsApp identity** - Contacts and conversations persist
       `phone_e164`/`wa_jid`, overlay/sync resolve by canonical identity instead
       of display title and raw SQL contact/conversation writes are backfilled.
-- [x] **Worker pacing and serial dispatch** - WhatsApp/Instagram sends use
-      token buckets by target and the job claim/drain path keeps serial send
-      targets from running concurrently.
+      `title` is still allowed as display text, never as the identity key.
+- [x] **Worker target pacing and serial guards** - WhatsApp/Instagram sends use
+      token buckets by target and the job claim/drain path keeps the same
+      canonical target from running concurrently.
 - [x] **Instagram Direct browser runtime** - Instagram sends are browser-driven,
       allowlisted, blocked outside the 24h inbound window and guarded against
       login/challenge/suspicious-activity pages.
 - [x] **Operations visibility** - `/operations`, dashboard health cards, queue
       indicators and `send_audit_events` expose worker/CDP/fila and delivery
       status signals.
-- [x] **Flow/inbox operator UX** - Campaign flow builder has a visual
+- [x] **Campaign canvas and inbox filters** - Campaign flow builder has a visual
       `@xyflow/react` canvas, inbox filters cover channel/unread/failure/tag and
-      contact editing has inline validation.
+      contact editing has inline validation for the current contact sidebar.
 
 ## Parcial
 
@@ -215,6 +216,15 @@ checkboxes below parseable.
 - [~] **P4 Real Safari acceptance gate** - `npm run safari:acceptance:gate`
   records the Xcode/converter/proof blockers, but real Safari acceptance still
   depends on full Xcode and manual Safari enablement.
+- [~] **Sequential-per-contact runtime** - Current worker claim/drain logic keeps
+  the same canonical target serialized and drains campaign batch siblings, but
+  the full MVP runtime of opening one contact, executing every due step in that
+  chat without refresh, and only then moving to the next contact is not yet a
+  dedicated contact-session runner.
+- [~] **UI/product polish** - Campaign canvas, inbox filters, `/operations` and
+  contact inline validation exist; automations do not yet have the same canvas
+  model, `CampaignsPage.tsx` still owns substantial orchestration and broader
+  mobile/form-validation proof remains pending.
 
 ## Falta
 
