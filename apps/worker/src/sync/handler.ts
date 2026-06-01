@@ -472,13 +472,17 @@ export function createSyncEventHandler(input: {
       return null;
     }
 
-    const existingThread = hasCanonicalExternalThreadId(thread)
-      ? await input.repos.conversations.findByExternalThread({
-          userId,
-          channel: thread.channel,
-          externalThreadId: thread.externalThreadId,
-        })
-      : null;
+    const externalThreadId = canonicalExternalThreadId(thread);
+    if (!externalThreadId) {
+      await recordAndSkipUnidentifiedWhatsAppThread(thread, "conversation-upsert");
+      return null;
+    }
+
+    const existingThread = await input.repos.conversations.findByExternalThread({
+      userId,
+      channel: thread.channel,
+      externalThreadId,
+    });
     if (existingThread) {
       const updated = await input.repos.conversations.updateObservedById({
         userId,
@@ -498,9 +502,9 @@ export function createSyncEventHandler(input: {
     return input.repos.conversations.upsertObserved({
       userId,
       channel: thread.channel,
-      externalThreadId: canonicalExternalThreadId(thread),
+      externalThreadId,
       waJid: normalizeThreadWaJid(thread),
-      title: isUsefulThreadTitle(thread.title) ? thread.title : thread.externalThreadId,
+      title: isUsefulThreadTitle(thread.title) ? thread.title : externalThreadId,
       lastMessageAt: inputPatch.lastMessageAt,
       lastPreview: inputPatch.lastPreview,
       profilePhotoMediaAssetId: inputPatch.profilePhotoMediaAssetId,
@@ -858,23 +862,20 @@ function hasTrustworthyThreadIdentity(thread: SyncThreadRef): boolean {
   );
 }
 
-function hasCanonicalExternalThreadId(thread: SyncThreadRef): boolean {
-  if (thread.channel !== "whatsapp") {
-    return true;
-  }
-  return Boolean(
-    normalizeWaJid(thread.externalThreadId) || normalizePhone(thread.externalThreadId),
-  );
-}
-
-function canonicalExternalThreadId(thread: SyncThreadRef): string {
+function canonicalExternalThreadId(thread: SyncThreadRef): string | null {
   if (thread.channel !== "whatsapp") {
     return thread.externalThreadId;
   }
-  if (normalizeWaJid(thread.externalThreadId) || normalizePhone(thread.externalThreadId)) {
-    return thread.externalThreadId;
+  const rawExternalThreadId = thread.externalThreadId.trim();
+  const externalPhone = normalizePhone(rawExternalThreadId);
+  const externalWaJid = normalizeWaJid(rawExternalThreadId);
+  if (externalWaJid && rawExternalThreadId.includes("@")) {
+    return externalWaJid;
   }
-  return normalizeWaJid(thread.waJid) ?? normalizePhone(thread.phone) ?? thread.externalThreadId;
+  if (externalPhone) {
+    return externalPhone;
+  }
+  return normalizeWaJid(thread.waJid) ?? normalizeWaJid(thread.phone) ?? normalizePhone(thread.phone);
 }
 
 function isUnidentifiedWhatsAppThread(thread: SyncThreadRef): boolean {

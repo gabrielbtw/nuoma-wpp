@@ -124,10 +124,9 @@ describe("sync event handler", () => {
       },
     });
 
-    const conversation = await repos.conversations.findByExternalThread({
+    const conversation = await repos.conversations.findByWaJid({
       userId: user.id,
-      channel: "whatsapp",
-      externalThreadId: thread.externalThreadId,
+      waJid: "5531982066263@s.whatsapp.net",
     });
     const messages = await repos.messages.listByConversation({
       userId: user.id,
@@ -300,10 +299,9 @@ describe("sync event handler", () => {
       status: "read",
     });
 
-    const conversation = await repos.conversations.findByExternalThread({
+    const conversation = await repos.conversations.findByWaJid({
       userId: user.id,
-      channel: "whatsapp",
-      externalThreadId: thread.externalThreadId,
+      waJid: "5531982066263@s.whatsapp.net",
     });
     const messages = await repos.messages.listByConversation({
       userId: user.id,
@@ -535,10 +533,9 @@ describe("sync event handler", () => {
       observedAtUtc: "2026-05-05T12:11:00.000Z",
     });
 
-    const conversation = await repos.conversations.findByExternalThread({
+    const conversation = await repos.conversations.findByWaJid({
       userId: user.id,
-      channel: "whatsapp",
-      externalThreadId: thread.externalThreadId,
+      waJid: "5531982066263@s.whatsapp.net",
     });
     const mediaAssets = await repos.mediaAssets.list({
       userId: user.id,
@@ -719,6 +716,69 @@ describe("sync event handler", () => {
     expect(decoyMessages).toHaveLength(0);
     expect(canonicalMessages).toHaveLength(1);
     expect(canonicalMessages[0]?.body).toBe("Mensagem do contato correto por wa_jid");
+  });
+
+  it("creates WhatsApp conversations from phone evidence without persisting saved-name thread identity", async () => {
+    const repos = createRepositories(db);
+    const user = await repos.users.create({
+      email: "phone-evidence-saved-name@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const handler = createSyncEventHandler({
+      repos,
+      logger: pino({ level: "silent" }),
+      userId: user.id,
+    });
+
+    await handler.handle({
+      type: "message-added",
+      source: "wa-web",
+      observedAtUtc: "2026-04-30T18:48:00.000Z",
+      thread: {
+        channel: "whatsapp",
+        externalThreadId: "Gabriel Braga Nuoma",
+        title: "Gabriel Braga Nuoma",
+        phone: "+55 31 9 8206-6263",
+        unreadCount: 0,
+        fingerprint: null,
+      },
+      message: {
+        externalId: "false_5531982066263@c.us_PHONE_EVIDENCE",
+        direction: "inbound",
+        contentType: "text",
+        status: "received",
+        body: "Mensagem com telefone confirmado",
+        displayedAtText: "[15:48, 30/04/2026] Maria: ",
+        waDisplayedAt: null,
+        timestampPrecision: "unknown",
+        messageSecond: null,
+        waInferredSecond: 59,
+        observedAtUtc: "2026-04-30T18:48:00.000Z",
+        raw: {},
+      },
+    });
+
+    const namedConversation = await repos.conversations.findByExternalThread({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "Gabriel Braga Nuoma",
+    });
+    const canonical = await repos.conversations.findByWaJid({
+      userId: user.id,
+      waJid: "5531982066263@s.whatsapp.net",
+    });
+    const messages = await repos.messages.listByConversation({
+      userId: user.id,
+      conversationId: canonical?.id ?? 0,
+    });
+
+    expect(namedConversation).toBeNull();
+    expect(canonical?.externalThreadId).toBe("5531982066263@s.whatsapp.net");
+    expect(canonical?.waJid).toBe("5531982066263@s.whatsapp.net");
+    expect(canonical?.title).toBe("Gabriel Braga Nuoma");
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.body).toBe("Mensagem com telefone confirmado");
   });
 
   it("does not reconcile a requested WhatsApp conversation that lacks canonical identity", async () => {
