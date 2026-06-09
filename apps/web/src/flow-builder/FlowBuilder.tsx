@@ -1264,7 +1264,7 @@ function buildCampaignFlowGraph(inputGraph: {
           type: "smoothstep",
           markerEnd,
           style: { stroke: "rgba(90, 170, 210, 0.82)", strokeWidth: 2 },
-          labelStyle: { fill: "rgb(185, 220, 234)", fontSize: 11, fontWeight: 600 },
+          labelStyle: { fill: "rgb(244 244 248)", fontSize: 11, fontWeight: 600 },
         });
       }
       if (condition.action === "exit") {
@@ -1276,7 +1276,7 @@ function buildCampaignFlowGraph(inputGraph: {
           type: "smoothstep",
           markerEnd,
           style: { stroke: "rgba(214, 170, 96, 0.82)", strokeWidth: 2 },
-          labelStyle: { fill: "rgb(232, 202, 143)", fontSize: 11, fontWeight: 600 },
+          labelStyle: { fill: "rgb(224 163 58)", fontSize: 11, fontWeight: 600 },
         });
       }
     });
@@ -1309,12 +1309,12 @@ function stepTone(step: StepDraft, channel: ChannelType, hasBranch: boolean): Ca
 }
 
 function flowToneColor(tone: CampaignCanvasTone) {
-  if (tone === "wa") return "rgb(35, 168, 102)";
-  if (tone === "ig") return "rgb(88, 151, 190)";
-  if (tone === "violet") return "rgb(156, 124, 224)";
-  if (tone === "danger") return "rgb(211, 100, 100)";
-  if (tone === "neutral") return "rgb(139, 151, 160)";
-  return "rgb(91, 155, 173)";
+  if (tone === "wa") return "rgb(43 184 126)";
+  if (tone === "ig") return "rgb(225 86 143)";
+  if (tone === "violet") return "rgb(124 124 255)";
+  if (tone === "danger") return "rgb(242 86 106)";
+  if (tone === "neutral") return "rgb(162 162 178)";
+  return "rgb(91 91 246)";
 }
 
 function conditionLabel(condition: ConditionDraft) {
@@ -2570,8 +2570,8 @@ function buildAutomationFlowGraph(inputGraph: {
         label: action.branchLabel.trim() || "branch",
         type: "smoothstep",
         markerEnd,
-        style: { stroke: "rgba(156, 124, 224, 0.86)", strokeWidth: 2 },
-        labelStyle: { fill: "rgb(209, 194, 241)", fontSize: 11, fontWeight: 600 },
+        style: { stroke: "rgba(124, 124, 255, 0.86)", strokeWidth: 2 },
+        labelStyle: { fill: "rgb(124 124 255)", fontSize: 11, fontWeight: 600 },
       });
     }
   });
@@ -2583,7 +2583,7 @@ function buildAutomationFlowGraph(inputGraph: {
       target: "automation-end",
       label: "corrigir",
       ...defaultEdge,
-      style: { stroke: "rgba(211, 100, 100, 0.76)", strokeWidth: 2 },
+      style: { stroke: "rgba(242, 86, 106, 0.76)", strokeWidth: 2 },
     });
   }
 

@@ -6,6 +6,8 @@ import type { Config } from "tailwindcss";
 import {
   blurs,
   fontFamily,
+  fontSize,
+  fontWeight,
   gradients,
   letterSpacing,
   motion,
@@ -34,6 +36,12 @@ function flatColors() {
       muted: withOpacity("--color-fg-muted"),
       dim: withOpacity("--color-fg-dim"),
       faint: withOpacity("--color-fg-faint"),
+    },
+    accent: {
+      DEFAULT: withOpacity("--color-accent"),
+      strong: withOpacity("--color-accent-strong"),
+      soft: withOpacity("--color-accent-soft"),
+      dim: withOpacity("--color-accent-dim"),
     },
     channel: {
       whatsapp: withOpacity("--color-channel-whatsapp"),
@@ -130,6 +138,8 @@ const preset: Config = {
         serif: fontFamily.serif.split(",").map((s) => s.trim().replace(/^"|"$/g, "")),
         mono: fontFamily.mono.split(",").map((s) => s.trim().replace(/^"|"$/g, "")),
       },
+      fontSize: fontSize as unknown as Record<string, [string, Record<string, string>]>,
+      fontWeight,
       borderRadius: radii,
       spacing,
       blur: blurs,

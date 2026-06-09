@@ -14,7 +14,7 @@ import {
   ServerCog,
   ShieldCheck,
 } from "lucide-react";
-import { lazy, Suspense, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import {
   Animate,
@@ -32,7 +32,6 @@ import {
 } from "@nuoma/ui";
 
 import { trpc } from "../lib/trpc.js";
-import { useOptionalVisualMode } from "../visuals/optional-visual-mode.js";
 
 type SystemMetrics = inferRouterOutputs<AppRouter>["system"]["metrics"];
 type WorkerItem = SystemMetrics["workers"]["items"][number];
@@ -45,10 +44,7 @@ type AuditListItem = {
   scheduledAt?: string;
 };
 
-const OptionalCartographicHero = lazy(() => import("../visuals/OptionalCartographicHero.js"));
-
 export function DashboardPage() {
-  const optionalVisual = useOptionalVisualMode();
   const metrics = trpc.system.metrics.useQuery(undefined, {
     refetchInterval: 10_000,
   });
@@ -495,24 +491,6 @@ export function DashboardPage() {
         </section>
       </Animate>
 
-      {optionalVisual.enabled && (
-        <Animate preset="rise-in" delaySeconds={0.05}>
-          <Suspense fallback={<OptionalHeroFallback />}>
-            <OptionalCartographicHero
-              healthLabel={health.label}
-              healthSignal={health.signal}
-              cdpConnected={data.whatsapp.cdpConnected}
-              workersOnline={data.workers.online}
-              workersTotal={data.workers.total}
-              queueDepth={data.jobs.queued + data.jobs.active}
-              dlqCount={data.jobs.dead}
-              throughputPerHour={data.operations.throughputPerHour}
-              failureRatePct={data.operations.failureRatePct}
-            />
-          </Suspense>
-        </Animate>
-      )}
-
       <Animate preset="rise-in" delaySeconds={0.05}>
         <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
           <MetricTile
@@ -755,15 +733,6 @@ function SendAuditCompactRow({ event }: { event: SendAuditEventItem }) {
       </span>
       <Badge variant={sendAuditPhaseVariant(event.phase)}>{event.phase}</Badge>
     </div>
-  );
-}
-
-function OptionalHeroFallback() {
-  return (
-    <section
-      className="min-h-[18rem] rounded-xl bg-bg-sunken shadow-flat"
-      data-testid="v214a-cartographic-hero-loading"
-    />
   );
 }
 

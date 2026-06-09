@@ -43,16 +43,16 @@ const VAR_NAMES = {
 } as const;
 
 const FALLBACK = {
-  teal: "rgb(91 155 173)",
-  blue: "rgb(75 119 154)",
-  green: "rgb(35 168 102)",
-  danger: "rgb(211 100 100)",
-  success: "rgb(35 168 102)",
-  warning: "rgb(86 143 189)",
-  text: "rgb(240 242 246)",
-  muted: "rgb(126 134 149)",
-  grid: "rgb(94 101 117)",
-  surface: "rgb(27 30 37)",
+  teal: "rgb(91 91 246)",
+  blue: "rgb(91 91 246)",
+  green: "rgb(43 184 126)",
+  danger: "rgb(242 86 106)",
+  success: "rgb(43 184 126)",
+  warning: "rgb(224 163 58)",
+  text: "rgb(244 244 248)",
+  muted: "rgb(162 162 178)",
+  grid: "rgb(48 48 62)",
+  surface: "rgb(18 18 25)",
 } as const;
 
 export type ChartPalette = Record<keyof typeof VAR_NAMES, string> & { series: string[] };
@@ -74,7 +74,7 @@ export function useChartPalette(): ChartPalette {
     ) as Record<keyof typeof VAR_NAMES, string>;
     return {
       ...colors,
-      series: [colors.teal, colors.blue, colors.green, colors.warning, colors.danger],
+      series: [colors.teal, colors.green, colors.warning, colors.danger, colors.blue],
     };
   }, [resolved]);
 }
@@ -86,7 +86,7 @@ function useTooltipStyle(palette: ChartPalette) {
       border: `1px solid ${palette.grid}`,
       borderRadius: 10,
       boxShadow: "0 8px 32px rgba(0,0,0,.4)",
-      fontFamily: "'Geist Variable', system-ui, sans-serif",
+      fontFamily: "'Inter Variable', system-ui, sans-serif",
       fontSize: 12,
     },
     labelStyle: { color: palette.text, fontWeight: 600 },

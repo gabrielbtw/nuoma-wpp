@@ -74,36 +74,36 @@ import {
 } from "../components/charts/index.js";
 
 const CANVAS = [
-  ["--color-bg-deep", "#060709", "base profunda"],
-  ["--color-bg-canvas", "#08090C", "canvas / grid"],
-  ["--color-bg-sunken", "#0A0B0E", "inputs recessed"],
-  ["--color-bg-base", "#0E0F12", "página"],
-  ["--color-bg-surface", "#13151A", "painéis"],
-  ["--color-bg-raised", "#17191F", "cards"],
-  ["--color-bg-elevated", "#1B1E25", "dropdowns"],
-  ["--color-bg-subtle", "#23262F", "hover fills"],
+  ["--color-bg-deep", "#08080C", "base profunda"],
+  ["--color-bg-canvas", "#0B0B10", "canvas"],
+  ["--color-bg-sunken", "#08080C", "inputs recessed"],
+  ["--color-bg-base", "#0F0F15", "página"],
+  ["--color-bg-surface", "#121219", "painéis"],
+  ["--color-bg-raised", "#14141C", "cards"],
+  ["--color-bg-elevated", "#171720", "dropdowns"],
+  ["--color-bg-subtle", "#1E1E28", "hover fills"],
 ] as const;
 
 const BRAND = [
-  ["--color-brand-green", "#23A866", "ação principal"],
-  ["--color-brand-green-soft", "#7FD1A9", "sucesso / verificado"],
-  ["--color-brand-blue", "#4B779A", "estrutura / comando"],
-  ["--color-brand-teal", "#5B9BAD", "foco operacional"],
+  ["--color-accent", "#5B5BF6", "ação / foco / ativo"],
+  ["--color-accent-strong", "#7C7CFF", "hover / link"],
+  ["--color-accent-dim", "#424296", "acento esmaecido"],
+  ["--color-semantic-success", "#2BB87E", "sucesso / verificado"],
 ] as const;
 
 const TEXT_COLORS = [
-  ["--color-fg-primary", "#F0F2F6", "texto primário"],
-  ["--color-fg-muted", "#B8BEC9", "corpo"],
-  ["--color-fg-dim", "#7E8695", "secundário"],
-  ["--color-fg-faint", "#525868", "placeholder"],
+  ["--color-fg-primary", "#F4F4F8", "texto primário"],
+  ["--color-fg-muted", "#A2A2B2", "corpo"],
+  ["--color-fg-dim", "#848494", "secundário"],
+  ["--color-fg-faint", "#646474", "placeholder"],
 ] as const;
 
 const STATUS_COLORS = [
-  ["--color-channel-whatsapp", "#23A866", "WhatsApp"],
-  ["--color-channel-instagram", "#5897BE", "Instagram"],
-  ["--color-semantic-warning", "#568FBD", "atenção"],
-  ["--color-semantic-danger", "#D36464", "erro"],
-  ["--color-semantic-info", "#5B9BAD", "informação"],
+  ["--color-channel-whatsapp", "#2BD17E", "WhatsApp"],
+  ["--color-channel-instagram", "#E1568F", "Instagram"],
+  ["--color-semantic-warning", "#E0A33A", "atenção"],
+  ["--color-semantic-danger", "#F2566A", "erro"],
+  ["--color-semantic-info", "#5B5BF6", "informação"],
 ] as const;
 
 const COMPONENT_TABLE_ROWS = [
@@ -151,9 +151,9 @@ const RANKING = [
 ];
 
 const STATUS_SPLIT = [
-  { name: "Entregue", value: 62, color: "rgb(91 155 173)" },
-  { name: "Na fila", value: 24, color: "rgb(86 143 189)" },
-  { name: "Falhou", value: 14, color: "rgb(211 100 100)" },
+  { name: "Entregue", value: 62, color: "rgb(91 91 246)" },
+  { name: "Na fila", value: 24, color: "rgb(224 163 58)" },
+  { name: "Falhou", value: 14, color: "rgb(242 86 106)" },
 ];
 
 const SCATTER = Array.from({ length: 42 }, () => ({
@@ -193,13 +193,13 @@ export function DevComponentsPage() {
           </h1>
           <p className="max-w-2xl text-sm leading-relaxed text-fg-muted">
             Tokens, materiais, componentes e padrões de produto para o CRM omnichannel local-first.
-            Estética Cartographic Operations — graphite matte, vidro em camadas, acentos green/blue,
-            Geist em tudo.
+            Estética Editorial · Indigo — canvas quase-preto, hairlines, acento índigo único,
+            Inter na interface e Geist Mono nos dados.
           </p>
           <div className="flex flex-wrap gap-8 pt-2">
             <Stat num="62" label="tokens" />
             <Stat num="26" label="componentes" />
-            <Stat num="3" label="temas" />
+            <Stat num="1" label="tema" />
             <Stat num="6" label="chart types" />
           </div>
         </header>
@@ -210,9 +210,9 @@ export function DevComponentsPage() {
         title="Sistema de Cores"
         hint="Paleta Nuoma 2026 — organizada por papel. Dark-native."
       >
-        <SubLabel>Canvas — graphite matte</SubLabel>
+        <SubLabel>Canvas — near-black índigo</SubLabel>
         <SwatchGrid items={CANVAS} />
-        <SubLabel>Marca — acentos green &amp; blue</SubLabel>
+        <SubLabel>Acento — índigo elétrico</SubLabel>
         <SwatchGrid items={BRAND} />
         <SubLabel>Texto</SubLabel>
         <SwatchGrid items={TEXT_COLORS} />
@@ -229,11 +229,11 @@ export function DevComponentsPage() {
       <Section
         id="tipografia"
         title="Tipografia"
-        hint="Geist para interface. Geist Mono para dados e labels técnicos."
+        hint="Inter para interface. Geist Mono para dados e labels técnicos."
       >
-        <SubLabel>Geist — interface &amp; destaques</SubLabel>
+        <SubLabel>Inter — interface &amp; destaques</SubLabel>
         <div className="flex flex-col divide-y divide-border-subtle/40 overflow-hidden rounded-md border border-border-subtle/40">
-          <TypeRow token="Display" detail="3rem · 780 · -.03em">
+          <TypeRow token="Display" detail="3rem · 660 · -.03em">
             <span className="botforge-display text-5xl">2.341</span>
           </TypeRow>
           <TypeRow token="H1" detail="2.25rem · 700">
@@ -276,7 +276,7 @@ export function DevComponentsPage() {
       <Section
         id="materiais"
         title="Materiais &amp; Elevação"
-        hint="Surfaces operacionais e vidro em camadas para chrome flutuante."
+        hint="Superfícies operacionais sólidas com bordas hairline."
       >
         <SubLabel>Surfaces</SubLabel>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -631,7 +631,7 @@ export function DevComponentsPage() {
             tag="Spatial"
             title="Profundidade em camadas"
           >
-            Vidro progressivo e blur por hierarquia substituem sombras duras.
+            Hairlines e elevação sutil por sombra substituem glass e blur.
           </TrendCard>
           <TrendCard
             icon={<LayoutGrid className="h-4 w-4" />}
@@ -716,8 +716,8 @@ export function DevComponentsPage() {
             estado live.
           </PrincipleCard>
           <PrincipleCard icon={<Boxes className="h-4 w-4" />} title="Profundidade por camada">
-            Vidro comunica hierarquia. Dados densos ficam em surface estável — legibilidade nunca
-            cede ao blur.
+            Hairlines comunicam hierarquia. Dados densos ficam em surface estável — legibilidade
+            nunca cede a ornamento.
           </PrincipleCard>
           <PrincipleCard icon={<BarChart3 className="h-4 w-4" />} title="Status é funcional">
             Cores semânticas são independentes da marca. Misturar acento visual com status cria

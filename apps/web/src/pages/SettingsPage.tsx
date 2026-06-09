@@ -9,7 +9,6 @@ import {
   CardTitle,
   RadioGroup,
   RadioItem,
-  Switch,
   Tabs,
   TabsContent,
   TabsList,
@@ -31,7 +30,6 @@ import {
   type BrowserPushSubscription,
 } from "../lib/push-subscription.js";
 import { trpc } from "../lib/trpc.js";
-import { useOptionalVisualMode } from "../visuals/optional-visual-mode.js";
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_WEB_PUSH_VAPID_PUBLIC_KEY as string | undefined;
 
@@ -39,7 +37,6 @@ export function SettingsPage() {
   const auth = useAuth();
   const theme = useTheme();
   const toast = useToast();
-  const optionalVisual = useOptionalVisualMode();
   const [pushSubscription, setPushSubscription] = useState<BrowserPushSubscription | null>(null);
   const [pushLoading, setPushLoading] = useState(false);
   const pushSubscribe = trpc.push.subscribe.useMutation();
@@ -207,31 +204,6 @@ export function SettingsPage() {
                   </CardContent>
                 </Card>
 
-                <Card data-testid="v214a-visual-settings-card">
-                  <CardHeader>
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <CardTitle>Visual opcional</CardTitle>
-                        <CardDescription>Hero cartográfico 3D no dashboard.</CardDescription>
-                      </div>
-                      <Switch
-                        checked={optionalVisual.enabled}
-                        aria-label="Ativar visual opcional V2.14a"
-                        data-testid="v214a-visual-toggle"
-                        onCheckedChange={optionalVisual.setEnabled}
-                      />
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div
-                      className="rounded-lg bg-bg-base px-3 py-2 font-mono text-[0.7rem] uppercase tracking-[0.16em] text-fg-dim shadow-pressed-sm"
-                      data-testid="v214a-visual-state"
-                    >
-                      V2.14a = {optionalVisual.enabled ? "enabled" : "disabled"}
-                    </div>
-                  </CardContent>
-                </Card>
-
                 <Card data-testid="nuoma-overlay-settings-card">
                   <CardHeader>
                     <div className="flex items-start justify-between gap-4">
@@ -365,10 +337,6 @@ export function SettingsPage() {
               <h2>Readiness</h2>
               <div className="nuoma-settings-gates">
                 <span><SignalDot status="active" size="xs" /> Sessão <b>{auth.user?.role ?? "—"}</b></span>
-                <span>
-                  <SignalDot status={optionalVisual.enabled ? "active" : "idle"} size="xs" />
-                  Visual <b>{optionalVisual.enabled ? "on" : "off"}</b>
-                </span>
                 <span>
                   <SignalDot status={pushSubscription ? "active" : "degraded"} size="xs" />
                   Push <b>{pushSubscription ? "ativo" : "off"}</b>

@@ -109,7 +109,7 @@ export function ShellLayout() {
             )}
           >
             {!isFlowStudioRoute && (
-            <header className="botforge-surface nuoma-topbar mb-0 flex min-h-14 items-center gap-2 rounded-lg px-2.5">
+            <header className="nuoma-topbar mb-0 flex min-h-14 items-center gap-2 px-4">
               <Button
                 variant="soft"
                 size="sm"
@@ -217,8 +217,8 @@ export function ShellLayout() {
 
             <main
               className={cn(
-                "nuoma-main-scroll flex-1 overflow-y-auto px-3 py-3 focus:outline-none",
-                isFlowStudioRoute && "px-0 py-0",
+                "nuoma-main-scroll flex-1 overflow-y-auto px-4 py-5 focus:outline-none lg:px-8 lg:py-7",
+                isFlowStudioRoute && "px-0 py-0 lg:px-0 lg:py-0",
               )}
               tabIndex={0}
               aria-label="Conteúdo principal"

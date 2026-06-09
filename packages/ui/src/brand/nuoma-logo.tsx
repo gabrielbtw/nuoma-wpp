@@ -70,7 +70,7 @@ function Wordmark({ tone }: { tone: NuomaLogoTone }) {
       x="0"
       y="82"
       fill={color.primary}
-      fontFamily="Geist Variable, Geist, Avenir Next, system-ui, sans-serif"
+      fontFamily="Inter Variable, Inter, Avenir Next, system-ui, sans-serif"
       fontSize="98"
       fontWeight="620"
       letterSpacing="0"
