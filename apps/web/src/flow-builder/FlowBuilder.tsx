@@ -462,24 +462,24 @@ export function CampaignFlowBuilder({
 
   return (
     <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as BuilderTab)}>
-      <div className="nuoma-flow-studio-v2" data-testid="campaign-flow-studio-v2">
-        <header className="nuoma-flow-v2-topbar">
-          <div className="nuoma-flow-v2-title">
-	            <div className="nuoma-flow-v2-title-line">
+      <div className="nuoma-flow-studio" data-testid="campaign-flow-studio-v2">
+        <header className="nuoma-flow-topbar">
+          <div className="nuoma-flow-title">
+	            <div className="nuoma-flow-title-line">
 	              <span>Flow Studio</span>
-	              <span className="nuoma-flow-v2-title-slash">/</span>
+	              <span className="nuoma-flow-title-slash">/</span>
 	              <span>{name || "Campanha sem nome"}</span>
 	              <button type="button" aria-label="Editar nome do fluxo" onClick={focusNameInput}>
 	                <Pencil className="h-3.5 w-3.5" />
 	              </button>
 	            </div>
-	            <div className="nuoma-flow-v2-status">
+	            <div className="nuoma-flow-status">
 	              <span />
 	              {draftStatusText}
 	            </div>
 	          </div>
 
-	          <div className="nuoma-flow-v2-account">
+	          <div className="nuoma-flow-account">
 	            <Badge variant={channel === "instagram" ? "warning" : "success"}>
 	              {channel === "instagram" ? "Instagram" : "WhatsApp"}
 	            </Badge>
@@ -489,10 +489,10 @@ export function CampaignFlowBuilder({
 	          </div>
 	        </header>
 
-        <div className="nuoma-flow-v2-actionbar">
+        <div className="nuoma-flow-actionbar">
           <button
             type="button"
-            className="nuoma-flow-v2-button nuoma-flow-v2-button-outline"
+            className="nuoma-flow-button nuoma-flow-button-outline"
             onClick={testFlow}
           >
             <BadgeCheck className="h-4 w-4" />
@@ -500,12 +500,12 @@ export function CampaignFlowBuilder({
           </button>
           <button
             type="button"
-            className="nuoma-flow-v2-button nuoma-flow-v2-button-dark"
+            className="nuoma-flow-button nuoma-flow-button-dark"
             onClick={reviewAndActivate}
           >
             Revisar disparo
           </button>
-          <div className="nuoma-flow-v2-activate-group">
+          <div className="nuoma-flow-activate-group">
             <button
               type="button"
               onClick={reviewAndActivate}
@@ -515,24 +515,24 @@ export function CampaignFlowBuilder({
           </div>
         </div>
 
-        <div className="nuoma-flow-v2-body">
-          <aside className="nuoma-flow-v2-rail">
-            <div className="nuoma-flow-v2-rail-title">Etapas do fluxo</div>
-            <TabsList className="nuoma-flow-v2-tabs">
+        <div className="nuoma-flow-body">
+          <aside className="nuoma-flow-rail">
+            <div className="nuoma-flow-rail-title">Etapas do fluxo</div>
+            <TabsList className="nuoma-flow-tabs">
               {builderTabs.map((tab, index) => {
                 const visualState = index < 2 ? "done" : index === 2 ? "active" : "upcoming";
                 return (
                   <TabsTrigger
                     key={tab.value}
                     value={tab.value}
-                    className="nuoma-flow-v2-step-tab"
+                    className="nuoma-flow-step-tab"
                     data-flow-state={visualState}
                     data-testid={`campaign-builder-tab-${tab.value}`}
                   >
-                    <span className="nuoma-flow-v2-step-marker">
+                    <span className="nuoma-flow-step-marker">
                       {visualState === "done" ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
                     </span>
-                    <span className="nuoma-flow-v2-step-copy">
+                    <span className="nuoma-flow-step-copy">
                       <span>{tab.label}</span>
                       <span>
                         {tab.value === "base"
@@ -550,7 +550,7 @@ export function CampaignFlowBuilder({
             </TabsList>
           </aside>
 
-          <section className="nuoma-flow-v2-stage">
+          <section className="nuoma-flow-stage">
             <CampaignFlowCanvasBoard
               steps={steps}
               channel={channel}
@@ -563,12 +563,12 @@ export function CampaignFlowBuilder({
               onReorderSteps={reorderStepsFromCanvas}
             />
 
-            <div className="nuoma-flow-v2-editor-panels" aria-label="Edição funcional do fluxo">
+            <div className="nuoma-flow-editor-panels" aria-label="Edição funcional do fluxo">
               <TabsContent value="base" data-testid="campaign-builder-base">
                 <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
                   <div className="nuoma-compat-surface rounded-xl p-4">
                     <div className="mb-3 flex items-center gap-2 text-sm font-medium text-fg-primary">
-                      <ClipboardList className="h-4 w-4 text-brand-cyan" />
+                      <ClipboardList className="h-4 w-4 text-accent" />
                       Configuração
                     </div>
                     <div className="grid gap-3 md:grid-cols-[1fr_12rem_10rem_10rem]">
@@ -611,7 +611,7 @@ export function CampaignFlowBuilder({
                   </div>
                   <div className="nuoma-compat-surface rounded-xl p-4">
                     <div className="mb-3 flex items-center gap-2 text-sm font-medium text-fg-primary">
-                      <Sparkles className="h-4 w-4 text-brand-violet" />
+                      <Sparkles className="h-4 w-4 text-accent" />
                       Templates
                     </div>
                     <div className="grid gap-2">
@@ -847,8 +847,8 @@ function CampaignFlowCanvasBoard({
 	  }, [flowInstance]);
 
   return (
-    <div className="nuoma-flow-v2-board" data-testid="campaign-flow-canvas-board">
-      <div className="nuoma-flow-v2-board-toolbar" aria-label="Ferramentas do canvas">
+    <div className="nuoma-flow-board" data-testid="campaign-flow-canvas-board">
+      <div className="nuoma-flow-board-toolbar" aria-label="Ferramentas do canvas">
 	        <button type="button" aria-label="Selecionar" className="is-active" title="Selecionar">
 	          <MousePointer2 className="h-4 w-4" />
 	        </button>
@@ -863,14 +863,14 @@ function CampaignFlowCanvasBoard({
 	        <button type="button" aria-label="Ajustar tela" title="Ajustar tela" onClick={fitCanvas}>
 	          <Maximize2 className="h-4 w-4" />
 	        </button>
-	        <span className="nuoma-flow-v2-toolbar-divider" />
+	        <span className="nuoma-flow-toolbar-divider" />
 	        <button type="button" aria-label="Reduzir zoom" title="Reduzir zoom" onClick={zoomCanvasOut}>
 	          <Minimize2 className="h-4 w-4" />
 	        </button>
 	        <button
 	          type="button"
 	          aria-label="Zoom atual"
-	          className="nuoma-flow-v2-zoom-label"
+	          className="nuoma-flow-zoom-label"
 	          onClick={fitCanvas}
 	        >
 	          {zoomPercent}%
@@ -878,7 +878,7 @@ function CampaignFlowCanvasBoard({
 	        <button type="button" aria-label="Aumentar zoom" title="Aumentar zoom" onClick={zoomCanvasIn}>
 	          <ZoomIn className="h-4 w-4" />
 	        </button>
-        <span className="nuoma-flow-v2-toolbar-divider" />
+        <span className="nuoma-flow-toolbar-divider" />
         <button
           type="button"
           aria-label="Abrir preview"
@@ -896,7 +896,7 @@ function CampaignFlowCanvasBoard({
         </button>
       </div>
 
-      <div className="nuoma-flow-v2-reactflow" data-testid="campaign-xyflow-canvas">
+      <div className="nuoma-flow-reactflow" data-testid="campaign-xyflow-canvas">
         <ReactFlow<CampaignCanvasNode, Edge>
           nodes={nodes}
           edges={edges}
@@ -919,14 +919,14 @@ function CampaignFlowCanvasBoard({
           panOnScroll
           preventScrolling={false}
         >
-          <Background color="rgba(133, 160, 176, 0.22)" gap={28} size={1.15} />
+          <Background color="var(--nw-flow-grid)" gap={28} size={1.15} />
           <MiniMap
             pannable
             zoomable
-            className="nuoma-flow-v2-xy-minimap"
+            className="nuoma-flow-xy-minimap"
             nodeColor={(node) => flowToneColor((node as CampaignCanvasNode).data.tone)}
           />
-          <Controls className="nuoma-flow-v2-xy-controls" showInteractive={false} />
+          <Controls className="nuoma-flow-xy-controls" showInteractive={false} />
         </ReactFlow>
       </div>
     </div>
@@ -959,29 +959,29 @@ function CampaignFlowNode({ data }: NodeProps<CampaignCanvasNode>) {
   return (
     <div
       className={cn(
-        "nuoma-flow-v2-xy-node",
-        `nuoma-flow-v2-xy-node-${data.tone}`,
-        data.kind === "branch" && "nuoma-flow-v2-xy-node-branch",
+        "nuoma-flow-xy-node",
+        `nuoma-flow-xy-node-${data.tone}`,
+        data.kind === "branch" && "nuoma-flow-xy-node-branch",
       )}
       onDoubleClick={data.onOpenSteps}
     >
       {!isStart ? <Handle type="target" position={Position.Left} /> : null}
-      <div className="nuoma-flow-v2-xy-node-head">
-        <span className="nuoma-flow-v2-xy-node-icon">
+      <div className="nuoma-flow-xy-node-head">
+        <span className="nuoma-flow-xy-node-icon">
           <Icon className="h-4 w-4" />
         </span>
         <div className="min-w-0">
-          <div className="nuoma-flow-v2-xy-node-title">{data.label}</div>
-          <div className="nuoma-flow-v2-xy-node-meta">
+          <div className="nuoma-flow-xy-node-title">{data.label}</div>
+          <div className="nuoma-flow-xy-node-meta">
             {data.meta.split("\n").map((line) => (
               <span key={line}>{line}</span>
             ))}
           </div>
         </div>
       </div>
-      <div className="nuoma-flow-v2-xy-node-summary">{data.summary}</div>
+      <div className="nuoma-flow-xy-node-summary">{data.summary}</div>
       {data.kind === "branch" ? (
-        <div className="nuoma-flow-v2-xy-branch-row">
+        <div className="nuoma-flow-xy-branch-row">
           <button type="button" className="nodrag" onClick={data.onOpenSteps}>
             Sim
           </button>
@@ -992,7 +992,7 @@ function CampaignFlowNode({ data }: NodeProps<CampaignCanvasNode>) {
       ) : data.conditionCount ? (
         <button
           type="button"
-          className="nuoma-flow-v2-xy-condition nodrag"
+          className="nuoma-flow-xy-condition nodrag"
           onClick={data.onOpenSteps}
         >
           {data.conditionCount} regra(s)
@@ -1211,17 +1211,17 @@ function FlowStudioInspector({
     ? csvPreview.validCount.toLocaleString("pt-BR")
     : "Sem estimativa";
   return (
-    <aside className="nuoma-flow-v2-inspector" data-active-tab={activeTab}>
+    <aside className="nuoma-flow-inspector" data-active-tab={activeTab}>
       <h2>Resumo e validação</h2>
 
       <section
-        className="nuoma-flow-v2-inspector-card nuoma-flow-v2-valid-card"
+        className="nuoma-flow-inspector-card nuoma-flow-valid-card"
         data-testid="campaign-flow-validation-card"
         data-status={validationStatus}
       >
-        <div className="nuoma-flow-v2-card-head">
+        <div className="nuoma-flow-card-head">
           <span
-            className={cn("nuoma-flow-v2-card-icon", isFlowValid ? "is-success" : "is-warning")}
+            className={cn("nuoma-flow-card-icon", isFlowValid ? "is-success" : "is-warning")}
           >
             {isFlowValid ? (
               <CheckCircle2 className="h-4 w-4" />
@@ -1255,23 +1255,23 @@ function FlowStudioInspector({
         </div>
       </section>
 
-      <section className="nuoma-flow-v2-inspector-card">
-        <div className="nuoma-flow-v2-card-head">
-          <span className="nuoma-flow-v2-card-icon">
+      <section className="nuoma-flow-inspector-card">
+        <div className="nuoma-flow-card-head">
+          <span className="nuoma-flow-card-icon">
             <ShieldCheck className="h-4 w-4" />
           </span>
           <div>
             <strong>Safe Dispatch</strong>
             <span>{isFlowValid ? "Validação pronta" : "Validação pendente"}</span>
           </div>
-          <span className="nuoma-flow-v2-toggle" />
+          <span className="nuoma-flow-toggle" />
         </div>
         <p>
           {isFlowValid
             ? "O fluxo pode seguir para revisão de disparo."
             : "Resolva as pendências antes de criar Jobs de envio."}
         </p>
-        <div className="nuoma-flow-v2-safe-grid">
+        <div className="nuoma-flow-safe-grid">
           <div>
             <span>Checks ok</span>
             <strong>{readyCount}/{readyChecks.length}</strong>
@@ -1287,25 +1287,25 @@ function FlowStudioInspector({
         </div>
       </section>
 
-      <section className="nuoma-flow-v2-inspector-card nuoma-flow-v2-audience-card">
-        <div className="nuoma-flow-v2-card-head">
-          <span className="nuoma-flow-v2-card-icon">
+      <section className="nuoma-flow-inspector-card nuoma-flow-audience-card">
+        <div className="nuoma-flow-card-head">
+          <span className="nuoma-flow-card-icon">
             <Users className="h-4 w-4" />
           </span>
           <div>
             <strong>Audiência estimada</strong>
           </div>
         </div>
-        <div className="nuoma-flow-v2-audience-value">{estimatedAudience}</div>
-        <div className="nuoma-flow-v2-audience-foot">
+        <div className="nuoma-flow-audience-value">{estimatedAudience}</div>
+        <div className="nuoma-flow-audience-foot">
           <span>Contatos elegíveis</span>
           <strong>{csvPreview ? "CSV validado" : "Valide CSV ou segmento"}</strong>
         </div>
       </section>
 
-      <section className="nuoma-flow-v2-inspector-card nuoma-flow-v2-compact-card">
-        <div className="nuoma-flow-v2-card-head">
-          <span className="nuoma-flow-v2-card-icon">
+      <section className="nuoma-flow-inspector-card nuoma-flow-compact-card">
+        <div className="nuoma-flow-card-head">
+          <span className="nuoma-flow-card-icon">
             <GitBranch className="h-4 w-4" />
           </span>
           <div>
@@ -1318,9 +1318,9 @@ function FlowStudioInspector({
         </div>
       </section>
 
-      <section className="nuoma-flow-v2-inspector-card nuoma-flow-v2-alert-card">
-        <div className="nuoma-flow-v2-card-head">
-          <span className="nuoma-flow-v2-card-icon is-warning">
+      <section className="nuoma-flow-inspector-card nuoma-flow-alert-card">
+        <div className="nuoma-flow-card-head">
+          <span className="nuoma-flow-card-icon is-warning">
             <AlertTriangle className="h-4 w-4" />
           </span>
           <div>
@@ -1328,7 +1328,7 @@ function FlowStudioInspector({
           </div>
           <span>{validationIssueCount} alerta(s)</span>
         </div>
-        <div className="nuoma-flow-v2-alert-copy">
+        <div className="nuoma-flow-alert-copy">
           <strong>{isFlowValid ? "Sem bloqueios críticos" : "Revise antes de ativar"}</strong>
           <p>
             {isFlowValid
@@ -1346,22 +1346,22 @@ function FlowStudioInspector({
         </div>
       </section>
 
-      <div className="nuoma-flow-v2-inspector-actions">
+      <div className="nuoma-flow-inspector-actions">
         <button
           type="button"
-          className="nuoma-flow-v2-submit"
+          className="nuoma-flow-submit"
           disabled={createPending}
           onClick={onReviewAndActivate}
         >
           <Send className="h-4 w-4" />
           {createPending ? "Salvando..." : "Revisar e ativar fluxo"}
         </button>
-        <button type="button" className="nuoma-flow-v2-save" disabled={createPending} onClick={onCreateDraft}>
+        <button type="button" className="nuoma-flow-save" disabled={createPending} onClick={onCreateDraft}>
           Salvar rascunho
         </button>
       </div>
 
-      <div className="nuoma-flow-v2-inspector-meta" aria-hidden="true">
+      <div className="nuoma-flow-inspector-meta" aria-hidden="true">
         <span>{channel}</span>
         <span>{evergreen ? "evergreen" : "manual"}</span>
         <span>{abEnabled ? "A/B on" : `${readyCount}/${readyChecks.length}`}</span>
@@ -1392,7 +1392,7 @@ function CsvPreviewPanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-sm font-medium text-fg-primary">
-            <FileUp className="h-4 w-4 text-brand-cyan" />
+            <FileUp className="h-4 w-4 text-accent" />
             CSV preview
           </div>
           <p className="mt-1 text-xs leading-relaxed text-fg-dim">
@@ -1520,7 +1520,7 @@ function AbVariantsPanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-sm font-medium text-fg-primary">
-            <GitBranch className="h-4 w-4 text-brand-violet" />
+            <GitBranch className="h-4 w-4 text-accent" />
             A/B variants
           </div>
           <p className="mt-1 text-xs leading-relaxed text-fg-dim">
@@ -1618,7 +1618,7 @@ function CampaignPreviewPanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-sm font-medium text-fg-primary">
-            <CheckCircle2 className="h-4 w-4 text-brand-cyan" />
+            <CheckCircle2 className="h-4 w-4 text-accent" />
             Preview do rascunho
           </div>
           <p className="mt-1 text-xs leading-relaxed text-fg-dim">
@@ -1733,7 +1733,7 @@ function WorkflowViewer({
       data-testid="campaign-workflow-viewer"
     >
       <div className="flex items-center gap-2 text-sm font-medium text-fg-primary">
-        <GitBranch className="h-4 w-4 text-brand-violet" />
+        <GitBranch className="h-4 w-4 text-accent" />
         Workflow
       </div>
       <div className="mt-4 grid gap-3 rounded-xl bg-bg-sunken/58 p-3">
@@ -1743,7 +1743,7 @@ function WorkflowViewer({
             <div key={node.id} className="relative">
               {index > 0 && (
                 <div
-                  className="absolute -top-3 left-5 h-3 w-px bg-brand-cyan/35"
+                  className="absolute -top-3 left-5 h-3 w-px bg-accent/35"
                   aria-hidden="true"
                 />
               )}
@@ -1753,7 +1753,7 @@ function WorkflowViewer({
                 className="nuoma-compat-readable rounded-xl px-3 py-3 transition-transform hover:-translate-y-0.5"
               >
                 <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-cyan/12 text-brand-cyan shadow-pressed-sm">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/12 text-accent shadow-pressed-sm">
                     <Icon className="h-4 w-4" />
                   </span>
                   <div className="min-w-0">
@@ -1923,7 +1923,7 @@ export function AutomationFlowBuilder() {
             data-testid="automation-template-gallery"
           >
             <div className="mb-3 flex items-center gap-2 text-sm font-medium text-fg-primary">
-              <Sparkles className="h-4 w-4 text-brand-violet" />
+              <Sparkles className="h-4 w-4 text-accent" />
               Templates
             </div>
             <div className="grid gap-2">
@@ -2134,23 +2134,23 @@ function AutomationFlowCanvasBoard({
 
   return (
     <div
-      className="nuoma-flow-v2-board nuoma-automation-canvas-board"
+      className="nuoma-flow-board nuoma-automation-canvas-board"
       data-testid="automation-flow-canvas-board"
     >
-      <div className="nuoma-flow-v2-board-toolbar" aria-label="Ferramentas do canvas de automação">
+      <div className="nuoma-flow-board-toolbar" aria-label="Ferramentas do canvas de automação">
         <button type="button" aria-label="Selecionar" className="is-active" title="Selecionar">
           <MousePointer2 className="h-4 w-4" />
         </button>
         <button type="button" aria-label="Ajustar tela" title="Ajustar tela">
           <Maximize2 className="h-4 w-4" />
         </button>
-        <span className="nuoma-flow-v2-toolbar-divider" />
+        <span className="nuoma-flow-toolbar-divider" />
         <button type="button" aria-label="Canvas de automação bloqueado" title="Canvas bloqueado">
           <LockKeyhole className="h-4 w-4" />
         </button>
       </div>
 
-      <div className="nuoma-flow-v2-reactflow" data-testid="automation-xyflow-canvas">
+      <div className="nuoma-flow-reactflow" data-testid="automation-xyflow-canvas">
         <ReactFlow<AutomationCanvasNode, Edge>
           nodes={nodes}
           edges={edges}
@@ -2167,14 +2167,14 @@ function AutomationFlowCanvasBoard({
           panOnScroll
           preventScrolling={false}
         >
-          <Background color="rgba(133, 160, 176, 0.22)" gap={28} size={1.15} />
+          <Background color="var(--nw-flow-grid)" gap={28} size={1.15} />
           <MiniMap
             pannable
             zoomable
-            className="nuoma-flow-v2-xy-minimap"
+            className="nuoma-flow-xy-minimap"
             nodeColor={(node) => flowToneColor((node as AutomationCanvasNode).data.tone)}
           />
-          <Controls className="nuoma-flow-v2-xy-controls" showInteractive={false} />
+          <Controls className="nuoma-flow-xy-controls" showInteractive={false} />
         </ReactFlow>
       </div>
     </div>
@@ -2206,31 +2206,31 @@ function AutomationFlowNode({ data }: NodeProps<AutomationCanvasNode>) {
   return (
     <div
       className={cn(
-        "nuoma-flow-v2-xy-node",
-        `nuoma-flow-v2-xy-node-${data.tone}`,
-        data.kind === "branch" && "nuoma-flow-v2-xy-node-branch",
+        "nuoma-flow-xy-node",
+        `nuoma-flow-xy-node-${data.tone}`,
+        data.kind === "branch" && "nuoma-flow-xy-node-branch",
       )}
       data-testid="automation-canvas-node"
       data-automation-node-kind={data.kind}
       data-action-type={data.actionType}
     >
       {!isTrigger ? <Handle type="target" position={Position.Left} /> : null}
-      <div className="nuoma-flow-v2-xy-node-head">
-        <span className="nuoma-flow-v2-xy-node-icon">
+      <div className="nuoma-flow-xy-node-head">
+        <span className="nuoma-flow-xy-node-icon">
           <Icon className="h-4 w-4" />
         </span>
         <div className="min-w-0">
-          <div className="nuoma-flow-v2-xy-node-title">{data.label}</div>
-          <div className="nuoma-flow-v2-xy-node-meta">
+          <div className="nuoma-flow-xy-node-title">{data.label}</div>
+          <div className="nuoma-flow-xy-node-meta">
             {data.meta.split("\n").map((line) => (
               <span key={line}>{line}</span>
             ))}
           </div>
         </div>
       </div>
-      <div className="nuoma-flow-v2-xy-node-summary">{data.summary}</div>
+      <div className="nuoma-flow-xy-node-summary">{data.summary}</div>
       {data.kind === "branch" ? (
-        <div className="nuoma-flow-v2-xy-branch-row">
+        <div className="nuoma-flow-xy-branch-row">
           <button type="button" className="nodrag">
             Sim
           </button>
@@ -2352,11 +2352,11 @@ function buildAutomationFlowGraph(inputGraph: {
   });
 
   const edges: Edge[] = [];
-  const markerEnd = { type: MarkerType.ArrowClosed, color: "rgba(157, 177, 188, 0.82)" };
+  const markerEnd = { type: MarkerType.ArrowClosed, color: "var(--nw-flow-edge)" };
   const defaultEdge = {
     type: "smoothstep",
     markerEnd,
-    style: { stroke: "rgba(157, 177, 188, 0.72)", strokeWidth: 2 },
+    style: { stroke: "var(--nw-flow-edge)", strokeWidth: 2 },
   };
   const firstTarget = inputGraph.actions[0]?.id ?? "automation-end";
 
@@ -2395,8 +2395,8 @@ function buildAutomationFlowGraph(inputGraph: {
         label: action.branchLabel.trim() || "branch",
         type: "smoothstep",
         markerEnd,
-        style: { stroke: "rgba(124, 124, 255, 0.86)", strokeWidth: 2 },
-        labelStyle: { fill: "rgb(124 124 255)", fontSize: 11, fontWeight: 600 },
+        style: { stroke: "var(--nw-flow-branch)", strokeWidth: 2 },
+        labelStyle: { fill: "var(--nw-flow-branch)", fontSize: 11, fontWeight: 600 },
       });
     }
   });
@@ -2408,7 +2408,7 @@ function buildAutomationFlowGraph(inputGraph: {
       target: "automation-end",
       label: "corrigir",
       ...defaultEdge,
-      style: { stroke: "rgba(242, 86, 106, 0.76)", strokeWidth: 2 },
+      style: { stroke: "var(--nw-flow-danger)", strokeWidth: 2 },
     });
   }
 
@@ -2652,7 +2652,7 @@ function StepEditor({
     <div className="rounded-lg bg-bg-base p-3 shadow-flat">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <Icon className="h-4 w-4 text-brand-cyan" />
+          <Icon className="h-4 w-4 text-accent" />
           <span className="font-mono text-xs text-fg-dim">step {index + 1}</span>
         </div>
         <div className="flex items-center gap-1">
@@ -2731,7 +2731,7 @@ function StepBody({
       <div className="mt-3 rounded-lg bg-bg-deep/70 p-3 shadow-pressed-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-brand-cyan" />
+            <Clock className="h-4 w-4 text-accent" />
             <div>
               <div className="text-sm font-medium text-fg-primary">
                 Definir mensagens temporárias
@@ -2895,7 +2895,7 @@ function StepConditions({
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <GitBranch className="h-4 w-4 text-brand-violet" />
+          <GitBranch className="h-4 w-4 text-accent" />
           <span className="text-sm font-medium text-fg-primary">Condições</span>
         </div>
         <Button
@@ -3084,7 +3084,7 @@ function SegmentBuilder({
     <div className="rounded-xl bg-bg-deep p-4 shadow-pressed-sm" data-testid={testId}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-sm font-medium text-fg-primary">
-          <Route className="h-4 w-4 text-brand-cyan" />
+          <Route className="h-4 w-4 text-accent" />
           {title}
         </div>
         <div className="flex items-center gap-3">
@@ -3351,7 +3351,7 @@ function AutomationPreviewPanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-sm font-medium text-fg-primary">
-            <PlayCircle className="h-4 w-4 text-brand-cyan" />
+            <PlayCircle className="h-4 w-4 text-accent" />
             Preview do flow
           </div>
           <p className="mt-1 text-xs leading-relaxed text-fg-dim">
@@ -3406,7 +3406,7 @@ function AutomationPreviewPanel({
                 data-testid="automation-preview-node"
                 data-action-type={action.type}
               >
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-cyan/10 text-xs font-mono text-brand-cyan">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/10 text-xs font-mono text-accent">
                   {index + 1}
                 </div>
                 <div className="min-w-0">

@@ -302,30 +302,20 @@
     background: rgb(255 255 255 / 0.02);
   }
 
-  /* Assistant widget */
-  .nuoma-assistant-motion {
-    border-radius: 0.875rem;
-    border: 1px solid rgb(var(--color-border-subtle));
-    background: rgb(var(--color-bg-elevated));
-    box-shadow: var(--shadow-raised-md);
-  }
-  .nuoma-assistant-eye {
-    background: rgb(var(--color-accent-strong));
-  }
 }
 
 @layer components {
-  /* ----- Generic fallbacks for other bespoke clusters (flow-v2, settings-v2,
+  /* ----- Generic fallbacks for other bespoke clusters (flow, settings-v2,
    * contacts-v2, jobs-board, gauge) so they render as clean editorial surfaces
    * until their pages are individually reviewed. ----- */
-  [class*="nuoma-flow-v2-card"],
+  [class*="nuoma-flow-card"],
   [class*="nuoma-settings-"],
   [class*="nuoma-contacts-"],
   .nuoma-jobs-board,
   .nuoma-ops-split > section {
     color: rgb(var(--color-fg-primary));
   }
-  .nuoma-flow-v2-inspector-card,
+  .nuoma-flow-inspector-card,
   .nuoma-jobs-board,
   .nuoma-settings-main > section,
   .nuoma-settings-side > section {
@@ -334,7 +324,7 @@
     background: rgb(var(--color-bg-surface));
     padding: 1rem;
   }
-  .nuoma-flow-v2-card-icon,
+  .nuoma-flow-card-icon,
   .nuoma-gauge {
     display: inline-flex;
     align-items: center;
@@ -742,25 +732,25 @@
   box-shadow: var(--shadow-flat);
 }
 
-.nuoma-flow-studio-v2 {
-  --flow-v2-bg: #0f0f15;
-  --flow-v2-panel: #12121a;
-  --flow-v2-panel-soft: #16161f;
-  --flow-v2-panel-raised: #17171f;
-  --flow-v2-border: rgba(48, 48, 62, 0.28);
-  --flow-v2-border-soft: rgba(48, 48, 62, 0.18);
-  --flow-v2-cyan: rgb(var(--color-brand-teal));
-  --flow-v2-cyan-strong: rgb(var(--color-brand-teal));
-  --flow-v2-green: rgb(var(--color-brand-green));
-  --flow-v2-gold: rgb(var(--color-brand-blue));
-  --flow-v2-text: #f4f4f8;
-  --flow-v2-muted: #a2a2b2;
-  --flow-v2-dim: #6e6e80;
+.nuoma-flow-studio {
+  --nw-flow-bg: #0f0f15;
+  --nw-flow-panel: #12121a;
+  --nw-flow-panel-soft: #16161f;
+  --nw-flow-panel-raised: #17171f;
+  --nw-flow-border: rgba(48, 48, 62, 0.28);
+  --nw-flow-border-soft: rgba(48, 48, 62, 0.18);
+  --nw-flow-cyan: rgb(var(--color-brand-teal));
+  --nw-flow-cyan-strong: rgb(var(--color-brand-teal));
+  --nw-flow-green: rgb(var(--color-brand-green));
+  --nw-flow-gold: rgb(var(--color-brand-blue));
+  --nw-flow-text: #f4f4f8;
+  --nw-flow-muted: #a2a2b2;
+  --nw-flow-dim: #6e6e80;
   min-height: 100vh;
   max-width: 100%;
   overflow-x: hidden;
-  background: var(--flow-v2-bg);
-  color: var(--flow-v2-text);
+  background: var(--nw-flow-bg);
+  color: var(--nw-flow-text);
   font-family: "Inter Variable", "Inter", system-ui, sans-serif;
 }
 
@@ -796,22 +786,22 @@
   color: rgb(var(--color-brand-teal)) !important;
 }
 
-.nuoma-flow-v2-topbar {
+.nuoma-flow-topbar {
   display: grid;
   height: 4.55rem;
   grid-template-columns: minmax(24rem, 1fr) minmax(20rem, 24.25rem) auto;
   align-items: center;
   gap: 1.5rem;
-  border-bottom: 1px solid var(--flow-v2-border);
+  border-bottom: 1px solid var(--nw-flow-border);
   background: #0f0f15;
   padding: 0 1.4rem;
 }
 
-.nuoma-flow-v2-title {
+.nuoma-flow-title {
   min-width: 0;
 }
 
-.nuoma-flow-v2-title-line {
+.nuoma-flow-title-line {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -822,15 +812,15 @@
   color: #f4f4f8;
 }
 
-.nuoma-flow-v2-title-line > span:last-of-type {
+.nuoma-flow-title-line > span:last-of-type {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.nuoma-flow-v2-title-line button,
-.nuoma-flow-v2-account button {
+.nuoma-flow-title-line button,
+.nuoma-flow-account button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -839,16 +829,16 @@
   color: #a2a2b2;
 }
 
-.nuoma-flow-v2-title-line button {
+.nuoma-flow-title-line button {
   height: 1.35rem;
   width: 1.35rem;
 }
 
-.nuoma-flow-v2-title-slash {
+.nuoma-flow-title-slash {
   color: #6e6e80;
 }
 
-.nuoma-flow-v2-status {
+.nuoma-flow-status {
   margin-top: 0.55rem;
   display: flex;
   align-items: center;
@@ -857,14 +847,14 @@
   color: #a2a2b2;
 }
 
-.nuoma-flow-v2-status span {
+.nuoma-flow-status span {
   height: 0.45rem;
   width: 0.45rem;
   border-radius: 999px;
   background: #2bb87e;
 }
 
-.nuoma-flow-v2-search {
+.nuoma-flow-search {
   display: grid;
   height: 2.15rem;
   min-width: 0;
@@ -879,7 +869,7 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
-.nuoma-flow-v2-search span {
+.nuoma-flow-search span {
   min-width: 0;
   overflow: hidden;
   text-align: left;
@@ -888,7 +878,7 @@
   font-size: 0.76rem;
 }
 
-.nuoma-flow-v2-search kbd {
+.nuoma-flow-search kbd {
   border-radius: 0.3rem;
   background: #16161f;
   padding: 0.12rem 0.35rem;
@@ -897,26 +887,26 @@
   color: #6e6e80;
 }
 
-.nuoma-flow-v2-account {
+.nuoma-flow-account {
   display: flex;
   align-items: center;
   justify-content: end;
   gap: 0.8rem;
 }
 
-.nuoma-flow-v2-account button {
+.nuoma-flow-account button {
   position: relative;
   height: 2.1rem;
   width: 2.1rem;
   border-radius: 999px;
 }
 
-.nuoma-flow-v2-account button:hover {
+.nuoma-flow-account button:hover {
   background: rgba(255, 255, 255, 0.04);
   color: #f4f4f8;
 }
 
-.nuoma-flow-v2-bell span {
+.nuoma-flow-bell span {
   position: absolute;
   right: 0.2rem;
   top: 0.2rem;
@@ -931,26 +921,26 @@
   font-weight: 700;
 }
 
-.nuoma-flow-v2-account .nuoma-flow-v2-avatar {
+.nuoma-flow-account .nuoma-flow-avatar {
   background: #17171f;
   color: #f4f4f8;
   font-size: 0.76rem;
   font-weight: 700;
 }
 
-.nuoma-flow-v2-actionbar {
+.nuoma-flow-actionbar {
   display: flex;
   height: 3.45rem;
   align-items: center;
   justify-content: end;
   gap: 1rem;
-  border-bottom: 1px solid var(--flow-v2-border);
+  border-bottom: 1px solid var(--nw-flow-border);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent), #12121a;
   padding: 0 1.65rem;
 }
 
-.nuoma-flow-v2-button,
-.nuoma-flow-v2-activate-group button {
+.nuoma-flow-button,
+.nuoma-flow-activate-group button {
   display: inline-flex;
   height: 2.25rem;
   align-items: center;
@@ -963,38 +953,38 @@
   font-weight: 700;
 }
 
-.nuoma-flow-v2-button-outline {
+.nuoma-flow-button-outline {
   border-color: rgba(var(--color-brand-teal), 0.55);
   background: rgba(var(--color-brand-teal), 0.055);
   color: #f4f4f8;
 }
 
-.nuoma-flow-v2-button-dark {
+.nuoma-flow-button-dark {
   border-color: rgba(48, 48, 62, 0.35);
   background: #131320;
   color: #f4f4f8;
 }
 
-.nuoma-flow-v2-activate-group {
+.nuoma-flow-activate-group {
   display: inline-flex;
   overflow: hidden;
   border-radius: 0.45rem;
   box-shadow: 0 0 24px rgba(var(--color-brand-teal), 0.22);
 }
 
-.nuoma-flow-v2-activate-group button {
+.nuoma-flow-activate-group button {
   border-radius: 0;
   background: rgb(var(--color-brand-teal));
   color: #0b0b10;
 }
 
-.nuoma-flow-v2-activate-group button + button {
+.nuoma-flow-activate-group button + button {
   width: 2.75rem;
   border-left-color: rgba(11, 11, 16, 0.24);
   padding: 0;
 }
 
-.nuoma-flow-v2-body {
+.nuoma-flow-body {
   display: grid;
   min-height: calc(100vh - 8rem);
   grid-template-columns: clamp(10.75rem, 12vw, 12.6rem) minmax(0, 1fr) clamp(
@@ -1005,14 +995,14 @@
   background: #0f0f15;
 }
 
-.nuoma-flow-v2-rail {
+.nuoma-flow-rail {
   position: relative;
-  border-right: 1px solid var(--flow-v2-border);
+  border-right: 1px solid var(--nw-flow-border);
   background: #0b0b10;
   padding: 1.55rem 0.8rem;
 }
 
-.nuoma-flow-v2-rail-title {
+.nuoma-flow-rail-title {
   margin-bottom: 1.45rem;
   padding-left: 0.1rem;
   font-size: 0.86rem;
@@ -1020,7 +1010,7 @@
   color: #f4f4f8;
 }
 
-.nuoma-flow-v2-tabs {
+.nuoma-flow-tabs {
   position: relative;
   display: grid;
   width: 100%;
@@ -1031,7 +1021,7 @@
   box-shadow: none;
 }
 
-.nuoma-flow-v2-tabs::before {
+.nuoma-flow-tabs::before {
   content: "";
   position: absolute;
   left: 0.9rem;
@@ -1041,7 +1031,7 @@
   background: rgba(var(--color-brand-teal), 0.34);
 }
 
-.nuoma-flow-v2-step-tab {
+.nuoma-flow-step-tab {
   position: relative;
   display: grid;
   min-height: 4.9rem;
@@ -1057,7 +1047,7 @@
   color: #a2a2b2;
 }
 
-.nuoma-flow-v2-step-marker {
+.nuoma-flow-step-marker {
   position: relative;
   z-index: 1;
   display: grid;
@@ -1072,32 +1062,32 @@
   font-weight: 700;
 }
 
-.nuoma-flow-v2-step-tab[data-flow-state="done"] .nuoma-flow-v2-step-marker,
-.nuoma-flow-v2-step-tab[data-flow-state="active"] .nuoma-flow-v2-step-marker {
+.nuoma-flow-step-tab[data-flow-state="done"] .nuoma-flow-step-marker,
+.nuoma-flow-step-tab[data-flow-state="active"] .nuoma-flow-step-marker {
   background: rgb(var(--color-brand-teal));
   color: #0b0b10;
   box-shadow: 0 0 18px rgba(var(--color-brand-teal), 0.35);
 }
 
-.nuoma-flow-v2-step-tab[data-flow-state="upcoming"] .nuoma-flow-v2-step-marker {
+.nuoma-flow-step-tab[data-flow-state="upcoming"] .nuoma-flow-step-marker {
   background: #0f0f15;
   color: #6e6e80;
   box-shadow: none;
 }
 
-.nuoma-flow-v2-step-copy {
+.nuoma-flow-step-copy {
   display: grid;
   min-width: 0;
   gap: 0.28rem;
 }
 
-.nuoma-flow-v2-step-copy span:first-child {
+.nuoma-flow-step-copy span:first-child {
   color: #f4f4f8;
   font-size: 0.86rem;
   font-weight: 650;
 }
 
-.nuoma-flow-v2-step-copy span:last-child {
+.nuoma-flow-step-copy span:last-child {
   overflow: hidden;
   color: #a2a2b2;
   font-size: 0.76rem;
@@ -1105,18 +1095,18 @@
   white-space: nowrap;
 }
 
-.nuoma-flow-v2-step-tab[data-flow-state="upcoming"] .nuoma-flow-v2-step-copy span:first-child {
+.nuoma-flow-step-tab[data-flow-state="upcoming"] .nuoma-flow-step-copy span:first-child {
   color: #a2a2b2;
 }
 
-.nuoma-flow-v2-stage {
+.nuoma-flow-stage {
   position: relative;
   min-width: 0;
   background: #0b0b10;
   overflow: visible;
 }
 
-.nuoma-flow-v2-board {
+.nuoma-flow-board {
   position: relative;
   min-height: calc(100vh - 8rem);
   overflow: hidden;
@@ -1129,7 +1119,7 @@
     auto;
 }
 
-.nuoma-flow-v2-board-toolbar {
+.nuoma-flow-board-toolbar {
   position: absolute;
   left: 1.35rem;
   top: 0.85rem;
@@ -1143,7 +1133,7 @@
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
 }
 
-.nuoma-flow-v2-board-toolbar button {
+.nuoma-flow-board-toolbar button {
   display: inline-flex;
   height: 2.15rem;
   min-width: 2.15rem;
@@ -1156,57 +1146,57 @@
   font-size: 0.78rem;
 }
 
-.nuoma-flow-v2-board-toolbar button.is-active {
+.nuoma-flow-board-toolbar button.is-active {
   background: rgba(var(--color-brand-teal), 0.1);
   color: rgb(var(--color-brand-teal));
 }
 
-.nuoma-flow-v2-board-toolbar button:last-child {
+.nuoma-flow-board-toolbar button:last-child {
   border-right: 0;
 }
 
-.nuoma-flow-v2-zoom-label {
+.nuoma-flow-zoom-label {
   width: 3.65rem;
   color: #c8c8d4 !important;
 }
 
-.nuoma-flow-v2-toolbar-divider {
+.nuoma-flow-toolbar-divider {
   height: 2.15rem;
   width: 1px;
   background: rgba(48, 48, 62, 0.22);
 }
 
-.nuoma-flow-v2-reactflow {
+.nuoma-flow-reactflow {
   position: absolute;
   inset: 0;
   z-index: 2;
   padding-top: 3.75rem;
 }
 
-.nuoma-flow-v2-reactflow .react-flow__pane {
+.nuoma-flow-reactflow .react-flow__pane {
   cursor: grab;
 }
 
-.nuoma-flow-v2-reactflow .react-flow__pane:active {
+.nuoma-flow-reactflow .react-flow__pane:active {
   cursor: grabbing;
 }
 
-.nuoma-flow-v2-reactflow .react-flow__edge-path {
+.nuoma-flow-reactflow .react-flow__edge-path {
   filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.26));
 }
 
-.nuoma-flow-v2-reactflow .react-flow__edge-text {
+.nuoma-flow-reactflow .react-flow__edge-text {
   fill: #c8c8d4;
   font-family: "Inter Variable", "Inter", system-ui, sans-serif;
 }
 
-.nuoma-flow-v2-reactflow .react-flow__edge-textbg {
+.nuoma-flow-reactflow .react-flow__edge-textbg {
   fill: rgba(11, 11, 16, 0.86);
   stroke: rgba(48, 48, 62, 0.24);
   stroke-width: 1;
 }
 
-.nuoma-flow-v2-xy-node {
+.nuoma-flow-xy-node {
   width: 16.5rem;
   border: 1px solid rgba(48, 48, 62, 0.32);
   border-radius: 0.45rem;
@@ -1218,18 +1208,18 @@
   padding: 0.72rem;
 }
 
-.nuoma-flow-v2-xy-node-branch {
+.nuoma-flow-xy-node-branch {
   border-color: rgba(var(--color-brand-blue), 0.42);
 }
 
-.nuoma-flow-v2-xy-node-head {
+.nuoma-flow-xy-node-head {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
   gap: 0.62rem;
 }
 
-.nuoma-flow-v2-xy-node-icon {
+.nuoma-flow-xy-node-icon {
   display: grid;
   height: 1.8rem;
   width: 1.8rem;
@@ -1239,27 +1229,27 @@
   color: rgb(var(--color-brand-teal));
 }
 
-.nuoma-flow-v2-xy-node-wa .nuoma-flow-v2-xy-node-icon {
+.nuoma-flow-xy-node-wa .nuoma-flow-xy-node-icon {
   background: rgba(43, 184, 126, 0.14);
   color: rgb(var(--color-brand-green));
 }
 
-.nuoma-flow-v2-xy-node-ig .nuoma-flow-v2-xy-node-icon {
+.nuoma-flow-xy-node-ig .nuoma-flow-xy-node-icon {
   background: rgba(91, 91, 246, 0.16);
   color: rgb(var(--color-channel-instagram));
 }
 
-.nuoma-flow-v2-xy-node-violet .nuoma-flow-v2-xy-node-icon {
+.nuoma-flow-xy-node-violet .nuoma-flow-xy-node-icon {
   background: rgba(91, 91, 246, 0.14);
   color: #7c7cff;
 }
 
-.nuoma-flow-v2-xy-node-neutral .nuoma-flow-v2-xy-node-icon {
+.nuoma-flow-xy-node-neutral .nuoma-flow-xy-node-icon {
   background: rgba(255, 255, 255, 0.08);
   color: #c8c8d4;
 }
 
-.nuoma-flow-v2-xy-node-title {
+.nuoma-flow-xy-node-title {
   overflow: hidden;
   color: #f4f4f8;
   font-size: 0.8rem;
@@ -1269,7 +1259,7 @@
   white-space: nowrap;
 }
 
-.nuoma-flow-v2-xy-node-meta {
+.nuoma-flow-xy-node-meta {
   margin-top: 0.42rem;
   display: grid;
   gap: 0.16rem;
@@ -1278,7 +1268,7 @@
   line-height: 1.45;
 }
 
-.nuoma-flow-v2-xy-node-summary {
+.nuoma-flow-xy-node-summary {
   display: block;
   margin-top: 0.75rem;
   color: #c8c8d4;
@@ -1291,15 +1281,15 @@
   -webkit-box-orient: vertical;
 }
 
-.nuoma-flow-v2-xy-branch-row {
+.nuoma-flow-xy-branch-row {
   margin-top: 0.72rem;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.45rem;
 }
 
-.nuoma-flow-v2-xy-branch-row button,
-.nuoma-flow-v2-xy-condition {
+.nuoma-flow-xy-branch-row button,
+.nuoma-flow-xy-condition {
   border-radius: 0.35rem;
   border: 1px solid rgba(var(--color-brand-teal), 0.28);
   background: rgba(var(--color-brand-teal), 0.09);
@@ -1310,27 +1300,27 @@
   padding: 0.55rem 0.6rem;
 }
 
-.nuoma-flow-v2-xy-condition {
+.nuoma-flow-xy-condition {
   margin-top: 0.72rem;
   width: 100%;
   text-align: left;
 }
 
-.nuoma-flow-v2-xy-node .react-flow__handle {
+.nuoma-flow-xy-node .react-flow__handle {
   height: 0.62rem;
   width: 0.62rem;
   border: 1px solid rgba(244, 244, 248, 0.72);
   background: rgb(var(--color-brand-teal));
 }
 
-.nuoma-flow-v2-xy-minimap {
+.nuoma-flow-xy-minimap {
   overflow: hidden;
   border: 1px solid rgba(var(--color-brand-teal), 0.42) !important;
   border-radius: 0.45rem;
   background: rgba(15, 15, 21, 0.9) !important;
 }
 
-.nuoma-flow-v2-xy-controls {
+.nuoma-flow-xy-controls {
   overflow: hidden;
   border: 1px solid rgba(48, 48, 62, 0.28);
   border-radius: 0.45rem;
@@ -1338,18 +1328,18 @@
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
 }
 
-.nuoma-flow-v2-xy-controls button {
+.nuoma-flow-xy-controls button {
   border-bottom: 1px solid rgba(48, 48, 62, 0.18);
   background: transparent;
   color: #a2a2b2;
 }
 
-.nuoma-flow-v2-xy-controls button:hover {
+.nuoma-flow-xy-controls button:hover {
   background: rgba(var(--color-brand-teal), 0.1);
   color: rgb(var(--color-brand-teal-soft));
 }
 
-.nuoma-flow-v2-editor-panels {
+.nuoma-flow-editor-panels {
   position: relative;
   z-index: 3;
   min-height: 34rem;
@@ -1358,22 +1348,22 @@
   padding: 1rem;
 }
 
-.nuoma-flow-v2-inspector {
+.nuoma-flow-inspector {
   display: grid;
   align-content: start;
   gap: 0.82rem;
-  border-left: 1px solid var(--flow-v2-border);
+  border-left: 1px solid var(--nw-flow-border);
   background: #0b0b10;
   padding: 1.5rem 0.85rem 1rem;
 }
 
-.nuoma-flow-v2-inspector h2 {
+.nuoma-flow-inspector h2 {
   color: #c8c8d4;
   font-size: 0.88rem;
   font-weight: 600;
 }
 
-.nuoma-flow-v2-inspector-card {
+.nuoma-flow-inspector-card {
   border: 1px solid rgba(48, 48, 62, 0.28);
   border-radius: 0.45rem;
   background: #12121a;
@@ -1381,34 +1371,34 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }
 
-.nuoma-flow-v2-valid-card {
+.nuoma-flow-valid-card {
   border-color: rgba(43, 184, 126, 0.24);
   background:
     radial-gradient(circle at 85% 50%, rgba(43, 184, 126, 0.12), transparent 9rem), #0f0f15;
 }
 
-.nuoma-flow-v2-card-head {
+.nuoma-flow-card-head {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: start;
   gap: 0.7rem;
 }
 
-.nuoma-flow-v2-card-head strong {
+.nuoma-flow-card-head strong {
   display: block;
   color: #f4f4f8;
   font-size: 0.78rem;
   font-weight: 650;
 }
 
-.nuoma-flow-v2-card-head span,
-.nuoma-flow-v2-inspector-card p {
+.nuoma-flow-card-head span,
+.nuoma-flow-inspector-card p {
   color: #a2a2b2;
   font-size: 0.68rem;
   line-height: 1.45;
 }
 
-.nuoma-flow-v2-card-icon {
+.nuoma-flow-card-icon {
   display: grid;
   height: 1.65rem;
   width: 1.65rem;
@@ -1418,17 +1408,17 @@
   color: rgb(var(--color-brand-teal));
 }
 
-.nuoma-flow-v2-card-icon.is-success {
+.nuoma-flow-card-icon.is-success {
   background: rgba(43, 184, 126, 0.14);
   color: rgb(var(--color-brand-green));
 }
 
-.nuoma-flow-v2-card-icon.is-warning {
+.nuoma-flow-card-icon.is-warning {
   background: rgba(var(--color-brand-blue), 0.14);
   color: rgb(var(--color-brand-blue));
 }
 
-.nuoma-flow-v2-toggle {
+.nuoma-flow-toggle {
   position: relative;
   display: block;
   height: 1rem;
@@ -1437,7 +1427,7 @@
   background: rgb(var(--color-brand-teal));
 }
 
-.nuoma-flow-v2-toggle::after {
+.nuoma-flow-toggle::after {
   content: "";
   position: absolute;
   right: 0.15rem;
@@ -1448,7 +1438,7 @@
   background: #0b0b10;
 }
 
-.nuoma-flow-v2-safe-grid {
+.nuoma-flow-safe-grid {
   margin-top: 0.8rem;
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1457,40 +1447,40 @@
   border-radius: 0.35rem;
 }
 
-.nuoma-flow-v2-safe-grid div {
+.nuoma-flow-safe-grid div {
   display: grid;
   gap: 0.28rem;
   border-bottom: 1px solid rgba(48, 48, 62, 0.18);
   padding: 0.6rem 0.72rem;
 }
 
-.nuoma-flow-v2-safe-grid div:last-child {
+.nuoma-flow-safe-grid div:last-child {
   grid-column: 1 / -1;
   border-bottom: 0;
 }
 
-.nuoma-flow-v2-safe-grid div:nth-child(odd) {
+.nuoma-flow-safe-grid div:nth-child(odd) {
   border-right: 1px solid rgba(48, 48, 62, 0.18);
 }
 
-.nuoma-flow-v2-safe-grid span {
+.nuoma-flow-safe-grid span {
   color: #6e6e80;
   font-size: 0.63rem;
 }
 
-.nuoma-flow-v2-safe-grid strong {
+.nuoma-flow-safe-grid strong {
   color: #f4f4f8;
   font-size: 0.72rem;
 }
 
-.nuoma-flow-v2-audience-value {
+.nuoma-flow-audience-value {
   margin-top: 0.78rem;
   color: #f4f4f8;
   font-size: 1.28rem;
   font-weight: 500;
 }
 
-.nuoma-flow-v2-audience-foot {
+.nuoma-flow-audience-foot {
   margin-top: 0.35rem;
   display: flex;
   justify-content: space-between;
@@ -1499,17 +1489,17 @@
   font-size: 0.68rem;
 }
 
-.nuoma-flow-v2-audience-foot strong {
+.nuoma-flow-audience-foot strong {
   color: rgb(var(--color-brand-green));
   font-size: 0.68rem;
 }
 
-.nuoma-flow-v2-compact-card .nuoma-flow-v2-card-head {
+.nuoma-flow-compact-card .nuoma-flow-card-head {
   align-items: center;
 }
 
-.nuoma-flow-v2-compact-card button,
-.nuoma-flow-v2-alert-copy button {
+.nuoma-flow-compact-card button,
+.nuoma-flow-alert-copy button {
   border: 0;
   background: transparent;
   color: rgb(var(--color-brand-teal));
@@ -1517,34 +1507,34 @@
   font-weight: 650;
 }
 
-.nuoma-flow-v2-alert-card .nuoma-flow-v2-card-head > span:last-child {
+.nuoma-flow-alert-card .nuoma-flow-card-head > span:last-child {
   color: rgb(var(--color-brand-blue));
   font-size: 0.68rem;
   font-weight: 650;
 }
 
-.nuoma-flow-v2-alert-copy {
+.nuoma-flow-alert-copy {
   margin-top: 0.8rem;
   border-left: 2px solid rgb(var(--color-brand-blue));
   padding-left: 0.7rem;
 }
 
-.nuoma-flow-v2-alert-copy strong {
+.nuoma-flow-alert-copy strong {
   color: rgb(var(--color-brand-blue));
   font-size: 0.7rem;
 }
 
-.nuoma-flow-v2-alert-copy p {
+.nuoma-flow-alert-copy p {
   margin-top: 0.18rem;
 }
 
-.nuoma-flow-v2-inspector-actions {
+.nuoma-flow-inspector-actions {
   display: grid;
   gap: 0.7rem;
 }
 
-.nuoma-flow-v2-submit,
-.nuoma-flow-v2-save {
+.nuoma-flow-submit,
+.nuoma-flow-save {
   display: inline-flex;
   min-height: 2.25rem;
   align-items: center;
@@ -1555,24 +1545,24 @@
   font-weight: 750;
 }
 
-.nuoma-flow-v2-submit {
+.nuoma-flow-submit {
   border: 0;
   background: rgb(var(--color-brand-teal));
   color: #0b0b10;
   box-shadow: 0 0 24px rgba(var(--color-brand-teal), 0.26);
 }
 
-.nuoma-flow-v2-submit:disabled {
+.nuoma-flow-submit:disabled {
   opacity: 0.7;
 }
 
-.nuoma-flow-v2-save {
+.nuoma-flow-save {
   border: 1px solid rgba(var(--color-brand-teal), 0.55);
   background: transparent;
   color: rgb(var(--color-brand-teal));
 }
 
-.nuoma-flow-v2-inspector-meta {
+.nuoma-flow-inspector-meta {
   display: none;
 }
 
@@ -1585,22 +1575,22 @@
     opacity: 0.4;
   }
 
-  .nuoma-flow-v2-topbar {
+  .nuoma-flow-topbar {
     height: auto;
     grid-template-columns: minmax(0, 1fr);
     gap: 0.85rem;
     padding: 1rem;
   }
 
-  .nuoma-flow-v2-search {
+  .nuoma-flow-search {
     display: none;
   }
 
-  .nuoma-flow-v2-account {
+  .nuoma-flow-account {
     justify-content: start;
   }
 
-  .nuoma-flow-v2-actionbar {
+  .nuoma-flow-actionbar {
     height: auto;
     justify-content: start;
     gap: 0.65rem;
@@ -1608,37 +1598,37 @@
     padding: 0.8rem 1rem;
   }
 
-  .nuoma-flow-v2-actionbar > * {
+  .nuoma-flow-actionbar > * {
     flex: 0 0 auto;
   }
 
-  .nuoma-flow-v2-body {
+  .nuoma-flow-body {
     display: block;
     min-height: auto;
   }
 
-  .nuoma-flow-v2-rail {
+  .nuoma-flow-rail {
     border-right: 0;
-    border-bottom: 1px solid var(--flow-v2-border);
+    border-bottom: 1px solid var(--nw-flow-border);
     padding: 1rem;
   }
 
-  .nuoma-flow-v2-rail-title {
+  .nuoma-flow-rail-title {
     margin-bottom: 0.75rem;
   }
 
-  .nuoma-flow-v2-tabs {
+  .nuoma-flow-tabs {
     grid-auto-flow: column;
     grid-auto-columns: minmax(8.75rem, 1fr);
     overflow-x: auto;
     padding-bottom: 0.25rem;
   }
 
-  .nuoma-flow-v2-tabs::before {
+  .nuoma-flow-tabs::before {
     display: none;
   }
 
-  .nuoma-flow-v2-step-tab {
+  .nuoma-flow-step-tab {
     min-height: 3.8rem;
     grid-template-columns: 1.55rem minmax(0, 1fr);
     gap: 0.65rem;
@@ -1648,23 +1638,23 @@
     padding: 0.7rem;
   }
 
-  .nuoma-flow-v2-stage {
+  .nuoma-flow-stage {
     overflow-x: auto;
     overflow-y: hidden;
   }
 
-  .nuoma-flow-v2-board {
+  .nuoma-flow-board {
     min-height: 38rem;
     min-width: 60rem;
   }
 
-  .nuoma-flow-v2-inspector {
+  .nuoma-flow-inspector {
     border-left: 0;
-    border-top: 1px solid var(--flow-v2-border);
+    border-top: 1px solid var(--nw-flow-border);
     padding: 1rem;
   }
 
-  .nuoma-flow-v2-inspector-actions {
+  .nuoma-flow-inspector-actions {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -2582,919 +2572,6 @@
   border: 1px solid rgba(var(--color-border-subtle), 0.12);
   box-shadow: var(--shadow-flat);
 }
-
-.nuoma-flow-studio-v2 {
-  --flow-v2-bg: #080f18;
-  --flow-v2-panel: #0b141e;
-  --flow-v2-panel-soft: #101a24;
-  --flow-v2-panel-raised: #151f2a;
-  --flow-v2-border: rgba(92, 112, 129, 0.28);
-  --flow-v2-border-soft: rgba(92, 112, 129, 0.18);
-  --flow-v2-cyan: #21dff1;
-  --flow-v2-cyan-strong: #28e5fb;
-  --flow-v2-green: #25d36b;
-  --flow-v2-gold: #d6a23c;
-  --flow-v2-text: #eef6fb;
-  --flow-v2-muted: #a8b4c1;
-  --flow-v2-dim: #748494;
-  min-height: 100vh;
-  background: var(--flow-v2-bg);
-  color: var(--flow-v2-text);
-  font-family: "Geist Variable", "Geist", system-ui, sans-serif;
-}
-
-.nuoma-flow-shell {
-  background: #080f18;
-}
-
-.nuoma-flow-shell > aside {
-  width: clamp(10.75rem, 11.8vw, 12.35rem) !important;
-}
-
-.nuoma-flow-shell > aside > div {
-  background: #080f18;
-  border-color: rgba(92, 112, 129, 0.24);
-}
-
-.nuoma-flow-shell > aside nav a span {
-  min-height: 2.45rem;
-  border-color: transparent !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  color: #b6c2cd !important;
-}
-
-.nuoma-flow-shell > aside nav a span:hover {
-  background: rgba(255, 255, 255, 0.035) !important;
-  color: #e8f2f8 !important;
-}
-
-.nuoma-flow-shell > aside nav a[aria-current="page"] span,
-.nuoma-flow-shell > aside nav a[data-status="active"] span {
-  background: rgba(33, 223, 241, 0.11) !important;
-  color: #21dff1 !important;
-}
-
-.nuoma-flow-v2-topbar {
-  display: grid;
-  height: 4.55rem;
-  grid-template-columns: minmax(24rem, 1fr) minmax(20rem, 24.25rem) auto;
-  align-items: center;
-  gap: 1.5rem;
-  border-bottom: 1px solid var(--flow-v2-border);
-  background: #080f18;
-  padding: 0 1.4rem;
-}
-
-.nuoma-flow-v2-title {
-  min-width: 0;
-}
-
-.nuoma-flow-v2-title-line {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 1rem;
-  font-weight: 650;
-  line-height: 1.15;
-  color: #f5fbff;
-}
-
-.nuoma-flow-v2-title-line > span:last-of-type {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.nuoma-flow-v2-title-line button,
-.nuoma-flow-v2-account button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  background: transparent;
-  color: #aab6c2;
-}
-
-.nuoma-flow-v2-title-line button {
-  height: 1.35rem;
-  width: 1.35rem;
-}
-
-.nuoma-flow-v2-title-slash {
-  color: #778694;
-}
-
-.nuoma-flow-v2-status {
-  margin-top: 0.55rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.76rem;
-  color: #a8b4c1;
-}
-
-.nuoma-flow-v2-status span {
-  height: 0.45rem;
-  width: 0.45rem;
-  border-radius: 999px;
-  background: #28c879;
-}
-
-.nuoma-flow-v2-search {
-  display: grid;
-  height: 2.15rem;
-  min-width: 0;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.6rem;
-  border-radius: 0.45rem;
-  border: 1px solid rgba(92, 112, 129, 0.3);
-  background: #0b141e;
-  padding: 0 0.6rem;
-  color: #7f8d9b;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-}
-
-.nuoma-flow-v2-search span {
-  min-width: 0;
-  overflow: hidden;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.76rem;
-}
-
-.nuoma-flow-v2-search kbd {
-  border-radius: 0.3rem;
-  background: #151d28;
-  padding: 0.12rem 0.35rem;
-  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.65rem;
-  color: #8998a7;
-}
-
-.nuoma-flow-v2-account {
-  display: flex;
-  align-items: center;
-  justify-content: end;
-  gap: 0.8rem;
-}
-
-.nuoma-flow-v2-account button {
-  position: relative;
-  height: 2.1rem;
-  width: 2.1rem;
-  border-radius: 999px;
-}
-
-.nuoma-flow-v2-account button:hover {
-  background: rgba(255, 255, 255, 0.04);
-  color: #f2f8fc;
-}
-
-.nuoma-flow-v2-bell span {
-  position: absolute;
-  right: 0.2rem;
-  top: 0.2rem;
-  display: grid;
-  height: 0.82rem;
-  min-width: 0.82rem;
-  place-items: center;
-  border-radius: 999px;
-  background: #f2683d;
-  color: #ffffff;
-  font-size: 0.55rem;
-  font-weight: 700;
-}
-
-.nuoma-flow-v2-account .nuoma-flow-v2-avatar {
-  background: #172232;
-  color: #f4f8fb;
-  font-size: 0.76rem;
-  font-weight: 700;
-}
-
-.nuoma-flow-v2-actionbar {
-  display: flex;
-  height: 3.45rem;
-  align-items: center;
-  justify-content: end;
-  gap: 1rem;
-  border-bottom: 1px solid var(--flow-v2-border);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent),
-    #0b141e;
-  padding: 0 1.65rem;
-}
-
-.nuoma-flow-v2-button,
-.nuoma-flow-v2-activate-group button {
-  display: inline-flex;
-  height: 2.25rem;
-  align-items: center;
-  justify-content: center;
-  gap: 0.55rem;
-  border-radius: 0.45rem;
-  border: 1px solid transparent;
-  padding: 0 1.2rem;
-  font-size: 0.78rem;
-  font-weight: 700;
-}
-
-.nuoma-flow-v2-button-outline {
-  border-color: rgba(33, 223, 241, 0.55);
-  background: rgba(33, 223, 241, 0.055);
-  color: #d9fbff;
-}
-
-.nuoma-flow-v2-button-dark {
-  border-color: rgba(92, 112, 129, 0.35);
-  background: #111a24;
-  color: #ecf4fa;
-}
-
-.nuoma-flow-v2-activate-group {
-  display: inline-flex;
-  overflow: hidden;
-  border-radius: 0.45rem;
-  box-shadow: 0 0 24px rgba(33, 223, 241, 0.22);
-}
-
-.nuoma-flow-v2-activate-group button {
-  border-radius: 0;
-  background: #21dff1;
-  color: #031019;
-}
-
-.nuoma-flow-v2-activate-group button + button {
-  width: 2.75rem;
-  border-left-color: rgba(3, 16, 25, 0.24);
-  padding: 0;
-}
-
-.nuoma-flow-v2-body {
-  display: grid;
-  min-height: calc(100vh - 8rem);
-  grid-template-columns: clamp(10.75rem, 12vw, 12.6rem) minmax(0, 1fr) clamp(17.25rem, 18.5vw, 19.35rem);
-  background: #080f18;
-}
-
-.nuoma-flow-v2-rail {
-  position: relative;
-  border-right: 1px solid var(--flow-v2-border);
-  background: #0a121b;
-  padding: 1.55rem 0.8rem;
-}
-
-.nuoma-flow-v2-rail-title {
-  margin-bottom: 1.45rem;
-  padding-left: 0.1rem;
-  font-size: 0.86rem;
-  font-weight: 650;
-  color: #eaf3f9;
-}
-
-.nuoma-flow-v2-tabs {
-  position: relative;
-  display: grid;
-  width: 100%;
-  gap: 0;
-  border-radius: 0;
-  background: transparent;
-  padding: 0;
-  box-shadow: none;
-}
-
-.nuoma-flow-v2-tabs::before {
-  content: "";
-  position: absolute;
-  left: 0.9rem;
-  top: 1.3rem;
-  bottom: 1.35rem;
-  width: 1px;
-  background: rgba(33, 223, 241, 0.34);
-}
-
-.nuoma-flow-v2-step-tab {
-  position: relative;
-  display: grid;
-  min-height: 4.9rem;
-  grid-template-columns: 1.8rem minmax(0, 1fr);
-  align-items: start;
-  justify-content: start;
-  gap: 0.9rem;
-  border-radius: 0;
-  background: transparent !important;
-  box-shadow: none !important;
-  padding: 0;
-  text-align: left;
-  color: #aab7c2;
-}
-
-.nuoma-flow-v2-step-marker {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  height: 1.35rem;
-  width: 1.35rem;
-  place-items: center;
-  border-radius: 999px;
-  border: 1px solid rgba(33, 223, 241, 0.6);
-  background: #0a121b;
-  color: #21dff1;
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
-.nuoma-flow-v2-step-tab[data-flow-state="done"] .nuoma-flow-v2-step-marker,
-.nuoma-flow-v2-step-tab[data-flow-state="active"] .nuoma-flow-v2-step-marker {
-  background: #21dff1;
-  color: #031019;
-  box-shadow: 0 0 18px rgba(33, 223, 241, 0.35);
-}
-
-.nuoma-flow-v2-step-tab[data-flow-state="upcoming"] .nuoma-flow-v2-step-marker {
-  background: #0c1721;
-  color: #7e8e9d;
-  box-shadow: none;
-}
-
-.nuoma-flow-v2-step-copy {
-  display: grid;
-  min-width: 0;
-  gap: 0.28rem;
-}
-
-.nuoma-flow-v2-step-copy span:first-child {
-  color: #edf6fb;
-  font-size: 0.86rem;
-  font-weight: 650;
-}
-
-.nuoma-flow-v2-step-copy span:last-child {
-  overflow: hidden;
-  color: #a0acb7;
-  font-size: 0.76rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.nuoma-flow-v2-step-tab[data-flow-state="upcoming"] .nuoma-flow-v2-step-copy span:first-child {
-  color: #a8b5c1;
-}
-
-.nuoma-flow-v2-stage {
-  position: relative;
-  min-width: 0;
-  background: #081019;
-  overflow: visible;
-}
-
-.nuoma-flow-v2-board {
-  position: relative;
-  min-height: calc(100vh - 8rem);
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 48% 45%, rgba(20, 60, 78, 0.16), transparent 24rem),
-    radial-gradient(circle, rgba(50, 75, 91, 0.24) 1px, transparent 1.45px),
-    #081019;
-  background-size: auto, 28px 28px, auto;
-}
-
-.nuoma-flow-v2-board-toolbar {
-  position: absolute;
-  left: 1.35rem;
-  top: 0.85rem;
-  z-index: 5;
-  display: inline-flex;
-  align-items: center;
-  overflow: hidden;
-  border-radius: 0.45rem;
-  border: 1px solid rgba(92, 112, 129, 0.28);
-  background: rgba(10, 20, 30, 0.92);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
-}
-
-.nuoma-flow-v2-board-toolbar button {
-  display: inline-flex;
-  height: 2.15rem;
-  min-width: 2.15rem;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-right: 1px solid rgba(92, 112, 129, 0.18);
-  background: transparent;
-  color: #a9b6c2;
-  font-size: 0.78rem;
-}
-
-.nuoma-flow-v2-board-toolbar button.is-active {
-  background: rgba(33, 223, 241, 0.1);
-  color: #21dff1;
-}
-
-.nuoma-flow-v2-board-toolbar button:last-child {
-  border-right: 0;
-}
-
-.nuoma-flow-v2-zoom-label {
-  width: 3.65rem;
-  color: #d5e1e9 !important;
-}
-
-.nuoma-flow-v2-toolbar-divider {
-  height: 2.15rem;
-  width: 1px;
-  background: rgba(92, 112, 129, 0.22);
-}
-
-.nuoma-flow-v2-lines {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  height: 100%;
-  width: 100%;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.nuoma-flow-v2-lines path {
-  fill: none;
-  stroke: rgba(172, 188, 198, 0.72);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 2;
-}
-
-.nuoma-flow-v2-handle circle {
-  fill: #5c6670;
-  stroke: #a7b4be;
-  stroke-width: 1;
-}
-
-.nuoma-flow-v2-handle path {
-  stroke: #edf4f7;
-  stroke-width: 1.25;
-}
-
-.nuoma-flow-v2-handle-small circle {
-  fill: #c29b57;
-  stroke: #1b2026;
-}
-
-.nuoma-flow-v2-node {
-  position: absolute;
-  z-index: 2;
-  width: 11.8rem;
-  border: 1px solid rgba(92, 112, 129, 0.32);
-  border-radius: 0.45rem;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 46%),
-    #121c26;
-  box-shadow:
-    0 24px 58px rgba(0, 0, 0, 0.34),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  color: #eef6fb;
-  padding: 0.72rem;
-}
-
-.nuoma-flow-v2-node-head {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: 0.62rem;
-}
-
-.nuoma-flow-v2-node-icon {
-  display: grid;
-  height: 1.8rem;
-  width: 1.8rem;
-  place-items: center;
-  border-radius: 0.35rem;
-  background: rgba(33, 223, 241, 0.13);
-  color: #21dff1;
-}
-
-.nuoma-flow-v2-node-wa .nuoma-flow-v2-node-icon {
-  background: rgba(37, 211, 107, 0.14);
-  color: #25d36b;
-}
-
-.nuoma-flow-v2-node-ig .nuoma-flow-v2-node-icon {
-  background: rgba(238, 69, 150, 0.14);
-  color: #f04f9f;
-}
-
-.nuoma-flow-v2-node-neutral .nuoma-flow-v2-node-icon {
-  background: rgba(255, 255, 255, 0.08);
-  color: #c9d3db;
-}
-
-.nuoma-flow-v2-node-title {
-  overflow: hidden;
-  color: #f2f7fb;
-  font-size: 0.8rem;
-  font-weight: 700;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.nuoma-flow-v2-node-meta {
-  margin-top: 0.42rem;
-  display: grid;
-  gap: 0.16rem;
-  color: #aab6c0;
-  font-size: 0.67rem;
-  line-height: 1.45;
-}
-
-.nuoma-flow-v2-node-media {
-  margin-top: 0.75rem;
-  display: grid;
-  grid-template-columns: 3.25rem minmax(0, 1fr);
-  gap: 0.65rem;
-}
-
-.nuoma-flow-v2-node-media img {
-  height: 4.3rem;
-  width: 3.25rem;
-  border-radius: 0.3rem;
-  object-fit: cover;
-}
-
-.nuoma-flow-v2-node-caption {
-  display: block;
-  color: #d8e3ea;
-  font-size: 0.67rem;
-  line-height: 1.45;
-}
-
-.nuoma-flow-v2-node-start {
-  left: 4.8%;
-  top: 12.5%;
-}
-
-.nuoma-flow-v2-node-primary {
-  left: 4.8%;
-  top: 30%;
-}
-
-.nuoma-flow-v2-node-wait-left {
-  left: 4.8%;
-  top: 58.5%;
-}
-
-.nuoma-flow-v2-node-condition {
-  left: 31%;
-  top: 34.8%;
-  display: grid;
-  gap: 0.56rem;
-  width: 11.2rem;
-}
-
-.nuoma-flow-v2-node-secondary {
-  left: 58.2%;
-  top: 22%;
-  width: 10.8rem;
-}
-
-.nuoma-flow-v2-node-wait-right {
-  left: 58.2%;
-  top: 46.6%;
-  width: 10.8rem;
-}
-
-.nuoma-flow-v2-node-reengage {
-  left: 58.2%;
-  top: 66.6%;
-  width: 10.8rem;
-}
-
-.nuoma-flow-v2-node-end {
-  left: 83.5%;
-  top: 54.5%;
-  width: 9.1rem;
-}
-
-.nuoma-flow-v2-branch {
-  display: grid;
-  gap: 0.12rem;
-  border-radius: 0.35rem;
-  border: 1px solid transparent;
-  padding: 0.62rem 0.7rem;
-  text-align: left;
-  font-size: 0.68rem;
-  line-height: 1.2;
-}
-
-.nuoma-flow-v2-branch span:first-child {
-  font-weight: 750;
-}
-
-.nuoma-flow-v2-branch span:last-child {
-  color: #c6d0d8;
-}
-
-.nuoma-flow-v2-branch-yes {
-  border-color: rgba(37, 211, 107, 0.34);
-  background: rgba(37, 211, 107, 0.13);
-  color: #36df7a;
-}
-
-.nuoma-flow-v2-branch-no {
-  border-color: rgba(214, 162, 60, 0.5);
-  background: rgba(214, 162, 60, 0.14);
-  color: #e0ad45;
-}
-
-.nuoma-flow-v2-minimap {
-  position: absolute;
-  bottom: 1rem;
-  left: 1.35rem;
-  z-index: 4;
-  display: grid;
-  width: 10.65rem;
-  gap: 0.65rem;
-}
-
-.nuoma-flow-v2-minimap-screen {
-  position: relative;
-  height: 5rem;
-  overflow: hidden;
-  border: 1px solid rgba(33, 223, 241, 0.68);
-  border-radius: 0.35rem;
-  background: rgba(12, 23, 33, 0.88);
-  box-shadow: inset 0 0 0 1px rgba(33, 223, 241, 0.08);
-}
-
-.nuoma-flow-v2-minimap-screen span {
-  position: absolute;
-  display: block;
-  border-radius: 0.2rem;
-  background: #243241;
-}
-
-.nuoma-flow-v2-minimap-screen .a { left: 0.55rem; top: 1rem; height: 0.9rem; width: 1.8rem; }
-.nuoma-flow-v2-minimap-screen .b { left: 2.7rem; top: 1.45rem; height: 1.1rem; width: 2.05rem; }
-.nuoma-flow-v2-minimap-screen .c { right: 1.05rem; top: 0.7rem; height: 1rem; width: 2rem; }
-.nuoma-flow-v2-minimap-screen .d { right: 1.1rem; bottom: 0.85rem; height: 1.2rem; width: 2.15rem; }
-.nuoma-flow-v2-minimap-screen .e { left: 0.55rem; bottom: 1.05rem; height: 0.85rem; width: 1.95rem; }
-
-.nuoma-flow-v2-minimap-controls {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.45rem;
-  border: 1px solid rgba(92, 112, 129, 0.28);
-  border-radius: 0.35rem;
-  background: rgba(12, 23, 33, 0.88);
-  padding: 0.45rem;
-  color: #a9b6c1;
-}
-
-.nuoma-flow-v2-minimap-controls svg {
-  margin: auto;
-}
-
-.nuoma-flow-v2-editor-panels {
-  position: relative;
-  z-index: 3;
-  min-height: 34rem;
-  border-top: 1px solid rgba(92, 112, 129, 0.22);
-  background: #0a121b;
-  padding: 1rem;
-}
-
-.nuoma-flow-v2-inspector {
-  display: grid;
-  align-content: start;
-  gap: 0.82rem;
-  border-left: 1px solid var(--flow-v2-border);
-  background: #081019;
-  padding: 1.5rem 0.85rem 1rem;
-}
-
-.nuoma-flow-v2-inspector h2 {
-  color: #dfeaf1;
-  font-size: 0.88rem;
-  font-weight: 600;
-}
-
-.nuoma-flow-v2-inspector-card {
-  border: 1px solid rgba(92, 112, 129, 0.28);
-  border-radius: 0.45rem;
-  background: #0e1822;
-  padding: 0.9rem;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
-}
-
-.nuoma-flow-v2-valid-card {
-  border-color: rgba(37, 211, 107, 0.24);
-  background:
-    radial-gradient(circle at 85% 50%, rgba(37, 211, 107, 0.12), transparent 9rem),
-    #0d1d1b;
-}
-
-.nuoma-flow-v2-card-head {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 0.7rem;
-}
-
-.nuoma-flow-v2-card-head strong {
-  display: block;
-  color: #f1f7fb;
-  font-size: 0.78rem;
-  font-weight: 650;
-}
-
-.nuoma-flow-v2-card-head span,
-.nuoma-flow-v2-inspector-card p {
-  color: #a5b2bd;
-  font-size: 0.68rem;
-  line-height: 1.45;
-}
-
-.nuoma-flow-v2-card-icon {
-  display: grid;
-  height: 1.65rem;
-  width: 1.65rem;
-  place-items: center;
-  border-radius: 0.36rem;
-  background: rgba(33, 223, 241, 0.12);
-  color: #21dff1;
-}
-
-.nuoma-flow-v2-card-icon.is-success {
-  background: rgba(37, 211, 107, 0.14);
-  color: #25d36b;
-}
-
-.nuoma-flow-v2-card-icon.is-warning {
-  background: rgba(214, 162, 60, 0.14);
-  color: #d6a23c;
-}
-
-.nuoma-flow-v2-toggle {
-  position: relative;
-  display: block;
-  height: 1rem;
-  width: 1.75rem;
-  border-radius: 999px;
-  background: #21dff1;
-}
-
-.nuoma-flow-v2-toggle::after {
-  content: "";
-  position: absolute;
-  right: 0.15rem;
-  top: 0.15rem;
-  height: 0.7rem;
-  width: 0.7rem;
-  border-radius: 999px;
-  background: #07131d;
-}
-
-.nuoma-flow-v2-safe-grid {
-  margin-top: 0.8rem;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  overflow: hidden;
-  border: 1px solid rgba(92, 112, 129, 0.2);
-  border-radius: 0.35rem;
-}
-
-.nuoma-flow-v2-safe-grid div {
-  display: grid;
-  gap: 0.28rem;
-  border-bottom: 1px solid rgba(92, 112, 129, 0.18);
-  padding: 0.6rem 0.72rem;
-}
-
-.nuoma-flow-v2-safe-grid div:last-child {
-  grid-column: 1 / -1;
-  border-bottom: 0;
-}
-
-.nuoma-flow-v2-safe-grid div:nth-child(odd) {
-  border-right: 1px solid rgba(92, 112, 129, 0.18);
-}
-
-.nuoma-flow-v2-safe-grid span {
-  color: #93a1ae;
-  font-size: 0.63rem;
-}
-
-.nuoma-flow-v2-safe-grid strong {
-  color: #f2f7fb;
-  font-size: 0.72rem;
-}
-
-.nuoma-flow-v2-audience-value {
-  margin-top: 0.78rem;
-  color: #f5fbff;
-  font-size: 1.28rem;
-  font-weight: 500;
-}
-
-.nuoma-flow-v2-audience-foot {
-  margin-top: 0.35rem;
-  display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
-  color: #a5b2bd;
-  font-size: 0.68rem;
-}
-
-.nuoma-flow-v2-audience-foot strong {
-  color: #25d36b;
-  font-size: 0.68rem;
-}
-
-.nuoma-flow-v2-compact-card .nuoma-flow-v2-card-head {
-  align-items: center;
-}
-
-.nuoma-flow-v2-compact-card button,
-.nuoma-flow-v2-alert-copy button {
-  border: 0;
-  background: transparent;
-  color: #21dff1;
-  font-size: 0.68rem;
-  font-weight: 650;
-}
-
-.nuoma-flow-v2-alert-card .nuoma-flow-v2-card-head > span:last-child {
-  color: #d6a23c;
-  font-size: 0.68rem;
-  font-weight: 650;
-}
-
-.nuoma-flow-v2-alert-copy {
-  margin-top: 0.8rem;
-  border-left: 2px solid #d6a23c;
-  padding-left: 0.7rem;
-}
-
-.nuoma-flow-v2-alert-copy strong {
-  color: #d6a23c;
-  font-size: 0.7rem;
-}
-
-.nuoma-flow-v2-alert-copy p {
-  margin-top: 0.18rem;
-}
-
-.nuoma-flow-v2-inspector-actions {
-  display: grid;
-  gap: 0.7rem;
-}
-
-.nuoma-flow-v2-submit,
-.nuoma-flow-v2-save {
-  display: inline-flex;
-  min-height: 2.25rem;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  border-radius: 0.45rem;
-  font-size: 0.74rem;
-  font-weight: 750;
-}
-
-.nuoma-flow-v2-submit {
-  border: 0;
-  background: #21dff1;
-  color: #031019;
-  box-shadow: 0 0 24px rgba(33, 223, 241, 0.26);
-}
-
-.nuoma-flow-v2-submit:disabled {
-  opacity: 0.7;
-}
-
-.nuoma-flow-v2-save {
-  border: 1px solid rgba(33, 223, 241, 0.55);
-  background: transparent;
-  color: #21dff1;
-}
-
-.nuoma-flow-v2-inspector-meta {
-  display: none;
-}
-
-.nuoma-automation-studio-grid {
-  min-height: calc(100vh - 12rem);
-}
-
-.nuoma-automation-studio [data-testid="automation-action-row"] > .grid {
-  grid-template-columns: minmax(0, 1fr) !important;
-}
-
 @media (min-width: 768px) {
   .nuoma-campaign-tabs {
     width: auto;
@@ -3728,134 +2805,9 @@
     0 12px 30px rgba(0, 0, 0, 0.18);
 }
 
-@keyframes nuoma-assistant-eye {
-  0%,
-  86%,
-  100% {
-    transform: scaleY(1);
-    opacity: 1;
-  }
-  90%,
-  94% {
-    transform: scaleY(0.2);
-    opacity: 0.8;
-  }
-}
-
-@keyframes nuoma-assistant-float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-2px);
-  }
-}
-
-.octo-overlay {
-  position: fixed;
-  right: clamp(1rem, 2vw, 1.6rem);
-  bottom: clamp(1rem, 2vw, 1.6rem);
-  z-index: 60;
-  width: min(22rem, calc(100vw - 2rem));
-  pointer-events: none;
-}
-
-.octo-tray {
-  margin-bottom: 0.85rem;
-  padding: 0.95rem;
-  border-radius: 1.2rem;
-  pointer-events: auto;
-}
-
-.octo-bubble {
-  width: max-content;
-  max-width: min(18rem, calc(100vw - 2rem));
-  margin: 0 0 0.65rem auto;
-  padding: 0.65rem 0.8rem;
-  border-radius: 0.85rem;
-  color: rgb(var(--color-fg-primary));
-  font-size: 0.78rem;
-  line-height: 1.35;
-  pointer-events: none;
-}
-
-.octo-button {
-  position: relative;
-  display: flex;
-  width: 7rem;
-  height: 7.6rem;
-  margin-left: auto;
-  align-items: center;
-  justify-content: center;
-  border-radius: 1.45rem;
-  color: rgb(var(--color-fg-primary));
-  cursor: pointer;
-  pointer-events: auto;
-  transition:
-    transform 0.18s ease,
-    box-shadow 0.18s ease;
-}
-
-.octo-button:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-glow-cyan), var(--shadow-raised-md);
-}
-
-.octo-button-alert {
-  box-shadow: var(--shadow-glow-danger), var(--shadow-raised-md);
-}
-
-.octo-sprite-frame {
-  position: relative;
-  display: block;
-  overflow: visible;
-}
-
-.octo-badge {
-  position: absolute;
-  right: 0.65rem;
-  top: 0.55rem;
-  display: inline-flex;
-  min-width: 1.35rem;
-  height: 1.35rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: rgb(var(--color-brand-cyan));
-  color: rgb(var(--color-bg-deep));
-  font-size: 0.68rem;
-  font-weight: 760;
-  box-shadow: var(--shadow-glow-cyan);
-}
-
-.octo-state-icon {
-  position: absolute;
-  right: 0.6rem;
-  bottom: 0.55rem;
-  display: inline-flex;
-  width: 1.8rem;
-  height: 1.8rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: rgba(var(--color-bg-base), 0.86);
-  color: rgb(var(--color-fg-muted));
-  box-shadow: var(--shadow-flat);
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .nuoma-assistant-motion {
-    animation: none !important;
-  }
-
   .nuoma-compat-surface::after {
     display: none;
-  }
-
-  .octo-button,
-  .octo-button:hover {
-    transform: none;
   }
 }
 
@@ -3922,26 +2874,8 @@
   animation: nuoma-shimmer 1.6s linear infinite;
 }
 
-/* AI command bar — animated accent border sweep. */
-@keyframes nuoma-ai-sweep {
-  to {
-    transform: rotate(360deg);
-  }
-}
-.nuoma-ai-orb {
-  background: conic-gradient(
-    from 0deg,
-    rgb(var(--color-brand-teal)),
-    rgb(var(--color-brand-green)),
-    rgb(var(--color-brand-blue-soft)),
-    rgb(var(--color-brand-teal))
-  );
-  animation: nuoma-ai-sweep 4s linear infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .nuoma-skeleton,
-  .nuoma-ai-orb {
+  .nuoma-skeleton {
     animation: none !important;
   }
 }
