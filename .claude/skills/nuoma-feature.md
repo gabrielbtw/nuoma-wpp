@@ -1,51 +1,29 @@
 ---
 name: nuoma-feature
-description: Plan and implement a new feature following the Nuoma agent ownership model. Handles cross-layer coordination (core-api → frontend-web → scheduler/worker).
+description: Plan or implement Nuoma V2 web/product features, pages, components, builder, inbox, segmentation and focused frontend refactors using the ownership model.
 user_invocable: true
 ---
 
-> [!CAUTION]
-> LEGACY V1: este skill referencia a stack antiga (`apps/web-app`, `packages/core`, `apps/wa-worker`, `apps/scheduler`). Use apenas como referencia historica/cutover; antes de executar comandos ou editar codigo, confirme o equivalente V2 ativo.
+# /nuoma-feature
 
-# /nuoma-feature — New Feature Implementation
+Consolidates the old page/component/builder/inbox/segment/refactor skills.
 
-You are implementing a new feature in the Nuoma WPP monorepo. Follow the agent ownership model strictly.
+## Scope
 
-## Steps
+- Frontend/UI: `apps/web/src/**`, `apps/web/index.html`, `packages/ui/src/**`.
+- Cross-layer feature: start with `nuoma-api` for contracts, then adapt the UI.
+- Do not change DB/schema/API responses from frontend files.
 
-### 1. Understand the request
-- Read the user's feature description
-- Identify which layers are affected (core, frontend, worker, scheduler)
-- Check CLAUDE.md and AGENTS.md for ownership rules
+## Workflow
 
-### 2. Plan the implementation
-- Enter plan mode
-- For each affected layer, list the files to modify and the changes needed
-- Respect ownership: core-api defines contracts first, then consumers adapt
-- Identify if a new migration is needed (`packages/core/src/db/migrations.ts`)
-- Identify if new types/schemas are needed (`packages/core/src/types/domain.ts`)
+1. Identify affected layer and owner from `AGENTS.md`.
+2. Reuse existing components, tokens and page patterns before adding abstractions.
+3. Keep large pages moving toward small panels/hooks, but avoid broad rewrites unless requested.
+4. For builder/inbox/segment work, preserve user workflows and loading/error states.
+5. Update docs when UX changes operational setup, roadmap or validation.
 
-### 3. Implement in order
-Follow the standard feature flow from AGENTS.md:
+## Validate
 
-1. **core-api first**: schema, migration, repository, service, routes
-2. **platform-workspace**: if deps/configs change
-3. **Consumer layers**: frontend-web, wa-worker, or scheduler-runtime
-4. **Validate each layer** before moving to the next:
-   - `npm run typecheck --workspace @nuoma/core`
-   - `npm run typecheck --workspace @nuoma/web-app`
-   - etc.
-
-### 4. Final validation
-```bash
-npm run typecheck
-npm run lint
-npm test
-```
-
-### 5. Summary
-Provide a concise summary of:
-- Files created/modified per layer
-- New contracts (routes, types, schemas)
-- Migration changes
-- How to test the feature
+- `npm run typecheck --workspace @nuoma/ui`
+- `npm run typecheck --workspace @nuoma/web`
+- `npm run build --workspace @nuoma/web`

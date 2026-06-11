@@ -1,70 +1,31 @@
 ---
 name: nuoma-api
-description: Create or modify API routes (Fastify) with proper repository/service integration. Handles the full core-api layer.
+description: Work on Nuoma V2 API contracts, tRPC/REST routers, services, repositories and SQLite/Drizzle persistence in apps/api, packages/contracts and packages/db.
 user_invocable: true
 ---
 
-> [!CAUTION]
-> LEGACY V1: este skill referencia a stack antiga (`apps/web-app`, `packages/core`, `apps/wa-worker`, `apps/scheduler`). Use apenas como referencia historica/cutover; antes de executar comandos ou editar codigo, confirme o equivalente V2 ativo.
+# /nuoma-api
 
-# /nuoma-api — API Route Work
+Use for core-api work.
 
-You are creating or modifying API routes in Nuoma WPP.
+## Scope
 
-## Context
-- Routes live in `apps/web-app/src/server/routes/`
-- Route registration in `apps/web-app/src/server/routes/index.ts`
-- Repositories in `packages/core/src/repositories/`
-- Services in `packages/core/src/services/`
-- Types/schemas in `packages/core/src/types/domain.ts`
+- Owns `apps/api/src/**`, `packages/contracts/src/**`, `packages/db/src/**`.
+- Defines schemas, DTOs, tRPC/REST contracts, job payloads, migrations and repository behavior.
+- Consumers (`apps/web`, `apps/worker`, companions) adapt after the contract is stable.
 
-## Architecture pattern
+## Workflow
 
-```
-Route Handler → Service (business logic) → Repository (DB access)
-     ↓                    ↓                        ↓
-  Validates input    Orchestrates logic      SQL queries
-  Returns response   Calls repos             Returns records
-```
+1. Read `AGENTS.md` and the current router/service/repository before editing.
+2. Update contracts first when payloads or response shapes change.
+3. Keep routers thin; put business rules in services and persistence in `packages/db`.
+4. Use parameterized queries/Drizzle helpers; do not let frontend/worker infer DB internals.
+5. Document architecture or operational changes in `docs/**` when behavior changes.
 
-## Steps
+## Validate
 
-### 1. Define the contract
-- What HTTP method and path?
-- What request body/query params?
-- What response shape?
-- Add Zod schema in `domain.ts` if new input
-
-### 2. Create/update repository
-If new data access is needed:
-- Add functions to existing repository or create new one in `packages/core/src/repositories/`
-- Follow pattern: parameterized SQL, `withSqliteBusyRetry` for writes
-- Return typed records
-
-### 3. Create/update service (if business logic needed)
-- Services in `packages/core/src/services/`
-- Import from repositories
-- Handle validation, coordination, side effects
-
-### 4. Create/update route handler
-```typescript
-app.get("/endpoint", async (req, reply) => {
-  const result = await someService.doSomething();
-  return reply.send(result);
-});
-
-app.post("/endpoint", async (req, reply) => {
-  const input = someSchema.parse(req.body);
-  const result = await someService.create(input);
-  return reply.status(201).send(result);
-});
-```
-
-### 5. Register route
-Add to `apps/web-app/src/server/routes/index.ts` if new route file.
-
-### 6. Validate
-```bash
-npm run typecheck --workspace @nuoma/core
-npm run typecheck --workspace @nuoma/web-app
-```
+- `npm run typecheck --workspace @nuoma/contracts`
+- `npm run typecheck --workspace @nuoma/db`
+- `npm run typecheck --workspace @nuoma/api`
+- `npm run test --workspace @nuoma/db`
+- `npm run test --workspace @nuoma/api`

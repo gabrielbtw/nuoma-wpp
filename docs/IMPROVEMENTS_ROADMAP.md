@@ -24,6 +24,46 @@ Plano fonte: [`/Users/gabrielbraga/.claude/plans/eu-quero-que-voc-cryptic-lobste
 
 ---
 
+## Auditoria de evidência — 2026-06-11
+
+Leitura do checkout `feat/rebrand-carvao-cobre`. Esta seção é o delta atual
+para itens V2 ativos; as tabelas históricas abaixo continuam preservadas como
+backlog de origem.
+
+| Item | Status por evidência | Evidência principal | Delta operacional |
+| --- | --- | --- | --- |
+| V2.1 foundations | FEITO | `apps/api`, `apps/web`, `apps/worker`, `packages/*`, `turbo.json` | Stack canônica existe; manter validação repo-wide. |
+| V2.2 contratos | FEITO | `packages/contracts/src/*` | Contratos V2 estão materializados. |
+| V2.3 DB/repos/backup | FEITO | `packages/db/src/index.ts`, `packages/db/src/migrations/*` | Backup helper e migrations existem. |
+| V2.6 CDP sync WhatsApp | FEITO | `apps/worker/src/sync/cdp.ts`, `observer-script.ts`, `handler.ts` | Motor existe; legibilidade ainda exige decomposição. |
+| V2.6 foto/anexos visíveis | PARCIAL | migrations `0003`, `0005`, `apps/api/src/trpc/routers/media.ts` | Metadados e candidatos existem; binário real completo ainda é evolução. |
+| V2.7 routers tRPC | FEITO | `apps/api/src/router.ts`, `apps/api/src/trpc/routers/*` | Cobertura ampla de routers. |
+| V2.7 streaming | PARCIAL | `apps/api/src/services/streaming-cdp.ts`, `routers/streaming.ts` | Snapshot/input seguro existem; canvas contínuo fica em V2.12. |
+| V2.7 media/custo | FEITO | `crm-file-storage.ts`, `media-optimizer.ts`, `routers/media.ts` | Upload, leitura segura e estimativa de custo existem. |
+| V2.8 design system | PARCIAL | `packages/ui/src/*`, `apps/web/src/styles/pages/*`, `docs/adr/0008-design-system-cartographic-glass.md` | Falta pasta `docs/design-system/*`; ADR isolado não cobre guia completo. |
+| V2.9 Inbox/notes | PARCIAL | `apps/web/src/inbox/*`, `tests/v29-markdown-notes-smoke.mjs` | Base existe; UX ainda está fragmentada em componentes grandes. |
+| V2.10 Chatbots | PARCIAL | `apps/api/src/trpc/routers/chatbots.ts`, `apps/web/src/pages/ChatbotsPage.tsx` | CRUD/regra existem; editor visual segue concentrado. |
+| V2.11 overlay | PARCIAL | `apps/worker/src/features/overlay/inject.ts`, `apps/api/src/routes/extension-bridge.ts`, `tests/v211-*` | Funciona, mas overlay ainda é monólito injetado. |
+| V2.12 remote canvas | NÃO/PARCIAL | `apps/api/src/services/streaming-cdp.ts`, `tests/v212-streaming-cdp-strong-smoke.ts` | Há base técnica, não UX remota contínua fechada. |
+| V2.13 events/push | PARCIAL | `global-events.ts`, `inbox-events.ts`, `trpc/routers/push.ts`, `use-inbox-events.ts` | SSE/eventos existem; WebPush depende env VAPID. |
+| V2.14 backup/restore | FEITO | `scripts/v214-backup-restore.mjs`, `tests/v214-backup-restore-smoke.ts` | Script e smoke existem. |
+| V2.15 cutover | PARCIAL | `apps/migration`, `scripts/v215-*`, `docs/migration/*`, `docs/runbooks/CUTOVER_ROLLBACK.md` | Ensaio/preflight existem; cutover real continua gateado. |
+| V2.16 Instagram sync | PARCIAL | `apps/worker/src/instagram/sync.ts`, `apps/api/src/routes/instagram.ts`, `tests/v216-instagram-sync-smoke.ts` | Runtime existe; integração segue trilha separada/assistida. |
+
+Discrepâncias registradas:
+
+- V2.8 aparece como design system amplo, mas o checkout atual só tem ADR,
+  componentes e estilos; falta documentação de design system dedicada.
+- V2.11 tem vários itens marcados como concluídos no histórico, mas a evidência
+  atual mostra dívida estrutural no monólito `overlay/inject.ts`.
+- V2.12 já possui base CDP de streaming, porém ainda não deve ser tratado como
+  canvas remoto contínuo pronto.
+- Trabalho existente fora da narrativa principal: `apps/chrome-extension`,
+  `apps/safari-extension`, `tests/m38-chrome-extension-smoke.mjs`, pet overlay e
+  scripts de retenção de artifacts.
+
+---
+
 ## V1 — Patches mínimos (17 itens) — não executar agora
 
 **Status em 2026-04-30**: cancelado/adiado por decisão do owner. V1 fica congelado em manutenção mínima: não aplicar V1.1-V1.17 antes das provas do V2. Estes itens ficam preservados apenas como referência técnica caso algum incidente obrigue hotfix no V1.

@@ -1,52 +1,34 @@
 ---
 name: nuoma-migration
-description: Create a new SQLite migration for the Nuoma database. Generates proper migration entry in the migrations array.
+description: Run or change Nuoma V2.15 migration/cutover workflows: preflight, dry-run, apply, validation, backup, restore and rollback gates. Never writes V1 DB.
 user_invocable: true
 ---
 
-> [!CAUTION]
-> LEGACY V1: este skill referencia a stack antiga (`apps/web-app`, `packages/core`, `apps/wa-worker`, `apps/scheduler`). Use apenas como referencia historica/cutover; antes de executar comandos ou editar codigo, confirme o equivalente V2 ativo.
+# /nuoma-migration
 
-# /nuoma-migration — Create Database Migration
+Consolidates the old migration dry-run, data import and cutover checklist skills.
 
-You are creating a new SQLite migration for Nuoma WPP.
+## Boundaries
 
-## Context
-- Migrations live in `packages/core/src/db/migrations.ts`
-- They are an array of `{ id: string, sql: string, transaction?: boolean }` objects
-- Current migrations: 0001 through 0007
-- SQLite dialect — no ALTER COLUMN, use table recreation if needed
-- Use `transaction: false` only when recreating tables (dropping + creating)
+- Never write to V1 DB.
+- Always run preflight before apply.
+- Real apply requires explicit confirmation and `V215_CONFIRM_CUTOVER=SIM`.
+- Do not start worker/scheduler against migrated data until validate and smoke pass.
+- Cutover details live in `docs/migration/CUTOVER_PLAN.md` and `docs/runbooks/CUTOVER_ROLLBACK.md`.
 
-## Steps
+## Commands
 
-### 1. Read current migrations
-Read `packages/core/src/db/migrations.ts` to understand the current schema and find the next migration ID.
+- `npm run migration:v215:preflight -- --report=data/reports/v215-preflight.json`
+- `npm run migration:v215:dry-run -- --report=data/reports/v215-dry-run.json`
+- `V215_CONFIRM_CUTOVER=SIM npm run migration:v215:apply -- --report=data/reports/v215-apply.json`
+- `npm run migration:v215:validate -- --report=data/reports/v215-validate.json`
+- `npm run test:v215-cutover-preflight`
+- `npm run test:v215-cutover-apply`
 
-### 2. Design the migration
-- Ask the user what tables/columns to add/modify
-- Generate the SQL following existing patterns:
-  - `CREATE TABLE IF NOT EXISTS` for new tables
-  - `ALTER TABLE ... ADD COLUMN` for new columns
-  - `CREATE INDEX IF NOT EXISTS` for indexes
-  - Use `TEXT` for strings, `INTEGER` for numbers/booleans, `REAL` for decimals
-  - Always include `created_at TEXT NOT NULL DEFAULT (datetime('now'))` on new tables
-  - Always include `updated_at TEXT NOT NULL DEFAULT (datetime('now'))` on new tables
+## Checklist
 
-### 3. Add the migration
-Append the new migration to the `migrations` array in `packages/core/src/db/migrations.ts`.
-
-### 4. Update types
-If the migration adds new fields, update `packages/core/src/types/domain.ts`:
-- Add to relevant Record interfaces
-- Add to relevant input/patch schemas if user-facing
-- Add new enum value arrays if needed
-
-### 5. Validate
-```bash
-npm run typecheck --workspace @nuoma/core
-npm run db:migrate
-```
-
-### 6. Summary
-List: migration ID, tables/columns affected, new types added.
+1. Confirm DB/storage paths and backup targets.
+2. Run preflight and block on blockers.
+3. Review dry-run counts, orphans and missing media.
+4. Apply only to clone first, validate, then rehearse rollback.
+5. Apply real only in approved window, then smoke and monitor 24h.

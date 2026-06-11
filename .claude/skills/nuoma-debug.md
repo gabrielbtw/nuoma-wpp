@@ -1,79 +1,35 @@
 ---
 name: nuoma-debug
-description: Debug operational issues with the Nuoma system (worker, scheduler, campaigns, automations). Follows the runbook protocol.
+description: Diagnose Nuoma V2 runtime issues in worker/CDP/session/queue/overlay/observability. Read-only by default; covers old worker-observability, wa-session-runbook and CDP spike guidance.
 user_invocable: true
 ---
 
-> [!CAUTION]
-> LEGACY V1: este skill usa nomes PM2 antigos (`web-app`, `wa-worker`, `scheduler`). Para a stack canonica V2, confirme `nuoma-api`, `nuoma-web`, `nuoma-worker` em `ecosystem.canonical.config.cjs`.
+# /nuoma-debug
 
-# /nuoma-debug — Operational Debugging
+Use for operational/runtime diagnosis.
 
-You are debugging an operational issue in Nuoma WPP.
+## Boundaries
 
-## Quick diagnostics
+- Read-only by default. Show SQL or process mutations before applying them.
+- Do not restart PM2, stop workers, reset sessions or send real messages without explicit approval.
+- For live-send smoke, verify destination/canal and attach visual evidence; write `IG nao aplicavel` for WhatsApp-only tests.
 
-### 1. Check process health
-```bash
-# If using PM2
-pm2 status
-pm2 logs wa-worker --lines 50
-pm2 logs web-app --lines 50
-pm2 logs scheduler --lines 50
-```
+## Quick triage
 
-### 2. Check system health via API
-```bash
-curl -s http://localhost:3000/health | jq .
-curl -s http://localhost:3000/logs?limit=20 | jq .
-```
+- `npm run typecheck --workspace @nuoma/worker`
+- `pm2 status`
+- `curl -s http://127.0.0.1:9222/json/version`
 
-### 3. Check database state
-```bash
-# Worker state
-sqlite3 storage/database/nuoma.db "SELECT * FROM worker_state ORDER BY updated_at DESC LIMIT 5;"
+Check queue/session data through the V2 API/DB for the active stack. Confirm whether the issue is `apps/worker`, `apps/api`, `apps/web`, companion extension or legacy before changing files.
 
-# Pending jobs
-sqlite3 storage/database/nuoma.db "SELECT type, status, COUNT(*) FROM jobs GROUP BY type, status;"
+## Common focus areas
 
-# Failed jobs
-sqlite3 storage/database/nuoma.db "SELECT * FROM jobs WHERE status='failed' ORDER BY updated_at DESC LIMIT 10;"
+- CDP connection, Chromium profile, WhatsApp/Instagram auth state.
+- Job queue claiming, stuck locks, DLQ/system events.
+- Overlay bridge and quick actions.
+- Sync latency, observer parse errors and artifacts.
 
-# Active campaigns
-sqlite3 storage/database/nuoma.db "SELECT id, name, status FROM campaigns WHERE status='active';"
+## Validate
 
-# Campaign recipients stuck
-sqlite3 storage/database/nuoma.db "SELECT status, COUNT(*) FROM campaign_recipients GROUP BY status;"
-
-# System logs (errors)
-sqlite3 storage/database/nuoma.db "SELECT * FROM system_logs WHERE level='error' ORDER BY created_at DESC LIMIT 10;"
-```
-
-## Common issues
-
-### Worker not syncing
-- Check `worker_state` for status: `disconnected`, `degraded`, `error`
-- Check if Chromium profile is intact: `storage/chromium-profile/whatsapp/`
-- Restart: `pm2 restart wa-worker`
-- If auth lost: run with `CHROMIUM_HEADLESS=false` and re-scan QR
-
-### Campaign stuck
-- Check `campaign_recipients` for stuck `processing` status
-- Check `jobs` for stuck `processing` jobs (locked_at too old)
-- Reset stuck jobs: `UPDATE jobs SET status='pending', locked_at=NULL, locked_by=NULL WHERE status='processing' AND locked_at < datetime('now', '-5 minutes');`
-
-### Scheduler not running
-- Check `worker_state` for scheduler entry
-- Check scheduler logs for errors
-- Restart: `pm2 restart scheduler`
-
-### WhatsApp auth expired
-- Stop worker: `pm2 stop wa-worker`
-- Run headful: `CHROMIUM_HEADLESS=false npm run start --workspace @nuoma/wa-worker`
-- Scan QR code
-- Verify auth, then switch back to headless
-
-## After fixing
-- Verify dashboard shows `ok` status
-- Check that job queue is processing again
-- Confirm sync is running (new conversations appearing)
+- `npm run typecheck --workspace @nuoma/worker`
+- `npm run test --workspace @nuoma/worker`
