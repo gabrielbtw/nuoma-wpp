@@ -8,6 +8,23 @@ import type {
   SegmentCondition,
 } from "@nuoma/contracts";
 import {
+  Background,
+  Controls,
+  Handle,
+  MarkerType,
+  MiniMap,
+  Position,
+  ReactFlow,
+  useEdgesState,
+  useNodesState,
+  type Edge,
+  type Node,
+  type OnNodeDrag,
+  type NodeProps,
+  type NodeTypes,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
@@ -27,7 +44,6 @@ import {
   Link2,
   LockKeyhole,
   Maximize2,
-  MessageCircle,
   Mic,
   Minimize2,
   MousePointer2,
@@ -36,7 +52,6 @@ import {
   PlayCircle,
   Plus,
   Route,
-  Scan,
   Search,
   Send,
   ShieldCheck,
@@ -45,10 +60,17 @@ import {
   Users,
   Video,
   ZoomIn,
-  ZoomOut,
 } from "lucide-react";
 import { gsap } from "gsap";
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 import {
   Badge,
@@ -97,6 +119,19 @@ interface StepDraft {
   caption: string;
   temporaryMessagesDuration: "24h" | "7d" | "90d";
   conditions: ConditionDraft[];
+}
+
+interface StepFieldErrors {
+  template?: string;
+  url?: string;
+  linkText?: string;
+  mediaAssetId?: string;
+  fileName?: string;
+}
+
+interface ConditionFieldErrors {
+  value?: string;
+  targetStepId?: string;
 }
 
 interface ConditionDraft {
@@ -424,6 +459,7 @@ export function CampaignFlowBuilder({
   const [name, setName] = useState("Lançamento Coleção Inverno");
   const [channel, setChannel] = useState<ChannelType>("whatsapp");
   const [evergreen, setEvergreen] = useState(false);
+  const [overlayEnabled, setOverlayEnabled] = useState(false);
   const [segmentEnabled, setSegmentEnabled] = useState(false);
   const [segmentField, setSegmentField] = useState<SegmentField>("status");
   const [segmentOperator, setSegmentOperator] = useState<SegmentOperator>("eq");
@@ -513,6 +549,7 @@ export function CampaignFlowBuilder({
       metadata: {
         source: "visual_builder",
         builderVersion: "v2.10",
+        overlayEnabled,
         ...(abVariants ? { abVariants } : {}),
         csvPreview: csvPreview
           ? {
@@ -550,6 +587,22 @@ export function CampaignFlowBuilder({
       title: "Template aplicado",
       description: `${template.name} carregado como rascunho editável.`,
       variant: "success",
+    });
+  }
+
+  function reorderStepsFromCanvas(orderedStepIds: string[]) {
+    setSteps((current) => {
+      const byId = new Map(current.map((step) => [step.id, step]));
+      const ordered = orderedStepIds
+        .map((stepId) => byId.get(stepId))
+        .filter((step): step is StepDraft => Boolean(step));
+      const missing = current.filter((step) => !orderedStepIds.includes(step.id));
+      const next = [...ordered, ...missing];
+      if (next.length !== current.length) {
+        return current;
+      }
+      const changed = next.some((step, index) => step.id !== current[index]?.id);
+      return changed ? next : current;
     });
   }
 
@@ -691,6 +744,7 @@ export function CampaignFlowBuilder({
               abEnabled={abEnabled}
               onOpenSteps={() => setActiveTab("steps")}
               onOpenPreview={() => setActiveTab("preview")}
+              onReorderSteps={reorderStepsFromCanvas}
             />
 
             <div className="nuoma-flow-v2-editor-panels" aria-label="Edição funcional do fluxo">
@@ -701,9 +755,19 @@ export function CampaignFlowBuilder({
                       <ClipboardList className="h-4 w-4 text-brand-cyan" />
                       Configuração
                     </div>
-                    <div className="grid gap-3 md:grid-cols-[1fr_12rem_auto]">
-                      <LabeledField label="Nome">
-                        <Input value={name} onChange={(event) => setName(event.target.value)} />
+                    <div className="grid gap-3 md:grid-cols-[1fr_12rem_10rem_10rem]">
+                      <LabeledField
+                        label="Nome"
+                        error={name.trim() ? null : "Nome obrigatório."}
+                        errorId="campaign-name-error"
+                      >
+                        <Input
+                          value={name}
+                          invalid={!name.trim()}
+                          aria-invalid={!name.trim()}
+                          aria-describedby={!name.trim() ? "campaign-name-error" : undefined}
+                          onChange={(event) => setName(event.target.value)}
+                        />
                       </LabeledField>
                       <LabeledField label="Canal">
                         <ChannelSelect value={channel} onValueChange={setChannel} />
@@ -715,6 +779,16 @@ export function CampaignFlowBuilder({
                           aria-label="Campanha evergreen"
                         />
                         <span className="text-sm text-fg-muted">Evergreen</span>
+                      </label>
+                      <label className="flex min-h-[4.25rem] items-center gap-3 rounded-lg bg-bg-base px-4 py-3 shadow-pressed-sm">
+                        <Switch
+                          checked={overlayEnabled}
+                          onCheckedChange={setOverlayEnabled}
+                          aria-label="Campanha disponível no overlay"
+                        />
+                        <span className="text-sm text-fg-muted">
+                          Overlay {overlayEnabled ? "sim" : "não"}
+                        </span>
                       </label>
                     </div>
                   </div>
@@ -898,6 +972,7 @@ function CampaignFlowCanvasBoard({
   abEnabled,
   onOpenSteps,
   onOpenPreview,
+  onReorderSteps,
 }: {
   steps: StepDraft[];
   channel: ChannelType;
@@ -907,271 +982,357 @@ function CampaignFlowCanvasBoard({
   abEnabled: boolean;
   onOpenSteps: () => void;
   onOpenPreview: () => void;
+  onReorderSteps: (orderedStepIds: string[]) => void;
 }) {
-  const firstStep = steps[0] ?? null;
-  const secondStep = steps[1] ?? null;
-  const reengagementStep = steps[2] ?? firstStep;
-  const audienceLabel = csvPreview
-    ? `${csvPreview.validCount} contatos elegíveis`
-    : segmentEnabled
-      ? "Segmento ativo"
-      : "Todos que entram";
-  const primaryTitle =
-    firstStep?.label && firstStep.label !== "Step 1" ? firstStep.label : "Mensagem";
-  const primaryBody =
-    channel === "instagram"
-      ? "Confira a coleção no Instagram."
-      : "Confira nossa nova coleção de inverno. Peças selecionadas com 20% off.";
-  const offerBody = secondStep
-    ? stepDraftCanvasSummary(secondStep)
-    : "Como você mostrou interesse, aqui vai um benefício exclusivo: 15% off extra.";
-  const reengageBody = abEnabled
-    ? "Variante B ativa para reengajar quem não respondeu."
-    : stepDraftCanvasSummary(reengagementStep);
+  const graph = useMemo(
+    () =>
+      buildCampaignFlowGraph({
+        steps,
+        channel,
+        evergreen,
+        csvPreview,
+        segmentEnabled,
+        abEnabled,
+        onOpenSteps,
+      }),
+    [abEnabled, channel, csvPreview, evergreen, onOpenSteps, segmentEnabled, steps],
+  );
+  const [nodes, setNodes, onNodesChange] = useNodesState<CampaignCanvasNode>(graph.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(graph.edges);
+
+  useEffect(() => {
+    setNodes(graph.nodes);
+    setEdges(graph.edges);
+  }, [graph.edges, graph.nodes, setEdges, setNodes]);
+
+  const handleNodeDragStop = useCallback<OnNodeDrag<CampaignCanvasNode>>(
+    (_event, _node, currentNodes) => {
+      const orderedStepIds = currentNodes
+        .filter((node) => node.data.kind === "step" || node.data.kind === "branch")
+        .sort((a, b) => a.position.y - b.position.y)
+        .map((node) => node.id);
+      onReorderSteps(orderedStepIds);
+    },
+    [onReorderSteps],
+  );
+
   return (
     <div className="nuoma-flow-v2-board" data-testid="campaign-flow-canvas-board">
       <div className="nuoma-flow-v2-board-toolbar" aria-label="Ferramentas do canvas">
-        <button type="button" aria-label="Selecionar" className="is-active">
+        <button type="button" aria-label="Selecionar" className="is-active" title="Selecionar">
           <MousePointer2 className="h-4 w-4" />
         </button>
-        <button type="button" aria-label="Selecionar área">
-          <Scan className="h-4 w-4" />
+        <button
+          type="button"
+          aria-label="Editar passos"
+          title="Editar passos"
+          onClick={onOpenSteps}
+        >
+          <Route className="h-4 w-4" />
         </button>
-        <button type="button" aria-label="Ajustar tela">
+        <button type="button" aria-label="Ajustar tela" title="Ajustar tela">
           <Maximize2 className="h-4 w-4" />
         </button>
         <span className="nuoma-flow-v2-toolbar-divider" />
-        <button type="button" aria-label="Reduzir zoom">
+        <button type="button" aria-label="Reduzir zoom" title="Reduzir zoom">
           <Minimize2 className="h-4 w-4" />
         </button>
         <button type="button" aria-label="Zoom atual" className="nuoma-flow-v2-zoom-label">
-          100%
+          fit
         </button>
-        <button type="button" aria-label="Aumentar zoom">
+        <button type="button" aria-label="Aumentar zoom" title="Aumentar zoom">
           <ZoomIn className="h-4 w-4" />
         </button>
         <span className="nuoma-flow-v2-toolbar-divider" />
-        <button type="button" aria-label="Tela cheia" onClick={onOpenPreview}>
+        <button
+          type="button"
+          aria-label="Abrir preview"
+          title="Abrir preview"
+          onClick={onOpenPreview}
+        >
           <PanelRight className="h-4 w-4" />
         </button>
-        <button type="button" aria-label="Centralizar fluxo">
-          <Route className="h-4 w-4" />
-        </button>
-      </div>
-
-      <svg
-        className="nuoma-flow-v2-lines"
-        viewBox="0 0 960 760"
-        preserveAspectRatio="none"
-        aria-hidden="true"
-      >
-        <path d="M142 176 L142 238" />
-        <path d="M142 404 L142 486" />
-        <path d="M238 324 C285 324 286 343 303 343" />
-        <path d="M480 344 C535 344 515 245 560 245" />
-        <path d="M480 414 C535 414 515 610 560 610" />
-        <path d="M645 316 L645 382" />
-        <path d="M730 245 C780 245 770 494 805 494" />
-        <path d="M730 610 C780 610 770 494 805 494" />
-        <path d="M730 432 C772 432 770 494 805 494" />
-        <FlowConnectorHandle x={142} y={208} />
-        <FlowConnectorHandle x={142} y={444} />
-        <FlowConnectorHandle x={238} y={324} small />
-        <FlowConnectorHandle x={303} y={343} small />
-        <FlowConnectorHandle x={480} y={344} />
-        <FlowConnectorHandle x={480} y={414} />
-        <FlowConnectorHandle x={645} y={350} />
-        <FlowConnectorHandle x={730} y={245} small />
-        <FlowConnectorHandle x={730} y={610} small />
-        <FlowConnectorHandle x={805} y={494} small />
-      </svg>
-
-      <FlowCanvasNode
-        className="nuoma-flow-v2-node-start"
-        icon={<PlayCircle className="h-4 w-4" />}
-        title="Início"
-        meta={`Entrada do fluxo\n${audienceLabel}`}
-        tone="cyan"
-      />
-
-      <FlowCanvasNode
-        className="nuoma-flow-v2-node-primary"
-        icon={
-          channel === "instagram" ? (
-            <Instagram className="h-4 w-4" />
-          ) : (
-            <MessageCircle className="h-4 w-4" />
-          )
-        }
-        title={primaryTitle}
-        meta="Nova coleção de inverno"
-        tone={channel === "instagram" ? "ig" : "wa"}
-        thumbnail="/assets/flow-studio/thumb-primary.png"
-      >
-        <span className="nuoma-flow-v2-node-caption">{primaryBody}</span>
-      </FlowCanvasNode>
-
-      <FlowCanvasNode
-        className="nuoma-flow-v2-node-wait-left"
-        icon={<Clock className="h-4 w-4" />}
-        title="Aguardar"
-        meta={
-          evergreen
-            ? "Aguardar 1 dia\nPróximo passo automático"
-            : "Aguardar 1 dia\nPróximo passo após o período de espera."
-        }
-        tone="cyan"
-      />
-
-      <div className="nuoma-flow-v2-node nuoma-flow-v2-node-condition">
-        <div className="nuoma-flow-v2-node-head">
-          <span className="nuoma-flow-v2-node-icon">
-            <GitBranch className="h-4 w-4" />
-          </span>
-          <div>
-            <div className="nuoma-flow-v2-node-title">Condição</div>
-            <div className="nuoma-flow-v2-node-meta">Interagiu com a mensagem?</div>
-          </div>
-        </div>
         <button
           type="button"
-          className="nuoma-flow-v2-branch nuoma-flow-v2-branch-yes"
-          onClick={onOpenSteps}
+          aria-label="Arraste nós para reordenar steps"
+          title="Arraste nós para reordenar steps"
         >
-          <span>Sim</span>
-          <span>Continuar</span>
-        </button>
-        <button
-          type="button"
-          className="nuoma-flow-v2-branch nuoma-flow-v2-branch-no"
-          onClick={onOpenSteps}
-        >
-          <span>Não</span>
-          <span>Seguir outro caminho</span>
-        </button>
-      </div>
-
-      <FlowCanvasNode
-        className="nuoma-flow-v2-node-secondary"
-        icon={<MessageCircle className="h-4 w-4" />}
-        title="Mensagem"
-        meta="Oferta especial"
-        tone="wa"
-        thumbnail="/assets/flow-studio/thumb-offer.png"
-      >
-        <span className="nuoma-flow-v2-node-caption">{offerBody}</span>
-      </FlowCanvasNode>
-
-      <FlowCanvasNode
-        className="nuoma-flow-v2-node-wait-right"
-        icon={<Clock className="h-4 w-4" />}
-        title="Aguardar"
-        meta="Aguardar 12 horas\nPróximo passo após o período de espera."
-        tone="cyan"
-      />
-
-      <FlowCanvasNode
-        className="nuoma-flow-v2-node-reengage"
-        icon={<Instagram className="h-4 w-4" />}
-        title="Mensagem"
-        meta="Reengajamento"
-        tone="ig"
-        thumbnail="/assets/flow-studio/thumb-reengage.png"
-      >
-        <span className="nuoma-flow-v2-node-caption">
-          {reengageBody ||
-            "Ainda tem peças incríveis te esperando. Que tal dar uma espiada de novo?"}
-        </span>
-      </FlowCanvasNode>
-
-      <FlowCanvasNode
-        className="nuoma-flow-v2-node-end"
-        icon={<Flag className="h-4 w-4" />}
-        title="Fim"
-        meta="Saída do fluxo\nEncerrar jornada"
-        tone="neutral"
-      />
-
-      <div className="nuoma-flow-v2-minimap" aria-hidden="true">
-        <div className="nuoma-flow-v2-minimap-screen">
-          <span className="a" />
-          <span className="b" />
-          <span className="c" />
-          <span className="d" />
-          <span className="e" />
-        </div>
-        <div className="nuoma-flow-v2-minimap-controls">
           <LockKeyhole className="h-4 w-4" />
-          <ZoomOut className="h-4 w-4" />
-          <ZoomIn className="h-4 w-4" />
-          <Maximize2 className="h-4 w-4" />
-        </div>
+        </button>
+      </div>
+
+      <div className="nuoma-flow-v2-reactflow" data-testid="campaign-xyflow-canvas">
+        <ReactFlow<CampaignCanvasNode, Edge>
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={campaignFlowNodeTypes}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeDragStop={handleNodeDragStop}
+          fitView
+          fitViewOptions={{ padding: 0.24, includeHiddenNodes: false }}
+          minZoom={0.45}
+          maxZoom={1.35}
+          nodesDraggable
+          nodesConnectable={false}
+          elementsSelectable
+          panOnScroll
+          preventScrolling={false}
+        >
+          <Background color="rgba(133, 160, 176, 0.22)" gap={28} size={1.15} />
+          <MiniMap
+            pannable
+            zoomable
+            className="nuoma-flow-v2-xy-minimap"
+            nodeColor={(node) => flowToneColor((node as CampaignCanvasNode).data.tone)}
+          />
+          <Controls className="nuoma-flow-v2-xy-controls" showInteractive={false} />
+        </ReactFlow>
       </div>
     </div>
   );
 }
 
-function FlowConnectorHandle({ x, y, small = false }: { x: number; y: number; small?: boolean }) {
-  const radius = small ? 5 : 8;
-  const arm = small ? 3 : 4;
-  return (
-    <g className={cn("nuoma-flow-v2-handle", small && "nuoma-flow-v2-handle-small")}>
-      <circle cx={x} cy={y} r={radius} />
-      <path d={`M${x - arm} ${y}H${x + arm}M${x} ${y - arm}V${y + arm}`} />
-    </g>
-  );
-}
+type CampaignCanvasTone = "cyan" | "wa" | "ig" | "violet" | "neutral" | "danger";
 
-function FlowCanvasNode({
-  className,
-  icon,
-  title,
-  meta,
-  tone,
-  thumbnail,
-  children,
-}: {
-  className: string;
-  icon: ReactNode;
-  title: string;
+type CampaignCanvasNodeData = {
+  label: string;
   meta: string;
-  tone: "cyan" | "wa" | "ig" | "violet" | "neutral";
-  thumbnail?: string;
-  children?: ReactNode;
-}) {
+  summary: string;
+  iconType: BuilderStepType | "start" | "end" | "branch";
+  tone: CampaignCanvasTone;
+  kind: "start" | "step" | "branch" | "end";
+  conditionCount?: number;
+  onOpenSteps?: () => void;
+};
+
+type CampaignCanvasNode = Node<CampaignCanvasNodeData, "campaignCanvas">;
+
+const campaignFlowNodeTypes: NodeTypes = {
+  campaignCanvas: CampaignFlowNode,
+};
+
+function CampaignFlowNode({ data }: NodeProps<CampaignCanvasNode>) {
+  const Icon = flowCanvasIcon(data.iconType);
+  const isStart = data.kind === "start";
+  const isEnd = data.kind === "end";
   return (
-    <div className={cn("nuoma-flow-v2-node", `nuoma-flow-v2-node-${tone}`, className)}>
-      <div className="nuoma-flow-v2-node-head">
-        <span className="nuoma-flow-v2-node-icon">{icon}</span>
+    <div
+      className={cn(
+        "nuoma-flow-v2-xy-node",
+        `nuoma-flow-v2-xy-node-${data.tone}`,
+        data.kind === "branch" && "nuoma-flow-v2-xy-node-branch",
+      )}
+      onDoubleClick={data.onOpenSteps}
+    >
+      {!isStart ? <Handle type="target" position={Position.Left} /> : null}
+      <div className="nuoma-flow-v2-xy-node-head">
+        <span className="nuoma-flow-v2-xy-node-icon">
+          <Icon className="h-4 w-4" />
+        </span>
         <div className="min-w-0">
-          <div className="nuoma-flow-v2-node-title">{title}</div>
-          <div className="nuoma-flow-v2-node-meta">
-            {meta.split("\n").map((line) => (
+          <div className="nuoma-flow-v2-xy-node-title">{data.label}</div>
+          <div className="nuoma-flow-v2-xy-node-meta">
+            {data.meta.split("\n").map((line) => (
               <span key={line}>{line}</span>
             ))}
           </div>
         </div>
       </div>
-      {thumbnail ? (
-        <div className="nuoma-flow-v2-node-media">
-          <img src={thumbnail} alt="" />
-          <div>{children}</div>
+      <div className="nuoma-flow-v2-xy-node-summary">{data.summary}</div>
+      {data.kind === "branch" ? (
+        <div className="nuoma-flow-v2-xy-branch-row">
+          <button type="button" className="nodrag" onClick={data.onOpenSteps}>
+            Sim
+          </button>
+          <button type="button" className="nodrag" onClick={data.onOpenSteps}>
+            Não
+          </button>
         </div>
-      ) : (
-        children
-      )}
+      ) : data.conditionCount ? (
+        <button
+          type="button"
+          className="nuoma-flow-v2-xy-condition nodrag"
+          onClick={data.onOpenSteps}
+        >
+          {data.conditionCount} regra(s)
+        </button>
+      ) : null}
+      {!isEnd ? <Handle type="source" position={Position.Right} /> : null}
     </div>
   );
 }
 
-function stepDraftCanvasSummary(step: StepDraft | null) {
-  if (!step) return "Como você mostrou interesse, aqui vai um benefício exclusivo.";
+function buildCampaignFlowGraph(inputGraph: {
+  steps: StepDraft[];
+  channel: ChannelType;
+  evergreen: boolean;
+  csvPreview: CsvPreviewResult | null;
+  segmentEnabled: boolean;
+  abEnabled: boolean;
+  onOpenSteps: () => void;
+}): { nodes: CampaignCanvasNode[]; edges: Edge[] } {
+  const rowGap = 142;
+  const stepX = 360;
+  const startY = Math.max(70, (Math.min(inputGraph.steps.length, 4) * rowGap) / 2 - 42);
+  const nodes: CampaignCanvasNode[] = [
+    {
+      id: "start",
+      type: "campaignCanvas",
+      position: { x: 36, y: startY },
+      data: {
+        label: "Início",
+        meta: `Entrada do fluxo\n${campaignAudienceLabel(inputGraph)}`,
+        summary: `${inputGraph.channel} · ${inputGraph.evergreen ? "evergreen" : "manual"} · A/B ${inputGraph.abEnabled ? "on" : "off"}`,
+        iconType: "start",
+        tone: "cyan",
+        kind: "start",
+        onOpenSteps: inputGraph.onOpenSteps,
+      },
+    },
+  ];
+
+  const stepIds = new Set(inputGraph.steps.map((step) => step.id));
+  inputGraph.steps.forEach((step, index) => {
+    const hasBranch = step.conditions.some((condition) => condition.action === "branch");
+    nodes.push({
+      id: step.id,
+      type: "campaignCanvas",
+      position: { x: stepX, y: index * rowGap + 36 },
+      data: {
+        label: step.label || `Step ${index + 1}`,
+        meta: `${step.type} · delay ${step.delaySeconds || 0}s`,
+        summary: stepDraftCanvasSummary(step),
+        iconType: hasBranch ? "branch" : step.type,
+        tone: stepTone(step, inputGraph.channel, hasBranch),
+        kind: hasBranch ? "branch" : "step",
+        conditionCount: step.conditions.length || undefined,
+        onOpenSteps: inputGraph.onOpenSteps,
+      },
+    });
+  });
+
+  nodes.push({
+    id: "end",
+    type: "campaignCanvas",
+    position: { x: 720, y: Math.max(36, inputGraph.steps.length * rowGap - 80) },
+    data: {
+      label: "Fim",
+      meta: "Saída do fluxo\nEncerrar jornada",
+      summary: "Finaliza o contato atual antes do próximo contato na fila.",
+      iconType: "end",
+      tone: "neutral",
+      kind: "end",
+      onOpenSteps: inputGraph.onOpenSteps,
+    },
+  });
+
+  const edges: Edge[] = [];
+  const markerEnd = { type: MarkerType.ArrowClosed, color: "rgba(157, 177, 188, 0.82)" };
+  const defaultEdge = {
+    type: "smoothstep",
+    markerEnd,
+    style: { stroke: "rgba(157, 177, 188, 0.72)", strokeWidth: 2 },
+  };
+  const firstStep = inputGraph.steps[0];
+  edges.push({
+    id: firstStep ? "start-to-first" : "start-to-end",
+    source: "start",
+    target: firstStep?.id ?? "end",
+    ...defaultEdge,
+  });
+
+  inputGraph.steps.forEach((step, index) => {
+    const nextStep = inputGraph.steps[index + 1];
+    edges.push({
+      id: `${step.id}-next`,
+      source: step.id,
+      target: nextStep?.id ?? "end",
+      label: nextStep ? "próximo" : "concluir",
+      ...defaultEdge,
+    });
+    step.conditions.forEach((condition, conditionIndex) => {
+      if (
+        condition.action === "branch" &&
+        condition.targetStepId &&
+        stepIds.has(condition.targetStepId)
+      ) {
+        edges.push({
+          id: `${step.id}-branch-${conditionIndex}`,
+          source: step.id,
+          target: condition.targetStepId,
+          label: conditionLabel(condition),
+          type: "smoothstep",
+          markerEnd,
+          style: { stroke: "rgba(90, 170, 210, 0.82)", strokeWidth: 2 },
+          labelStyle: { fill: "rgb(244 244 248)", fontSize: 11, fontWeight: 600 },
+        });
+      }
+      if (condition.action === "exit") {
+        edges.push({
+          id: `${step.id}-exit-${conditionIndex}`,
+          source: step.id,
+          target: "end",
+          label: conditionLabel(condition),
+          type: "smoothstep",
+          markerEnd,
+          style: { stroke: "rgba(214, 170, 96, 0.82)", strokeWidth: 2 },
+          labelStyle: { fill: "rgb(224 163 58)", fontSize: 11, fontWeight: 600 },
+        });
+      }
+    });
+  });
+
+  return { nodes, edges };
+}
+
+function campaignAudienceLabel(inputGraph: {
+  csvPreview: CsvPreviewResult | null;
+  segmentEnabled: boolean;
+}) {
+  if (inputGraph.csvPreview) return `${inputGraph.csvPreview.validCount} contatos elegíveis`;
+  return inputGraph.segmentEnabled ? "Segmento ativo" : "Todos que entram";
+}
+
+function flowCanvasIcon(iconType: CampaignCanvasNodeData["iconType"]) {
+  if (iconType === "start") return PlayCircle;
+  if (iconType === "end") return Flag;
+  if (iconType === "branch") return GitBranch;
+  return stepIcon(iconType);
+}
+
+function stepTone(step: StepDraft, channel: ChannelType, hasBranch: boolean): CampaignCanvasTone {
+  if (hasBranch) return "violet";
+  if (step.type === "temporary_messages" || step.type === "voice") return "cyan";
+  if (channel === "instagram" || step.type === "image" || step.type === "video") return "ig";
+  if (step.type === "document") return "neutral";
+  return "wa";
+}
+
+function flowToneColor(tone: CampaignCanvasTone) {
+  if (tone === "wa") return "rgb(43 184 126)";
+  if (tone === "ig") return "rgb(225 86 143)";
+  if (tone === "violet") return "rgb(124 124 255)";
+  if (tone === "danger") return "rgb(242 86 106)";
+  if (tone === "neutral") return "rgb(162 162 178)";
+  return "rgb(91 91 246)";
+}
+
+function conditionLabel(condition: ConditionDraft) {
+  const type =
+    conditionTypes.find((item) => item.value === condition.type)?.label ?? condition.type;
+  const value = condition.value.trim();
+  return value ? `${type}: ${value}` : type;
+}
+
+function stepDraftCanvasSummary(step: StepDraft) {
   if (step.type === "temporary_messages") return `Temporárias ${step.temporaryMessagesDuration}`;
   if (step.type === "text") return step.template || "Mensagem de texto";
   if (step.type === "link") return `${step.linkText || "Link"} - ${step.url || "URL pendente"}`;
   if (step.type === "document")
     return `${step.fileName || "Documento"} - asset #${step.mediaAssetId || "-"}`;
-  return step.caption || "Ainda tem peças incríveis te esperando. Que tal dar uma espiada de novo?";
+  if (step.type === "voice") return step.fileName || "Voice note PTT";
+  return step.caption || "Mídia sem legenda";
 }
 
 function FlowStudioInspector({
@@ -1200,6 +1361,10 @@ function FlowStudioInspector({
   onOpenCampaignTab?: (tab: CampaignWorkspaceTab) => void;
 }) {
   const readyCount = readyChecks.filter((check) => check.ok).length;
+  const failedChecks = readyChecks.filter((check) => !check.ok);
+  const validationIssueCount = failedChecks.length;
+  const isFlowValid = validationIssueCount === 0;
+  const validationStatus = isFlowValid ? "valid" : "invalid";
   const estimatedAudience = csvPreview?.validCount
     ? csvPreview.validCount.toLocaleString("pt-BR")
     : "28.450";
@@ -1207,15 +1372,44 @@ function FlowStudioInspector({
     <aside className="nuoma-flow-v2-inspector" data-active-tab={activeTab}>
       <h2>Resumo e validação</h2>
 
-      <section className="nuoma-flow-v2-inspector-card nuoma-flow-v2-valid-card">
+      <section
+        className="nuoma-flow-v2-inspector-card nuoma-flow-v2-valid-card"
+        data-testid="campaign-flow-validation-card"
+        data-status={validationStatus}
+      >
         <div className="nuoma-flow-v2-card-head">
-          <span className="nuoma-flow-v2-card-icon is-success">
-            <CheckCircle2 className="h-4 w-4" />
+          <span
+            className={cn("nuoma-flow-v2-card-icon", isFlowValid ? "is-success" : "is-warning")}
+          >
+            {isFlowValid ? (
+              <CheckCircle2 className="h-4 w-4" />
+            ) : (
+              <AlertTriangle className="h-4 w-4" />
+            )}
           </span>
           <div>
-            <strong>Fluxo válido</strong>
-            <span>Tudo pronto para ativação.</span>
+            <strong>{isFlowValid ? "Fluxo válido" : "Fluxo com pendências"}</strong>
+            <span>
+              {isFlowValid
+                ? "Tudo pronto para ativação."
+                : `${validationIssueCount} item(ns) precisam de revisão.`}
+            </span>
           </div>
+        </div>
+        <div className="mt-3 grid gap-2 text-xs">
+          {readyChecks.map((check) => (
+            <div
+              key={check.label}
+              className="flex items-center justify-between gap-3"
+              data-testid="campaign-flow-validation-check"
+              data-ok={check.ok ? "true" : "false"}
+            >
+              <span className="text-fg-muted">{check.label}</span>
+              <Badge variant={check.ok ? "success" : "warning"}>
+                {check.ok ? "ok" : "revisar"}
+              </Badge>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -1286,11 +1480,22 @@ function FlowStudioInspector({
           <div>
             <strong>Possíveis alertas</strong>
           </div>
-          <span>1 alerta</span>
+          <span>{validationIssueCount} alerta(s)</span>
         </div>
         <div className="nuoma-flow-v2-alert-copy">
-          <strong>Aguardar 12 horas</strong>
-          <p>Tempo de espera longo pode impactar engajamento.</p>
+          <strong>{isFlowValid ? "Sem bloqueios críticos" : "Revise antes de ativar"}</strong>
+          <p>
+            {isFlowValid
+              ? "O fluxo pode seguir para revisão de disparo."
+              : "Corrija os itens abaixo antes de salvar ou ativar."}
+          </p>
+          {failedChecks.length > 0 ? (
+            <ul>
+              {failedChecks.map((check) => (
+                <li key={check.label}>{check.label}</li>
+              ))}
+            </ul>
+          ) : null}
           {stepBuildError ? <p>{stepBuildError}</p> : null}
           <button type="button">Saiba mais</button>
         </div>
@@ -1798,6 +2003,7 @@ export function AutomationFlowBuilder() {
   const [triggerTagId, setTriggerTagId] = useState("");
   const [triggerCampaignId, setTriggerCampaignId] = useState("");
   const [requireWithin24hWindow, setRequireWithin24hWindow] = useState(false);
+  const [overlayEnabled, setOverlayEnabled] = useState(false);
   const [actions, setActions] = useState<ActionDraft[]>([newActionDraft(1)]);
   const [segmentEnabled, setSegmentEnabled] = useState(true);
   const [segmentOperator, setSegmentOperator] = useState<"and" | "or">("and");
@@ -1829,6 +2035,7 @@ export function AutomationFlowBuilder() {
       metadata: {
         source: "visual_builder",
         builderVersion: "v2.10",
+        overlayEnabled,
         actionRegistry: actionTypes.map((action) => action.value),
         preview: {
           segmentEnabled,
@@ -1924,9 +2131,23 @@ export function AutomationFlowBuilder() {
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="neutral">{triggerChannel}</Badge>
               <Badge variant="cyan">{triggerType}</Badge>
+              <Badge variant={overlayEnabled ? "success" : "neutral"}>
+                overlay {overlayEnabled ? "sim" : "não"}
+              </Badge>
               <Badge variant="warning">draft</Badge>
             </div>
           </div>
+
+          <AutomationFlowCanvasBoard
+            triggerType={triggerType}
+            triggerChannel={triggerChannel}
+            requireWithin24hWindow={requireWithin24hWindow}
+            segmentEnabled={segmentEnabled}
+            segmentCount={segmentDrafts.length}
+            actions={actions}
+            previewActions={previewActions}
+            previewError={previewError}
+          />
 
           <div className="grid gap-3 md:grid-cols-2">
             <LabeledField label="Nome">
@@ -1983,6 +2204,16 @@ export function AutomationFlowBuilder() {
               />
               <span className="text-sm text-fg-muted">Exigir conversa dentro da janela de 24h</span>
             </label>
+            <label className="mt-3 flex items-center gap-3 rounded-lg bg-bg-base px-4 py-3 shadow-pressed-sm">
+              <Switch
+                checked={overlayEnabled}
+                onCheckedChange={setOverlayEnabled}
+                aria-label="Automação disponível no overlay"
+              />
+              <span className="text-sm text-fg-muted">
+                Overlay {overlayEnabled ? "sim" : "não"}
+              </span>
+            </label>
           </div>
 
           <SegmentBuilder
@@ -2024,6 +2255,483 @@ export function AutomationFlowBuilder() {
         />
       </div>
     </Card>
+  );
+}
+
+function AutomationFlowCanvasBoard({
+  triggerType,
+  triggerChannel,
+  requireWithin24hWindow,
+  segmentEnabled,
+  segmentCount,
+  actions,
+  previewActions,
+  previewError,
+}: {
+  triggerType: AutomationTrigger["type"];
+  triggerChannel: ChannelType;
+  requireWithin24hWindow: boolean;
+  segmentEnabled: boolean;
+  segmentCount: number;
+  actions: ActionDraft[];
+  previewActions: AutomationAction[];
+  previewError: string | null;
+}) {
+  const graph = useMemo(
+    () =>
+      buildAutomationFlowGraph({
+        triggerType,
+        triggerChannel,
+        requireWithin24hWindow,
+        segmentEnabled,
+        segmentCount,
+        actions,
+        previewActions,
+        previewError,
+      }),
+    [
+      actions,
+      previewActions,
+      previewError,
+      requireWithin24hWindow,
+      segmentCount,
+      segmentEnabled,
+      triggerChannel,
+      triggerType,
+    ],
+  );
+  const [nodes, setNodes, onNodesChange] = useNodesState<AutomationCanvasNode>(graph.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(graph.edges);
+
+  useEffect(() => {
+    setNodes(graph.nodes);
+    setEdges(graph.edges);
+  }, [graph.edges, graph.nodes, setEdges, setNodes]);
+
+  return (
+    <div
+      className="nuoma-flow-v2-board nuoma-automation-canvas-board"
+      data-testid="automation-flow-canvas-board"
+    >
+      <div className="nuoma-flow-v2-board-toolbar" aria-label="Ferramentas do canvas de automação">
+        <button type="button" aria-label="Selecionar" className="is-active" title="Selecionar">
+          <MousePointer2 className="h-4 w-4" />
+        </button>
+        <button type="button" aria-label="Ajustar tela" title="Ajustar tela">
+          <Maximize2 className="h-4 w-4" />
+        </button>
+        <span className="nuoma-flow-v2-toolbar-divider" />
+        <button type="button" aria-label="Canvas de automação bloqueado" title="Canvas bloqueado">
+          <LockKeyhole className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="nuoma-flow-v2-reactflow" data-testid="automation-xyflow-canvas">
+        <ReactFlow<AutomationCanvasNode, Edge>
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={automationFlowNodeTypes}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          fitView
+          fitViewOptions={{ padding: 0.28, includeHiddenNodes: false }}
+          minZoom={0.38}
+          maxZoom={1.35}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable
+          panOnScroll
+          preventScrolling={false}
+        >
+          <Background color="rgba(133, 160, 176, 0.22)" gap={28} size={1.15} />
+          <MiniMap
+            pannable
+            zoomable
+            className="nuoma-flow-v2-xy-minimap"
+            nodeColor={(node) => flowToneColor((node as AutomationCanvasNode).data.tone)}
+          />
+          <Controls className="nuoma-flow-v2-xy-controls" showInteractive={false} />
+        </ReactFlow>
+      </div>
+    </div>
+  );
+}
+
+type AutomationCanvasIconType = AutomationTrigger["type"] | BuilderActionType | "condition" | "end";
+
+type AutomationCanvasNodeData = {
+  label: string;
+  meta: string;
+  summary: string;
+  iconType: AutomationCanvasIconType;
+  tone: CampaignCanvasTone;
+  kind: "trigger" | "condition" | "action" | "branch" | "end" | "error";
+  actionType?: BuilderActionType;
+};
+
+type AutomationCanvasNode = Node<AutomationCanvasNodeData, "automationCanvas">;
+
+const automationFlowNodeTypes: NodeTypes = {
+  automationCanvas: AutomationFlowNode,
+};
+
+function AutomationFlowNode({ data }: NodeProps<AutomationCanvasNode>) {
+  const Icon = automationCanvasIcon(data.iconType);
+  const isTrigger = data.kind === "trigger";
+  const isEnd = data.kind === "end";
+  return (
+    <div
+      className={cn(
+        "nuoma-flow-v2-xy-node",
+        `nuoma-flow-v2-xy-node-${data.tone}`,
+        data.kind === "branch" && "nuoma-flow-v2-xy-node-branch",
+      )}
+      data-testid="automation-canvas-node"
+      data-automation-node-kind={data.kind}
+      data-action-type={data.actionType}
+    >
+      {!isTrigger ? <Handle type="target" position={Position.Left} /> : null}
+      <div className="nuoma-flow-v2-xy-node-head">
+        <span className="nuoma-flow-v2-xy-node-icon">
+          <Icon className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <div className="nuoma-flow-v2-xy-node-title">{data.label}</div>
+          <div className="nuoma-flow-v2-xy-node-meta">
+            {data.meta.split("\n").map((line) => (
+              <span key={line}>{line}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="nuoma-flow-v2-xy-node-summary">{data.summary}</div>
+      {data.kind === "branch" ? (
+        <div className="nuoma-flow-v2-xy-branch-row">
+          <button type="button" className="nodrag">
+            Sim
+          </button>
+          <button type="button" className="nodrag">
+            Não
+          </button>
+        </div>
+      ) : null}
+      {!isEnd ? <Handle type="source" position={Position.Right} /> : null}
+    </div>
+  );
+}
+
+function buildAutomationFlowGraph(inputGraph: {
+  triggerType: AutomationTrigger["type"];
+  triggerChannel: ChannelType;
+  requireWithin24hWindow: boolean;
+  segmentEnabled: boolean;
+  segmentCount: number;
+  actions: ActionDraft[];
+  previewActions: AutomationAction[];
+  previewError: string | null;
+}): { nodes: AutomationCanvasNode[]; edges: Edge[] } {
+  const rowGap = 138;
+  const hasCondition = inputGraph.segmentEnabled || inputGraph.requireWithin24hWindow;
+  const actionX = hasCondition ? 660 : 360;
+  const endX = actionX + 360;
+  const actionCount = Math.max(inputGraph.actions.length, 1);
+  const startY = Math.max(58, (Math.min(actionCount, 4) * rowGap) / 2 - 42);
+  const previewById = new Map(inputGraph.previewActions.map((action) => [action.id, action]));
+  const actionIds = new Set(inputGraph.actions.map((action) => action.id));
+  const nodes: AutomationCanvasNode[] = [
+    {
+      id: "automation-trigger",
+      type: "automationCanvas",
+      position: { x: 36, y: startY },
+      data: {
+        label: automationTriggerLabel(inputGraph.triggerType),
+        meta: `Trigger\n${inputGraph.triggerChannel}`,
+        summary: `Entrada ${inputGraph.triggerType} em ${inputGraph.triggerChannel}.`,
+        iconType: inputGraph.triggerType,
+        tone: inputGraph.triggerChannel === "instagram" ? "ig" : "wa",
+        kind: "trigger",
+      },
+    },
+  ];
+
+  if (hasCondition) {
+    const gates = [
+      inputGraph.segmentEnabled ? `${inputGraph.segmentCount} regra(s) de segmento` : null,
+      inputGraph.requireWithin24hWindow ? "janela 24h exigida" : null,
+    ].filter(Boolean);
+    nodes.push({
+      id: "automation-condition",
+      type: "automationCanvas",
+      position: { x: 360, y: startY },
+      data: {
+        label: "Condição",
+        meta: "Gates\nAND/OR",
+        summary: gates.join(" · ") || "Sem gate ativo.",
+        iconType: "condition",
+        tone: "cyan",
+        kind: "condition",
+      },
+    });
+  }
+
+  inputGraph.actions.forEach((action, index) => {
+    const previewAction = previewById.get(action.id) ?? inputGraph.previewActions[index];
+    const isBranch = action.type === "branch";
+    nodes.push({
+      id: action.id,
+      type: "automationCanvas",
+      position: { x: actionX, y: index * rowGap + 36 },
+      data: {
+        label: previewAction
+          ? automationActionLabel(previewAction)
+          : automationActionDraftLabel(action),
+        meta: `${action.type}\nação ${index + 1}`,
+        summary: previewAction
+          ? automationActionSummary(previewAction)
+          : automationActionDraftCanvasSummary(action),
+        iconType: action.type,
+        tone: automationActionTone(action.type, inputGraph.triggerChannel),
+        kind: isBranch ? "branch" : "action",
+        actionType: action.type,
+      },
+    });
+  });
+
+  if (inputGraph.previewError) {
+    nodes.push({
+      id: "automation-preview-error",
+      type: "automationCanvas",
+      position: { x: actionX, y: inputGraph.actions.length * rowGap + 36 },
+      data: {
+        label: "Revisar ação",
+        meta: "Validação\npreview",
+        summary: inputGraph.previewError,
+        iconType: "condition",
+        tone: "danger",
+        kind: "error",
+      },
+    });
+  }
+
+  nodes.push({
+    id: "automation-end",
+    type: "automationCanvas",
+    position: { x: endX, y: Math.max(36, inputGraph.actions.length * rowGap - 74) },
+    data: {
+      label: "Fim",
+      meta: "Saída\nsem job",
+      summary: "Criar rascunho salva automação, mas não enfileira envio.",
+      iconType: "end",
+      tone: "neutral",
+      kind: "end",
+    },
+  });
+
+  const edges: Edge[] = [];
+  const markerEnd = { type: MarkerType.ArrowClosed, color: "rgba(157, 177, 188, 0.82)" };
+  const defaultEdge = {
+    type: "smoothstep",
+    markerEnd,
+    style: { stroke: "rgba(157, 177, 188, 0.72)", strokeWidth: 2 },
+  };
+  const firstTarget = inputGraph.actions[0]?.id ?? "automation-end";
+
+  edges.push({
+    id: hasCondition ? "trigger-to-condition" : "trigger-to-first",
+    source: "automation-trigger",
+    target: hasCondition ? "automation-condition" : firstTarget,
+    ...defaultEdge,
+  });
+
+  if (hasCondition) {
+    edges.push({
+      id: "condition-to-first",
+      source: "automation-condition",
+      target: firstTarget,
+      label: "ok",
+      ...defaultEdge,
+    });
+  }
+
+  inputGraph.actions.forEach((action, index) => {
+    const nextAction = inputGraph.actions[index + 1];
+    edges.push({
+      id: `${action.id}-next`,
+      source: action.id,
+      target: nextAction?.id ?? "automation-end",
+      label: nextAction ? "próximo" : "concluir",
+      ...defaultEdge,
+    });
+    const targetActionId = action.type === "branch" ? action.branchTargetActionId.trim() : "";
+    if (targetActionId && actionIds.has(targetActionId)) {
+      edges.push({
+        id: `${action.id}-branch`,
+        source: action.id,
+        target: targetActionId,
+        label: action.branchLabel.trim() || "branch",
+        type: "smoothstep",
+        markerEnd,
+        style: { stroke: "rgba(124, 124, 255, 0.86)", strokeWidth: 2 },
+        labelStyle: { fill: "rgb(124 124 255)", fontSize: 11, fontWeight: 600 },
+      });
+    }
+  });
+
+  if (inputGraph.previewError) {
+    edges.push({
+      id: "preview-error-to-end",
+      source: "automation-preview-error",
+      target: "automation-end",
+      label: "corrigir",
+      ...defaultEdge,
+      style: { stroke: "rgba(242, 86, 106, 0.76)", strokeWidth: 2 },
+    });
+  }
+
+  return { nodes, edges };
+}
+
+function automationTriggerLabel(type: AutomationTrigger["type"]) {
+  if (type === "campaign_completed") return "Campanha completa";
+  if (type === "tag_applied") return "Tag aplicada";
+  if (type === "tag_removed") return "Tag removida";
+  return "Mensagem recebida";
+}
+
+function automationActionDraftLabel(action: ActionDraft) {
+  if (action.type === "send_step") return action.step.label || "Enviar step";
+  if (action.type === "delay") return action.delayLabel.trim() || "Delay";
+  if (action.type === "branch") return action.branchLabel.trim() || "Branch";
+  if (action.type === "apply_tag") return `Aplicar tag #${action.tagId || "-"}`;
+  if (action.type === "remove_tag") return `Remover tag #${action.tagId || "-"}`;
+  if (action.type === "set_status") return `Status ${action.status || "-"}`;
+  if (action.type === "create_reminder") return action.reminderTitle || "Criar lembrete";
+  if (action.type === "notify_attendant") return "Notificar atendente";
+  return `Disparar automação #${action.triggerAutomationId || "-"}`;
+}
+
+function automationActionDraftCanvasSummary(action: ActionDraft) {
+  if (action.type === "send_step") return stepDraftCanvasSummary(action.step);
+  if (action.type === "delay")
+    return `${action.delayActionSeconds || "0"}s antes das próximas ações`;
+  if (action.type === "branch") {
+    return `${action.branchConditionField} ${action.branchConditionOperator} ${action.branchConditionValue || "-"}`;
+  }
+  if (action.type === "apply_tag" || action.type === "remove_tag") return "Ação de CRM";
+  if (action.type === "set_status") return "Atualiza status do contato";
+  if (action.type === "create_reminder") return action.dueAt || "Data pendente";
+  if (action.type === "notify_attendant") return action.notifyMessage || "Notificação pendente";
+  return "Aciona automação filha com guarda anti-loop";
+}
+
+function automationActionTone(type: BuilderActionType, channel: ChannelType): CampaignCanvasTone {
+  if (type === "branch") return "violet";
+  if (type === "delay" || type === "create_reminder") return "cyan";
+  if (type === "send_step") return channel === "instagram" ? "ig" : "wa";
+  if (type === "notify_attendant" || type === "trigger_automation") return "violet";
+  return "neutral";
+}
+
+function automationCanvasIcon(iconType: AutomationCanvasIconType) {
+  if (iconType === "message_received") return PlayCircle;
+  if (iconType === "campaign_completed") return Flag;
+  if (iconType === "tag_applied") return BadgeCheck;
+  if (iconType === "tag_removed") return Trash2;
+  if (iconType === "condition") return ShieldCheck;
+  if (iconType === "end") return Flag;
+  if (iconType === "send_step") return Send;
+  if (iconType === "delay") return Clock;
+  if (iconType === "branch") return GitBranch;
+  if (iconType === "apply_tag") return BadgeCheck;
+  if (iconType === "remove_tag") return Trash2;
+  if (iconType === "set_status") return CheckCircle2;
+  if (iconType === "create_reminder") return Bell;
+  if (iconType === "notify_attendant") return Bell;
+  return Route;
+}
+
+function AutomationStudioInspector({
+  checks,
+  triggerType,
+  triggerChannel,
+  actionCount,
+  segmentCount,
+  requireWithin24hWindow,
+  previewError,
+  createPending,
+  onCreateDraft,
+}: {
+  checks: Array<{ label: string; ok: boolean }>;
+  triggerType: AutomationTrigger["type"];
+  triggerChannel: ChannelType;
+  actionCount: number;
+  segmentCount: number;
+  requireWithin24hWindow: boolean;
+  previewError: string | null;
+  createPending: boolean;
+  onCreateDraft: () => void;
+}) {
+  const readyCount = checks.filter((check) => check.ok).length;
+  return (
+    <aside className="nuoma-flow-studio-inspector">
+      <div>
+        <p className="botforge-kicker">Inspector</p>
+        <h3 className="mt-1 text-base font-semibold text-fg-primary">Saída segura</h3>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <CampaignPreviewMetric
+          label="checks"
+          value={`${readyCount}/${checks.length}`}
+          tone="success"
+        />
+        <CampaignPreviewMetric label="ações" value={actionCount} />
+        <CampaignPreviewMetric label="condições" value={segmentCount} />
+        <CampaignPreviewMetric label="janela" value={requireWithin24hWindow ? "24h" : "off"} />
+      </div>
+
+      <div className="rounded-lg bg-bg-base p-3 shadow-flat">
+        <div className="mb-2 font-mono text-[0.62rem] uppercase tracking-widest text-fg-dim">
+          Gates
+        </div>
+        <div className="grid gap-2">
+          {checks.map((check) => (
+            <div key={check.label} className="flex items-center justify-between gap-3 text-xs">
+              <span className="text-fg-muted">{check.label}</span>
+              <Badge variant={check.ok ? "success" : "warning"}>
+                {check.ok ? "ok" : "revisar"}
+              </Badge>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-lg bg-bg-base p-3 shadow-flat">
+        <div className="mb-2 font-mono text-[0.62rem] uppercase tracking-widest text-fg-dim">
+          Sinais
+        </div>
+        <div className="grid gap-2 text-xs text-fg-muted">
+          <div className="flex justify-between gap-3">
+            <span>Trigger</span>
+            <span className="font-mono text-fg-primary">{triggerType}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span>Canal</span>
+            <span className="font-mono text-fg-primary">{triggerChannel}</span>
+          </div>
+        </div>
+      </div>
+
+      {previewError ? (
+        <div className="rounded-lg border border-semantic-danger/35 bg-semantic-danger/10 p-3 text-xs leading-relaxed text-semantic-danger">
+          {previewError}
+        </div>
+      ) : null}
+
+      <Button variant="accent" className="w-full" loading={createPending} onClick={onCreateDraft}>
+        Criar rascunho
+      </Button>
+    </aside>
   );
 }
 
@@ -2199,6 +2907,7 @@ function StepEditor({
   );
   const unsupportedForChannel =
     channel === "instagram" && !instagramSupportedStepTypes.has(value.type);
+  const fieldErrors = stepDraftFieldErrors(value, index + 1);
   return (
     <div className="rounded-lg bg-bg-base p-3 shadow-flat">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2255,13 +2964,28 @@ function StepEditor({
           Este tipo não dispara no Instagram.
         </div>
       ) : null}
-      <StepBody value={value} onChange={onChange} />
-      <StepConditions value={value} stepOptions={stepOptions} onChange={onChange} />
+      <StepBody index={index} value={value} errors={fieldErrors} onChange={onChange} />
+      <StepConditions
+        stepIndex={index}
+        value={value}
+        stepOptions={stepOptions}
+        onChange={onChange}
+      />
     </div>
   );
 }
 
-function StepBody({ value, onChange }: { value: StepDraft; onChange: (value: StepDraft) => void }) {
+function StepBody({
+  index,
+  value,
+  errors,
+  onChange,
+}: {
+  index: number;
+  value: StepDraft;
+  errors: StepFieldErrors;
+  onChange: (value: StepDraft) => void;
+}) {
   if (value.type === "temporary_messages") {
     return (
       <div className="mt-3 rounded-lg bg-bg-deep/70 p-3 shadow-pressed-sm">
@@ -2304,8 +3028,19 @@ function StepBody({ value, onChange }: { value: StepDraft; onChange: (value: Ste
 
   if (value.type === "text") {
     return (
-      <LabeledField label="Mensagem" className="mt-3">
+      <LabeledField
+        label="Mensagem"
+        className="mt-3"
+        error={errors.template}
+        errorId={`campaign-step-message-${index + 1}-error`}
+      >
         <Textarea
+          data-testid={`campaign-step-message-${index + 1}`}
+          invalid={Boolean(errors.template)}
+          aria-invalid={Boolean(errors.template)}
+          aria-describedby={
+            errors.template ? `campaign-step-message-${index + 1}-error` : undefined
+          }
           rows={3}
           value={value.template}
           placeholder="Olá {{nome}}, tudo bem?"
@@ -2318,15 +3053,31 @@ function StepBody({ value, onChange }: { value: StepDraft; onChange: (value: Ste
   if (value.type === "link") {
     return (
       <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-        <LabeledField label="URL">
+        <LabeledField
+          label="URL"
+          error={errors.url}
+          errorId={`campaign-step-url-${index + 1}-error`}
+        >
           <Input
+            invalid={Boolean(errors.url)}
+            aria-invalid={Boolean(errors.url)}
+            aria-describedby={errors.url ? `campaign-step-url-${index + 1}-error` : undefined}
             value={value.url}
             placeholder="https://..."
             onChange={(event) => onChange({ ...value, url: event.target.value })}
           />
         </LabeledField>
-        <LabeledField label="Texto">
+        <LabeledField
+          label="Texto"
+          error={errors.linkText}
+          errorId={`campaign-step-link-text-${index + 1}-error`}
+        >
           <Input
+            invalid={Boolean(errors.linkText)}
+            aria-invalid={Boolean(errors.linkText)}
+            aria-describedby={
+              errors.linkText ? `campaign-step-link-text-${index + 1}-error` : undefined
+            }
             value={value.linkText}
             onChange={(event) => onChange({ ...value, linkText: event.target.value })}
           />
@@ -2345,16 +3096,32 @@ function StepBody({ value, onChange }: { value: StepDraft; onChange: (value: Ste
 
   return (
     <div className="mt-3 grid gap-3 md:grid-cols-[9rem_1fr_1fr]">
-      <LabeledField label="Asset ID">
+      <LabeledField
+        label="Asset ID"
+        error={errors.mediaAssetId}
+        errorId={`campaign-step-asset-${index + 1}-error`}
+      >
         <Input
+          invalid={Boolean(errors.mediaAssetId)}
+          aria-invalid={Boolean(errors.mediaAssetId)}
+          aria-describedby={
+            errors.mediaAssetId ? `campaign-step-asset-${index + 1}-error` : undefined
+          }
           inputMode="numeric"
           value={value.mediaAssetId}
           onChange={(event) => onChange({ ...value, mediaAssetId: event.target.value })}
         />
       </LabeledField>
       {value.type === "document" && (
-        <LabeledField label="Arquivo">
+        <LabeledField
+          label="Arquivo"
+          error={errors.fileName}
+          errorId={`campaign-step-file-${index + 1}-error`}
+        >
           <Input
+            invalid={Boolean(errors.fileName)}
+            aria-invalid={Boolean(errors.fileName)}
+            aria-describedby={errors.fileName ? `campaign-step-file-${index + 1}-error` : undefined}
             value={value.fileName}
             onChange={(event) => onChange({ ...value, fileName: event.target.value })}
           />
@@ -2371,10 +3138,12 @@ function StepBody({ value, onChange }: { value: StepDraft; onChange: (value: Ste
 }
 
 function StepConditions({
+  stepIndex,
   value,
   stepOptions,
   onChange,
 }: {
+  stepIndex: number;
   value: StepDraft;
   stepOptions: Array<{ id: string; label: string }>;
   onChange: (value: StepDraft) => void;
@@ -2405,121 +3174,147 @@ function StepConditions({
         <div className="mt-2 text-xs text-fg-dim">Sem regras para este step.</div>
       ) : (
         <div className="mt-3 grid gap-2">
-          {value.conditions.map((condition) => (
-            <div
-              key={condition.id}
-              className="grid gap-2 rounded-md bg-bg-base p-2 shadow-flat md:grid-cols-[1fr_1fr_1fr_1fr_auto]"
-              data-testid="campaign-step-condition-row"
-            >
-              <LabeledField label="Se">
-                <Select
-                  value={condition.type}
-                  onValueChange={(nextType) =>
-                    onChange({
-                      ...value,
-                      conditions: value.conditions.map((item) =>
-                        item.id === condition.id
-                          ? { ...item, type: nextType as CampaignStepCondition["type"] }
-                          : item,
-                      ),
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {conditionTypes.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </LabeledField>
-              <LabeledField label="Ação">
-                <Select
-                  value={condition.action}
-                  onValueChange={(nextAction) =>
-                    onChange({
-                      ...value,
-                      conditions: value.conditions.map((item) =>
-                        item.id === condition.id
-                          ? { ...item, action: nextAction as CampaignStepCondition["action"] }
-                          : item,
-                      ),
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {conditionActions.map((action) => (
-                      <SelectItem key={action.value} value={action.value}>
-                        {action.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </LabeledField>
-              <LabeledField label="Valor">
-                <Input
-                  value={condition.value}
-                  placeholder={conditionPlaceholder(condition.type)}
-                  onChange={(event) =>
-                    onChange({
-                      ...value,
-                      conditions: value.conditions.map((item) =>
-                        item.id === condition.id ? { ...item, value: event.target.value } : item,
-                      ),
-                    })
-                  }
-                />
-              </LabeledField>
-              <LabeledField label="Destino">
-                <Select
-                  value={condition.targetStepId || "__none"}
-                  disabled={condition.action !== "branch" || stepOptions.length === 0}
-                  onValueChange={(targetStepId) =>
-                    onChange({
-                      ...value,
-                      conditions: value.conditions.map((item) =>
-                        item.id === condition.id
-                          ? { ...item, targetStepId: targetStepId === "__none" ? "" : targetStepId }
-                          : item,
-                      ),
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none">Sem destino</SelectItem>
-                    {stepOptions
-                      .filter((option) => option.id !== value.id)
-                      .map((option) => (
-                        <SelectItem key={option.id} value={option.id}>
-                          {option.label}
+          {value.conditions.map((condition, conditionIndex) => {
+            const conditionErrors = conditionFieldErrors(
+              condition,
+              stepIndex + 1,
+              conditionIndex + 1,
+            );
+            const valueErrorId = `campaign-step-${stepIndex + 1}-condition-${conditionIndex + 1}-value-error`;
+            const targetErrorId = `campaign-step-${stepIndex + 1}-condition-${conditionIndex + 1}-target-error`;
+            return (
+              <div
+                key={condition.id}
+                className="grid gap-2 rounded-md bg-bg-base p-2 shadow-flat md:grid-cols-[1fr_1fr_1fr_1fr_auto]"
+                data-testid="campaign-step-condition-row"
+              >
+                <LabeledField label="Se">
+                  <Select
+                    value={condition.type}
+                    onValueChange={(nextType) =>
+                      onChange({
+                        ...value,
+                        conditions: value.conditions.map((item) =>
+                          item.id === condition.id
+                            ? { ...item, type: nextType as CampaignStepCondition["type"] }
+                            : item,
+                        ),
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {conditionTypes.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
                         </SelectItem>
                       ))}
-                  </SelectContent>
-                </Select>
-              </LabeledField>
-              <IconButton
-                label="Remover condição"
-                onClick={() =>
-                  onChange({
-                    ...value,
-                    conditions: value.conditions.filter((item) => item.id !== condition.id),
-                  })
-                }
-              >
-                <Trash2 className="h-4 w-4" />
-              </IconButton>
-            </div>
-          ))}
+                    </SelectContent>
+                  </Select>
+                </LabeledField>
+                <LabeledField label="Ação">
+                  <Select
+                    value={condition.action}
+                    onValueChange={(nextAction) =>
+                      onChange({
+                        ...value,
+                        conditions: value.conditions.map((item) =>
+                          item.id === condition.id
+                            ? { ...item, action: nextAction as CampaignStepCondition["action"] }
+                            : item,
+                        ),
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {conditionActions.map((action) => (
+                        <SelectItem key={action.value} value={action.value}>
+                          {action.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </LabeledField>
+                <LabeledField label="Valor" error={conditionErrors.value} errorId={valueErrorId}>
+                  <Input
+                    value={condition.value}
+                    invalid={Boolean(conditionErrors.value)}
+                    aria-invalid={Boolean(conditionErrors.value)}
+                    aria-describedby={conditionErrors.value ? valueErrorId : undefined}
+                    placeholder={conditionPlaceholder(condition.type)}
+                    onChange={(event) =>
+                      onChange({
+                        ...value,
+                        conditions: value.conditions.map((item) =>
+                          item.id === condition.id ? { ...item, value: event.target.value } : item,
+                        ),
+                      })
+                    }
+                  />
+                </LabeledField>
+                <LabeledField
+                  label="Destino"
+                  error={conditionErrors.targetStepId}
+                  errorId={targetErrorId}
+                >
+                  <Select
+                    value={condition.targetStepId || "__none"}
+                    disabled={condition.action !== "branch" || stepOptions.length === 0}
+                    onValueChange={(targetStepId) =>
+                      onChange({
+                        ...value,
+                        conditions: value.conditions.map((item) =>
+                          item.id === condition.id
+                            ? {
+                                ...item,
+                                targetStepId: targetStepId === "__none" ? "" : targetStepId,
+                              }
+                            : item,
+                        ),
+                      })
+                    }
+                  >
+                    <SelectTrigger
+                      aria-invalid={Boolean(conditionErrors.targetStepId)}
+                      aria-describedby={conditionErrors.targetStepId ? targetErrorId : undefined}
+                      className={cn(
+                        conditionErrors.targetStepId &&
+                          "ring-2 ring-semantic-danger/60 focus:ring-semantic-danger/60",
+                      )}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">Sem destino</SelectItem>
+                      {stepOptions
+                        .filter((option) => option.id !== value.id)
+                        .map((option) => (
+                          <SelectItem key={option.id} value={option.id}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </LabeledField>
+                <IconButton
+                  label="Remover condição"
+                  onClick={() =>
+                    onChange({
+                      ...value,
+                      conditions: value.conditions.filter((item) => item.id !== condition.id),
+                    })
+                  }
+                >
+                  <Trash2 className="h-4 w-4" />
+                </IconButton>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -3114,10 +3909,14 @@ function LabeledField({
   label,
   children,
   className,
+  error,
+  errorId,
 }: {
   label: string;
   children: ReactNode;
   className?: string;
+  error?: string | null;
+  errorId?: string;
 }) {
   return (
     <label className={className}>
@@ -3125,6 +3924,15 @@ function LabeledField({
         {label}
       </span>
       {children}
+      {error ? (
+        <span
+          id={errorId}
+          className="mt-1.5 block text-xs leading-snug text-semantic-danger"
+          data-testid={errorId}
+        >
+          {error}
+        </span>
+      ) : null}
     </label>
   );
 }
@@ -3223,6 +4031,52 @@ function unsupportedInstagramStepLabels(steps: StepDraft[]): string[] {
   return steps
     .filter((step) => !instagramSupportedStepTypes.has(step.type))
     .map((step, index) => step.label.trim() || `Step ${index + 1}`);
+}
+
+function stepDraftFieldErrors(step: StepDraft, order: number): StepFieldErrors {
+  if (step.type === "text") {
+    return step.template.trim() ? {} : { template: `Step ${order}: mensagem vazia.` };
+  }
+
+  if (step.type === "link") {
+    return {
+      ...(!step.url.trim() ? { url: `Step ${order}: informe a URL.` } : {}),
+      ...(!step.linkText.trim() ? { linkText: `Step ${order}: informe o texto do link.` } : {}),
+    };
+  }
+
+  if (step.type === "temporary_messages") {
+    return {};
+  }
+
+  const mediaAssetId = Number.parseInt(step.mediaAssetId, 10);
+  return {
+    ...(!Number.isInteger(mediaAssetId) || mediaAssetId <= 0
+      ? { mediaAssetId: `Step ${order}: informe um Media Asset ID válido.` }
+      : {}),
+    ...(step.type === "document" && !step.fileName.trim()
+      ? { fileName: `Step ${order}: documento precisa de nome de arquivo.` }
+      : {}),
+  };
+}
+
+function conditionFieldErrors(
+  condition: ConditionDraft,
+  stepOrder: number,
+  conditionOrder: number,
+): ConditionFieldErrors {
+  const value = condition.value.trim();
+  const targetStepId = condition.targetStepId.trim();
+  return {
+    ...((condition.type === "has_tag" || condition.type === "channel_is") && !value
+      ? { value: `Step ${stepOrder}, condição ${conditionOrder}: informe o valor.` }
+      : {}),
+    ...(condition.action === "branch" && !targetStepId
+      ? {
+          targetStepId: `Step ${stepOrder}, condição ${conditionOrder}: branch precisa de destino.`,
+        }
+      : {}),
+  };
 }
 
 function buildStep(step: StepDraft, order: number): CampaignStep | string {

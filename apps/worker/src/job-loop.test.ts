@@ -47,6 +47,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.useRealTimers();
   db.close();
   await fs.rm(tempDir, { recursive: true, force: true });
 });
@@ -132,6 +133,11 @@ describe("worker job loop", () => {
       externalThreadId: "ig:gabriell_braga",
       title: "@gabriell_braga",
     });
+    await seedInstagramInbound(repos, {
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: contact.id,
+    });
     await repos.jobs.create({
       userId: user.id,
       type: "send_instagram_message",
@@ -166,6 +172,1004 @@ describe("worker job loop", () => {
     expect(completed).toHaveLength(1);
     expect(sendInstagramTextViaCdp).toHaveBeenCalledWith(
       expect.objectContaining({ username: "gabriell_braga", text: "oi ig" }),
+    );
+  });
+
+  it("drains the next due job for the same canonical WhatsApp target before polling another contact", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-serial-target-drain",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_ALLOWED_PHONES: "5531982066263,5531999999999",
+    });
+    const user = await repos.users.create({
+      email: "serial-target-drain@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const firstConversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263@c.us",
+      title: "Gabriel salvo",
+    });
+    const otherConversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531999999999@c.us",
+      title: "Outro contato",
+    });
+    await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: firstConversation.id,
+        body: "primeira mensagem do contato",
+        idempotencyKey: "manual:serial-target:first",
+      },
+      priority: 0,
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: otherConversation.id,
+        body: "mensagem de outro contato",
+        idempotencyKey: "manual:serial-target:other",
+      },
+      priority: 0,
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: firstConversation.id,
+        body: "segunda mensagem do mesmo contato",
+        idempotencyKey: "manual:serial-target:second",
+      },
+      priority: 5,
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    const events: string[] = [];
+    const calls: Array<{ conversationId: number; body: string; phone: string }> = [];
+    const beginContactSession = vi.fn(
+      async (input: { conversationId: number; phone: string; reason?: string }) => {
+        events.push(`begin:${input.phone}`);
+        return {
+          mode: "contact-session" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "send_message",
+          navigationMode: "navigated" as const,
+        };
+      },
+    );
+    const sync = {
+      connected: true,
+      metrics: {} as never,
+      beginContactSession,
+      forceConversation: async () => {
+        throw new Error("unexpected force sync");
+      },
+      sendTextMessage: async (input: { conversationId: number; body: string; phone: string }) => {
+        events.push(`send:${input.body}`);
+        calls.push(input);
+        return {
+          mode: "text-message" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: "send_message",
+          navigationMode: "reused-open-chat" as const,
+          externalId: `serial-target-${calls.length}`,
+          visibleMessageCountBefore: calls.length,
+          visibleMessageCountAfter: calls.length + 1,
+          lastExternalIdBefore: calls.length === 1 ? null : `serial-target-${calls.length - 1}`,
+          lastExternalIdAfter: `serial-target-${calls.length}`,
+        };
+      },
+      sendVoiceMessage: async () => {
+        throw new Error("unexpected voice send");
+      },
+      sendDocumentMessage: async () => {
+        throw new Error("unexpected document send");
+      },
+      sendMediaMessage: async () => {
+        throw new Error("unexpected media send");
+      },
+      close: async () => {},
+    };
+
+    const loop = createJobLoop({
+      env,
+      repos,
+      logger,
+      handlerContext: { env, db, repos, logger, sync },
+    });
+
+    await expect(loop.processOne()).resolves.toBe(true);
+
+    expect(loop.state.lastError).toBeNull();
+    expect(beginContactSession).toHaveBeenCalledTimes(1);
+    expect(beginContactSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: firstConversation.id,
+        phone: "5531982066263",
+        reason: "send_message",
+      }),
+    );
+    expect(events).toEqual([
+      "begin:5531982066263",
+      "send:primeira mensagem do contato",
+      "send:segunda mensagem do mesmo contato",
+    ]);
+    expect(calls.map((call) => call.body)).toEqual([
+      "primeira mensagem do contato",
+      "segunda mensagem do mesmo contato",
+    ]);
+    expect(calls.every((call) => call.conversationId === firstConversation.id)).toBe(true);
+    expect(loop.state.metrics.claimed).toBe(2);
+    expect(loop.state.metrics.completed).toBe(2);
+    expect(loop.state.metrics.contactSessionsStarted).toBe(1);
+    expect(loop.state.metrics.contactSessionReuses).toBe(1);
+    const queued = await repos.jobs.list(user.id, "queued");
+    expect(queued).toEqual([
+      expect.objectContaining({
+        payload: expect.objectContaining({ conversationId: otherConversation.id }),
+      }),
+    ]);
+  });
+
+  it("does not use an Instagram conversation title as the send identity", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-instagram-no-title-identity",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      IG_SEND_ALLOWED_HANDLES: "gabriell_braga",
+    });
+    const user = await repos.users.create({
+      email: "instagram-no-title-identity@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Saved IG Display Name",
+      phone: null,
+      email: null,
+      primaryChannel: "instagram",
+      instagramHandle: null,
+      status: "lead",
+      notes: null,
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "instagram",
+      externalThreadId: "direct-thread-123",
+      title: "@gabriell_braga",
+    });
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "send_instagram_message",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        body: "nao usar titulo",
+        idempotencyKey: "manual:ig-title-not-identity",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 1,
+    });
+    if (!job) throw new Error("expected instagram no-title job");
+
+    await expect(handleJob(job, { env, db, repos, logger })).rejects.toThrow(
+      "send_instagram_message requires instagramHandle or ig thread",
+    );
+    expect(sendInstagramTextViaCdp).not.toHaveBeenCalled();
+  });
+
+  it("blocks Instagram sends outside the 24h inbound window before CDP dispatch", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-instagram-24h",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      IG_SEND_ALLOWED_HANDLES: "gabriell_braga",
+    });
+    const user = await repos.users.create({
+      email: "instagram-24h@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel IG 24h",
+      phone: null,
+      email: null,
+      primaryChannel: "instagram",
+      instagramHandle: "gabriell_braga",
+      status: "lead",
+      notes: null,
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "instagram",
+      externalThreadId: "ig:gabriell_braga",
+      title: "@gabriell_braga",
+    });
+    await seedInstagramInbound(repos, {
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: contact.id,
+      observedAtUtc: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
+    });
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "send_instagram_message",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        instagramHandle: "gabriell_braga",
+        body: "fora da janela",
+        idempotencyKey: "manual:ig-24h-block",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 1,
+    });
+    if (!job) throw new Error("expected instagram 24h job");
+
+    await expect(
+      handleJob(job, {
+        env,
+        db,
+        repos,
+        logger,
+        instagram: { metrics: { connected: true } } as never,
+      }),
+    ).rejects.toThrow("outside the 24h window");
+
+    expect(sendInstagramTextViaCdp).not.toHaveBeenCalled();
+    await expect(
+      repos.messages.findByIdempotencyKey({
+        userId: user.id,
+        idempotencyKey: "manual:ig-24h-block",
+      }),
+    ).resolves.toBeNull();
+    const events = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.instagram_24h_window.blocked",
+    });
+    expect(events[0]?.payload).toEqual(
+      expect.objectContaining({
+        jobId: job.id,
+        jobType: "send_instagram_message",
+        conversationId: conversation.id,
+        contactId: contact.id,
+        instagramHandle: "gabriell_braga",
+        reason: "instagram_24h_window_expired",
+      }),
+    );
+    const audit = await repos.sendAuditEvents.list({
+      userId: user.id,
+      jobId: job.id,
+      phase: "policy_block",
+    });
+    expect(audit).toEqual([
+      expect.objectContaining({
+        channel: "instagram",
+        conversationId: conversation.id,
+        contactId: contact.id,
+        workerId: "worker-instagram-24h",
+        errorCode: "instagram_24h_window_expired",
+      }),
+    ]);
+  });
+
+  it("paces Instagram sends with a token bucket per handle before CDP dispatch", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-instagram-token-bucket",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      IG_SEND_ALLOWED_HANDLES: "gabriell_braga",
+      IG_SEND_RATE_LIMIT_MAX: "1",
+      IG_SEND_RATE_LIMIT_WINDOW_MS: "60000",
+    });
+    const user = await repos.users.create({
+      email: "instagram-token-bucket@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel IG pacing",
+      phone: null,
+      email: null,
+      primaryChannel: "instagram",
+      instagramHandle: "gabriell_braga",
+      status: "lead",
+      notes: null,
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "instagram",
+      externalThreadId: "ig:gabriell_braga",
+      title: "@gabriell_braga",
+    });
+    await seedInstagramInbound(repos, {
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: contact.id,
+    });
+    const firstJob = await repos.jobs.create({
+      userId: user.id,
+      type: "send_instagram_message",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        instagramHandle: "gabriell_braga",
+        body: "primeiro IG no bucket",
+        idempotencyKey: "manual:ig-token-first",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    const secondJob = await repos.jobs.create({
+      userId: user.id,
+      type: "send_instagram_message",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        instagramHandle: "gabriell_braga",
+        body: "segundo IG deve aguardar",
+        idempotencyKey: "manual:ig-token-second",
+      },
+      scheduledAt: "2026-04-30T12:00:01.000Z",
+      maxAttempts: 2,
+    });
+    if (!firstJob || !secondJob) {
+      throw new Error("expected instagram token bucket jobs");
+    }
+
+    const context = {
+      env,
+      db,
+      repos,
+      logger,
+      instagram: { metrics: { connected: true } } as never,
+    };
+    await handleJob(firstJob, context);
+    await expect(handleJob(secondJob, context)).rejects.toThrow("send_rate_limit_exceeded");
+
+    expect(sendInstagramTextViaCdp).toHaveBeenCalledTimes(1);
+    expect(sendInstagramTextViaCdp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        username: "gabriell_braga",
+        text: "primeiro IG no bucket",
+      }),
+    );
+    const blockedEvents = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.instagram_send_policy.blocked",
+    });
+    expect(blockedEvents[0]?.payload).toEqual(
+      expect.objectContaining({
+        jobId: secondJob.id,
+        jobType: "send_instagram_message",
+        conversationId: conversation.id,
+        contactId: contact.id,
+        instagramHandle: "gabriell_braga",
+        reason: "send_rate_limit_exceeded",
+        rateLimitMode: "token_bucket",
+        rateLimitBucketKey: "ig:gabriell_braga",
+        recentAllowedCount: 1,
+      }),
+    );
+    expect(Number(blockedEvents[0]?.payload.rateLimitTokensRemaining)).toBeLessThan(1);
+    expect(Number(blockedEvents[0]?.payload.rateLimitRetryAfterMs)).toBeGreaterThan(0);
+    const audit = await repos.sendAuditEvents.list({
+      userId: user.id,
+      jobId: secondJob.id,
+      phase: "policy_block",
+    });
+    expect(audit).toEqual([
+      expect.objectContaining({
+        channel: "instagram",
+        conversationId: conversation.id,
+        contactId: contact.id,
+        workerId: "worker-instagram-token-bucket",
+        errorCode: "send_rate_limit_exceeded",
+      }),
+    ]);
+  });
+
+  it("drains Instagram campaign batch siblings by handle without a WhatsApp phone", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-instagram-batch-drain",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      IG_SEND_ALLOWED_HANDLES: "gabriell_braga",
+    });
+    const user = await repos.users.create({
+      email: "instagram-batch-drain@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "instagram",
+      externalThreadId: "ig:gabriell_braga",
+      title: "@gabriell_braga",
+    });
+    await seedInstagramInbound(repos, {
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: null,
+    });
+    const basePayload = {
+      campaignId: 301,
+      recipientId: null,
+      conversationId: conversation.id,
+      instagramHandle: "gabriell_braga",
+      phone: null,
+      campaignBatchId: "ig-batch-drain",
+      campaignBatchSize: 2,
+      variables: { nome: "Gabriel" },
+    };
+    const firstJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        ...basePayload,
+        campaignBatchIndex: 0,
+        isLastStep: false,
+        idempotencyKey: "campaign:ig-batch-drain:1",
+        step: {
+          id: "ig-intro",
+          label: "Intro IG",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Oi {{nome}} pelo IG",
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    const nextJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        ...basePayload,
+        campaignBatchIndex: 1,
+        isLastStep: true,
+        idempotencyKey: "campaign:ig-batch-drain:2",
+        step: {
+          id: "ig-follow-up",
+          label: "Follow-up IG",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Segundo toque {{nome}} pelo IG",
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:01.000Z",
+      maxAttempts: 2,
+    });
+    if (!firstJob || !nextJob) {
+      throw new Error("expected Instagram campaign_step jobs to be created");
+    }
+
+    const loop = createJobLoop({
+      env,
+      repos,
+      logger,
+      handlerContext: {
+        env,
+        db,
+        repos,
+        logger,
+        instagram: { metrics: { connected: true } } as never,
+      },
+    });
+
+    await expect(loop.processOne()).resolves.toBe(true);
+
+    expect(sendInstagramTextViaCdp).toHaveBeenCalledTimes(2);
+    expect(sendInstagramTextViaCdp).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ username: "gabriell_braga", text: "Oi Gabriel pelo IG" }),
+    );
+    expect(sendInstagramTextViaCdp).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        username: "gabriell_braga",
+        text: "Segundo toque Gabriel pelo IG",
+      }),
+    );
+    const completed = await repos.jobs.list(user.id, "completed");
+    expect(completed.map((job) => job.id).sort((a, b) => a - b)).toEqual([firstJob.id, nextJob.id]);
+    const drainEvents = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.campaign_step.batch_drained",
+    });
+    expect(drainEvents[0]?.payload).toEqual(
+      expect.objectContaining({
+        rootJobId: firstJob.id,
+        campaignBatchId: "ig-batch-drain",
+        drainedJobs: 1,
+        stopped: false,
+      }),
+    );
+  });
+
+  it("drains WhatsApp campaign batch siblings by canonical wa_jid when payload phones are stale or absent", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-wa-jid-batch-drain",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_ALLOWED_PHONE: "5531982066263",
+    });
+    const user = await repos.users.create({
+      email: "wa-jid-batch-drain@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel salvo",
+      phone: "31982066263",
+      primaryChannel: "whatsapp",
+      status: "active",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263@c.us",
+      title: "Gabriel salvo no celular",
+    });
+    const basePayload = {
+      campaignId: 302,
+      recipientId: null,
+      conversationId: conversation.id,
+      campaignBatchId: "wa-jid-batch-drain",
+      campaignBatchSize: 2,
+      variables: { nome: "Gabriel" },
+    };
+    const firstJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        ...basePayload,
+        phone: "11999999999",
+        campaignBatchIndex: 0,
+        isLastStep: false,
+        idempotencyKey: "campaign:wa-jid-batch-drain:1",
+        step: {
+          id: "wa-intro",
+          label: "Intro WA",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Oi {{nome}} pelo WA",
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    const nextJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        ...basePayload,
+        campaignBatchIndex: 1,
+        isLastStep: true,
+        idempotencyKey: "campaign:wa-jid-batch-drain:2",
+        step: {
+          id: "wa-follow-up",
+          label: "Follow-up WA",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Segundo toque {{nome}} pelo WA",
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:01.000Z",
+      maxAttempts: 2,
+    });
+    if (!firstJob || !nextJob) {
+      throw new Error("expected WhatsApp campaign_step jobs to be created");
+    }
+    const sendCalls: unknown[] = [];
+    const sync = {
+      connected: true,
+      metrics: {} as never,
+      forceConversation: async () => {
+        throw new Error("unexpected force sync");
+      },
+      sendTextMessage: async (input: {
+        conversationId: number;
+        phone: string;
+        body: string;
+        reason?: string;
+      }) => {
+        sendCalls.push(input);
+        return {
+          mode: "text-message" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "campaign_step",
+          navigationMode: "reused-open-chat" as const,
+          externalId: `wa-jid-batch-${sendCalls.length}`,
+          visibleMessageCountBefore: sendCalls.length,
+          visibleMessageCountAfter: sendCalls.length + 1,
+          lastExternalIdBefore: "before",
+          lastExternalIdAfter: `wa-jid-batch-${sendCalls.length}`,
+        };
+      },
+      sendVoiceMessage: async () => {
+        throw new Error("unexpected voice send");
+      },
+      sendDocumentMessage: async () => {
+        throw new Error("unexpected document send");
+      },
+      sendMediaMessage: async () => {
+        throw new Error("unexpected media send");
+      },
+      close: async () => {},
+    };
+
+    const loop = createJobLoop({
+      env,
+      repos,
+      logger,
+      handlerContext: { env, db, repos, logger, sync },
+    });
+
+    await expect(loop.processOne()).resolves.toBe(true);
+
+    expect(sendCalls).toEqual([
+      expect.objectContaining({ phone: "5531982066263", body: "Oi Gabriel pelo WA" }),
+      expect.objectContaining({ phone: "5531982066263", body: "Segundo toque Gabriel pelo WA" }),
+    ]);
+    const completed = await repos.jobs.list(user.id, "completed");
+    expect(completed.map((job) => job.id).sort((a, b) => a - b)).toEqual([firstJob.id, nextJob.id]);
+    const drainEvents = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.campaign_step.batch_drained",
+    });
+    expect(drainEvents[0]?.payload).toEqual(
+      expect.objectContaining({
+        rootJobId: firstJob.id,
+        campaignBatchId: "wa-jid-batch-drain",
+        drainedJobs: 1,
+        stopped: false,
+      }),
+    );
+  });
+
+  it("drains mixed WhatsApp campaign batch steps in one worker pass without force sync", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const documentPath = path.join(tempDir, "batch-document.pdf");
+    const imagePath = path.join(tempDir, "batch-image.jpg");
+    await fs.writeFile(documentPath, Buffer.from("%PDF-1.4\n% batch document\n"));
+    await fs.writeFile(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xdb, 0x00, 0x43]));
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-mixed-wa-batch-drain",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_ALLOWED_PHONE: "5531982066263",
+    });
+    const user = await repos.users.create({
+      email: "mixed-wa-batch-drain@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel salvo",
+      phone: "31982066263",
+      primaryChannel: "whatsapp",
+      status: "active",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "whatsapp",
+      externalThreadId: "Gabriel salvo no celular",
+      waJid: "5531982066263@s.whatsapp.net",
+      title: "Gabriel salvo no celular",
+    });
+    const documentAsset = await repos.mediaAssets.create({
+      userId: user.id,
+      type: "document",
+      fileName: "batch-document.pdf",
+      mimeType: "application/pdf",
+      sha256: "d".repeat(64),
+      sizeBytes: (await fs.stat(documentPath)).size,
+      durationMs: null,
+      storagePath: documentPath,
+    });
+    const imageAsset = await repos.mediaAssets.create({
+      userId: user.id,
+      type: "image",
+      fileName: "batch-image.jpg",
+      mimeType: "image/jpeg",
+      sha256: "e".repeat(64),
+      sizeBytes: (await fs.stat(imagePath)).size,
+      durationMs: null,
+      storagePath: imagePath,
+    });
+    const basePayload = {
+      campaignId: 303,
+      recipientId: 403,
+      conversationId: conversation.id,
+      phone: "11999999999",
+      campaignBatchId: "mixed-wa-batch-drain",
+      campaignBatchSize: 3,
+      variables: { nome: "Gabriel" },
+    };
+    const textJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        ...basePayload,
+        campaignBatchIndex: 0,
+        isLastStep: false,
+        idempotencyKey: "campaign:mixed-wa-batch-drain:1",
+        step: {
+          id: "mixed-text",
+          label: "Texto",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Oi {{nome}}",
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    const documentJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        ...basePayload,
+        campaignBatchIndex: 1,
+        isLastStep: false,
+        idempotencyKey: "campaign:mixed-wa-batch-drain:2",
+        step: {
+          id: "mixed-document",
+          label: "Documento",
+          type: "document",
+          delaySeconds: 0,
+          conditions: [],
+          mediaAssetId: documentAsset.id,
+          fileName: "procedimento-{{nome}}.pdf",
+          caption: "Documento para {{nome}}",
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:01.000Z",
+      maxAttempts: 2,
+    });
+    const imageJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        ...basePayload,
+        campaignBatchIndex: 2,
+        isLastStep: true,
+        idempotencyKey: "campaign:mixed-wa-batch-drain:3",
+        step: {
+          id: "mixed-image",
+          label: "Imagem",
+          type: "image",
+          delaySeconds: 0,
+          conditions: [],
+          mediaAssetId: imageAsset.id,
+          caption: "Imagem para {{nome}}",
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:02.000Z",
+      maxAttempts: 2,
+    });
+    if (!textJob || !documentJob || !imageJob) {
+      throw new Error("expected mixed WhatsApp campaign_step jobs to be created");
+    }
+    const forceConversation = vi.fn(async () => {
+      throw new Error("unexpected force sync");
+    });
+    const events: string[] = [];
+    const beginContactSession = vi.fn(
+      async (input: { conversationId: number; phone: string; reason?: string }) => {
+        events.push(`begin:${input.phone}`);
+        return {
+          mode: "contact-session" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "campaign_step",
+          navigationMode: "navigated" as const,
+        };
+      },
+    );
+    const sends: Array<{ kind: string; phone: string; body?: string; fileName?: string }> = [];
+    const sync = {
+      connected: true,
+      metrics: {} as never,
+      beginContactSession,
+      forceConversation,
+      sendTextMessage: async (input: {
+        conversationId: number;
+        phone: string;
+        body: string;
+        reason?: string;
+      }) => {
+        events.push("send:text");
+        sends.push({ kind: "text", phone: input.phone, body: input.body });
+        return {
+          mode: "text-message" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "campaign_step",
+          navigationMode: "reused-open-chat" as const,
+          externalId: "mixed-text-external",
+          visibleMessageCountBefore: 1,
+          visibleMessageCountAfter: 2,
+          lastExternalIdBefore: "before",
+          lastExternalIdAfter: "mixed-text-external",
+        };
+      },
+      sendVoiceMessage: async () => {
+        throw new Error("unexpected voice send");
+      },
+      sendDocumentMessage: async (input: {
+        conversationId: number;
+        phone: string;
+        filePath: string;
+        fileName: string;
+        mimeType: string;
+        caption?: string | null;
+        reason?: string;
+      }) => {
+        events.push("send:document");
+        sends.push({ kind: "document", phone: input.phone, fileName: input.fileName });
+        return {
+          mode: "document-message" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "campaign_step",
+          navigationMode: "reused-open-chat" as const,
+          externalId: "mixed-document-external",
+          fileName: input.fileName,
+          mimeType: input.mimeType,
+          captionSent: Boolean(input.caption),
+          visibleMessageCountBefore: 2,
+          visibleMessageCountAfter: 3,
+          lastExternalIdBefore: "mixed-text-external",
+          lastExternalIdAfter: "mixed-document-external",
+        };
+      },
+      sendMediaMessage: async (input: {
+        conversationId: number;
+        phone: string;
+        mediaType: "image" | "video";
+        filePath: string;
+        fileName: string;
+        mimeType: string;
+        caption?: string | null;
+        files?: Array<{ filePath: string; fileName: string; mimeType: string }>;
+        reason?: string;
+      }) => {
+        events.push(`send:${input.mediaType}`);
+        sends.push({ kind: input.mediaType, phone: input.phone, fileName: input.fileName });
+        return {
+          mode: "media-message" as const,
+          contentType: input.mediaType,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "campaign_step",
+          navigationMode: "reused-open-chat" as const,
+          externalId: "mixed-image-external",
+          fileName: input.fileName,
+          mimeType: input.mimeType,
+          fileNames: input.files?.map((file) => file.fileName) ?? [input.fileName],
+          mimeTypes: input.files?.map((file) => file.mimeType) ?? [input.mimeType],
+          mediaCount: input.files?.length ?? 1,
+          captionSent: Boolean(input.caption),
+          visibleMessageCountBefore: 3,
+          visibleMessageCountAfter: 4,
+          lastExternalIdBefore: "mixed-document-external",
+          lastExternalIdAfter: "mixed-image-external",
+        };
+      },
+      close: async () => {},
+    };
+
+    const loop = createJobLoop({
+      env,
+      repos,
+      logger,
+      handlerContext: { env, db, repos, logger, sync },
+    });
+
+    await expect(loop.processOne()).resolves.toBe(true);
+
+    expect(forceConversation).not.toHaveBeenCalled();
+    expect(beginContactSession).toHaveBeenCalledTimes(1);
+    expect(beginContactSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: conversation.id,
+        phone: "5531982066263",
+        reason: "campaign_step",
+      }),
+    );
+    expect(events).toEqual(["begin:5531982066263", "send:text", "send:document", "send:image"]);
+    expect(sends).toEqual([
+      { kind: "text", phone: "5531982066263", body: "Oi Gabriel" },
+      { kind: "document", phone: "5531982066263", fileName: "procedimento-Gabriel.pdf" },
+      { kind: "image", phone: "5531982066263", fileName: "batch-image.jpg" },
+    ]);
+    expect(loop.state.metrics.contactSessionsStarted).toBe(1);
+    expect(loop.state.metrics.contactSessionReuses).toBe(2);
+    const completed = await repos.jobs.list(user.id, "completed");
+    expect(completed.map((job) => job.id).sort((a, b) => a - b)).toEqual([
+      textJob.id,
+      documentJob.id,
+      imageJob.id,
+    ]);
+    const drainEvents = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.campaign_step.batch_drained",
+    });
+    expect(drainEvents[0]?.payload).toEqual(
+      expect.objectContaining({
+        rootJobId: textJob.id,
+        campaignBatchId: "mixed-wa-batch-drain",
+        drainedJobs: 2,
+        stopped: false,
+      }),
     );
   });
 
@@ -263,9 +1267,11 @@ describe("worker job loop", () => {
     });
 
     const processed = await guardedLoop.processOne();
-    const released = db.raw.prepare("select status, claimed_at, attempts from jobs where id = ?").get(
-      staleJob.id,
-    ) as { status: string; claimed_at: string | null; attempts: number } | undefined;
+    const released = db.raw
+      .prepare("select status, claimed_at, attempts from jobs where id = ?")
+      .get(staleJob.id) as
+      | { status: string; claimed_at: string | null; attempts: number }
+      | undefined;
 
     expect(processed).toBe(false);
     expect(guardedLoop.state.metrics.reaped).toBe(1);
@@ -416,6 +1422,85 @@ describe("worker job loop", () => {
     ]);
   });
 
+  it("records unresolved force-conversation syncs as warning events", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-history-unresolved",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+    });
+    const user = await repos.users.create({
+      email: "history-unresolved@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "Gabriel Braga Nuoma",
+      title: "Gabriel Braga Nuoma",
+    });
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "sync_history",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    if (!job) {
+      throw new Error("expected sync_history job to be created");
+    }
+
+    await handleJob(job, {
+      env,
+      db,
+      repos,
+      logger,
+      sync: {
+        connected: true,
+        metrics: {} as never,
+        forceConversation: async (input) => ({
+          mode: "unresolved",
+          conversationId: input.conversationId ?? null,
+          phone: null,
+          reason: input.reason ?? "sync.forceConversation",
+        }),
+        sendTextMessage: async () => {
+          throw new Error("unexpected send");
+        },
+        sendVoiceMessage: async () => {
+          throw new Error("unexpected voice send");
+        },
+        sendDocumentMessage: async () => {
+          throw new Error("unexpected document send");
+        },
+        sendMediaMessage: async () => {
+          throw new Error("unexpected media send");
+        },
+        close: async () => {},
+      },
+    });
+
+    const events = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sync.force_conversation.completed",
+    });
+    expect(events[0]?.severity).toBe("warn");
+    expect(events[0]?.payload).toEqual(
+      expect.objectContaining({
+        jobId: job.id,
+        mode: "unresolved",
+        conversationId: conversation.id,
+      }),
+    );
+  });
+
   it("sends text only when the target phone matches the allowlist", async () => {
     const repos = createRepositories(db);
     const logger = pino({ level: "silent" });
@@ -527,6 +1612,44 @@ describe("worker job loop", () => {
         dispatchAttempts: 1,
       }),
     );
+    const dispatchingAudit = await repos.sendAuditEvents.list({
+      userId: user.id,
+      jobId: job.id,
+      phase: "dispatching",
+    });
+    const sentAudit = await repos.sendAuditEvents.list({
+      userId: user.id,
+      jobId: job.id,
+      phase: "sent",
+    });
+    expect(dispatchingAudit).toEqual([
+      expect.objectContaining({
+        channel: "whatsapp",
+        conversationId: conversation.id,
+        messageId: dispatchMessage?.id,
+        workerId: "worker-send",
+        metadata: expect.objectContaining({
+          idempotencyKey: `legacy:job:${job.id}`,
+          contentType: "text",
+          reason: "send_message",
+          phone: "5531982066263",
+        }),
+      }),
+    ]);
+    expect(sentAudit).toEqual([
+      expect.objectContaining({
+        channel: "whatsapp",
+        conversationId: conversation.id,
+        messageId: dispatchMessage?.id,
+        workerId: "worker-send",
+        metadata: expect.objectContaining({
+          idempotencyKey: `legacy:job:${job.id}`,
+          contentType: "text",
+          reason: "send_message",
+          externalId: "after",
+        }),
+      }),
+    ]);
   });
 
   it("skips duplicate text dispatches by idempotency key before calling CDP again", async () => {
@@ -631,6 +1754,26 @@ describe("worker job loop", () => {
     );
     const attempts = await repos.messageDispatchAttempts.listByKey(idempotencyKey);
     expect(attempts.map((attempt) => attempt.phase)).toEqual(["sent", "skipped_duplicate"]);
+    const duplicateAudit = await repos.sendAuditEvents.list({
+      userId: user.id,
+      jobId: job.id,
+      phase: "duplicate",
+    });
+    expect(duplicateAudit).toEqual([
+      expect.objectContaining({
+        channel: "whatsapp",
+        conversationId: conversation.id,
+        messageId: message?.id,
+        workerId: "worker-send-idempotent",
+        metadata: expect.objectContaining({
+          idempotencyKey,
+          contentType: "text",
+          reason: "send_message",
+          externalId: "after-idempotent",
+          existingStatus: "sent",
+        }),
+      }),
+    ]);
   });
 
   it("skips duplicate voice, document, media, and campaign step dispatches before CDP", async () => {
@@ -899,6 +2042,623 @@ describe("worker job loop", () => {
     );
     const attempts = await repos.messageDispatchAttempts.listByKey(idempotencyKey);
     expect(attempts.map((attempt) => attempt.phase)).toEqual(["failed", "sent"]);
+    const failedAudit = await repos.sendAuditEvents.list({
+      userId: user.id,
+      jobId: job.id,
+      phase: "failed",
+    });
+    expect(failedAudit).toEqual([
+      expect.objectContaining({
+        channel: "whatsapp",
+        conversationId: conversation.id,
+        messageId: message?.id,
+        workerId: "worker-send-idempotent-retry",
+        errorCode: "dispatch_failed",
+        errorMessage: "navigation failed before send",
+        metadata: expect.objectContaining({
+          idempotencyKey,
+          contentType: "text",
+          reason: "send_message",
+          phone: "5531982066263",
+        }),
+      }),
+    ]);
+  });
+
+  it("dispatches WhatsApp chatbot_reply jobs through the guarded text sender", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-chatbot-reply-wa",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_ALLOWED_PHONE: "5531982066263",
+    });
+    const user = await repos.users.create({
+      email: "chatbot-reply-wa@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      title: "Gabriel Braga Nuoma",
+    });
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "chatbot_reply",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        phone: "31982066263",
+        body: "Oi {{nome}}, resposta automática.",
+        variables: { nome: "Gabriel" },
+        chatbotId: 10,
+        ruleId: 20,
+        sourceMessageId: 30,
+        idempotencyKey: "chatbot_reply:test-wa",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    if (!job) {
+      throw new Error("expected chatbot_reply job to be created");
+    }
+    const calls: unknown[] = [];
+
+    await handleJob(job, {
+      env,
+      db,
+      repos,
+      logger,
+      sync: {
+        connected: true,
+        metrics: {} as never,
+        forceConversation: async () => {
+          throw new Error("unexpected force sync");
+        },
+        sendTextMessage: async (input) => {
+          calls.push(input);
+          return {
+            mode: "text-message",
+            conversationId: input.conversationId,
+            phone: input.phone,
+            reason: input.reason ?? "chatbot_reply",
+            navigationMode: "reused-open-chat",
+            externalId: "chatbot-wa-after",
+            visibleMessageCountBefore: 1,
+            visibleMessageCountAfter: 2,
+            lastExternalIdBefore: "chatbot-wa-before",
+            lastExternalIdAfter: "chatbot-wa-after",
+          };
+        },
+        sendVoiceMessage: async () => {
+          throw new Error("unexpected voice send");
+        },
+        sendDocumentMessage: async () => {
+          throw new Error("unexpected document send");
+        },
+        sendMediaMessage: async () => {
+          throw new Error("unexpected media send");
+        },
+        close: async () => {},
+      },
+    });
+
+    expect(calls).toEqual([
+      expect.objectContaining({
+        conversationId: conversation.id,
+        phone: "5531982066263",
+        body: "Oi Gabriel, resposta automática.",
+        reason: "chatbot_reply",
+      }),
+    ]);
+    const message = await repos.messages.findByIdempotencyKey({
+      userId: user.id,
+      idempotencyKey: "chatbot_reply:test-wa",
+    });
+    expect(message).toEqual(
+      expect.objectContaining({
+        conversationId: conversation.id,
+        contentType: "text",
+        body: "Oi Gabriel, resposta automática.",
+        status: "sent",
+        externalId: "chatbot-wa-after",
+      }),
+    );
+    const events = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.chatbot_reply.completed",
+    });
+    expect(events).toEqual([
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          jobId: job.id,
+          chatbotId: 10,
+          ruleId: 20,
+          sourceMessageId: 30,
+          reason: "chatbot_reply",
+          externalId: "chatbot-wa-after",
+        }),
+      }),
+    ]);
+  });
+
+  it("sends Instagram campaign image steps and materializes the real Direct thread", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-instagram-media",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      IG_SEND_ALLOWED_HANDLES: "gabriell_braga",
+    });
+    const user = await repos.users.create({
+      email: "instagram-media@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel Braga",
+      phone: null,
+      email: null,
+      primaryChannel: "instagram",
+      instagramHandle: "gabriell_braga",
+      status: "lead",
+      notes: null,
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "instagram",
+      externalThreadId: "ig:gabriell_braga",
+      title: "@gabriell_braga",
+    });
+    await seedInstagramInbound(repos, {
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: contact.id,
+    });
+    const imagePath = path.join(tempDir, "ig-campaign.jpg");
+    await fs.writeFile(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
+    const mediaAsset = await repos.mediaAssets.create({
+      userId: user.id,
+      type: "image",
+      fileName: "ig-campaign.jpg",
+      mimeType: "image/jpeg",
+      sha256: "d".repeat(64),
+      sizeBytes: (await fs.stat(imagePath)).size,
+      durationMs: null,
+      storagePath: imagePath,
+    });
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        campaignId: 700,
+        recipientId: 701,
+        conversationId: conversation.id,
+        instagramHandle: "gabriell_braga",
+        phone: null,
+        idempotencyKey: "campaign:ig-media",
+        step: {
+          id: "ig-image",
+          label: "Imagem IG",
+          type: "image",
+          delaySeconds: 0,
+          conditions: [],
+          mediaAssetId: mediaAsset.id,
+          caption: "Legenda IG",
+        },
+        variables: {},
+        isLastStep: true,
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 1,
+    });
+    if (!job) throw new Error("expected instagram campaign_step job");
+
+    await handleJob(job, { env, db, repos, logger });
+
+    expect(sendInstagramTextViaCdp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        username: "gabriell_braga",
+        text: "Legenda IG",
+        mediaPaths: [imagePath],
+        contentType: "image",
+        reason: "campaign_step",
+      }),
+    );
+    const materialized = await repos.conversations.findByExternalThread({
+      userId: user.id,
+      channel: "instagram",
+      externalThreadId: "110051807055981",
+    });
+    expect(materialized).toEqual(expect.objectContaining({ id: conversation.id }));
+    const message = await repos.messages.findByIdempotencyKey({
+      userId: user.id,
+      idempotencyKey: "campaign:ig-media",
+    });
+    expect(message).toEqual(
+      expect.objectContaining({
+        conversationId: conversation.id,
+        contentType: "image",
+        status: "sent",
+        externalId: "ig-mocked-external",
+      }),
+    );
+  });
+
+  it("dispatches Instagram chatbot_reply jobs inside the 24h browser-driven guard", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-chatbot-reply-ig",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      IG_SEND_ALLOWED_HANDLES: "gabriell_braga",
+    });
+    const user = await repos.users.create({
+      email: "chatbot-reply-ig@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel Braga",
+      phone: null,
+      email: null,
+      primaryChannel: "instagram",
+      instagramHandle: "gabriell_braga",
+      status: "lead",
+      notes: null,
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "instagram",
+      externalThreadId: "ig:gabriell_braga",
+      title: "@gabriell_braga",
+    });
+    await seedInstagramInbound(repos, {
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: contact.id,
+    });
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "chatbot_reply",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        instagramHandle: "gabriell_braga",
+        text: "Resposta automática IG",
+        chatbotId: 11,
+        ruleId: 21,
+        sourceMessageId: 31,
+        idempotencyKey: "chatbot_reply:test-ig",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    if (!job) {
+      throw new Error("expected Instagram chatbot_reply job to be created");
+    }
+
+    await handleJob(job, { env, db, repos, logger });
+
+    expect(sendInstagramTextViaCdp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        username: "gabriell_braga",
+        text: "Resposta automática IG",
+        mediaPaths: [],
+        contentType: "text",
+        reason: "chatbot_reply",
+      }),
+    );
+    const message = await repos.messages.findByIdempotencyKey({
+      userId: user.id,
+      idempotencyKey: "chatbot_reply:test-ig",
+    });
+    expect(message).toEqual(
+      expect.objectContaining({
+        conversationId: conversation.id,
+        contentType: "text",
+        body: "Resposta automática IG",
+        status: "sent",
+        externalId: "ig-mocked-external",
+      }),
+    );
+    const events = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.chatbot_reply.completed",
+    });
+    expect(events).toEqual([
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          jobId: job.id,
+          chatbotId: 11,
+          ruleId: 21,
+          sourceMessageId: 31,
+          reason: "chatbot_reply",
+          externalId: "ig-mocked-external",
+        }),
+      }),
+    ]);
+  });
+
+  it("marks failed Instagram dispatch drafts and clears terminal campaign awaiting metadata", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-instagram-failure",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      IG_SEND_ALLOWED_HANDLES: "gabriell_braga",
+    });
+    vi.mocked(sendInstagramTextViaCdp).mockRejectedValueOnce(
+      new Error("Instagram composer failed"),
+    );
+    const user = await repos.users.create({
+      email: "instagram-failure@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "instagram",
+      externalThreadId: "ig:gabriell_braga",
+      title: "@gabriell_braga",
+    });
+    await seedInstagramInbound(repos, {
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: null,
+    });
+    const campaign = await repos.campaigns.create({
+      userId: user.id,
+      name: "IG falha",
+      channel: "instagram",
+      status: "running",
+      evergreen: false,
+      startsAt: null,
+      segment: null,
+      steps: [
+        {
+          id: "ig-text",
+          label: "Texto IG",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Mensagem falha",
+        },
+      ],
+      metadata: {},
+    });
+    const recipient = await repos.campaignRecipients.create({
+      userId: user.id,
+      campaignId: campaign.id,
+      contactId: null,
+      phone: null,
+      channel: "instagram",
+      status: "running",
+      currentStepId: null,
+      lastError: null,
+      metadata: {
+        instagramHandle: "gabriell_braga",
+        awaitingJobId: 0,
+        awaitingStepId: "ig-text",
+        awaitingJobIds: [],
+        awaitingStepIds: ["ig-text"],
+      },
+    });
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        campaignId: campaign.id,
+        recipientId: recipient.id,
+        conversationId: conversation.id,
+        instagramHandle: "gabriell_braga",
+        phone: null,
+        idempotencyKey: "campaign:ig-failure",
+        step: campaign.steps[0],
+        variables: {},
+        isLastStep: true,
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 1,
+    });
+    if (!job) throw new Error("expected instagram failure job");
+    await repos.campaignRecipients.updateState({
+      userId: user.id,
+      id: recipient.id,
+      metadata: {
+        ...recipient.metadata,
+        awaitingJobId: job.id,
+        awaitingJobIds: [job.id],
+      },
+    });
+
+    await expect(handleJob({ ...job, attempts: 1 }, { env, db, repos, logger })).rejects.toThrow(
+      "Instagram composer failed",
+    );
+
+    const message = await repos.messages.findByIdempotencyKey({
+      userId: user.id,
+      idempotencyKey: "campaign:ig-failure",
+    });
+    expect(message).toEqual(expect.objectContaining({ status: "failed", dispatchAttempts: 0 }));
+    const updatedRecipient = await repos.campaignRecipients.findById({
+      userId: user.id,
+      id: recipient.id,
+    });
+    expect(updatedRecipient).toEqual(
+      expect.objectContaining({
+        status: "failed",
+        lastError: "Instagram composer failed",
+        metadata: expect.objectContaining({
+          awaitingJobId: null,
+          awaitingStepId: null,
+          awaitingJobIds: [],
+          awaitingStepIds: [],
+          lastFailureTerminal: true,
+        }),
+      }),
+    );
+  });
+
+  it("does not re-dispatch when a job retries after send but before completion", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-send-crash-proof",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_ALLOWED_PHONE: "5531982066263",
+    });
+    const user = await repos.users.create({
+      email: "send-crash-proof@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      title: "Gabriel Braga Nuoma",
+    });
+    const idempotencyKey = "manual:test-crash-after-send";
+    const job = await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        phone: "5531982066263",
+        body: "crash depois do send",
+        clientNonce: "composer:text:crash-proof",
+        idempotencyKey,
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 3,
+    });
+    if (!job) {
+      throw new Error("expected send_message job to be created");
+    }
+
+    let sendCalls = 0;
+    let failMarkCompletedOnce = true;
+    const flakyRepos: Repositories = {
+      ...repos,
+      jobs: {
+        ...repos.jobs,
+        markCompleted: async (jobId: number, workerId?: string) => {
+          if (failMarkCompletedOnce) {
+            failMarkCompletedOnce = false;
+            throw new Error("simulated crash after send before markCompleted");
+          }
+          return repos.jobs.markCompleted(jobId, workerId);
+        },
+      },
+    };
+    const loop = createJobLoop({
+      env,
+      repos: flakyRepos,
+      logger,
+      handlerContext: {
+        env,
+        db,
+        repos: flakyRepos,
+        logger,
+        sync: {
+          connected: true,
+          metrics: {} as never,
+          forceConversation: async () => {
+            throw new Error("unexpected force sync");
+          },
+          sendTextMessage: async (input: {
+            conversationId: number;
+            phone: string;
+            body: string;
+            reason?: string;
+          }) => {
+            sendCalls += 1;
+            if (sendCalls > 1) {
+              throw new Error("duplicate CDP send");
+            }
+            return {
+              mode: "text-message" as const,
+              conversationId: input.conversationId,
+              phone: input.phone,
+              reason: input.reason ?? "send_message",
+              navigationMode: "reused-open-chat" as const,
+              externalId: "crash-proof-external",
+              visibleMessageCountBefore: 1,
+              visibleMessageCountAfter: 2,
+              lastExternalIdBefore: "before",
+              lastExternalIdAfter: "crash-proof-external",
+            };
+          },
+          sendVoiceMessage: async () => {
+            throw new Error("unexpected voice send");
+          },
+          sendDocumentMessage: async () => {
+            throw new Error("unexpected document send");
+          },
+          sendMediaMessage: async () => {
+            throw new Error("unexpected media send");
+          },
+          close: async () => {},
+        },
+      },
+    });
+
+    await loop.processOne();
+    expect(loop.state.lastError).toBe("simulated crash after send before markCompleted");
+    expect(sendCalls).toBe(1);
+    db.raw
+      .prepare("update jobs set scheduled_at = ? where id = ?")
+      .run("2026-04-30T12:00:00.000Z", job.id);
+
+    await loop.processOne();
+
+    expect(sendCalls).toBe(1);
+    const storedJob = db.raw
+      .prepare("select status, attempts from jobs where id = ?")
+      .get(job.id) as { status: string; attempts: number } | undefined;
+    expect(storedJob).toEqual({ status: "completed", attempts: 2 });
+    const message = await repos.messages.findByIdempotencyKey({
+      userId: user.id,
+      idempotencyKey,
+    });
+    expect(message).toEqual(
+      expect.objectContaining({
+        idempotencyKey,
+        externalId: "crash-proof-external",
+        status: "sent",
+        dispatchAttempts: 1,
+        raw: expect.objectContaining({
+          clientNonce: "composer:text:crash-proof",
+        }),
+      }),
+    );
+    const attempts = await repos.messageDispatchAttempts.listByKey(idempotencyKey);
+    expect(attempts.map((attempt) => attempt.phase)).toEqual(["sent", "skipped_duplicate"]);
   });
 
   it("sends Instagram campaign image steps and materializes the real Direct thread", async () => {
@@ -1471,6 +3231,25 @@ describe("worker job loop", () => {
         policyMode: "test",
       }),
     );
+    const policyAudit = await repos.sendAuditEvents.list({
+      userId: user.id,
+      jobId: job.id,
+      phase: "policy_block",
+    });
+    expect(policyAudit).toEqual([
+      expect.objectContaining({
+        channel: "whatsapp",
+        conversationId: conversation.id,
+        workerId: "worker-send-test-policy",
+        errorCode: "not_allowlisted_for_test_execution",
+        metadata: expect.objectContaining({
+          jobType: "send_message",
+          phone: "5531999999999",
+          policyMode: "test",
+          allowedPhonesCount: 1,
+        }),
+      }),
+    ]);
   });
 
   it("records started and failed evidence for campaign steps before retry or DLQ handling", async () => {
@@ -1837,8 +3616,265 @@ describe("worker job loop", () => {
       expect.objectContaining({
         jobId: secondJob.id,
         reason: "send_rate_limit_exceeded",
+        rateLimitMode: "token_bucket",
+        rateLimitBucketKey: "wa:5531999999999",
         recentAllowedCount: 1,
       }),
+    );
+    expect(Number(blockedEvents[0]?.payload.rateLimitTokensRemaining)).toBeLessThan(1);
+    expect(Number(blockedEvents[0]?.payload.rateLimitRetryAfterMs)).toBeGreaterThan(0);
+  });
+
+  it("requeues paced WhatsApp sends instead of sending them to DLQ", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-send-rate-requeue",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_POLICY_MODE: "production",
+      WA_SEND_ALLOWED_PHONES: "5531999999999",
+      WA_SEND_RATE_LIMIT_MAX: "1",
+      WA_SEND_RATE_LIMIT_WINDOW_MS: "60000",
+    });
+    const user = await repos.users.create({
+      email: "send-policy-requeue@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531999999999",
+      title: "Contato paced requeue",
+    });
+    const firstJob = await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        phone: "5531999999999",
+        body: "primeiro envio no bucket",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    const secondJob = await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: conversation.id,
+        phone: "5531999999999",
+        body: "segundo envio deve aguardar bucket",
+      },
+      scheduledAt: "2026-04-30T12:00:01.000Z",
+      maxAttempts: 2,
+    });
+    if (!firstJob || !secondJob) {
+      throw new Error("expected paced send_message jobs to be created");
+    }
+    const calls: unknown[] = [];
+    const sync = {
+      connected: true,
+      metrics: {} as never,
+      forceConversation: async () => {
+        throw new Error("unexpected force sync");
+      },
+      sendTextMessage: async (input: {
+        phone: string;
+        body: string;
+        conversationId: number;
+        reason?: string;
+      }) => {
+        calls.push(input);
+        return {
+          mode: "text-message" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "send_message",
+          navigationMode: "navigated" as const,
+          externalId: `paced-after-${calls.length}`,
+          visibleMessageCountBefore: calls.length,
+          visibleMessageCountAfter: calls.length + 1,
+          lastExternalIdBefore: "paced-before",
+          lastExternalIdAfter: `paced-after-${calls.length}`,
+        };
+      },
+      sendVoiceMessage: async () => {
+        throw new Error("unexpected voice send");
+      },
+      sendDocumentMessage: async () => {
+        throw new Error("unexpected document send");
+      },
+      sendMediaMessage: async () => {
+        throw new Error("unexpected media send");
+      },
+      close: async () => {},
+    };
+    const loop = createJobLoop({
+      env,
+      repos,
+      logger,
+      handlerContext: {
+        env,
+        db,
+        repos,
+        logger,
+        sync,
+      },
+    });
+
+    await expect(loop.processOne()).resolves.toBe(true);
+
+    expect(calls).toHaveLength(1);
+    expect(loop.state.metrics.claimed).toBe(2);
+    expect(loop.state.metrics.completed).toBe(1);
+    expect(loop.state.metrics.dead).toBe(0);
+    expect(loop.state.metrics.retried).toBe(1);
+    const secondStored = db.raw
+      .prepare("SELECT status, attempts, scheduled_at, last_error FROM jobs WHERE id = ?")
+      .get(secondJob.id) as
+      | { status: string; attempts: number; scheduled_at: string; last_error: string | null }
+      | undefined;
+    expect(secondStored).toEqual(
+      expect.objectContaining({
+        status: "queued",
+        attempts: 0,
+      }),
+    );
+    expect(secondStored?.last_error).toContain("send_rate_limit_exceeded");
+    expect(Date.parse(secondStored?.scheduled_at ?? "")).toBeGreaterThan(Date.now());
+    const deadJobs = await repos.jobs.listDead(user.id);
+    expect(deadJobs).toEqual([]);
+  });
+
+  it("keeps WhatsApp send rate buckets isolated per target phone", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-send-token-bucket",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_POLICY_MODE: "production",
+      WA_SEND_ALLOWED_PHONES: "5531999999999,5531988888888",
+      WA_SEND_RATE_LIMIT_MAX: "1",
+      WA_SEND_RATE_LIMIT_WINDOW_MS: "60000",
+    });
+    const user = await repos.users.create({
+      email: "send-policy-token-bucket@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const firstConversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531999999999",
+      title: "Contato token bucket A",
+    });
+    const secondConversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531988888888",
+      title: "Contato token bucket B",
+    });
+    const firstJob = await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: firstConversation.id,
+        phone: "5531999999999",
+        body: "primeiro bucket",
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    const secondJob = await repos.jobs.create({
+      userId: user.id,
+      type: "send_message",
+      status: "queued",
+      payload: {
+        conversationId: secondConversation.id,
+        phone: "5531988888888",
+        body: "segundo bucket",
+      },
+      scheduledAt: "2026-04-30T12:00:01.000Z",
+      maxAttempts: 2,
+    });
+    if (!firstJob || !secondJob) {
+      throw new Error("expected token bucket jobs to be created");
+    }
+    const calls: unknown[] = [];
+    const sync = {
+      connected: true,
+      metrics: {} as never,
+      forceConversation: async () => {
+        throw new Error("unexpected force sync");
+      },
+      sendTextMessage: async (input: {
+        phone: string;
+        body: string;
+        conversationId: number;
+        reason?: string;
+      }) => {
+        calls.push(input);
+        return {
+          mode: "text-message" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "send_message",
+          navigationMode: "navigated" as const,
+          externalId: `bucket-after-${calls.length}`,
+          visibleMessageCountBefore: calls.length,
+          visibleMessageCountAfter: calls.length + 1,
+          lastExternalIdBefore: "bucket-before",
+          lastExternalIdAfter: `bucket-after-${calls.length}`,
+        };
+      },
+      sendVoiceMessage: async () => {
+        throw new Error("unexpected voice send");
+      },
+      sendDocumentMessage: async () => {
+        throw new Error("unexpected document send");
+      },
+      sendMediaMessage: async () => {
+        throw new Error("unexpected media send");
+      },
+      close: async () => {},
+    };
+
+    await handleJob(firstJob, { env, db, repos, logger, sync });
+    await handleJob(secondJob, { env, db, repos, logger, sync });
+
+    expect(calls).toEqual([
+      expect.objectContaining({ phone: "5531999999999" }),
+      expect.objectContaining({ phone: "5531988888888" }),
+    ]);
+    const allowedEvents = await repos.systemEvents.list({
+      userId: user.id,
+      type: "sender.send_policy.allowed",
+    });
+    expect(allowedEvents.map((event) => event.payload)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          jobId: firstJob.id,
+          rateLimitMode: "token_bucket",
+          rateLimitBucketKey: "wa:5531999999999",
+          rateLimitTokensRemaining: 0,
+        }),
+        expect.objectContaining({
+          jobId: secondJob.id,
+          rateLimitMode: "token_bucket",
+          rateLimitBucketKey: "wa:5531988888888",
+          rateLimitTokensRemaining: 0,
+        }),
+      ]),
     );
   });
 
@@ -1933,7 +3969,7 @@ describe("worker job loop", () => {
       expect.objectContaining({
         conversationId: conversation.id,
         phone: "5531982066263",
-        wavPath: audioPath,
+        audioPath: expect.stringMatching(/\.ogg$/),
         reason: "send_voice",
       }),
     ]);
@@ -1949,9 +3985,10 @@ describe("worker job loop", () => {
         navigationMode: "reused-open-chat",
         externalId: "after",
         audio: expect.objectContaining({
-          sampleRate: 48000,
+          mimeType: "audio/ogg; codecs=opus",
+          codec: "opus",
+          sampleRate: 16000,
           channels: 1,
-          bitsPerSample: 16,
         }),
       }),
     );
@@ -2310,6 +4347,160 @@ describe("worker job loop", () => {
         stopped: false,
       }),
     );
+  });
+
+  it("does not claim a far-future campaign batch sibling during drain", async () => {
+    const repos = createRepositories(db);
+    const logger = pino({ level: "silent" });
+    const env = loadWorkerEnv({
+      NODE_ENV: "test",
+      DATABASE_URL: path.join(tempDir, "worker.db"),
+      WORKER_ID: "worker-campaign-batch-future",
+      WORKER_BROWSER_ENABLED: "false",
+      WORKER_JOB_LOOP_ENABLED: "true",
+      WA_SEND_ALLOWED_PHONE: "5531982066263",
+    });
+    const user = await repos.users.create({
+      email: "campaign-batch-future@nuoma.local",
+      passwordHash: "hash",
+      role: "admin",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      channel: "whatsapp",
+      externalThreadId: "5531982066263",
+      title: "Gabriel Braga Nuoma",
+    });
+    const basePayload = {
+      campaignId: 14,
+      recipientId: 24,
+      conversationId: conversation.id,
+      phone: "5531982066263",
+      campaignBatchId: "batch-future",
+      campaignBatchSize: 2,
+      variables: { nome: "Gabriel" },
+    };
+    const firstJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        ...basePayload,
+        campaignBatchIndex: 0,
+        isLastStep: false,
+        step: {
+          id: "intro",
+          label: "Intro",
+          type: "text",
+          delaySeconds: 0,
+          conditions: [],
+          template: "Agora {{nome}}",
+        },
+      },
+      scheduledAt: "2026-04-30T12:00:00.000Z",
+      maxAttempts: 2,
+    });
+    const futureJob = await repos.jobs.create({
+      userId: user.id,
+      type: "campaign_step",
+      status: "queued",
+      payload: {
+        ...basePayload,
+        campaignBatchIndex: 1,
+        isLastStep: true,
+        step: {
+          id: "follow-up",
+          label: "Follow-up",
+          type: "text",
+          delaySeconds: 60,
+          conditions: [],
+          template: "Depois {{nome}}",
+        },
+      },
+      scheduledAt: new Date(Date.now() + 120_000).toISOString(),
+      maxAttempts: 2,
+    });
+    if (!firstJob || !futureJob) {
+      throw new Error("expected future campaign batch jobs");
+    }
+
+    const events: string[] = [];
+    const sendCalls: string[] = [];
+    const beginContactSession = vi.fn(
+      async (input: { conversationId: number; phone: string; reason?: string }) => {
+        events.push(`begin:${input.phone}`);
+        return {
+          mode: "contact-session" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "campaign_step",
+          navigationMode: "navigated" as const,
+        };
+      },
+    );
+    const sync = {
+      connected: true,
+      metrics: {} as never,
+      beginContactSession,
+      forceConversation: async () => {
+        throw new Error("unexpected force sync");
+      },
+      sendTextMessage: async (input: {
+        conversationId: number;
+        phone: string;
+        body: string;
+        reason?: string;
+      }) => {
+        events.push(`send:${input.body}`);
+        sendCalls.push(input.body);
+        return {
+          mode: "text-message" as const,
+          conversationId: input.conversationId,
+          phone: input.phone,
+          reason: input.reason ?? "campaign_step",
+          navigationMode: "reused-open-chat" as const,
+          externalId: `external-${sendCalls.length}`,
+          visibleMessageCountBefore: sendCalls.length,
+          visibleMessageCountAfter: sendCalls.length + 1,
+          lastExternalIdBefore: "before",
+          lastExternalIdAfter: `external-${sendCalls.length}`,
+        };
+      },
+      sendVoiceMessage: async () => {
+        throw new Error("unexpected voice send");
+      },
+      sendDocumentMessage: async () => {
+        throw new Error("unexpected document send");
+      },
+      sendMediaMessage: async () => {
+        throw new Error("unexpected media send");
+      },
+      close: async () => {},
+    };
+    const loop = createJobLoop({
+      env,
+      repos,
+      logger,
+      handlerContext: { env, db, repos, logger, sync },
+    });
+
+    await expect(loop.processOne()).resolves.toBe(true);
+
+    expect(beginContactSession).toHaveBeenCalledTimes(1);
+    expect(beginContactSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: conversation.id,
+        phone: "5531982066263",
+        reason: "campaign_step",
+      }),
+    );
+    expect(events).toEqual(["begin:5531982066263", "send:Agora Gabriel"]);
+    expect(sendCalls).toEqual(["Agora Gabriel"]);
+    expect(loop.state.metrics.contactSessionsStarted).toBe(1);
+    expect(loop.state.metrics.contactSessionReuses).toBe(0);
+    const jobs = await repos.jobs.list(user.id);
+    expect(jobs.find((job) => job.id === firstJob.id)?.status).toBe("completed");
+    expect(jobs.find((job) => job.id === futureJob.id)?.status).toBe("queued");
   });
 
   it("executes temporary messages control steps without sending a message", async () => {
@@ -2784,7 +4975,7 @@ describe("worker job loop", () => {
       expect.objectContaining({
         conversationId: conversation.id,
         phone: "5531982066263",
-        wavPath: audioPath,
+        audioPath: expect.stringMatching(/\.ogg$/),
         reason: "campaign_step",
       }),
     ]);
@@ -3782,6 +5973,38 @@ describe("worker job loop", () => {
     );
   });
 });
+
+async function seedInstagramInbound(
+  repos: Repositories,
+  input: {
+    userId: number;
+    conversationId: number;
+    contactId: number | null;
+    observedAtUtc?: string;
+  },
+) {
+  const observedAtUtc = input.observedAtUtc ?? new Date().toISOString();
+  return repos.messages.create({
+    userId: input.userId,
+    conversationId: input.conversationId,
+    contactId: input.contactId,
+    externalId: `ig-inbound-${input.conversationId}-${Date.parse(observedAtUtc)}`,
+    direction: "inbound",
+    contentType: "text",
+    status: "received",
+    body: "Inbound Instagram message",
+    mediaAssetId: null,
+    media: null,
+    quotedMessageId: null,
+    waDisplayedAt: null,
+    timestampPrecision: "second",
+    messageSecond: null,
+    waInferredSecond: null,
+    observedAtUtc,
+    raw: { source: "job-loop-test" },
+    idempotencyKey: null,
+  });
+}
 
 function createTestWav(durationSecs: number): Buffer {
   const sampleRate = 48_000;

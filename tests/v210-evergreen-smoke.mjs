@@ -3,6 +3,7 @@ import Database from "better-sqlite3";
 import { chromium } from "playwright";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import { backfillSmokeWhatsappIdentity } from "./helpers/contact-identity.mjs";
 
 const webUrl = process.env.WEB_URL ?? "http://127.0.0.1:3002";
 const apiUrl = process.env.API_URL ?? "http://127.0.0.1:3001";
@@ -36,18 +37,17 @@ async function main() {
     await page.click('button[type="submit"]');
     await page.waitForURL(`${webUrl}/`);
 
-    await page.goto(`${webUrl}/campaigns`, { waitUntil: "domcontentloaded" });
-    await page.getByText("V2.10.8 Smoke Evergreen").waitFor({
-      state: "visible",
-      timeout: 10_000,
-    });
+    await page.goto(`${webUrl}/campaigns?tab=overview`, { waitUntil: "domcontentloaded" });
 
     const campaignPanel = page.locator(
       `[data-testid="campaign-evergreen-panel"][data-campaign-id="${fixture.campaignId}"]`,
     );
     await campaignPanel.waitFor({ state: "visible", timeout: 10_000 });
 
-    await page.getByRole("button", { name: /^Prévia$/ }).first().click();
+    await page
+      .getByRole("button", { name: /^Prévia$/ })
+      .first()
+      .click();
     await page.getByText("Último tick").waitFor({ state: "visible", timeout: 10_000 });
     const lastTickPanel = page.getByTestId("campaign-evergreen-last-tick");
     await lastTickPanel.waitFor({ state: "visible", timeout: 10_000 });
@@ -63,12 +63,16 @@ async function main() {
 
     const recipientsAfter = countCampaignRecipients(fixture.campaignId);
     if (recipientsAfter !== recipientsBefore) {
-      throw new Error(`evergreen dry-run mutated recipients: before=${recipientsBefore} after=${recipientsAfter}`);
+      throw new Error(
+        `evergreen dry-run mutated recipients: before=${recipientsBefore} after=${recipientsAfter}`,
+      );
     }
     const campaignStepJobsAfter = countCampaignStepJobs();
     const campaignStepJobsDelta = campaignStepJobsAfter - campaignStepJobsBefore;
     if (campaignStepJobsDelta !== 0) {
-      throw new Error(`evergreen dry-run created campaign_step job(s): delta=${campaignStepJobsDelta}`);
+      throw new Error(
+        `evergreen dry-run created campaign_step job(s): delta=${campaignStepJobsDelta}`,
+      );
     }
 
     await lastTickPanel.scrollIntoViewIfNeeded();
@@ -105,7 +109,9 @@ function seedEvergreenFixture() {
       .prepare("SELECT id FROM campaigns WHERE user_id = 1 AND name LIKE 'V2.10.8 Smoke%'")
       .all();
     for (const row of existingCampaigns) {
-      db.prepare("DELETE FROM campaign_recipients WHERE user_id = 1 AND campaign_id = ?").run(row.id);
+      db.prepare("DELETE FROM campaign_recipients WHERE user_id = 1 AND campaign_id = ?").run(
+        row.id,
+      );
     }
     db.prepare("DELETE FROM campaigns WHERE user_id = 1 AND name LIKE 'V2.10.8 Smoke%'").run();
     const oldContacts = db
@@ -116,7 +122,9 @@ function seedEvergreenFixture() {
     }
     db.prepare("DELETE FROM contacts WHERE user_id = 1 AND name LIKE 'V2.10.8 Smoke%'").run();
     db.prepare("DELETE FROM tags WHERE user_id = 1 AND name = 'V2.10.8 Evergreen M26'").run();
-    db.prepare("DELETE FROM system_events WHERE user_id = 1 AND payload_json LIKE '%v2.10.8-smoke%'").run();
+    db.prepare(
+      "DELETE FROM system_events WHERE user_id = 1 AND payload_json LIKE '%v2.10.8-smoke%'",
+    ).run();
 
     const tagInfo = db
       .prepare(
@@ -159,6 +167,15 @@ function seedEvergreenFixture() {
         nowIso,
       }).lastInsertRowid,
     ].map(Number);
+    for (const index of [0, 1, 2]) {
+      const phone = [canaryPhone, "553188840002", "553188840003"][index];
+      backfillSmokeWhatsappIdentity(db, {
+        userId: 1,
+        phone,
+        contactId: contacts[index],
+        now: nowIso,
+      });
+    }
     const tagContact = db.prepare(
       "INSERT INTO contact_tags (contact_id, tag_id, user_id, created_at) VALUES (?, ?, 1, ?)",
     );
@@ -209,7 +226,9 @@ function countCampaignRecipients(campaignId) {
   try {
     return Number(
       db
-        .prepare("SELECT COUNT(*) AS count FROM campaign_recipients WHERE user_id = 1 AND campaign_id = ?")
+        .prepare(
+          "SELECT COUNT(*) AS count FROM campaign_recipients WHERE user_id = 1 AND campaign_id = ?",
+        )
         .get(campaignId).count,
     );
   } finally {
@@ -233,10 +252,9 @@ function countCampaignStepJobs() {
 function pauseSchedulerCanary(campaignId) {
   const db = new Database(databaseUrl);
   try {
-    db.prepare("UPDATE campaigns SET status = 'paused', updated_at = ? WHERE user_id = 1 AND id = ?").run(
-      new Date().toISOString(),
-      campaignId,
-    );
+    db.prepare(
+      "UPDATE campaigns SET status = 'paused', updated_at = ? WHERE user_id = 1 AND id = ?",
+    ).run(new Date().toISOString(), campaignId);
   } finally {
     db.close();
   }

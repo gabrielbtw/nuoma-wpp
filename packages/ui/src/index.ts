@@ -1,7 +1,7 @@
 /**
  * @nuoma/ui — Nuoma premium dark/glass design system.
  *
- * Matte graphite canvas, satin gold brand and restrained cyan operational accents.
+ * Matte graphite canvas with solid green/blue operational accents.
  */
 
 export * from "./tokens/index.js";
@@ -16,7 +16,10 @@ export * from "./primitives/bento-grid.js";
 
 // Controls
 export * from "./controls/button.js";
+export * from "./controls/icon-button.js";
 export * from "./controls/input.js";
+export * from "./controls/number-input.js";
+export * from "./controls/field.js";
 export * from "./controls/switch.js";
 export * from "./controls/checkbox.js";
 export * from "./controls/radio.js";
@@ -42,6 +45,9 @@ export * from "./display/skeleton.js";
 export * from "./display/stat-card.js";
 export * from "./display/time-ago.js";
 export * from "./display/channel-icon.js";
+export * from "./display/pagination.js";
+export * from "./display/data-table.js";
+export * from "./display/filter-bar.js";
 
 // Utils
 export * from "./utils/cn.js";

@@ -25,6 +25,8 @@ const databaseUrl = path.resolve(process.env.DATABASE_URL ?? "data/nuoma-v2.db")
 
 const panelData: NuomaOverlayData = {
   phone: canaryPhone,
+  waJid: `${canaryPhone}@s.whatsapp.net`,
+  phoneSource: "wa-jid",
   title: canaryPhone,
   contact: {
     name: "V2.11.5 Painel Smoke",
@@ -55,8 +57,20 @@ const panelData: NuomaOverlayData = {
     },
   ],
   automations: [
-    { id: 1, name: "Boas-vindas", category: "Atendimento", status: "active" },
-    { id: 2, name: "Retorno orcamento", category: "Comercial", status: "active" },
+    {
+      id: 1,
+      name: "Boas-vindas",
+      category: "Atendimento",
+      status: "active",
+      overlayEnabled: true,
+    },
+    {
+      id: 2,
+      name: "Retorno orcamento",
+      category: "Comercial",
+      status: "active",
+      overlayEnabled: true,
+    },
   ],
   notes: "Nota M33 exibida no overlay dentro do WhatsApp.",
   source: "smoke",
@@ -170,7 +184,8 @@ async function validatePanelStateFeedback(page: Page) {
 
       setData({
         phone: canaryPhone,
-        phoneSource: "header-title",
+        waJid: `${canaryPhone}@s.whatsapp.net`,
+        phoneSource: "wa-jid",
         title: canaryPhone,
         contact: null,
         source: "nuoma-api",
@@ -182,7 +197,8 @@ async function validatePanelStateFeedback(page: Page) {
 
       setData({
         phone: canaryPhone,
-        phoneSource: "header-title",
+        waJid: `${canaryPhone}@s.whatsapp.net`,
+        phoneSource: "wa-jid",
         title: canaryPhone,
         contact: null,
         source: "nuoma-api",
@@ -195,7 +211,8 @@ async function validatePanelStateFeedback(page: Page) {
 
       setData({
         phone: canaryPhone,
-        phoneSource: "header-title",
+        waJid: `${canaryPhone}@s.whatsapp.net`,
+        phoneSource: "wa-jid",
         title: canaryPhone,
         contact: null,
         conversations: [],

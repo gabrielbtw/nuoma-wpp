@@ -22,7 +22,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
             ? "shadow-lift"
             : "shadow-raised-md";
     const surfaceClass = variant === "glass" ? "nuoma-glass-panel" : "botforge-surface";
-    const hoverShadow = variant === "pressed" ? "" : "hover:shadow-raised-lg";
+    const hoverShadow = variant === "pressed" ? "" : "hover:shadow-raised-md";
     if (interactive) {
       return (
         <motion.div

@@ -100,7 +100,7 @@ async function validateWhatsAppWeb() {
     }
 
     let state = await injectAndReadWhatsAppOverlay(page);
-    if (!state.mounted) {
+    if (!state.mounted || state.phone !== canaryPhone) {
       const targetUrl = `${whatsappUrl.replace(/\/$/, "")}/send?phone=${encodeURIComponent(canaryPhone)}`;
       await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
       await page.waitForTimeout(5_000);
@@ -116,6 +116,7 @@ async function validateWhatsAppWeb() {
       state.buttonLabel !== "Abrir painel Nuoma" ||
       !state.hasBrandButton ||
       !state.hasBrandMark ||
+      state.phone !== canaryPhone ||
       !state.insideHeader ||
       state.buttonWidth < 38 ||
       state.buttonHeight < 38

@@ -6,20 +6,24 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-const sampleRate = 48_000;
-const channels = 1;
-const bitDepth = 16;
+const pttSampleRate = 16_000;
+const pttChannels = 1;
+const pttCodec = "opus";
+const pttBitrate = "32k";
+const pttMimeType = "audio/ogg; codecs=opus";
 
 export interface PreparedVoiceAudio {
   sourcePath: string;
-  wavPath: string;
+  pttPath: string;
+  mimeType: string;
+  codec: string;
+  bitrate: string;
   durationSecs: number;
   durationSource: string;
   sha256: string;
   sizeBytes: number;
   sampleRate: number;
   channels: number;
-  bitsPerSample: number;
 }
 
 export async function prepareVoiceAudio(input: {
@@ -28,67 +32,68 @@ export async function prepareVoiceAudio(input: {
 }): Promise<PreparedVoiceAudio> {
   const sourcePath = path.resolve(input.audioPath);
   const duration = await probeDuration(sourcePath);
-  const wavPath = await ensureWav48kMono({
+  const pttPath = await ensureOggOpus16kMono({
     sourcePath,
     tempDir: input.tempDir,
   });
-  const wavBuffer = await fs.readFile(wavPath);
-  const wav = inspectWav(wavBuffer);
+  const pttBuffer = await fs.readFile(pttPath);
+  inspectOggOpus(await probeAudioStream(pttPath));
   return {
     sourcePath,
-    wavPath,
+    pttPath,
+    mimeType: pttMimeType,
+    codec: pttCodec,
+    bitrate: pttBitrate,
     durationSecs: duration.seconds,
     durationSource: duration.source,
-    sha256: createHash("sha256").update(wavBuffer).digest("hex"),
-    sizeBytes: wavBuffer.byteLength,
-    sampleRate: wav.sampleRate,
-    channels: wav.channels,
-    bitsPerSample: wav.bitsPerSample,
+    sha256: createHash("sha256").update(pttBuffer).digest("hex"),
+    sizeBytes: pttBuffer.byteLength,
+    sampleRate: pttSampleRate,
+    channels: pttChannels,
   };
 }
 
-async function ensureWav48kMono(input: { sourcePath: string; tempDir: string }): Promise<string> {
-  const ext = path.extname(input.sourcePath).toLowerCase();
-  if (ext === ".wav") {
-    const wav = inspectWav(await fs.readFile(input.sourcePath));
-    if (wav.sampleRate === sampleRate && wav.channels === channels && wav.bitsPerSample === bitDepth) {
-      return input.sourcePath;
-    }
-  }
-
+async function ensureOggOpus16kMono(input: { sourcePath: string; tempDir: string }): Promise<string> {
   await fs.mkdir(input.tempDir, { recursive: true });
-  const wavPath = path.join(input.tempDir, `voice-${Date.now()}-${Math.random().toString(16).slice(2)}.wav`);
+  const pttPath = path.join(input.tempDir, `voice-${Date.now()}-${Math.random().toString(16).slice(2)}.ogg`);
   const ffmpegCandidates = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg", "ffmpeg"];
   for (const ffmpegBin of ffmpegCandidates) {
     try {
       await execFileAsync(
         ffmpegBin,
-        ["-y", "-i", input.sourcePath, "-ar", String(sampleRate), "-ac", String(channels), wavPath],
+        [
+          "-y",
+          "-i",
+          input.sourcePath,
+          "-vn",
+          "-map",
+          "0:a:0",
+          "-c:a",
+          "libopus",
+          "-b:a",
+          pttBitrate,
+          "-vbr",
+          "on",
+          "-compression_level",
+          "10",
+          "-ar",
+          String(pttSampleRate),
+          "-ac",
+          String(pttChannels),
+          "-application",
+          "voip",
+          pttPath,
+        ],
         { timeout: 30_000 },
       );
-      inspectWav(await fs.readFile(wavPath));
-      return wavPath;
+      inspectOggOpus(await probeAudioStream(pttPath));
+      return pttPath;
     } catch {
       // Try the next converter.
     }
   }
 
-  try {
-    await execFileAsync("afconvert", [
-      "-f",
-      "WAVE",
-      "-d",
-      "LEI16@48000",
-      "-c",
-      "1",
-      input.sourcePath,
-      wavPath,
-    ]);
-    inspectWav(await fs.readFile(wavPath));
-    return wavPath;
-  } catch {
-    throw new Error(`Could not convert voice audio to 48kHz mono WAV: ${input.sourcePath}`);
-  }
+  throw new Error(`Could not convert voice audio to OGG/Opus 16kHz mono: ${input.sourcePath}`);
 }
 
 async function probeDuration(audioPath: string): Promise<{ source: string; seconds: number }> {
@@ -121,7 +126,7 @@ async function probeDuration(audioPath: string): Promise<{ source: string; secon
   }
 
   try {
-    const wav = inspectWav(await fs.readFile(audioPath));
+    const wav = inspectPcmWav(await fs.readFile(audioPath));
     const seconds = wav.dataBytes / (wav.sampleRate * wav.channels * (wav.bitsPerSample / 8));
     if (Number.isFinite(seconds) && seconds > 0) {
       return { source: "wav-header", seconds };
@@ -133,7 +138,54 @@ async function probeDuration(audioPath: string): Promise<{ source: string; secon
   throw new Error(`Could not detect voice audio duration: ${audioPath}`);
 }
 
-function inspectWav(buffer: Buffer): {
+async function probeAudioStream(audioPath: string): Promise<{
+  codecName: string;
+  channels: number;
+}> {
+  const ffprobeCandidates = ["/opt/homebrew/bin/ffprobe", "/usr/local/bin/ffprobe", "ffprobe"];
+  for (const ffprobeBin of ffprobeCandidates) {
+    try {
+      const { stdout } = await execFileAsync(
+        ffprobeBin,
+        [
+          "-v",
+          "error",
+          "-select_streams",
+          "a:0",
+          "-show_entries",
+          "stream=codec_name,channels",
+          "-of",
+          "json",
+          audioPath,
+        ],
+        { timeout: 10_000 },
+      );
+      const parsed = JSON.parse(stdout) as {
+        streams?: Array<{ codec_name?: string; channels?: number }>;
+      };
+      const stream = parsed.streams?.[0];
+      if (stream?.codec_name && typeof stream.channels === "number") {
+        return {
+          codecName: stream.codec_name,
+          channels: stream.channels,
+        };
+      }
+    } catch {
+      // Try the next probe.
+    }
+  }
+  throw new Error(`Could not inspect voice audio stream: ${audioPath}`);
+}
+
+function inspectOggOpus(stream: { codecName: string; channels: number }): void {
+  if (stream.codecName !== pttCodec || stream.channels !== pttChannels) {
+    throw new Error(
+      `Invalid PTT audio format: expected ${pttCodec} ${pttSampleRate}Hz ${pttChannels}ch, got ${stream.codecName} ${stream.channels}ch`,
+    );
+  }
+}
+
+function inspectPcmWav(buffer: Buffer): {
   sampleRate: number;
   channels: number;
   bitsPerSample: number;
@@ -158,11 +210,6 @@ function inspectWav(buffer: Buffer): {
   }
   if (audioFormat !== 1) {
     throw new Error(`Invalid WAV: expected PCM format 1, got ${audioFormat}`);
-  }
-  if (wavSampleRate !== sampleRate || wavChannels !== channels || wavBitsPerSample !== bitDepth) {
-    throw new Error(
-      `Invalid WAV format: expected ${sampleRate}Hz ${channels}ch ${bitDepth}-bit, got ${wavSampleRate}Hz ${wavChannels}ch ${wavBitsPerSample}-bit`,
-    );
   }
   return {
     sampleRate: wavSampleRate,

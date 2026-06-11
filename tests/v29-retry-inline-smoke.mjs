@@ -3,6 +3,11 @@ import Database from "better-sqlite3";
 import { chromium } from "playwright";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import {
+  backfillSmokeWhatsappIdentity,
+  findSmokeWhatsappContact,
+  findSmokeWhatsappConversation,
+} from "./helpers/contact-identity.mjs";
 
 const webUrl = process.env.WEB_URL ?? "http://127.0.0.1:3002";
 const apiUrl = process.env.API_URL ?? "http://127.0.0.1:3001";
@@ -133,17 +138,7 @@ function seedRetryFixture() {
     db.pragma("foreign_keys = ON");
     const now = new Date().toISOString();
 
-    const existingContact = db
-      .prepare(
-        `
-          SELECT id
-          FROM contacts
-          WHERE user_id = 1 AND phone = ?
-          ORDER BY id DESC
-          LIMIT 1
-        `,
-      )
-      .get(smokePhone);
+    const existingContact = findSmokeWhatsappContact(db, { userId: 1, phone: smokePhone });
     if (existingContact?.id) {
       db.prepare(
         `
@@ -177,17 +172,11 @@ function seedRetryFixture() {
         )
         .run({ title: smokeTitle, phone: smokePhone, now }).lastInsertRowid;
 
-    const existingConversation = db
-      .prepare(
-        `
-          SELECT id
-          FROM conversations
-          WHERE user_id = 1 AND channel = 'whatsapp' AND external_thread_id = ?
-          ORDER BY id DESC
-          LIMIT 1
-        `,
-      )
-      .get(smokePhone);
+    const existingConversation = findSmokeWhatsappConversation(db, {
+      userId: 1,
+      phone: smokePhone,
+      contactId,
+    });
     if (existingConversation?.id) {
       db.prepare(
         `
@@ -217,6 +206,13 @@ function seedRetryFixture() {
           `,
         )
         .run({ contactId, phone: smokePhone, title: smokeTitle, now }).lastInsertRowid;
+    backfillSmokeWhatsappIdentity(db, {
+      userId: 1,
+      phone: smokePhone,
+      contactId: Number(contactId),
+      conversationId: Number(conversationId),
+      now,
+    });
 
     db.prepare("DELETE FROM messages WHERE user_id = 1 AND conversation_id = ?").run(
       conversationId,

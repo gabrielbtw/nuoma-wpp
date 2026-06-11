@@ -113,9 +113,10 @@ export function createSyncEventHandler(input: {
   }
 
   async function handleMessageEvent(event: SyncMessageEvent): Promise<void> {
+    const observedAtUtc = event.message.observedAtUtc || event.observedAtUtc;
     const timestamp =
       event.message.waDisplayedAt === null
-        ? parseWhatsAppDisplayedAt(event.message.displayedAtText)
+        ? parseWhatsAppDisplayedAt(event.message.displayedAtText, observedAtUtc)
         : null;
     const waDisplayedAt = event.message.waDisplayedAt ?? timestamp?.waDisplayedAt ?? null;
     const timestampPrecision =
@@ -123,13 +124,15 @@ export function createSyncEventHandler(input: {
         ? timestamp.timestampPrecision
         : event.message.timestampPrecision;
     const messageSecond = event.message.messageSecond ?? timestamp?.messageSecond ?? null;
-    const observedAtUtc = event.message.observedAtUtc || event.observedAtUtc;
 
     const conversation = await upsertConversation(event.thread, {
       lastMessageAt: waDisplayedAt ?? observedAtUtc,
       lastPreview: event.message.body,
       reconcileDetails: event.message.raw.reconcileDetails,
     });
+    if (!conversation) {
+      return;
+    }
     const inserted = await input.repos.messages.insertOrIgnore({
       userId,
       conversationId: conversation.id,
@@ -208,6 +211,11 @@ export function createSyncEventHandler(input: {
     if (!conversation) {
       return;
     }
+    const existing = await input.repos.messages.findByExternalId({
+      userId,
+      conversationId: conversation.id,
+      externalId: event.externalId,
+    });
     const updated = await input.repos.messages.updateStatusByExternalId({
       userId,
       conversationId: conversation.id,
@@ -216,7 +224,49 @@ export function createSyncEventHandler(input: {
     });
     if (updated) {
       metrics.statusesUpdated += 1;
+      await recordDeliverySendAudit(event, conversation, existing);
     }
+  }
+
+  async function recordDeliverySendAudit(
+    event: SyncDeliveryStatusEvent,
+    conversation: NonNullable<Awaited<ReturnType<typeof findConversation>>>,
+    existing: Awaited<ReturnType<Repositories["messages"]["findByExternalId"]>>,
+  ): Promise<void> {
+    if (
+      !existing ||
+      existing.direction !== "outbound" ||
+      (event.status !== "delivered" && event.status !== "read") ||
+      existing.status === event.status
+    ) {
+      return;
+    }
+    await input.repos.sendAuditEvents.create({
+      userId,
+      campaignId: null,
+      contactId: existing.contactId ?? conversation.contactId,
+      conversationId: conversation.id,
+      messageId: existing.id,
+      jobId: null,
+      channel: event.thread.channel,
+      phase: event.status,
+      latencyMs: null,
+      errorCode: null,
+      errorMessage: null,
+      payloadHash: existing.idempotencyKey,
+      workerId: null,
+      metadata: {
+        source: event.source,
+        syncEventType: event.type,
+        externalId: event.externalId,
+        previousStatus: existing.status,
+        status: event.status,
+        observedAtUtc: event.observedAtUtc,
+        idempotencyKey: existing.idempotencyKey,
+        jobId: numberFromRaw(existing.raw?.jobId),
+        thread: event.thread,
+      },
+    });
   }
 
   async function handleMessageRemoved(event: SyncMessageRemovedEvent): Promise<void> {
@@ -247,7 +297,12 @@ export function createSyncEventHandler(input: {
   }
 
   async function handleConversationEvent(event: SyncConversationEvent): Promise<void> {
-    await upsertConversation(event.thread, { reconcileDetails: event.details });
+    const conversation = await upsertConversation(event.thread, {
+      reconcileDetails: event.details,
+    });
+    if (!conversation) {
+      return;
+    }
     metrics.conversationEvents += 1;
     if (event.type === "reconcile-snapshot") {
       metrics.hotWindowReconciles += 1;
@@ -269,6 +324,10 @@ export function createSyncEventHandler(input: {
   }
 
   async function handleProfilePhotoCaptured(event: SyncProfilePhotoCapturedEvent): Promise<void> {
+    if (await recordAndSkipUnidentifiedWhatsAppThread(event.thread, event.type)) {
+      return;
+    }
+
     const mediaAsset = await upsertProfilePhotoAsset(event);
     const conversation = await upsertConversation(event.thread, {
       profilePhotoMediaAssetId: mediaAsset.id,
@@ -276,6 +335,9 @@ export function createSyncEventHandler(input: {
       profilePhotoUpdatedAt: event.observedAtUtc,
       reconcileDetails: event.details,
     });
+    if (!conversation) {
+      return;
+    }
     const contact = await findOrCreateProfileContact(event.thread, conversation.contactId);
 
     if (contact) {
@@ -315,11 +377,18 @@ export function createSyncEventHandler(input: {
   async function handleAttachmentCandidateCaptured(
     event: SyncAttachmentCandidateCapturedEvent,
   ): Promise<void> {
+    if (await recordAndSkipUnidentifiedWhatsAppThread(event.thread, event.type)) {
+      return;
+    }
+
     const conversation = await upsertConversation(event.thread, {
       lastMessageAt: event.observedAtUtc,
       lastPreview: event.attachment.caption,
       reconcileDetails: event.details,
     });
+    if (!conversation) {
+      return;
+    }
     const mediaAsset = await upsertAttachmentCandidateAsset(event);
     const message = event.attachment.externalMessageId
       ? await input.repos.messages.findByExternalId({
@@ -399,10 +468,20 @@ export function createSyncEventHandler(input: {
       return updated ?? canonicalConversation;
     }
 
+    if (await recordAndSkipUnidentifiedWhatsAppThread(thread, "conversation-upsert")) {
+      return null;
+    }
+
+    const externalThreadId = canonicalExternalThreadId(thread);
+    if (!externalThreadId) {
+      await recordAndSkipUnidentifiedWhatsAppThread(thread, "conversation-upsert");
+      return null;
+    }
+
     const existingThread = await input.repos.conversations.findByExternalThread({
       userId,
       channel: thread.channel,
-      externalThreadId: thread.externalThreadId,
+      externalThreadId,
     });
     if (existingThread) {
       const updated = await input.repos.conversations.updateObservedById({
@@ -423,9 +502,9 @@ export function createSyncEventHandler(input: {
     return input.repos.conversations.upsertObserved({
       userId,
       channel: thread.channel,
-      externalThreadId: thread.externalThreadId,
+      externalThreadId,
       waJid: normalizeThreadWaJid(thread),
-      title: isUsefulThreadTitle(thread.title) ? thread.title : thread.externalThreadId,
+      title: isUsefulThreadTitle(thread.title) ? thread.title : externalThreadId,
       lastMessageAt: inputPatch.lastMessageAt,
       lastPreview: inputPatch.lastPreview,
       profilePhotoMediaAssetId: inputPatch.profilePhotoMediaAssetId,
@@ -433,6 +512,26 @@ export function createSyncEventHandler(input: {
       profilePhotoUpdatedAt: inputPatch.profilePhotoUpdatedAt,
       unreadCount: thread.unreadCount,
     });
+  }
+
+  async function recordAndSkipUnidentifiedWhatsAppThread(
+    thread: SyncThreadRef,
+    eventType: string,
+  ): Promise<boolean> {
+    if (!isUnidentifiedWhatsAppThread(thread)) {
+      return false;
+    }
+
+    await input.repos.systemEvents.create({
+      userId,
+      type: "sync.whatsapp_thread_unidentified",
+      severity: "warn",
+      payload: JSON.stringify({
+        eventType,
+        thread,
+      }),
+    });
+    return true;
   }
 
   async function upsertProfilePhotoAsset(event: SyncProfilePhotoCapturedEvent) {
@@ -504,10 +603,7 @@ export function createSyncEventHandler(input: {
     const phone = normalizeThreadPhone(thread);
     const waJid = normalizeThreadWaJid(thread);
     const instagramHandle =
-      thread.channel === "instagram"
-        ? (sanitizeInstagramHandle(thread.externalThreadId) ??
-          sanitizeInstagramHandle(thread.title))
-        : null;
+      thread.channel === "instagram" ? sanitizeInstagramHandle(thread.externalThreadId) : null;
     const existing = await input.repos.contacts.findByIdentity({
       userId,
       phone,
@@ -550,6 +646,10 @@ export function createSyncEventHandler(input: {
           normalizePhone(candidatePhone) ??
           normalizePhone(conversation.waJid) ??
           normalizePhone(conversation.externalThreadId);
+        if (!expectedPhone && thread.channel === "whatsapp") {
+          await recordMissingCanonicalReconcileTarget(thread, conversation.id, details);
+          return null;
+        }
         if (expectedPhone && !hasTrustworthyThreadIdentity(thread)) {
           await recordUntrustedReconcileTarget(thread, expectedPhone, details);
           return null;
@@ -611,6 +711,23 @@ export function createSyncEventHandler(input: {
     });
   }
 
+  async function recordMissingCanonicalReconcileTarget(
+    thread: SyncThreadRef,
+    conversationId: number,
+    details: Record<string, unknown> | null,
+  ): Promise<void> {
+    await input.repos.systemEvents.create({
+      userId,
+      type: "sync.reconcile_target_missing_identity",
+      severity: "warn",
+      payload: JSON.stringify({
+        conversationId,
+        thread,
+        details: details ?? {},
+      }),
+    });
+  }
+
   async function isReconcileTargetMismatch(
     thread: SyncThreadRef,
     expectedPhone: string,
@@ -635,6 +752,35 @@ export function createSyncEventHandler(input: {
   }
 
   async function findConversation(thread: SyncThreadRef) {
+    if (thread.channel === "whatsapp") {
+      const waJid = normalizeThreadWaJid(thread);
+      if (waJid) {
+        const conversation = await input.repos.conversations.findByWaJid({ userId, waJid });
+        if (conversation) {
+          return conversation;
+        }
+      }
+
+      const phone = normalizeThreadPhone(thread);
+      if (phone) {
+        const candidates = [phone, `${phone}@c.us`, `${phone}@s.whatsapp.net`];
+        for (const externalThreadId of candidates) {
+          const conversation = await input.repos.conversations.findByExternalThread({
+            userId,
+            channel: thread.channel,
+            externalThreadId,
+          });
+          if (conversation) {
+            return conversation;
+          }
+        }
+      }
+
+      if (!normalizeWaJid(thread.externalThreadId) && !normalizePhone(thread.externalThreadId)) {
+        return null;
+      }
+    }
+
     return input.repos.conversations.findByExternalThread({
       userId,
       channel: thread.channel,
@@ -712,7 +858,29 @@ function hasTrustworthyThreadIdentity(thread: SyncThreadRef): boolean {
   return Boolean(
     normalizeThreadWaJid(thread) ||
     normalizeThreadPhone(thread) ||
-    (thread.channel === "instagram" && isUsefulThreadTitle(thread.title)),
+    (thread.channel === "instagram" && sanitizeInstagramHandle(thread.externalThreadId)),
+  );
+}
+
+function canonicalExternalThreadId(thread: SyncThreadRef): string | null {
+  if (thread.channel !== "whatsapp") {
+    return thread.externalThreadId;
+  }
+  const rawExternalThreadId = thread.externalThreadId.trim();
+  const externalPhone = normalizePhone(rawExternalThreadId);
+  const externalWaJid = normalizeWaJid(rawExternalThreadId);
+  if (externalWaJid && rawExternalThreadId.includes("@")) {
+    return externalWaJid;
+  }
+  if (externalPhone) {
+    return externalPhone;
+  }
+  return normalizeWaJid(thread.waJid) ?? normalizeWaJid(thread.phone) ?? normalizePhone(thread.phone);
+}
+
+function isUnidentifiedWhatsAppThread(thread: SyncThreadRef): boolean {
+  return (
+    thread.channel === "whatsapp" && !normalizeThreadWaJid(thread) && !normalizeThreadPhone(thread)
   );
 }
 
@@ -749,6 +917,11 @@ function appendEditHistory(
     ...base,
     editHistory: [...current, entry],
   };
+}
+
+function numberFromRaw(value: unknown): number | null {
+  const number = typeof value === "number" ? value : Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(number) && number > 0 ? number : null;
 }
 
 function assertNever(value: never): never {

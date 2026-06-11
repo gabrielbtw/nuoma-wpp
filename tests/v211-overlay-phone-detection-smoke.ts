@@ -142,11 +142,15 @@ async function waitForConversationHeader(page: Page) {
 
 async function injectAndReadWhatsAppOverlay(page: Page) {
   await page.evaluate((rootId) => {
+    const bridgeWindow = window as unknown as {
+      __nuomaApi?: ((...args: unknown[]) => unknown) | unknown;
+      __nuomaApiNativeBridge?: ((...args: unknown[]) => unknown) | unknown;
+    };
     const nativeBridge =
-      typeof (window as unknown as Record<string, unknown>).__nuomaApiNativeBridge === "function"
-        ? (window as unknown as Record<string, unknown>).__nuomaApiNativeBridge
-        : typeof (window as unknown as Record<string, unknown>).__nuomaApi === "function"
-          ? ((window as unknown as Record<string, Function>).__nuomaApi as Function).bind(window)
+      typeof bridgeWindow.__nuomaApiNativeBridge === "function"
+        ? bridgeWindow.__nuomaApiNativeBridge
+        : typeof bridgeWindow.__nuomaApi === "function"
+          ? bridgeWindow.__nuomaApi.bind(window)
           : null;
     document.getElementById(rootId)?.remove();
     delete (window as unknown as { __nuomaOverlayState?: unknown }).__nuomaOverlayState;
@@ -195,7 +199,15 @@ async function hydrateAndOpenPanel(page: Page, state: OverlayState, label: strin
         observedAtUtc: new Date().toISOString(),
       },
     ],
-    automations: [{ id: 34, name: "Overlay phone detection", category: "Embed", status: "active" }],
+    automations: [
+      {
+        id: 34,
+        name: "Overlay phone detection",
+        category: "Embed",
+        status: "active",
+        overlayEnabled: true,
+      },
+    ],
     notes: "Telefone detectado pelo observer M34.",
     source: "smoke",
   };
@@ -228,49 +240,13 @@ async function readOverlayState(page: Page): Promise<OverlayState> {
         ).__nuomaOverlayRefresh === "function"
           ? (window as unknown as { __nuomaOverlayRefresh: () => unknown }).__nuomaOverlayRefresh()
           : {};
-      let state = refreshState as {
+      const state = refreshState as {
         mounted?: unknown;
         reason?: unknown;
         phone?: unknown;
         phoneSource?: unknown;
         title?: unknown;
       };
-      if (
-        state.mounted &&
-        typeof state.title === "string" &&
-        state.title &&
-        typeof state.phone === "string" &&
-        !state.phone &&
-        typeof (
-          window as unknown as {
-            __nuomaApi?: {
-              refreshContact?: (input: unknown) => Promise<unknown>;
-            };
-          }
-        ).__nuomaApi?.refreshContact === "function"
-      ) {
-        await (
-          window as unknown as {
-            __nuomaApi: {
-              refreshContact: (input: unknown) => Promise<unknown>;
-            };
-          }
-        ).__nuomaApi.refreshContact({
-          phone: "",
-          phoneSource: state.phoneSource,
-          title: state.title,
-          reason: "v211-phone-title-fallback",
-        });
-        state = (
-          window as unknown as { __nuomaOverlayRefresh: () => unknown }
-        ).__nuomaOverlayRefresh() as {
-          mounted?: unknown;
-          reason?: unknown;
-          phone?: unknown;
-          phoneSource?: unknown;
-          title?: unknown;
-        };
-      }
       const host = document.getElementById(rootId);
       return {
         mounted: Boolean(state.mounted),
@@ -318,12 +294,8 @@ function assertDetectedPhone(state: OverlayState, label: string) {
       "url-phone",
       "sidebar-active",
       "wa-jid",
-      "header-title",
       "contact-details",
       "visible-link",
-      "hydrated",
-      "retained",
-      "remembered",
     ].includes(state.phoneSource)
   ) {
     throw new Error(`${label} overlay phone source mismatch: ${JSON.stringify(state)}`);

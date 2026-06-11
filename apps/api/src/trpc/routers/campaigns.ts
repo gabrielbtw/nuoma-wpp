@@ -214,51 +214,14 @@ export const campaignsRouter = router({
     }),
 
   ready: protectedProcedure.input(readyCampaignBodySchema).query(async ({ ctx, input }) => {
-    const campaign = await ctx.repos.campaigns.findById({
-      userId: ctx.user.id,
-      id: input.campaignId,
-    });
-    if (!campaign) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found" });
-    }
-
-    const recipients = await ctx.repos.campaignRecipients.listByCampaign({
-      userId: ctx.user.id,
-      campaignId: campaign.id,
-      statuses: ["queued", "running"],
-      limit: input.maxRecipients,
-    });
-    const contactsById = new Map<number, Contact>();
-    for (const contactId of recipients
-      .map((recipient) => recipient.contactId)
-      .filter((contactId): contactId is number => Boolean(contactId))) {
-      if (contactsById.has(contactId)) continue;
-      const contact = await ctx.repos.contacts.findById(contactId);
-      if (contact && contact.userId === ctx.user.id) {
-        contactsById.set(contact.id, contact);
-      }
-    }
-    const scheduler = await runCampaignSchedulerTick({
+    return buildCampaignReadinessPreflight({
       repos: ctx.repos,
+      env: ctx.env,
       userId: ctx.user.id,
+      campaignId: input.campaignId,
+      maxRecipients: input.maxRecipients,
       ownerId: `api:${ctx.user.id}:campaigns.ready`,
-      campaignId: campaign.id,
-      limit: input.maxRecipients,
-      dryRun: true,
     });
-    const sendPolicy = resolveApiSendPolicy(ctx.env);
-    const instagramSession =
-      campaign.channel === "instagram" ? await readInstagramSessionPreflight(ctx.repos) : null;
-    const report = buildCampaignReadinessReport({
-      campaign,
-      recipients,
-      contactsById,
-      sendPolicy,
-      scheduler,
-      instagramSession,
-    });
-
-    return report;
   }),
 
   remarketingBatchReady: protectedCsrfProcedure
@@ -920,18 +883,44 @@ export const campaignsRouter = router({
     }),
 
   tick: adminCsrfProcedure.input(tickCampaignBodySchema).mutation(async ({ ctx, input }) => {
-    if (!(input?.dryRun ?? false) && input?.confirmText !== "DISPARAR") {
+    const dryRun = input?.dryRun ?? false;
+    if (!dryRun && input?.confirmText !== "DISPARAR") {
       throw new TRPCError({
         code: "BAD_REQUEST",
         message: "Confirmação inválida. Digite DISPARAR.",
       });
+    }
+    if (!dryRun) {
+      if (!input?.campaignId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Disparo real exige selecionar uma campanha e validar Campanha pronta.",
+        });
+      }
+      const readiness = await buildCampaignReadinessPreflight({
+        repos: ctx.repos,
+        env: ctx.env,
+        userId: ctx.user.id,
+        campaignId: input.campaignId,
+        maxRecipients: 500,
+        ownerId: `api:${ctx.user.id}:campaigns.tick.guard`,
+      });
+      if (!readiness.canEnqueue) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Enfileiramento bloqueado: ${readiness.issues
+            .filter((issue) => issue.severity === "error")
+            .map((issue) => issue.code)
+            .join(", ")}`,
+        });
+      }
     }
     const result = await runCampaignSchedulerTick({
       repos: ctx.repos,
       userId: ctx.user.id,
       ownerId: `api:${ctx.user.id}`,
       campaignId: input?.campaignId,
-      dryRun: input?.dryRun ?? false,
+      dryRun,
     });
     await ctx.repos.auditLogs.create({
       userId: ctx.user.id,
@@ -964,6 +953,60 @@ function dedupeCandidates(candidates: CampaignExecuteCandidate[]): CampaignExecu
     deduped.push(candidate);
   }
   return deduped;
+}
+
+async function buildCampaignReadinessPreflight(input: {
+  repos: Repositories;
+  env: Parameters<typeof resolveApiSendPolicy>[0];
+  userId: number;
+  campaignId: number;
+  maxRecipients: number;
+  ownerId: string;
+}): Promise<ReturnType<typeof buildCampaignReadinessReport>> {
+  const campaign = await input.repos.campaigns.findById({
+    userId: input.userId,
+    id: input.campaignId,
+  });
+  if (!campaign) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Campaign not found" });
+  }
+
+  const recipients = await input.repos.campaignRecipients.listByCampaign({
+    userId: input.userId,
+    campaignId: campaign.id,
+    statuses: ["queued", "running"],
+    limit: input.maxRecipients,
+  });
+  const contactsById = new Map<number, Contact>();
+  for (const contactId of recipients
+    .map((recipient) => recipient.contactId)
+    .filter((contactId): contactId is number => Boolean(contactId))) {
+    if (contactsById.has(contactId)) continue;
+    const contact = await input.repos.contacts.findById(contactId);
+    if (contact && contact.userId === input.userId) {
+      contactsById.set(contact.id, contact);
+    }
+  }
+  const scheduler = await runCampaignSchedulerTick({
+    repos: input.repos,
+    userId: input.userId,
+    ownerId: input.ownerId,
+    campaignId: campaign.id,
+    limit: input.maxRecipients,
+    dryRun: true,
+  });
+  const sendPolicy = resolveApiSendPolicy(input.env);
+  const instagramSession =
+    campaign.channel === "instagram" ? await readInstagramSessionPreflight(input.repos) : null;
+
+  return buildCampaignReadinessReport({
+    campaign,
+    recipients,
+    contactsById,
+    sendPolicy,
+    scheduler,
+    instagramSession,
+  });
 }
 
 function buildCampaignReadinessReport(input: {
@@ -1259,7 +1302,10 @@ async function collectRemarketingBatchCandidates(input: {
   const candidates: RemarketingBatchCandidate[] = [];
   const rejected: RemarketingBatchRejected[] = [];
   const instagramAllowedHandle = normalizeInstagramHandle(input.batch.allowedInstagramHandle);
-  for (const contactId of input.batch.contactIds.slice(0, input.batch.maxRecipients)) {
+  const addCandidate = (candidate: RemarketingBatchCandidate) => {
+    candidates.push(candidate);
+  };
+  for (const contactId of input.batch.contactIds) {
     const contact = await input.repos.contacts.findById(contactId);
     if (!contact || contact.userId !== input.userId) {
       rejected.push({ source: "contact", value: contactId, reason: "not_found" });
@@ -1279,7 +1325,7 @@ async function collectRemarketingBatchCandidates(input: {
         rejected.push({ source: "contact", value: contactId, reason: "missing_instagram" });
         continue;
       }
-      candidates.push({
+      addCandidate({
         contactId: contact.id,
         phone: null,
         instagramHandle,
@@ -1292,7 +1338,7 @@ async function collectRemarketingBatchCandidates(input: {
         rejected.push({ source: "contact", value: contactId, reason: "missing_phone" });
         continue;
       }
-      candidates.push({
+      addCandidate({
         contactId: contact.id,
         phone,
         instagramHandle: normalizeInstagramHandle(contact.instagramHandle),
@@ -1306,13 +1352,13 @@ async function collectRemarketingBatchCandidates(input: {
     for (const rawHandle of [
       ...splitRemarketingHandles(input.batch.rawInstagramHandles),
       ...input.batch.instagramHandles,
-    ].slice(0, input.batch.maxRecipients)) {
+    ]) {
       const instagramHandle = normalizeInstagramHandle(rawHandle);
       if (!instagramHandle) {
         rejected.push({ source: "instagram", value: rawHandle, reason: "invalid_instagram" });
         continue;
       }
-      candidates.push({
+      addCandidate({
         contactId: null,
         phone: null,
         instagramHandle,
@@ -1324,13 +1370,13 @@ async function collectRemarketingBatchCandidates(input: {
     for (const rawPhone of [
       ...splitRemarketingPhones(input.batch.rawPhones),
       ...input.batch.phones,
-    ].slice(0, input.batch.maxRecipients)) {
+    ]) {
       const phone = normalizePhone(rawPhone);
       if (!phone) {
         rejected.push({ source: "phone", value: rawPhone, reason: "invalid_phone" });
         continue;
       }
-      candidates.push({
+      addCandidate({
         contactId: null,
         phone,
         instagramHandle: null,
@@ -1432,6 +1478,14 @@ async function collectRemarketingBatchCandidates(input: {
         });
         continue;
       }
+    }
+    if (accepted.length >= input.batch.maxRecipients) {
+      rejected.push({
+        source: candidate.source,
+        value: candidate.value,
+        reason: "max_recipients_exceeded",
+      });
+      continue;
     }
     accepted.push(candidate);
   }
@@ -1612,9 +1666,9 @@ async function readInstagramSessionPreflight(
       stale,
       browserConnected: worker.browserConnected,
       lastError:
-        worker.lastError ??
         stringField(instagram, "lastError") ??
-        stringField(session, "errorMessage"),
+        stringField(session, "errorMessage") ??
+        worker.lastError,
     };
   }
   return null;
@@ -1656,9 +1710,6 @@ function remarketingCandidateKey(input: {
   instagramHandle?: string | null;
   metadata?: Record<string, unknown>;
 }): string {
-  if (input.contactId) {
-    return `contact:${input.contactId}`;
-  }
   const phone = normalizePhone(input.phone ?? null);
   if (phone) {
     return `phone:${phone}`;
@@ -1670,6 +1721,9 @@ function remarketingCandidateKey(input: {
   );
   if (instagramHandle) {
     return `instagram:${instagramHandle}`;
+  }
+  if (input.contactId) {
+    return `contact:${input.contactId}`;
   }
   return "empty";
 }
@@ -1859,10 +1913,7 @@ function deriveConversationInstagramHandle(
   conversation: { channel: ChannelType; externalThreadId: string; title: string } | null,
 ): string | null {
   if (!conversation || conversation.channel !== "instagram") return null;
-  return (
-    normalizeInstagramHandle(conversation.externalThreadId) ??
-    normalizeInstagramHandle(conversation.title)
-  );
+  return normalizeInstagramHandle(conversation.externalThreadId);
 }
 
 function isInstagramCampaignStepSupported(step: Campaign["steps"][number]): boolean {

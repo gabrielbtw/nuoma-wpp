@@ -6,6 +6,8 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { backfillSmokeWhatsappIdentity } from "./helpers/contact-identity.mjs";
+
 const webUrl = process.env.WEB_URL ?? "http://127.0.0.1:3002";
 const apiUrl = process.env.API_URL ?? "http://127.0.0.1:3001";
 const email = process.env.SMOKE_EMAIL ?? "admin@nuoma.local";
@@ -129,6 +131,12 @@ function seedVoiceRecorderFixture(dbPath) {
     if (!conversation?.id) {
       throw new Error("failed to create voice recorder smoke conversation");
     }
+    backfillSmokeWhatsappIdentity(db, {
+      userId: 1,
+      phone: "553100009913",
+      conversationId: Number(conversation.id),
+      now: lastMessageAt,
+    });
     return Number(conversation.id);
   } finally {
     db.close();

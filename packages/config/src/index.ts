@@ -101,6 +101,8 @@ const workerSchema = baseSchema.extend({
   WA_SEND_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).default(60_000),
   WA_SEND_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(12),
   IG_SEND_ALLOWED_HANDLES: z.string().default(""),
+  IG_SEND_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).default(60 * 60_000),
+  IG_SEND_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(30),
   IG_SEND_CONFIRMATION_TIMEOUT_MS: z.coerce
     .number()
     .int()

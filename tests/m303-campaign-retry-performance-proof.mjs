@@ -9,6 +9,7 @@ const maxDurationSeconds = Number(process.env.M303_MAX_DURATION_SECONDS ?? 120);
 const requireMaxAttemptsOne = process.env.M303_REQUIRE_MAX_ATTEMPTS_ONE !== "false";
 const requireNeferpeelBh = process.env.M303_REQUIRE_NEFERPEEL_BH !== "false";
 const requireTemporaryMessages = process.env.M303_REQUIRE_TEMPORARY_MESSAGES !== "false";
+const requireContactSessionReuse = process.env.M303_REQUIRE_CONTACT_SESSION_REUSE !== "false";
 const phone = normalizePhone(process.env.M303_PHONE ?? process.env.SMOKE_PHONE ?? "5531982066263");
 const campaignIds = parseIntegerList(process.env.M303_CAMPAIGN_IDS);
 const campaignBatchIds = parseStringList(process.env.M303_CAMPAIGN_BATCH_IDS);
@@ -78,6 +79,18 @@ function reportScope(db, scope) {
   const startedEvents = events.filter((event) => event.type === "sender.campaign_step.started");
   const completedEvents = events.filter((event) => event.type === "sender.campaign_step.completed");
   const failedEvents = events.filter((event) => event.type === "sender.campaign_step.failed");
+  const completedEventsByJobId = new Map(
+    completedEvents.map((event) => [Number(event.payload.jobId), event]),
+  );
+  const completedNavigation = jobs
+    .map((job) => completedEventsByJobId.get(job.id))
+    .filter(Boolean)
+    .map((event) => ({
+      id: event.id,
+      jobId: Number(event.payload.jobId),
+      stepId: event.payload.stepId ?? null,
+      navigationMode: event.payload.navigationMode ?? null,
+    }));
   const temporaryEvents = events.filter(
     (event) => event.type === "sender.temporary_messages.audit",
   );
@@ -123,6 +136,10 @@ function reportScope(db, scope) {
     startedEvents: startedEvents.length,
     completedEvents: completedEvents.length,
     failedEvents: failedEvents.length,
+    completedNavigation,
+    nonReusedFollowupNavigations: completedNavigation
+      .slice(1)
+      .filter((event) => event.navigationMode !== "reused-open-chat"),
     temporaryEvents: temporaryEvents.length,
     beforeTemporaryProofs,
     restoreTemporaryProofs,
@@ -178,6 +195,16 @@ function assertReport(report) {
   if (report.failedEvents > 0) {
     throw new Error(
       `${scopeLabel} has ${report.failedEvents} sender.campaign_step.failed event(s)`,
+    );
+  }
+  if (requireContactSessionReuse && report.nonReusedFollowupNavigations.length > 0) {
+    throw new Error(
+      `${scopeLabel} did not reuse the open WhatsApp chat after the first step: ${report.nonReusedFollowupNavigations
+        .map(
+          (event) =>
+            `${event.jobId}:${event.stepId ?? "unknown"}:${event.navigationMode ?? "missing"}`,
+        )
+        .join(", ")}`,
     );
   }
   if (requireTemporaryMessages) {

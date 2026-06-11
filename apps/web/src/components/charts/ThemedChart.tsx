@@ -30,10 +30,9 @@ import {
 } from "recharts";
 
 const VAR_NAMES = {
-  cyan: "--color-brand-cyan",
-  gold: "--color-brand-gold",
-  whatsapp: "--color-channel-whatsapp",
-  violet: "--color-brand-violet",
+  teal: "--color-brand-teal",
+  blue: "--color-brand-blue",
+  green: "--color-brand-green",
   danger: "--color-semantic-danger",
   success: "--color-semantic-success",
   warning: "--color-semantic-warning",
@@ -44,17 +43,16 @@ const VAR_NAMES = {
 } as const;
 
 const FALLBACK = {
-  cyan: "rgb(120 216 213)",
-  gold: "rgb(202 166 106)",
-  whatsapp: "rgb(120 202 220)",
-  violet: "rgb(141 146 191)",
-  danger: "rgb(211 100 100)",
-  success: "rgb(120 202 220)",
-  warning: "rgb(215 178 101)",
-  text: "rgb(240 242 246)",
-  muted: "rgb(126 134 149)",
-  grid: "rgb(94 101 117)",
-  surface: "rgb(27 30 37)",
+  teal: "rgb(91 91 246)",
+  blue: "rgb(91 91 246)",
+  green: "rgb(43 184 126)",
+  danger: "rgb(242 86 106)",
+  success: "rgb(43 184 126)",
+  warning: "rgb(224 163 58)",
+  text: "rgb(244 244 248)",
+  muted: "rgb(162 162 178)",
+  grid: "rgb(48 48 62)",
+  surface: "rgb(18 18 25)",
 } as const;
 
 export type ChartPalette = Record<keyof typeof VAR_NAMES, string> & { series: string[] };
@@ -65,9 +63,7 @@ export function useChartPalette(): ChartPalette {
   return useMemo(() => {
     const read = (cssVar: string, fallback: string): string => {
       if (typeof window === "undefined") return fallback;
-      const raw = getComputedStyle(document.documentElement)
-        .getPropertyValue(cssVar)
-        .trim();
+      const raw = getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim();
       return raw ? `rgb(${raw})` : fallback;
     };
     const colors = Object.fromEntries(
@@ -78,14 +74,7 @@ export function useChartPalette(): ChartPalette {
     ) as Record<keyof typeof VAR_NAMES, string>;
     return {
       ...colors,
-      series: [
-        colors.cyan,
-        colors.gold,
-        colors.whatsapp,
-        colors.violet,
-        colors.danger,
-        colors.warning,
-      ],
+      series: [colors.teal, colors.green, colors.warning, colors.danger, colors.blue],
     };
   }, [resolved]);
 }
@@ -97,7 +86,7 @@ function useTooltipStyle(palette: ChartPalette) {
       border: `1px solid ${palette.grid}`,
       borderRadius: 10,
       boxShadow: "0 8px 32px rgba(0,0,0,.4)",
-      fontFamily: "'Geist Variable', system-ui, sans-serif",
+      fontFamily: "'Inter Variable', system-ui, sans-serif",
       fontSize: 12,
     },
     labelStyle: { color: palette.text, fontWeight: 600 },
@@ -128,18 +117,15 @@ export function LineAreaChart({ data, xKey, series, height = 280 }: LineAreaChar
       <AreaChart data={data} margin={{ top: 8, right: 12, bottom: 4, left: -12 }}>
         <defs>
           <linearGradient id="nuoma-area" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={palette.cyan} stopOpacity={0.24} />
-            <stop offset="100%" stopColor={palette.cyan} stopOpacity={0.01} />
+            <stop offset="0%" stopColor={palette.teal} stopOpacity={0.24} />
+            <stop offset="100%" stopColor={palette.teal} stopOpacity={0.01} />
           </linearGradient>
         </defs>
         <CartesianGrid stroke={palette.grid} strokeOpacity={0.4} vertical={false} />
         <XAxis dataKey={xKey} stroke={palette.muted} tick={AXIS_TICK} tickLine={false} />
         <YAxis stroke={palette.muted} tick={AXIS_TICK} tickLine={false} axisLine={false} />
         <Tooltip {...tip} cursor={{ stroke: palette.grid }} />
-        <Legend
-          iconType="circle"
-          wrapperStyle={{ fontSize: 11, color: palette.muted }}
-        />
+        <Legend iconType="circle" wrapperStyle={{ fontSize: 11, color: palette.muted }} />
         {series.map((def, index) =>
           index === 0 ? (
             <Area
@@ -216,14 +202,10 @@ export function HorizontalBarChart({ data, height = 280 }: HorizontalBarChartPro
   const palette = useChartPalette();
   const tip = useTooltipStyle(palette);
   const colorFor = (value: number) =>
-    value >= 85 ? palette.cyan : value >= 70 ? palette.gold : palette.warning;
+    value >= 85 ? palette.teal : value >= 70 ? palette.blue : palette.warning;
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <BarChart
-        data={data}
-        layout="vertical"
-        margin={{ top: 4, right: 16, bottom: 4, left: 12 }}
-      >
+      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 12 }}>
         <CartesianGrid stroke={palette.grid} strokeOpacity={0.4} horizontal={false} />
         <XAxis type="number" stroke={palette.muted} tick={AXIS_TICK} tickLine={false} />
         <YAxis
@@ -303,8 +285,8 @@ export function GaugeChart({ value, max = 100, label, height = 280 }: GaugeChart
         >
           <defs>
             <linearGradient id="nuoma-gauge" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor={palette.gold} />
-              <stop offset="100%" stopColor={palette.cyan} />
+              <stop offset="0%" stopColor={palette.blue} />
+              <stop offset="100%" stopColor={palette.teal} />
             </linearGradient>
           </defs>
           <PolarAngleAxis type="number" domain={[0, max]} tick={false} />
@@ -362,7 +344,7 @@ export function ScatterPlot({ data, xLabel, yLabel, height = 280 }: ScatterPlotP
         />
         <ZAxis type="number" dataKey="z" range={[40, 420]} />
         <Tooltip {...tip} cursor={{ strokeDasharray: "4 4", stroke: palette.grid }} />
-        <Scatter data={data} fill={palette.cyan} fillOpacity={0.62} />
+        <Scatter data={data} fill={palette.teal} fillOpacity={0.62} />
       </ScatterChart>
     </ResponsiveContainer>
   );

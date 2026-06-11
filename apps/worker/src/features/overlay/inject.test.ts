@@ -87,7 +87,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
         hasLegacyOctoArt: false,
         version: NUOMA_OVERLAY_VERSION,
         threadPhone: "5531982066263",
-        threadPhoneSource: "header-title",
+        threadPhoneSource: "message-data-id",
         threadTitle: "5531982066263",
         insideHeader: true,
       });
@@ -123,7 +123,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
         clickDetail: {
           state: "open",
           phone: "5531982066263",
-          phoneSource: "header-title",
+          phoneSource: "message-data-id",
           title: "5531982066263",
           version: NUOMA_OVERLAY_VERSION,
         },
@@ -146,7 +146,13 @@ describe("Nuoma WhatsApp overlay injection", () => {
             conversations: [{ id: 1, channel: "whatsapp", lastPreview: "Oi fixture" }],
             latestMessages: [{ body: "Oi fixture", direction: "inbound", contentType: "text" }],
             automations: [
-              { id: 1, name: "Boas-vindas", category: "Atendimento", status: "active" },
+              {
+                id: 1,
+                name: "Boas-vindas",
+                category: "Atendimento",
+                status: "active",
+                overlayEnabled: true,
+              },
             ],
             notes: "Nota fixture do painel.",
             source: "test",
@@ -278,6 +284,73 @@ describe("Nuoma WhatsApp overlay injection", () => {
     }
   }, 30_000);
 
+  it("does not infer identity from active sidebar display text alone", async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+
+    try {
+      await page.setContent(`
+        <!doctype html>
+        <html lang="pt-BR">
+          <body>
+            <section id="pane-side" role="list" aria-label="Conversas">
+              <div role="listitem" aria-selected="true" data-testid="cell-frame-container">
+                <span title="31982066263">31982066263</span>
+              </div>
+            </section>
+            <section id="main">
+              <header style="position: relative; min-height: 64px">
+                <span title="Gabriel Braga Nuoma">Gabriel Braga Nuoma</span>
+              </header>
+              <div data-id="false_3EB0OPAQUE_M34">
+                <span class="selectable-text">Mensagem sem telefone no id visivel.</span>
+              </div>
+            </section>
+          </body>
+        </html>
+      `);
+      await page.evaluate(createNuomaOverlayScript());
+
+      const state = await page.evaluate(
+        ({ rootId, panelTestId }) => {
+          const refreshState = (
+            window as unknown as {
+              __nuomaOverlayRefresh: () => {
+                mounted: boolean;
+                phone: string;
+                phoneSource: string;
+                title: string;
+              };
+            }
+          ).__nuomaOverlayRefresh();
+          const host = document.getElementById(rootId);
+          host?.shadowRoot?.querySelector<HTMLButtonElement>("[data-nuoma-fab]")?.click();
+          const panelText =
+            host?.shadowRoot?.querySelector(`[data-testid="${panelTestId}"]`)?.textContent ?? "";
+          return {
+            ...refreshState,
+            hostPhone: host?.getAttribute("data-nuoma-thread-phone"),
+            hostPhoneSource: host?.getAttribute("data-nuoma-phone-source"),
+            panelText,
+          };
+        },
+        { rootId: NUOMA_OVERLAY_ROOT_ID, panelTestId: NUOMA_OVERLAY_PANEL_TEST_ID },
+      );
+
+      expect(state).toMatchObject({
+        mounted: true,
+        phone: "",
+        phoneSource: "unresolved",
+        title: "Gabriel Braga Nuoma",
+        hostPhone: "",
+        hostPhoneSource: "unresolved",
+      });
+      expect(state.panelText).toContain("Telefone nao identificado");
+    } finally {
+      await browser.close();
+    }
+  }, 30_000);
+
   it("moves focus into the panel and closes with Escape", async () => {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
@@ -312,7 +385,19 @@ describe("Nuoma WhatsApp overlay injection", () => {
       expect(focusState.activeClass).toContain("nuoma-panel-body");
       expect(focusState.expanded).toBe("true");
 
-      await page.keyboard.press("Escape");
+      await page.evaluate((rootId) => {
+        const host = document.getElementById(rootId);
+        const target =
+          host?.shadowRoot?.activeElement ?? host?.shadowRoot?.querySelector("[data-nuoma-panel]");
+        target?.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: "Escape",
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+          }),
+        );
+      }, NUOMA_OVERLAY_ROOT_ID);
       await page.waitForTimeout(20);
       const closed = await page.evaluate((rootId) => {
         const host = document.getElementById(rootId);
@@ -642,7 +727,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
 
           setData({
             phone: "5531982066263",
-            phoneSource: "header-title",
+            phoneSource: "message-data-id",
             title: "5531982066263",
             contact: null,
             source: "nuoma-api",
@@ -653,7 +738,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
 
           setData({
             phone: "5531982066263",
-            phoneSource: "header-title",
+            phoneSource: "message-data-id",
             title: "5531982066263",
             contact: null,
             source: "nuoma-api",
@@ -665,7 +750,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
 
           setData({
             phone: "5531982066263",
-            phoneSource: "header-title",
+            phoneSource: "message-data-id",
             title: "5531982066263",
             contact: null,
             conversations: [],
@@ -709,6 +794,160 @@ describe("Nuoma WhatsApp overlay injection", () => {
     }
   }, 30_000);
 
+  it("enables manual sync when only a canonical WhatsApp JID is available", async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+
+    try {
+      await page.setContent(`
+        <html>
+          <body>
+            <div id="main">
+              <header>
+                <div role="button" aria-label="Dados do contato">
+                  <span>Gabriel Salvo</span>
+                </div>
+              </header>
+            </div>
+          </body>
+        </html>
+      `);
+      await page.evaluate(createNuomaOverlayScript());
+
+      const state = await page.evaluate(
+        ({ rootId, panelTestId }) => {
+          const host = document.getElementById(rootId);
+          host?.shadowRoot?.querySelector<HTMLButtonElement>("[data-nuoma-fab]")?.click();
+          (
+            window as unknown as {
+              __nuomaOverlaySetData: (data: unknown) => unknown;
+            }
+          ).__nuomaOverlaySetData({
+            phone: "",
+            waJid: "5531982066263@s.whatsapp.net",
+            phoneSource: "wa-jid",
+            title: "Gabriel Salvo",
+            contact: null,
+            conversations: [],
+            latestMessages: [],
+            automations: [],
+            campaigns: [],
+            notes: null,
+            source: "nuoma-api",
+            apiStatus: "online",
+            apiLastMethod: "contactSummary",
+          });
+
+          const panel = host?.shadowRoot?.querySelector(`[data-testid="${panelTestId}"]`) ?? null;
+          const syncButton = Array.from(
+            host?.shadowRoot?.querySelectorAll<HTMLButtonElement>(".nuoma-action") ?? [],
+          ).find((button) => button.textContent === "Forcar sync");
+
+          return {
+            hostPhone: host?.getAttribute("data-nuoma-thread-phone"),
+            hostWaJid: host?.getAttribute("data-nuoma-wa-jid"),
+            panelText: panel?.textContent ?? "",
+            syncDisabled: syncButton?.disabled,
+            syncAria: syncButton?.getAttribute("aria-label"),
+          };
+        },
+        { rootId: NUOMA_OVERLAY_ROOT_ID, panelTestId: NUOMA_OVERLAY_PANEL_TEST_ID },
+      );
+
+      expect(state).toMatchObject({
+        hostPhone: "",
+        hostWaJid: "5531982066263@s.whatsapp.net",
+        syncDisabled: false,
+        syncAria: "Forcar sync da conversa atual",
+      });
+      expect(state.panelText).toContain("Telefone nao identificado");
+    } finally {
+      await browser.close();
+    }
+  }, 30_000);
+
+  it("does not reuse API-hydrated title when the active WhatsApp thread has no canonical identity", async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+
+    try {
+      await page.setContent(`
+        <html>
+          <body>
+            <div id="main">
+              <header>
+                <div role="button" aria-label="Dados do contato">
+                  <span>Contato Salvo Antigo</span>
+                </div>
+              </header>
+            </div>
+          </body>
+        </html>
+      `);
+      await page.evaluate(createNuomaOverlayScript());
+
+      const state = await page.evaluate(
+        ({ rootId }) => {
+          const api = window as unknown as {
+            __nuomaOverlaySetData: (data: unknown) => unknown;
+            __nuomaOverlayRefresh: () => {
+              mounted: boolean;
+              phone: string;
+              waJid: string;
+              title: string;
+            };
+          };
+          api.__nuomaOverlaySetData({
+            phone: "5531982066263",
+            waJid: "5531982066263@s.whatsapp.net",
+            phoneSource: "wa-jid",
+            title: "Contato Salvo Antigo",
+            contact: { name: "Contato Salvo Antigo", status: "active", primaryChannel: "whatsapp" },
+            conversations: [],
+            latestMessages: [],
+            automations: [],
+            campaigns: [],
+            notes: null,
+            source: "nuoma-api",
+          });
+
+          document.querySelector("#main header")!.innerHTML = `
+            <div role="button" aria-label="Dados do contato">
+              <span>Outro Contato Salvo</span>
+            </div>
+          `;
+
+          const refresh = api.__nuomaOverlayRefresh();
+          const host = document.getElementById(rootId);
+          return {
+            refresh,
+            hostPhone: host?.getAttribute("data-nuoma-thread-phone"),
+            hostWaJid: host?.getAttribute("data-nuoma-wa-jid"),
+            hostTitle: host?.getAttribute("data-nuoma-thread-title"),
+            hostPhoneSource: host?.getAttribute("data-nuoma-phone-source"),
+          };
+        },
+        { rootId: NUOMA_OVERLAY_ROOT_ID },
+      );
+
+      expect(state).toMatchObject({
+        refresh: expect.objectContaining({
+          mounted: true,
+          phone: "",
+          waJid: "",
+          phoneSource: "unresolved",
+          title: "Outro Contato Salvo",
+        }),
+        hostPhone: "",
+        hostWaJid: "",
+        hostTitle: "Outro Contato Salvo",
+        hostPhoneSource: "unresolved",
+      });
+    } finally {
+      await browser.close();
+    }
+  }, 30_000);
+
   it("exposes window.__nuomaApi through a promise bridge and hydrates the panel", async () => {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
@@ -742,7 +981,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
           setTimeout(() => {
             const snapshot = {
               phone: "5531982066263",
-              phoneSource: "header-title",
+              phoneSource: "message-data-id",
               title: "5531982066263",
               contact: {
                 name: "Contato API Fixture",
@@ -761,6 +1000,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
                   triggerChannel: "whatsapp",
                   actionsCount: 1,
                   sendStepsCount: 1,
+                  overlayEnabled: true,
                   eligible: true,
                   reasons: [],
                   wouldEnqueueJobs: true,
@@ -775,6 +1015,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
                   channel: "whatsapp",
                   stepsCount: 2,
                   firstStepType: "text",
+                  overlayEnabled: true,
                   eligible: true,
                   reasons: [],
                   canDispatchReal: true,
@@ -886,7 +1127,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
           ).__nuomaOverlayState!.apiBridge = null;
           const response = await api.refreshContact({
             phone: "5531982066263",
-            phoneSource: "header-title",
+            phoneSource: "message-data-id",
             title: "5531982066263",
             reason: "unit-test",
           });

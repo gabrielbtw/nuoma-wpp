@@ -9,14 +9,20 @@ import {
   Button,
   Card,
   Checkbox,
+  DataTable,
   Dialog,
   DialogContent,
   DialogTitle,
   DialogTrigger,
   EmptyState,
   ErrorState,
+  Field,
+  FilterBar,
+  IconButton,
   Input,
   KeyboardShortcut,
+  NumberInput,
+  Pagination,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -54,6 +60,7 @@ import {
   Sparkles,
   Type,
   Waypoints,
+  Search,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
@@ -67,36 +74,56 @@ import {
 } from "../components/charts/index.js";
 
 const CANVAS = [
-  ["--color-bg-deep", "#060709", "base profunda"],
-  ["--color-bg-canvas", "#08090C", "canvas / grid"],
-  ["--color-bg-sunken", "#0A0B0E", "inputs recessed"],
-  ["--color-bg-base", "#0E0F12", "página"],
-  ["--color-bg-surface", "#13151A", "painéis"],
-  ["--color-bg-raised", "#17191F", "cards"],
-  ["--color-bg-elevated", "#1B1E25", "dropdowns"],
-  ["--color-bg-subtle", "#23262F", "hover fills"],
+  ["--color-bg-deep", "#08080C", "base profunda"],
+  ["--color-bg-canvas", "#0B0B10", "canvas"],
+  ["--color-bg-sunken", "#08080C", "inputs recessed"],
+  ["--color-bg-base", "#0F0F15", "página"],
+  ["--color-bg-surface", "#121219", "painéis"],
+  ["--color-bg-raised", "#14141C", "cards"],
+  ["--color-bg-elevated", "#171720", "dropdowns"],
+  ["--color-bg-subtle", "#1E1E28", "hover fills"],
 ] as const;
 
 const BRAND = [
-  ["--color-brand-gold", "#CAA66A", "identidade · 8%"],
-  ["--color-brand-gold-soft", "#E8C98D", "highlight / texto"],
-  ["--color-brand-cyan", "#78D8D5", "foco operacional"],
-  ["--color-brand-cyan-soft", "#BFF2EE", "estado live claro"],
+  ["--color-accent", "#5B5BF6", "ação / foco / ativo"],
+  ["--color-accent-strong", "#7C7CFF", "hover / link"],
+  ["--color-accent-dim", "#424296", "acento esmaecido"],
+  ["--color-semantic-success", "#2BB87E", "sucesso / verificado"],
 ] as const;
 
 const TEXT_COLORS = [
-  ["--color-fg-primary", "#F0F2F6", "texto primário"],
-  ["--color-fg-muted", "#B8BEC9", "corpo"],
-  ["--color-fg-dim", "#7E8695", "secundário"],
-  ["--color-fg-faint", "#525868", "placeholder"],
+  ["--color-fg-primary", "#F4F4F8", "texto primário"],
+  ["--color-fg-muted", "#A2A2B2", "corpo"],
+  ["--color-fg-dim", "#848494", "secundário"],
+  ["--color-fg-faint", "#646474", "placeholder"],
 ] as const;
 
 const STATUS_COLORS = [
-  ["--color-channel-whatsapp", "#78CADC", "WhatsApp"],
-  ["--color-channel-instagram", "#CAA66A", "Instagram"],
-  ["--color-semantic-warning", "#D7B265", "atenção"],
-  ["--color-semantic-danger", "#D36464", "erro"],
-  ["--color-semantic-info", "#78D8D5", "informação"],
+  ["--color-channel-whatsapp", "#2BD17E", "WhatsApp"],
+  ["--color-channel-instagram", "#E1568F", "Instagram"],
+  ["--color-semantic-warning", "#E0A33A", "atenção"],
+  ["--color-semantic-danger", "#F2566A", "erro"],
+  ["--color-semantic-info", "#5B5BF6", "informação"],
+] as const;
+
+const COMPONENT_TABLE_ROWS = [
+  {
+    id: "#001",
+    name: "Button / IconButton",
+    status: "Canônico",
+    variant: "success",
+    usage: "ações",
+  },
+  {
+    id: "#002",
+    name: "Field / Input / Textarea",
+    status: "Canônico",
+    variant: "cyan",
+    usage: "forms",
+  },
+  { id: "#003", name: "DataTable", status: "Novo", variant: "violet", usage: "listas" },
+  { id: "#004", name: "Pagination", status: "Novo", variant: "violet", usage: "tabelas" },
+  { id: "#005", name: "FilterBar", status: "Novo", variant: "violet", usage: "filtros" },
 ] as const;
 
 const VOLUME = [
@@ -124,9 +151,9 @@ const RANKING = [
 ];
 
 const STATUS_SPLIT = [
-  { name: "Entregue", value: 62, color: "rgb(120 202 220)" },
-  { name: "Na fila", value: 24, color: "rgb(215 178 101)" },
-  { name: "Falhou", value: 14, color: "rgb(211 100 100)" },
+  { name: "Entregue", value: 62, color: "rgb(91 91 246)" },
+  { name: "Na fila", value: 24, color: "rgb(224 163 58)" },
+  { name: "Falhou", value: 14, color: "rgb(242 86 106)" },
 ];
 
 const SCATTER = Array.from({ length: 42 }, () => ({
@@ -151,26 +178,28 @@ export function DevComponentsPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-16 pb-20 pt-2">
+    <div
+      data-testid="dev-components-page"
+      className="mx-auto flex max-w-6xl flex-col gap-16 pb-20 pt-2"
+    >
       <Animate preset="rise-in">
         <header className="flex flex-col gap-5 border-b border-border-subtle/40 pb-10">
-          <p className="botforge-kicker flex items-center gap-2">
-            <span className="h-px w-5 bg-brand-cyan" />
+          <p className="botforge-kicker flex items-center gap-2 text-fg-muted">
+            <span className="h-px w-5 bg-brand-teal" />
             Nuoma · Design System · v2026.1
           </p>
           <h1 className="botforge-display text-3xl md:text-4xl">
-            O sistema visual do{" "}
-            <span className="nuoma-gradient-text">Nuoma WPP</span>.
+            O sistema visual do <span className="nuoma-gradient-text">Nuoma WPP</span>.
           </h1>
           <p className="max-w-2xl text-sm leading-relaxed text-fg-muted">
-            Tokens, materiais, componentes e padrões de produto para o CRM
-            omnichannel local-first. Estética Cartographic Operations — graphite
-            matte, vidro em camadas, acentos gold e cyan, Geist em tudo.
+            Tokens, materiais, componentes e padrões de produto para o CRM omnichannel local-first.
+            Estética Editorial · Indigo — canvas quase-preto, hairlines, acento índigo único,
+            Inter na interface e Geist Mono nos dados.
           </p>
           <div className="flex flex-wrap gap-8 pt-2">
             <Stat num="62" label="tokens" />
             <Stat num="26" label="componentes" />
-            <Stat num="3" label="temas" />
+            <Stat num="1" label="tema" />
             <Stat num="6" label="chart types" />
           </div>
         </header>
@@ -181,9 +210,9 @@ export function DevComponentsPage() {
         title="Sistema de Cores"
         hint="Paleta Nuoma 2026 — organizada por papel. Dark-native."
       >
-        <SubLabel>Canvas — graphite matte</SubLabel>
+        <SubLabel>Canvas — near-black índigo</SubLabel>
         <SwatchGrid items={CANVAS} />
-        <SubLabel>Marca — acentos gold &amp; cyan</SubLabel>
+        <SubLabel>Acento — índigo elétrico</SubLabel>
         <SwatchGrid items={BRAND} />
         <SubLabel>Texto</SubLabel>
         <SwatchGrid items={TEXT_COLORS} />
@@ -200,11 +229,11 @@ export function DevComponentsPage() {
       <Section
         id="tipografia"
         title="Tipografia"
-        hint="Geist para interface. Geist Mono para dados e labels técnicos."
+        hint="Inter para interface. Geist Mono para dados e labels técnicos."
       >
-        <SubLabel>Geist — interface &amp; destaques</SubLabel>
+        <SubLabel>Inter — interface &amp; destaques</SubLabel>
         <div className="flex flex-col divide-y divide-border-subtle/40 overflow-hidden rounded-md border border-border-subtle/40">
-          <TypeRow token="Display" detail="3rem · 780 · -.03em">
+          <TypeRow token="Display" detail="3rem · 660 · -.03em">
             <span className="botforge-display text-5xl">2.341</span>
           </TypeRow>
           <TypeRow token="H1" detail="2.25rem · 700">
@@ -217,8 +246,7 @@ export function DevComponentsPage() {
           </TypeRow>
           <TypeRow token="Body" detail="0.875rem · 400">
             <span className="text-sm text-fg-muted">
-              O Nuoma WPP centraliza conversas, automações e campanhas em uma
-              operação local-first.
+              O Nuoma WPP centraliza conversas, automações e campanhas em uma operação local-first.
             </span>
           </TypeRow>
           <TypeRow token="Small" detail="0.75rem · 400">
@@ -230,9 +258,7 @@ export function DevComponentsPage() {
         <SubLabel>Geist Mono — dados &amp; labels</SubLabel>
         <div className="flex flex-col divide-y divide-border-subtle/40 overflow-hidden rounded-md border border-border-subtle/40">
           <TypeRow token="Métrica" detail="1.25rem · tabular">
-            <span className="font-mono text-xl tabular-nums text-fg-primary">
-              R$ 18.420,00
-            </span>
+            <span className="font-mono text-xl tabular-nums text-fg-primary">R$ 18.420,00</span>
           </TypeRow>
           <TypeRow token="Kicker" detail="0.7rem · uppercase">
             <span className="font-mono text-[0.7rem] uppercase tracking-wider text-brand-cyan">
@@ -250,7 +276,7 @@ export function DevComponentsPage() {
       <Section
         id="materiais"
         title="Materiais &amp; Elevação"
-        hint="Surfaces operacionais e vidro em camadas para chrome flutuante."
+        hint="Superfícies operacionais sólidas com bordas hairline."
       >
         <SubLabel>Surfaces</SubLabel>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -277,7 +303,7 @@ export function DevComponentsPage() {
         <div className="grid gap-4 sm:grid-cols-4">
           <ElevCard shadow="shadow-raised-md" name="raised" />
           <ElevCard shadow="shadow-lift" name="lift" />
-          <ElevCard shadow="shadow-glow-cyan" name="glow-cyan" />
+          <ElevCard shadow="shadow-glow-cyan" name="ring-teal" />
           <ElevCard shadow="shadow-glow-aura" name="glow-aura" />
         </div>
         <SubLabel>SignalDot</SubLabel>
@@ -311,6 +337,7 @@ export function DevComponentsPage() {
           <Button variant="ghost">Ghost</Button>
           <Button variant="danger">Danger</Button>
           <Button loading>Loading</Button>
+          <IconButton label="Buscar" icon={<Search className="h-4 w-4" />} variant="secondary" />
         </div>
 
         <SubLabel>Segmented Control · Toggles</SubLabel>
@@ -338,21 +365,81 @@ export function DevComponentsPage() {
 
         <SubLabel>Inputs</SubLabel>
         <div className="grid max-w-2xl gap-3 sm:grid-cols-2">
-          <Input placeholder="Nome do contato" />
-          <Input placeholder="Token da API" monospace />
-          <Input placeholder="Número inválido" invalid />
-          <Select defaultValue="wa">
-            <SelectTrigger aria-label="Canal">
-              <SelectValue placeholder="Canal" />
+          <Field label="Texto">
+            <Input placeholder="Nome do contato" />
+          </Field>
+          <Field label="Monospace">
+            <Input placeholder="Token da API" monospace />
+          </Field>
+          <Field label="Número" description="Stepper padronizado para quantidades e limites.">
+            <NumberInput aria-label="Quantidade" defaultValue={1250} min={0} step={50} />
+          </Field>
+          <Field label="Canal">
+            <Select defaultValue="wa">
+              <SelectTrigger aria-label="Canal">
+                <SelectValue placeholder="Canal" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="wa">WhatsApp</SelectItem>
+                <SelectItem value="ig">Instagram Direct</SelectItem>
+                <SelectItem value="system">Sistema</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Com erro" error="Número fora do padrão esperado.">
+            <Input placeholder="Número inválido" invalid />
+          </Field>
+          <Field label="Textarea" className="sm:col-span-2">
+            <Textarea placeholder="Mensagem da campanha" />
+          </Field>
+        </div>
+
+        <SubLabel>Filtros · Tabela · Paginação</SubLabel>
+        <FilterBar activeCount={3} onClear={() => undefined} onApply={() => undefined}>
+          <Input placeholder="Buscar contatos, campanhas..." aria-label="Buscar" />
+          <Select defaultValue="todos">
+            <SelectTrigger aria-label="Status">
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="wa">WhatsApp</SelectItem>
-              <SelectItem value="ig">Instagram</SelectItem>
-              <SelectItem value="system">Sistema</SelectItem>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="ativos">Ativos</SelectItem>
+              <SelectItem value="risco">Em risco</SelectItem>
             </SelectContent>
           </Select>
-          <Textarea placeholder="Mensagem da campanha" className="sm:col-span-2" />
-        </div>
+          <Input type="date" aria-label="Período" />
+          <Select defaultValue="20">
+            <SelectTrigger aria-label="Linhas por página">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10 por página</SelectItem>
+              <SelectItem value="20">20 por página</SelectItem>
+              <SelectItem value="50">50 por página</SelectItem>
+            </SelectContent>
+          </Select>
+        </FilterBar>
+        <DataTable
+          rows={COMPONENT_TABLE_ROWS}
+          getRowKey={(row) => row.id}
+          columns={[
+            { id: "id", header: "ID", cell: (row) => row.id, width: "6rem" },
+            { id: "name", header: "Componente", cell: (row) => row.name },
+            {
+              id: "status",
+              header: "Status",
+              cell: (row) => <Badge variant={row.variant}>{row.status}</Badge>,
+            },
+            { id: "usage", header: "Uso", cell: (row) => row.usage, align: "right" },
+          ]}
+        />
+        <Pagination
+          page={1}
+          pageCount={12}
+          onPageChange={() => undefined}
+          totalLabel="Mostrando 1 a 5 de 72 resultados"
+          pageSizeLabel="20 por página"
+        />
 
         <SubLabel>Badges &amp; Display</SubLabel>
         <div className="flex flex-wrap items-center gap-3">
@@ -501,12 +588,8 @@ export function DevComponentsPage() {
           <BentoItem colSpan={2} rowSpan={2} aura className="flex flex-col justify-between">
             <p className="botforge-kicker">Índice de operação</p>
             <div>
-              <p className="botforge-display nuoma-gradient-text text-6xl tabular-nums">
-                94
-              </p>
-              <p className="mt-1 text-sm text-fg-dim">
-                Saúde da operação omnichannel · meta 90
-              </p>
+              <p className="botforge-display nuoma-gradient-text text-6xl tabular-nums">94</p>
+              <p className="mt-1 text-sm text-fg-dim">Saúde da operação omnichannel · meta 90</p>
             </div>
             <Badge variant="success" className="self-start">
               Acima da meta
@@ -526,30 +609,56 @@ export function DevComponentsPage() {
           </BentoItem>
           <BentoItem colSpan={2} className="flex flex-col justify-between">
             <p className="botforge-kicker">SLA médio</p>
-            <p className="botforge-display text-3xl text-brand-gold-soft">1m 42s</p>
+            <p className="botforge-display text-3xl [color:rgb(var(--color-brand-blue-soft))]">
+              1m 42s
+            </p>
             <p className="text-xs text-fg-dim">tempo de resposta · 24h</p>
           </BentoItem>
         </BentoGrid>
 
         <SubLabel>Tendências aplicadas</SubLabel>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <TrendCard icon={<Sparkles className="h-4 w-4" />} tag="AI-first" title="Interface conversacional">
-            Command bar com IA em todo fluxo. O usuário descreve a intenção; o
-            sistema sugere a ação.
+          <TrendCard
+            icon={<Sparkles className="h-4 w-4" />}
+            tag="AI-first"
+            title="Interface conversacional"
+          >
+            Command bar com IA em todo fluxo. O usuário descreve a intenção; o sistema sugere a
+            ação.
           </TrendCard>
-          <TrendCard icon={<Boxes className="h-4 w-4" />} tag="Spatial" title="Profundidade em camadas">
-            Vidro progressivo e blur por hierarquia substituem sombras duras.
+          <TrendCard
+            icon={<Boxes className="h-4 w-4" />}
+            tag="Spatial"
+            title="Profundidade em camadas"
+          >
+            Hairlines e elevação sutil por sombra substituem glass e blur.
           </TrendCard>
-          <TrendCard icon={<LayoutGrid className="h-4 w-4" />} tag="Bento" title="Dashboards modulares">
+          <TrendCard
+            icon={<LayoutGrid className="h-4 w-4" />}
+            tag="Bento"
+            title="Dashboards modulares"
+          >
             Grid bento com células de tamanhos variados, recombinável por contexto.
           </TrendCard>
-          <TrendCard icon={<CircleDot className="h-4 w-4" />} tag="Live" title="Presença em tempo real">
+          <TrendCard
+            icon={<CircleDot className="h-4 w-4" />}
+            tag="Live"
+            title="Presença em tempo real"
+          >
             Pulsos e contadores reativos comunicam estado de sessão e sync.
           </TrendCard>
-          <TrendCard icon={<Hand className="h-4 w-4" />} tag="Tactile" title="Micro-interações físicas">
+          <TrendCard
+            icon={<Hand className="h-4 w-4" />}
+            tag="Tactile"
+            title="Micro-interações físicas"
+          >
             Press scale, spring easing, entradas elásticas — feedback imediato.
           </TrendCard>
-          <TrendCard icon={<Settings2 className="h-4 w-4" />} tag="Adaptive" title="Multi-tema adaptativo">
+          <TrendCard
+            icon={<Settings2 className="h-4 w-4" />}
+            tag="Adaptive"
+            title="Multi-tema adaptativo"
+          >
             Void-flow, Aurora e Ocean trocam acentos sem quebrar contraste.
           </TrendCard>
         </div>
@@ -603,28 +712,27 @@ export function DevComponentsPage() {
       >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <PrincipleCard icon={<CircleDot className="h-4 w-4" />} title="Acento com parcimônia">
-            Gold é identidade — máximo 8% da composição. Cyan marca foco
-            operacional e estado live. Fora isso, graphite.
+            Verde é ação principal. Azul estrutura comandos e dados. Teal marca foco operacional e
+            estado live.
           </PrincipleCard>
           <PrincipleCard icon={<Boxes className="h-4 w-4" />} title="Profundidade por camada">
-            Vidro comunica hierarquia. Dados densos ficam em surface estável —
-            legibilidade nunca cede ao blur.
+            Hairlines comunicam hierarquia. Dados densos ficam em surface estável — legibilidade
+            nunca cede a ornamento.
           </PrincipleCard>
           <PrincipleCard icon={<BarChart3 className="h-4 w-4" />} title="Status é funcional">
-            Cores semânticas são independentes da marca. Misturar gold/cyan com
-            status cria ambiguidade.
+            Cores semânticas são independentes da marca. Misturar acento visual com status cria
+            ambiguidade.
           </PrincipleCard>
           <PrincipleCard icon={<Type className="h-4 w-4" />} title="Números sempre tabular">
-            KPIs, valores, IDs e timestamps usam Geist Mono ou tabular-nums para
-            alinhamento perfeito.
+            KPIs, valores, IDs e timestamps usam Geist Mono ou tabular-nums para alinhamento
+            perfeito.
           </PrincipleCard>
           <PrincipleCard icon={<Waypoints className="h-4 w-4" />} title="Tracking só em display">
-            Letter-spacing negativo é permitido apenas em type display. Corpo e
-            UI densa permanecem neutros.
+            Letter-spacing negativo é permitido apenas em type display. Corpo e UI densa permanecem
+            neutros.
           </PrincipleCard>
           <PrincipleCard icon={<Sparkles className="h-4 w-4" />} title="Motion funcional">
-            Animação comunica estado. Loops decorativos respeitam
-            prefers-reduced-motion.
+            Animação comunica estado. Loops decorativos respeitam prefers-reduced-motion.
           </PrincipleCard>
         </div>
       </Section>
@@ -636,7 +744,7 @@ function Stat({ num, label }: { num: string; label: string }) {
   return (
     <div className="flex flex-col gap-1">
       <span className="botforge-display text-2xl tabular-nums">{num}</span>
-      <span className="font-mono text-[0.7rem] uppercase tracking-wider text-fg-dim">
+      <span className="font-mono text-[0.7rem] uppercase tracking-wider text-fg-muted">
         {label}
       </span>
     </div>
@@ -657,10 +765,7 @@ function Section({
   return (
     <section id={id} className="flex scroll-mt-20 flex-col gap-5">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2
-          className="botforge-display text-2xl"
-          dangerouslySetInnerHTML={{ __html: title }}
-        />
+        <h2 className="botforge-display text-2xl" dangerouslySetInnerHTML={{ __html: title }} />
         <p className="text-xs text-fg-dim">{hint}</p>
       </div>
       <div className="flex flex-col gap-4">{children}</div>
@@ -681,10 +786,7 @@ function SwatchGrid({ items }: { items: ReadonlyArray<readonly [string, string, 
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-5">
       {items.map(([cssVar, hex, role]) => (
-        <div
-          key={cssVar}
-          className="overflow-hidden rounded-sm border border-border-subtle/40"
-        >
+        <div key={cssVar} className="overflow-hidden rounded-sm border border-border-subtle/40">
           <div className="h-14" style={{ background: `rgb(var(${cssVar}))` }} />
           <div className="bg-bg-surface px-2.5 py-2">
             <span className="block font-mono text-[0.66rem] text-fg-muted">
@@ -724,9 +826,7 @@ function TypeRow({
     <div className="flex flex-wrap items-baseline gap-5 bg-bg-surface px-5 py-4">
       <div className="w-32 shrink-0">
         <span className="font-mono text-[0.7rem] text-brand-cyan">{token}</span>
-        <span className="mt-0.5 block font-mono text-[0.62rem] text-fg-dim">
-          {detail}
-        </span>
+        <span className="mt-0.5 block font-mono text-[0.62rem] text-fg-dim">{detail}</span>
       </div>
       <div className="flex-1">{children}</div>
     </div>
@@ -743,15 +843,7 @@ function ElevCard({ shadow, name }: { shadow: string; name: string }) {
   );
 }
 
-function ChartCard({
-  name,
-  desc,
-  children,
-}: {
-  name: string;
-  desc: string;
-  children: ReactNode;
-}) {
+function ChartCard({ name, desc, children }: { name: string; desc: string; children: ReactNode }) {
   return (
     <Card variant="flat" className="flex flex-col gap-4">
       <div>
@@ -780,7 +872,7 @@ function TrendCard({
         <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-brand-cyan/12 text-brand-cyan">
           {icon}
         </span>
-        <span className="font-mono text-[0.62rem] uppercase tracking-wider text-brand-gold-soft">
+        <span className="font-mono text-[0.62rem] uppercase tracking-wider [color:rgb(var(--color-brand-blue-soft))]">
           {tag}
         </span>
       </div>

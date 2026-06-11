@@ -1,6 +1,5 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { setTimeout as sleep } from "node:timers/promises";
 
 import type { WorkerEnv } from "@nuoma/config";
 import {
@@ -29,6 +28,12 @@ import { normalizeInstagramHandle, sendInstagramTextViaCdp } from "./instagram/a
 import type { InstagramRuntime } from "./instagram/sync.js";
 import { prepareVoiceAudio } from "./voice/audio.js";
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const CAMPAIGN_BATCH_DRAIN_MAX_WAIT_MS = 30_000;
+
 export interface JobHandlerContext {
   env: WorkerEnv;
   db: DbHandle;
@@ -36,6 +41,16 @@ export interface JobHandlerContext {
   logger: Logger;
   sync?: SyncEngineRuntime;
   instagram?: InstagramRuntime;
+  sendSession?: JobHandlerSendSession;
+}
+
+export interface JobHandlerSendSession {
+  beginWhatsAppContact: (input: {
+    userId: number;
+    conversationId: number;
+    phone: string;
+    reason: string;
+  }) => Promise<void>;
 }
 
 export class PermanentJobError extends Error {
@@ -44,6 +59,34 @@ export class PermanentJobError extends Error {
     this.name = "PermanentJobError";
   }
 }
+
+export class RetryAfterJobError extends Error {
+  readonly retryAfterMs: number;
+
+  constructor(message: string, retryAfterMs: number) {
+    super(message);
+    this.name = "RetryAfterJobError";
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+const INSTAGRAM_SEND_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+type SendRateLimitResult =
+  | {
+      allowed: true;
+      recentAllowedCount: number;
+      bucketKey: string;
+      tokensRemaining: number;
+    }
+  | {
+      allowed: false;
+      reason: string;
+      recentAllowedCount: number;
+      bucketKey: string;
+      tokensRemaining: number;
+      retryAfterMs: number;
+    };
 
 export async function handleJob(job: Job, context: JobHandlerContext): Promise<void> {
   switch (job.type) {
@@ -72,9 +115,8 @@ export async function handleJob(job: Job, context: JobHandlerContext): Promise<v
       await handleSendInstagramMessageJob(job, context);
       return;
     case "chatbot_reply":
-      throw new PermanentJobError(
-        `${job.type} is intentionally disabled in V2.5 safe worker base; no message was sent`,
-      );
+      await handleChatbotReplyJob(job, context);
+      return;
     case "sync_conversation":
     case "sync_history":
     case "sync_inbox_force":
@@ -363,19 +405,24 @@ interface CampaignBatchDrainResult {
   error?: string;
 }
 
+interface CampaignBatchDrainTarget {
+  kind: "phone" | "instagram";
+  value: string;
+}
+
 async function drainCampaignStepBatch(
   job: Job,
   context: JobHandlerContext,
 ): Promise<CampaignBatchDrainResult> {
   const campaignBatchId = stringFromPayload(job.payload.campaignBatchId);
   const campaignBatchIndex = numberFromPayloadAllowZero(job.payload.campaignBatchIndex);
-  const phone = typeof job.payload.phone === "string" ? normalizePhone(job.payload.phone) : null;
+  const target = await campaignBatchDrainTarget(job, context);
   const result: CampaignBatchDrainResult = {
     campaignBatchId,
     drainedJobs: 0,
     stopped: false,
   };
-  if (!campaignBatchId || campaignBatchIndex === null || !phone) {
+  if (!campaignBatchId || campaignBatchIndex === null || !target) {
     return result;
   }
 
@@ -384,7 +431,7 @@ async function drainCampaignStepBatch(
       userId: job.userId,
       campaignBatchId,
       afterIndex: campaignBatchIndex,
-      phone,
+      target,
     });
     if (!sibling) {
       return result;
@@ -392,7 +439,10 @@ async function drainCampaignStepBatch(
 
     const waitMs = Date.parse(sibling.scheduledAt) - Date.now();
     if (Number.isFinite(waitMs) && waitMs > 0) {
-      await sleep(Math.min(waitMs, 30_000));
+      if (waitMs > CAMPAIGN_BATCH_DRAIN_MAX_WAIT_MS) {
+        return result;
+      }
+      await sleep(waitMs);
     }
 
     const claimed = claimCampaignBatchSibling(context, sibling.id, context.env.WORKER_ID);
@@ -408,7 +458,25 @@ async function drainCampaignStepBatch(
 
     try {
       await handleSingleCampaignStepJob(claimed, context);
-      await context.repos.jobs.markCompleted(claimed.id);
+      const completed = await context.repos.jobs.markCompleted(claimed.id, context.env.WORKER_ID);
+      if (!completed) {
+        context.logger.warn(
+          {
+            jobId: claimed.id,
+            type: claimed.type,
+            campaignBatchId,
+            workerId: context.env.WORKER_ID,
+          },
+          "campaign_step batch sibling completion skipped because ownership was lost",
+        );
+        return {
+          ...result,
+          stopped: true,
+          stoppedJobId: claimed.id,
+          terminal: false,
+          error: "campaign_step_sibling_ownership_lost",
+        };
+      }
       result.drainedJobs += 1;
       context.logger.info(
         { jobId: claimed.id, type: claimed.type, campaignBatchId },
@@ -421,13 +489,25 @@ async function drainCampaignStepBatch(
         isTerminalCampaignStepError(message) ||
         claimed.attempts >= claimed.maxAttempts;
       if (terminal) {
-        await context.repos.jobs.moveToDead({ jobId: claimed.id, error: message });
-        await cancelCampaignBatchSiblingJobs(claimed, context, message);
+        const moved = await context.repos.jobs.moveToDead({
+          jobId: claimed.id,
+          error: message,
+          workerId: context.env.WORKER_ID,
+        });
+        if (moved) {
+          await cancelCampaignBatchSiblingJobs(claimed, context, message);
+        }
       } else {
+        const retryAfterMs = retryAfterMsForJobError(error);
         await context.repos.jobs.releaseForRetry({
           jobId: claimed.id,
           error: message,
-          scheduledAt: nextCampaignStepRetryAt(claimed).toISOString(),
+          scheduledAt:
+            retryAfterMs !== null
+              ? new Date(Date.now() + retryAfterMs).toISOString()
+              : nextCampaignStepRetryAt(claimed).toISOString(),
+          workerId: context.env.WORKER_ID,
+          preserveAttempt: retryAfterMs !== null,
         });
       }
       context.logger.warn(
@@ -451,37 +531,151 @@ function nextQueuedCampaignBatchSibling(
     userId: number;
     campaignBatchId: string;
     afterIndex: number;
-    phone: string;
+    target: CampaignBatchDrainTarget;
   },
 ): Job | null {
-  const jobPhoneExpr = normalizedJsonPhoneSql("payload_json", "$.phone");
+  const jobTargetExpr =
+    input.target.kind === "instagram"
+      ? normalizedJobInstagramTargetSql("candidate_jobs")
+      : normalizedJobWhatsappTargetSql("candidate_jobs");
   const row = context.db.raw
     .prepare(
       `
-      select *
-      from jobs
-      where user_id = ?
+      select candidate_jobs.*
+      from jobs candidate_jobs
+      where candidate_jobs.user_id = ?
         and type = 'campaign_step'
         and status = 'queued'
         and json_extract(payload_json, '$.campaignBatchId') = ?
         and cast(json_extract(payload_json, '$.campaignBatchIndex') as integer) > ?
-        and ${jobPhoneExpr} = ?
+        and ${jobTargetExpr} = ?
       order by cast(json_extract(payload_json, '$.campaignBatchIndex') as integer) asc, scheduled_at asc, id asc
       limit 1
     `,
     )
-    .get(input.userId, input.campaignBatchId, input.afterIndex, input.phone) as
+    .get(input.userId, input.campaignBatchId, input.afterIndex, input.target.value) as
     | RawJobRow
     | undefined;
   return row ? mapRawJob(row) : null;
 }
 
-function normalizedJsonPhoneSql(jsonColumn: string, jsonPath: string): string {
-  const digits = `replace(replace(replace(replace(replace(coalesce(json_extract(${jsonColumn}, '${jsonPath}'), ''), '+', ''), ' ', ''), '-', ''), '(', ''), ')', '')`;
+async function campaignBatchDrainTarget(
+  job: Job,
+  context: JobHandlerContext,
+): Promise<CampaignBatchDrainTarget | null> {
+  const conversationId = numberFromPayload(job.payload.conversationId);
+  if (conversationId) {
+    const conversation = await context.repos.conversations.findById({
+      userId: job.userId,
+      id: conversationId,
+    });
+    if (conversation?.channel === "whatsapp") {
+      const phone =
+        normalizePhone(conversation.waJid) ?? normalizePhone(conversation.externalThreadId);
+      if (phone) {
+        return { kind: "phone", value: phone };
+      }
+      if (conversation.contactId) {
+        const contact = await context.repos.contacts.findById(conversation.contactId);
+        const contactPhone =
+          normalizePhone(contact?.waJid) ??
+          normalizePhone(contact?.phoneE164) ??
+          normalizePhone(contact?.phone);
+        if (contactPhone) {
+          return { kind: "phone", value: contactPhone };
+        }
+      }
+    }
+    if (conversation?.channel === "instagram") {
+      const instagramHandle = normalizeInstagramHandle(conversation.externalThreadId);
+      if (instagramHandle) {
+        return { kind: "instagram", value: instagramHandle };
+      }
+      if (conversation.contactId) {
+        const contact = await context.repos.contacts.findById(conversation.contactId);
+        const contactHandle = normalizeInstagramHandle(contact?.instagramHandle);
+        if (contactHandle) {
+          return { kind: "instagram", value: contactHandle };
+        }
+      }
+    }
+  }
+
+  const phone =
+    normalizePhone(stringFromPayload(job.payload.waJid)) ??
+    normalizePhone(stringFromPayload(job.payload.externalThreadId)) ??
+    (typeof job.payload.phone === "string" ? normalizePhone(job.payload.phone) : null);
+  if (phone) {
+    return { kind: "phone", value: phone };
+  }
+  const instagramHandle =
+    normalizeInstagramHandle(stringFromPayload(job.payload.instagramHandle)) ??
+    normalizeInstagramHandle(stringFromPayload(job.payload.username)) ??
+    normalizeInstagramHandle(stringFromPayload(job.payload.recipientNormalizedValue));
+  return instagramHandle ? { kind: "instagram", value: instagramHandle } : null;
+}
+
+function normalizedSqlPhone(valueSql: string): string {
+  const source = `(CASE
+    WHEN instr(coalesce(${valueSql}, ''), '@') > 0
+      THEN substr(coalesce(${valueSql}, ''), 1, instr(coalesce(${valueSql}, ''), '@') - 1)
+    ELSE coalesce(${valueSql}, '')
+  END)`;
+  const digits = `replace(replace(replace(replace(replace(${source}, '+', ''), ' ', ''), '-', ''), '(', ''), ')', '')`;
   return `(CASE
     WHEN length(${digits}) IN (12, 13) AND substr(${digits}, 1, 2) = '55' THEN ${digits}
     WHEN length(${digits}) IN (10, 11) THEN '55' || ${digits}
     ELSE ''
+  END)`;
+}
+
+function normalizedJobPayloadPhoneSql(tableAlias: string): string {
+  return normalizedSqlPhone(
+    `coalesce(
+      json_extract(${tableAlias}.payload_json, '$.waJid'),
+      json_extract(${tableAlias}.payload_json, '$.externalThreadId'),
+      json_extract(${tableAlias}.payload_json, '$.phone')
+    )`,
+  );
+}
+
+function normalizedJobWhatsappTargetSql(tableAlias: string): string {
+  const conversationPhone = normalizedSqlPhone(`(
+    SELECT coalesce(c.wa_jid, c.external_thread_id, ct.wa_jid, ct.phone_e164, ct.phone, '')
+    FROM conversations c
+    LEFT JOIN contacts ct ON ct.id = c.contact_id AND ct.user_id = c.user_id
+    WHERE c.user_id = ${tableAlias}.user_id
+      AND c.id = cast(coalesce(json_extract(${tableAlias}.payload_json, '$.conversationId'), 0) AS integer)
+      AND c.channel = 'whatsapp'
+    LIMIT 1
+  )`);
+  const payloadPhone = normalizedJobPayloadPhoneSql(tableAlias);
+  return `(CASE
+    WHEN ${conversationPhone} != '' THEN ${conversationPhone}
+    ELSE ${payloadPhone}
+  END)`;
+}
+
+function normalizedJobPayloadInstagramHandleSql(tableAlias: string): string {
+  const jsonColumn = `${tableAlias}.payload_json`;
+  const raw = `lower(trim(coalesce(json_extract(${jsonColumn}, '$.instagramHandle'), json_extract(${jsonColumn}, '$.username'), json_extract(${jsonColumn}, '$.recipientNormalizedValue'), '')))`;
+  const withoutPrefix = `replace(replace(${raw}, '@', ''), 'ig:', '')`;
+  return `(CASE WHEN length(${withoutPrefix}) BETWEEN 1 AND 30 THEN ${withoutPrefix} ELSE '' END)`;
+}
+
+function normalizedJobInstagramTargetSql(tableAlias: string): string {
+  const rawConversation = `(SELECT lower(trim(coalesce(c.external_thread_id, ct.instagram_handle, '')))
+    FROM conversations c
+    LEFT JOIN contacts ct ON ct.id = c.contact_id AND ct.user_id = c.user_id
+    WHERE c.user_id = ${tableAlias}.user_id
+      AND c.id = cast(coalesce(json_extract(${tableAlias}.payload_json, '$.conversationId'), 0) AS integer)
+      AND c.channel = 'instagram'
+    LIMIT 1)`;
+  const conversationHandle = `replace(replace(${rawConversation}, '@', ''), 'ig:', '')`;
+  const payloadHandle = normalizedJobPayloadInstagramHandleSql(tableAlias);
+  return `(CASE
+    WHEN length(${conversationHandle}) BETWEEN 1 AND 128 THEN ${conversationHandle}
+    ELSE ${payloadHandle}
   END)`;
 }
 
@@ -502,9 +696,10 @@ function claimCampaignBatchSibling(
           updated_at = ?
       where id = ?
         and status = 'queued'
+        and scheduled_at <= ?
     `,
     )
-    .run(claimedAt, workerId, claimedAt, jobId);
+    .run(claimedAt, workerId, claimedAt, jobId, claimedAt);
   if (result.changes === 0) {
     return null;
   }
@@ -858,6 +1053,11 @@ async function ensureCampaignTemporaryMessages(
     throw new Error("temporary_messages requires a connected WhatsApp runtime");
   }
   const targetPhone = await resolveCampaignStepTargetPhone(job, context, input);
+  await beginWhatsAppContactSession(job, context, {
+    conversationId: input.conversationId,
+    phone: targetPhone,
+    reason: ensureInput.phase,
+  });
   return context.sync.ensureTemporaryMessages({
     userId: job.userId,
     conversationId: input.conversationId,
@@ -888,9 +1088,9 @@ async function resolveCampaignStepTargetPhone(
     throw new PermanentJobError(`campaign_step unsupported channel: ${conversation.channel}`);
   }
   const phone =
-    normalizePhone(input.phone) ??
     normalizePhone(conversation.waJid) ??
-    normalizePhone(conversation.externalThreadId);
+    normalizePhone(conversation.externalThreadId) ??
+    normalizePhone(input.phone);
   return enforceSendPolicy(job, context, sendPolicyJobTypeForStep(input.step), phone);
 }
 
@@ -1368,6 +1568,10 @@ interface DispatchSkippedDuplicateResult {
   existingStatus: Message["status"];
 }
 
+type SendAuditPhase = NonNullable<
+  Parameters<JobHandlerContext["repos"]["sendAuditEvents"]["list"]>[0]["phase"]
+>;
+
 function hasDispatchEvidence(message: Message): boolean {
   return Boolean(
     message.dispatchedAt ||
@@ -1437,6 +1641,30 @@ async function markSkippedDuplicate(
     },
     "dispatch skipped because idempotency key already exists",
   );
+  await recordStructuredSendAudit(job, context, {
+    phase: "duplicate",
+    channel: auditChannelFromTarget(input.phone),
+    campaignId: numberFromPayload(job.payload.campaignId),
+    contactId: input.message.contactId,
+    conversationId: input.conversationId,
+    messageId: input.message.id,
+    latencyMs: null,
+    errorCode: "skipped_duplicate",
+    errorMessage: input.activeAttemptPhase
+      ? `active_dispatch_attempt_${input.activeAttemptPhase}`
+      : "message_idempotency_key_already_dispatched",
+    metadata: {
+      idempotencyKey: input.idempotencyKey,
+      contentType: input.contentType,
+      reason: input.reason,
+      phone: input.phone,
+      externalId: input.message.externalId,
+      activeAttemptId: input.activeAttemptId,
+      activeAttemptPhase: input.activeAttemptPhase,
+      existingStatus: input.message.status,
+      dispatchAttempts: input.message.dispatchAttempts,
+    },
+  });
   return {
     mode: "dispatch-skipped",
     dispatchGuard: "skipped_duplicate",
@@ -1509,6 +1737,7 @@ async function dispatchWithIdempotencyGuard<T extends DispatchSendResult>(
   }
 
   const observedAtUtc = new Date().toISOString();
+  const dispatchStartedAtMs = Date.now();
   const upsert = await context.repos.messages.upsertOutboundByKey({
     userId: job.userId,
     conversationId: input.draft.conversationId,
@@ -1563,6 +1792,23 @@ async function dispatchWithIdempotencyGuard<T extends DispatchSendResult>(
     workerId: context.env.WORKER_ID,
     phase: "sending",
     messageId: upsert.message.id,
+  });
+  await recordStructuredSendAudit(job, context, {
+    phase: "dispatching",
+    channel: auditChannelFromTarget(input.phone),
+    campaignId: numberFromPayload(job.payload.campaignId),
+    contactId: input.draft.contactId,
+    conversationId: input.draft.conversationId,
+    messageId: upsert.message.id,
+    latencyMs: null,
+    metadata: {
+      idempotencyKey: input.idempotencyKey,
+      contentType: input.draft.contentType,
+      reason: input.reason,
+      phone: input.phone,
+      attemptId: attempt.id,
+      jobType: job.type,
+    },
   });
 
   let attemptFinalized = false;
@@ -1649,6 +1895,26 @@ async function dispatchWithIdempotencyGuard<T extends DispatchSendResult>(
           externalId: result.externalId,
           error: error instanceof Error ? error.message : String(error),
         });
+        await recordStructuredSendAudit(job, context, {
+          phase: "failed",
+          channel: auditChannelFromTarget(input.phone),
+          campaignId: numberFromPayload(job.payload.campaignId),
+          contactId: input.draft.contactId,
+          conversationId: input.draft.conversationId,
+          messageId: failedMessageId,
+          latencyMs: elapsedMs(dispatchStartedAtMs),
+          errorCode: "dispatch_result_validation_failed",
+          errorMessage: error instanceof Error ? error.message : String(error),
+          metadata: {
+            idempotencyKey: input.idempotencyKey,
+            contentType: input.draft.contentType,
+            reason: input.reason,
+            phone: input.phone,
+            attemptId: attempt.id,
+            externalId: result.externalId,
+            jobType: job.type,
+          },
+        });
         attemptFinalized = true;
         throw error;
       }
@@ -1664,6 +1930,24 @@ async function dispatchWithIdempotencyGuard<T extends DispatchSendResult>(
       messageId: dispatchMessageId,
       externalId: result.externalId,
     });
+    await recordStructuredSendAudit(job, context, {
+      phase: "sent",
+      channel: auditChannelFromTarget(input.phone),
+      campaignId: numberFromPayload(job.payload.campaignId),
+      contactId: input.draft.contactId,
+      conversationId: input.draft.conversationId,
+      messageId: dispatchMessageId,
+      latencyMs: elapsedMs(dispatchStartedAtMs),
+      metadata: {
+        idempotencyKey: input.idempotencyKey,
+        contentType: input.draft.contentType,
+        reason: input.reason,
+        phone: input.phone,
+        attemptId: attempt.id,
+        externalId: result.externalId,
+        jobType: job.type,
+      },
+    });
     return {
       ...result,
       idempotencyKey: input.idempotencyKey,
@@ -1678,9 +1962,85 @@ async function dispatchWithIdempotencyGuard<T extends DispatchSendResult>(
         messageId: upsert.message.id,
         error: error instanceof Error ? error.message : String(error),
       });
+      await recordStructuredSendAudit(job, context, {
+        phase: "failed",
+        channel: auditChannelFromTarget(input.phone),
+        campaignId: numberFromPayload(job.payload.campaignId),
+        contactId: input.draft.contactId,
+        conversationId: input.draft.conversationId,
+        messageId: upsert.message.id,
+        latencyMs: elapsedMs(dispatchStartedAtMs),
+        errorCode: "dispatch_failed",
+        errorMessage: error instanceof Error ? error.message : String(error),
+        metadata: {
+          idempotencyKey: input.idempotencyKey,
+          contentType: input.draft.contentType,
+          reason: input.reason,
+          phone: input.phone,
+          attemptId: attempt.id,
+          jobType: job.type,
+        },
+      });
     }
     throw error;
   }
+}
+
+async function recordStructuredSendAudit(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    phase: SendAuditPhase;
+    channel: "whatsapp" | "instagram" | "system";
+    campaignId: number | null;
+    contactId: number | null;
+    conversationId: number | null;
+    messageId?: number | null;
+    latencyMs?: number | null;
+    errorCode?: string | null;
+    errorMessage?: string | null;
+    metadata?: Record<string, unknown>;
+  },
+): Promise<void> {
+  try {
+    const metadata: Record<string, unknown> = {
+      jobType: job.type,
+      ...input.metadata,
+    };
+    const idempotencyKey =
+      typeof metadata.idempotencyKey === "string"
+        ? metadata.idempotencyKey
+        : stringFromPayload(job.payload.idempotencyKey);
+    await context.repos.sendAuditEvents.create({
+      userId: job.userId,
+      campaignId: input.campaignId,
+      contactId: input.contactId,
+      conversationId: input.conversationId,
+      messageId: input.messageId ?? null,
+      jobId: job.id,
+      channel: input.channel,
+      phase: input.phase,
+      latencyMs: input.latencyMs ?? null,
+      errorCode: input.errorCode ?? null,
+      errorMessage: input.errorMessage ?? null,
+      payloadHash: idempotencyKey,
+      workerId: context.env.WORKER_ID,
+      metadata,
+    });
+  } catch (error) {
+    context.logger.warn(
+      { jobId: job.id, type: job.type, phase: input.phase, error },
+      "send audit event write failed",
+    );
+  }
+}
+
+function auditChannelFromTarget(target: string | null): "whatsapp" | "instagram" {
+  return target?.startsWith("ig:") ? "instagram" : "whatsapp";
+}
+
+function elapsedMs(startedAtMs: number): number {
+  return Math.max(0, Date.now() - startedAtMs);
 }
 
 async function sendVoiceToConversation(
@@ -1708,9 +2068,9 @@ async function sendVoiceToConversation(
     throw new PermanentJobError(`send_voice unsupported channel: ${conversation.channel}`);
   }
   const phone =
-    normalizePhone(input.phoneInput) ??
     normalizePhone(conversation.waJid) ??
-    normalizePhone(conversation.externalThreadId);
+    normalizePhone(conversation.externalThreadId) ??
+    normalizePhone(input.phoneInput);
   const idempotencyKey = extractIdempotencyKeyFromJobPayload(job.payload, job.id);
   const skippedDuplicate = await trySkipExistingDispatch(job, context, {
     idempotencyKey,
@@ -1733,7 +2093,12 @@ async function sendVoiceToConversation(
     audioPath: input.audioPath,
     tempDir: path.resolve(process.cwd(), context.env.WORKER_TEMP_DIR),
   });
-  const sendPath = prepared.wavPath;
+  const sendPath = prepared.pttPath;
+  await beginWhatsAppContactSession(job, context, {
+    conversationId: input.conversationId,
+    phone: targetPhone,
+    reason: input.reason,
+  });
   const result = await dispatchWithIdempotencyGuard(job, context, {
     idempotencyKey,
     phone: targetPhone,
@@ -1747,7 +2112,7 @@ async function sendVoiceToConversation(
       media: {
         mediaAssetId: input.mediaAssetId ?? null,
         type: "voice",
-        mimeType: "audio/wav",
+        mimeType: prepared.mimeType,
         fileName: path.basename(sendPath),
         sizeBytes: prepared.sizeBytes,
         durationMs: Math.round(prepared.durationSecs * 1000),
@@ -1755,11 +2120,13 @@ async function sendVoiceToConversation(
       raw: {
         clientNonce: stringFromPayload(job.payload.clientNonce),
         sourcePath: prepared.sourcePath,
-        wavPath: prepared.wavPath,
+        pttPath: prepared.pttPath,
+        mimeType: prepared.mimeType,
+        codec: prepared.codec,
+        bitrate: prepared.bitrate,
         sha256: prepared.sha256,
         sampleRate: prepared.sampleRate,
         channels: prepared.channels,
-        bitsPerSample: prepared.bitsPerSample,
       },
     },
     send: () =>
@@ -1767,7 +2134,7 @@ async function sendVoiceToConversation(
         userId: job.userId,
         conversationId: input.conversationId,
         phone: targetPhone,
-        wavPath: sendPath,
+        audioPath: sendPath,
         durationSecs: prepared.durationSecs,
         reason: input.reason,
       }),
@@ -1776,15 +2143,17 @@ async function sendVoiceToConversation(
   return {
     audio: {
       sourcePath: prepared.sourcePath,
-      wavPath: prepared.wavPath,
+      pttPath: prepared.pttPath,
       sendPath,
+      mimeType: prepared.mimeType,
+      codec: prepared.codec,
+      bitrate: prepared.bitrate,
       durationSecs: prepared.durationSecs,
       durationSource: prepared.durationSource,
       sha256: prepared.sha256,
       sizeBytes: prepared.sizeBytes,
       sampleRate: prepared.sampleRate,
       channels: prepared.channels,
-      bitsPerSample: prepared.bitsPerSample,
     },
     ...result,
   };
@@ -1857,9 +2226,9 @@ async function sendDocumentToConversation(
     throw new PermanentJobError(`send_document unsupported channel: ${conversation.channel}`);
   }
   const phone =
-    normalizePhone(input.phoneInput) ??
     normalizePhone(conversation.waJid) ??
-    normalizePhone(conversation.externalThreadId);
+    normalizePhone(conversation.externalThreadId) ??
+    normalizePhone(input.phoneInput);
   const idempotencyKey = extractIdempotencyKeyFromJobPayload(job.payload, job.id);
   const skippedDuplicate = await trySkipExistingDispatch(job, context, {
     idempotencyKey,
@@ -1874,6 +2243,11 @@ async function sendDocumentToConversation(
   const targetPhone = await enforceSendPolicy(job, context, "send_document", phone);
 
   await fs.access(input.documentPath);
+  await beginWhatsAppContactSession(job, context, {
+    conversationId: input.conversationId,
+    phone: targetPhone,
+    reason: input.reason,
+  });
   return dispatchWithIdempotencyGuard(job, context, {
     idempotencyKey,
     phone: targetPhone,
@@ -1948,9 +2322,9 @@ async function sendNativeMediaToConversation(
     throw new PermanentJobError(`send_media unsupported channel: ${conversation.channel}`);
   }
   const phone =
-    normalizePhone(input.phoneInput) ??
     normalizePhone(conversation.waJid) ??
-    normalizePhone(conversation.externalThreadId);
+    normalizePhone(conversation.externalThreadId) ??
+    normalizePhone(input.phoneInput);
   const idempotencyKey = extractIdempotencyKeyFromJobPayload(job.payload, job.id);
   const skippedDuplicate = await trySkipExistingDispatch(job, context, {
     idempotencyKey,
@@ -1976,6 +2350,11 @@ async function sendNativeMediaToConversation(
   for (const file of mediaFiles) {
     await fs.access(file.mediaPath);
   }
+  await beginWhatsAppContactSession(job, context, {
+    conversationId: input.conversationId,
+    phone: targetPhone,
+    reason: input.reason,
+  });
   return dispatchWithIdempotencyGuard(job, context, {
     idempotencyKey,
     phone: targetPhone,
@@ -2052,6 +2431,51 @@ async function handleSendMessageJob(job: Job, context: JobHandlerContext): Promi
   });
 }
 
+async function handleChatbotReplyJob(job: Job, context: JobHandlerContext): Promise<void> {
+  const conversationId = numberFromPayload(job.payload.conversationId);
+  if (!conversationId) {
+    throw new PermanentJobError("chatbot_reply requires payload.conversationId");
+  }
+  const body = chatbotReplyBodyFromPayload(job);
+  if (!body) {
+    throw new PermanentJobError("chatbot_reply requires non-empty reply text");
+  }
+  const conversation = await context.repos.conversations.findById({
+    userId: job.userId,
+    id: conversationId,
+  });
+  if (!conversation) {
+    throw new PermanentJobError("chatbot_reply conversation not found");
+  }
+
+  const result =
+    conversation.channel === "instagram"
+      ? await sendInstagramTextToConversation(job, context, {
+          conversationId,
+          body,
+          reason: "chatbot_reply",
+        })
+      : await sendTextToConversation(job, context, {
+          conversationId,
+          phoneInput: typeof job.payload.phone === "string" ? job.payload.phone : null,
+          body,
+          reason: "chatbot_reply",
+        });
+
+  await context.repos.systemEvents.create({
+    userId: job.userId,
+    type: "sender.chatbot_reply.completed",
+    severity: "info",
+    payload: JSON.stringify({
+      jobId: job.id,
+      chatbotId: numberFromPayload(job.payload.chatbotId),
+      ruleId: numberFromPayload(job.payload.ruleId),
+      sourceMessageId: numberFromPayload(job.payload.sourceMessageId),
+      ...result,
+    }),
+  });
+}
+
 async function sendInstagramTextToConversation(
   job: Job,
   context: JobHandlerContext,
@@ -2086,6 +2510,11 @@ async function sendInstagramTextToConversation(
 
   const username = await resolveInstagramUsername(job, context, conversation);
   assertInstagramSendAllowed(context, username);
+  await assertInstagramConversationWithinSendWindow(job, context, {
+    conversationId: conversation.id,
+    contactId: conversation.contactId,
+    username,
+  });
 
   const idempotencyKey = extractIdempotencyKeyFromJobPayload(job.payload, job.id);
   const targetKey = `ig:${username}`;
@@ -2108,6 +2537,11 @@ async function sendInstagramTextToConversation(
   for (const file of mediaFiles) {
     await fs.access(file.mediaPath);
   }
+  await enforceInstagramSendRateLimit(job, context, {
+    username,
+    conversationId: input.conversationId,
+    contactId: conversation.contactId,
+  });
 
   const result = await dispatchWithIdempotencyGuard(job, context, {
     idempotencyKey,
@@ -2194,9 +2628,9 @@ async function sendTextToConversation(
     throw new PermanentJobError(`send_message unsupported channel: ${conversation.channel}`);
   }
   const phone =
-    normalizePhone(input.phoneInput) ??
     normalizePhone(conversation.waJid) ??
-    normalizePhone(conversation.externalThreadId);
+    normalizePhone(conversation.externalThreadId) ??
+    normalizePhone(input.phoneInput);
   const idempotencyKey = extractIdempotencyKeyFromJobPayload(job.payload, job.id);
   const skippedDuplicate = await trySkipExistingDispatch(job, context, {
     idempotencyKey,
@@ -2209,6 +2643,11 @@ async function sendTextToConversation(
     return skippedDuplicate;
   }
   const targetPhone = await enforceSendPolicy(job, context, "send_message", phone);
+  await beginWhatsAppContactSession(job, context, {
+    conversationId: input.conversationId,
+    phone: targetPhone,
+    reason: input.reason,
+  });
 
   return dispatchWithIdempotencyGuard(job, context, {
     idempotencyKey,
@@ -2233,6 +2672,35 @@ async function sendTextToConversation(
         body: input.body,
         reason: input.reason,
       }),
+  });
+}
+
+async function beginWhatsAppContactSession(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    conversationId: number;
+    phone: string;
+    reason: string;
+  },
+): Promise<void> {
+  if (!context.sync?.connected || !context.sync.beginContactSession) {
+    return;
+  }
+  if (context.sendSession) {
+    await context.sendSession.beginWhatsAppContact({
+      userId: job.userId,
+      conversationId: input.conversationId,
+      phone: input.phone,
+      reason: input.reason,
+    });
+    return;
+  }
+  await context.sync.beginContactSession({
+    userId: job.userId,
+    conversationId: input.conversationId,
+    phone: input.phone,
+    reason: input.reason,
   });
 }
 
@@ -2262,9 +2730,7 @@ async function resolveInstagramUsername(
     }
   }
 
-  const fromThread =
-    normalizeInstagramHandle(conversation.externalThreadId) ??
-    normalizeInstagramHandle(conversation.title);
+  const fromThread = normalizeInstagramHandle(conversation.externalThreadId);
   if (fromThread) {
     return fromThread;
   }
@@ -2284,6 +2750,177 @@ function assertInstagramSendAllowed(context: JobHandlerContext, username: string
   if (!allowed.has(username)) {
     throw new PermanentJobError(`Instagram send blocked by allowlist: @${username}`);
   }
+}
+
+async function enforceInstagramSendRateLimit(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    username: string;
+    conversationId: number;
+    contactId: number | null;
+  },
+): Promise<void> {
+  const bucketKey = `ig:${input.username}`;
+  const result = context.repos.workerSendBuckets.consume({
+    userId: job.userId,
+    bucketKey,
+    rateLimitMax: context.env.IG_SEND_RATE_LIMIT_MAX,
+    refillWindowMs: context.env.IG_SEND_RATE_LIMIT_WINDOW_MS,
+  });
+  if (result.allowed) {
+    await recordInstagramSendPolicyDecision(job, context, {
+      input,
+      decision: "allowed",
+      reason: "eligible",
+      bucketKey: result.bucketKey,
+      tokensRemaining: result.tokensRemaining,
+      recentAllowedCount: result.recentAllowedCount,
+      retryAfterMs: null,
+    });
+    return;
+  }
+
+  await recordInstagramSendPolicyDecision(job, context, {
+    input,
+    decision: "blocked",
+    reason: "send_rate_limit_exceeded",
+    bucketKey: result.bucketKey,
+    tokensRemaining: result.tokensRemaining,
+    recentAllowedCount: result.recentAllowedCount,
+    retryAfterMs: result.retryAfterMs,
+  });
+  throw new RetryAfterJobError(
+    `send_instagram_message paced: send_rate_limit_exceeded; retry after ${result.retryAfterMs}ms`,
+    result.retryAfterMs,
+  );
+}
+
+async function recordInstagramSendPolicyDecision(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    input: {
+      username: string;
+      conversationId: number;
+      contactId: number | null;
+    };
+    decision: "allowed" | "blocked";
+    reason: string;
+    bucketKey: string;
+    tokensRemaining: number;
+    recentAllowedCount: number;
+    retryAfterMs: number | null;
+  },
+): Promise<void> {
+  await context.repos.systemEvents.create({
+    userId: job.userId,
+    type: `sender.instagram_send_policy.${input.decision}`,
+    severity: input.decision === "allowed" ? "info" : "warn",
+    payload: JSON.stringify({
+      jobId: job.id,
+      jobType: job.type,
+      conversationId: input.input.conversationId,
+      contactId: input.input.contactId,
+      instagramHandle: input.input.username,
+      decision: input.decision,
+      reason: input.reason,
+      rateLimitWindowMs: context.env.IG_SEND_RATE_LIMIT_WINDOW_MS,
+      rateLimitMax: context.env.IG_SEND_RATE_LIMIT_MAX,
+      rateLimitMode: "token_bucket",
+      rateLimitBucketKey: input.bucketKey,
+      rateLimitTokensRemaining: input.tokensRemaining,
+      rateLimitRetryAfterMs: input.retryAfterMs,
+      recentAllowedCount: input.recentAllowedCount,
+    }),
+  });
+
+  if (input.decision === "blocked") {
+    await recordStructuredSendAudit(job, context, {
+      phase: "policy_block",
+      channel: "instagram",
+      campaignId: numberFromPayload(job.payload.campaignId),
+      contactId: input.input.contactId,
+      conversationId: input.input.conversationId,
+      latencyMs: null,
+      errorCode: input.reason,
+      errorMessage: "send_instagram_message blocked by worker send pacing",
+      metadata: {
+        idempotencyKey: stringFromPayload(job.payload.idempotencyKey),
+        instagramHandle: input.input.username,
+        rateLimitWindowMs: context.env.IG_SEND_RATE_LIMIT_WINDOW_MS,
+        rateLimitMax: context.env.IG_SEND_RATE_LIMIT_MAX,
+        rateLimitMode: "token_bucket",
+        rateLimitBucketKey: input.bucketKey,
+        rateLimitTokensRemaining: input.tokensRemaining,
+        rateLimitRetryAfterMs: input.retryAfterMs,
+        recentAllowedCount: input.recentAllowedCount,
+      },
+    });
+  }
+}
+
+async function assertInstagramConversationWithinSendWindow(
+  job: Job,
+  context: JobHandlerContext,
+  input: {
+    conversationId: number;
+    contactId: number | null;
+    username: string;
+  },
+): Promise<void> {
+  const latestInbound = await context.repos.messages.findLatestInboundByConversation({
+    userId: job.userId,
+    conversationId: input.conversationId,
+  });
+  const observedAtUtc = latestInbound?.observedAtUtc ?? null;
+  const observedAtMs = observedAtUtc ? Date.parse(observedAtUtc) : Number.NaN;
+  const nowMs = Date.now();
+  const withinWindow = Number.isFinite(observedAtMs)
+    ? nowMs - observedAtMs <= INSTAGRAM_SEND_WINDOW_MS
+    : false;
+  if (withinWindow) {
+    return;
+  }
+
+  const errorCode = latestInbound ? "instagram_24h_window_expired" : "instagram_24h_window_missing";
+  const errorMessage = latestInbound
+    ? "Instagram send blocked: last inbound message is outside the 24h window"
+    : "Instagram send blocked: no inbound message found for 24h window";
+  await context.repos.systemEvents.create({
+    userId: job.userId,
+    type: "sender.instagram_24h_window.blocked",
+    severity: "warn",
+    payload: JSON.stringify({
+      jobId: job.id,
+      jobType: job.type,
+      conversationId: input.conversationId,
+      contactId: input.contactId,
+      instagramHandle: input.username,
+      latestInboundMessageId: latestInbound?.id ?? null,
+      latestInboundObservedAtUtc: observedAtUtc,
+      sendWindowMs: INSTAGRAM_SEND_WINDOW_MS,
+      reason: errorCode,
+    }),
+  });
+  await recordStructuredSendAudit(job, context, {
+    phase: "policy_block",
+    channel: "instagram",
+    campaignId: numberFromPayload(job.payload.campaignId),
+    contactId: input.contactId,
+    conversationId: input.conversationId,
+    latencyMs: null,
+    errorCode,
+    errorMessage,
+    metadata: {
+      idempotencyKey: stringFromPayload(job.payload.idempotencyKey),
+      instagramHandle: input.username,
+      latestInboundMessageId: latestInbound?.id ?? null,
+      latestInboundObservedAtUtc: observedAtUtc,
+      sendWindowMs: INSTAGRAM_SEND_WINDOW_MS,
+    },
+  });
+  throw new PermanentJobError(`${errorMessage}: @${input.username}`);
 }
 
 async function recordCampaignStepStarted(
@@ -2653,7 +3290,7 @@ async function enforceSendPolicy(
     throw new PermanentJobError(`${jobType} blocked: ${eligibility.reason} (${phone})`);
   }
 
-  const rateLimit = await evaluateSendRateLimit(job, context, policy);
+  const rateLimit = await evaluateSendRateLimit(job, context, policy, phone);
   if (!rateLimit.allowed) {
     await recordSendPolicyDecision(job, context, {
       jobType,
@@ -2662,8 +3299,14 @@ async function enforceSendPolicy(
       decision: "blocked",
       reason: rateLimit.reason,
       recentAllowedCount: rateLimit.recentAllowedCount,
+      rateLimitBucketKey: rateLimit.bucketKey,
+      rateLimitTokensRemaining: rateLimit.tokensRemaining,
+      rateLimitRetryAfterMs: rateLimit.retryAfterMs,
     });
-    throw new PermanentJobError(`${jobType} blocked: ${rateLimit.reason}`);
+    throw new RetryAfterJobError(
+      `${jobType} paced: ${rateLimit.reason}; retry after ${rateLimit.retryAfterMs}ms`,
+      rateLimit.retryAfterMs,
+    );
   }
 
   await recordSendPolicyDecision(job, context, {
@@ -2673,6 +3316,9 @@ async function enforceSendPolicy(
     decision: "allowed",
     reason: "eligible",
     recentAllowedCount: rateLimit.recentAllowedCount,
+    rateLimitBucketKey: rateLimit.bucketKey,
+    rateLimitTokensRemaining: rateLimit.tokensRemaining,
+    rateLimitRetryAfterMs: null,
   });
 
   return phone;
@@ -2723,26 +3369,33 @@ async function evaluateSendRateLimit(
   job: Job,
   context: JobHandlerContext,
   policy: WorkerSendPolicy,
-): Promise<
-  | { allowed: true; recentAllowedCount: number }
-  | { allowed: false; reason: string; recentAllowedCount: number }
-> {
-  const since = Date.now() - policy.rateLimitWindowMs;
-  const recentAllowedEvents = await context.repos.systemEvents.list({
+  phone: string,
+): Promise<SendRateLimitResult> {
+  const bucketKey = `wa:${phone}`;
+  const result = context.repos.workerSendBuckets.consume({
     userId: job.userId,
-    type: "sender.send_policy.allowed",
-    limit: Math.max(policy.rateLimitMax + 25, 100),
+    bucketKey,
+    rateLimitMax: policy.rateLimitMax,
+    refillWindowMs: policy.rateLimitWindowMs,
   });
-  const recentAllowedCount = recentAllowedEvents.filter((event) => {
-    const timestamp = Date.parse(event.createdAt);
-    return Number.isFinite(timestamp) && timestamp >= since;
-  }).length;
 
-  if (recentAllowedCount >= policy.rateLimitMax) {
-    return { allowed: false, reason: "send_rate_limit_exceeded", recentAllowedCount };
+  if (!result.allowed) {
+    return {
+      allowed: false,
+      reason: "send_rate_limit_exceeded",
+      recentAllowedCount: result.recentAllowedCount,
+      bucketKey: result.bucketKey,
+      tokensRemaining: result.tokensRemaining,
+      retryAfterMs: result.retryAfterMs,
+    };
   }
 
-  return { allowed: true, recentAllowedCount };
+  return {
+    allowed: true,
+    recentAllowedCount: result.recentAllowedCount,
+    bucketKey: result.bucketKey,
+    tokensRemaining: result.tokensRemaining,
+  };
 }
 
 async function recordSendPolicyDecision(
@@ -2755,6 +3408,9 @@ async function recordSendPolicyDecision(
     decision: "allowed" | "blocked";
     reason: string;
     recentAllowedCount?: number;
+    rateLimitBucketKey?: string | null;
+    rateLimitTokensRemaining?: number | null;
+    rateLimitRetryAfterMs?: number | null;
   },
 ): Promise<void> {
   await context.repos.systemEvents.create({
@@ -2771,9 +3427,38 @@ async function recordSendPolicyDecision(
       allowedPhonesCount: input.policy.allowedPhones.length,
       rateLimitWindowMs: input.policy.rateLimitWindowMs,
       rateLimitMax: input.policy.rateLimitMax,
+      rateLimitMode: "token_bucket",
+      rateLimitBucketKey: input.rateLimitBucketKey ?? null,
+      rateLimitTokensRemaining: input.rateLimitTokensRemaining ?? null,
+      rateLimitRetryAfterMs: input.rateLimitRetryAfterMs ?? null,
       recentAllowedCount: input.recentAllowedCount ?? null,
     }),
   });
+  if (input.decision === "blocked") {
+    await recordStructuredSendAudit(job, context, {
+      phase: "policy_block",
+      channel: "whatsapp",
+      campaignId: numberFromPayload(job.payload.campaignId),
+      contactId: null,
+      conversationId: numberFromPayload(job.payload.conversationId),
+      latencyMs: null,
+      errorCode: input.reason,
+      errorMessage: `${input.jobType} blocked by worker send policy`,
+      metadata: {
+        jobType: input.jobType,
+        phone: input.phone,
+        policyMode: input.policy.mode,
+        allowedPhonesCount: input.policy.allowedPhones.length,
+        rateLimitWindowMs: input.policy.rateLimitWindowMs,
+        rateLimitMax: input.policy.rateLimitMax,
+        rateLimitMode: "token_bucket",
+        rateLimitBucketKey: input.rateLimitBucketKey ?? null,
+        rateLimitTokensRemaining: input.rateLimitTokensRemaining ?? null,
+        rateLimitRetryAfterMs: input.rateLimitRetryAfterMs ?? null,
+        recentAllowedCount: input.recentAllowedCount ?? null,
+      },
+    });
+  }
 }
 
 function parsePhoneList(
@@ -2872,7 +3557,7 @@ async function handleSyncJob(job: Job, context: JobHandlerContext): Promise<void
   await context.repos.systemEvents.create({
     userId: job.userId,
     type: "sync.force_conversation.completed",
-    severity: result.mode === "unsupported" ? "warn" : "info",
+    severity: result.mode === "unsupported" || result.mode === "unresolved" ? "warn" : "info",
     payload: JSON.stringify({
       jobId: job.id,
       ...result,
@@ -2901,6 +3586,29 @@ function numericPayloadArray(value: unknown): number[] {
 
 function stringFromPayload(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function chatbotReplyBodyFromPayload(job: Job): string {
+  const variables = variablesFromPayload(job.payload.variables);
+  const direct =
+    stringFromPayload(job.payload.body) ??
+    stringFromPayload(job.payload.text) ??
+    stringFromPayload(job.payload.message);
+  if (direct) {
+    return renderJobTemplate("chatbot_reply", direct, variables);
+  }
+
+  const step = campaignStepSchema.safeParse(job.payload.step);
+  if (!step.success) {
+    return "";
+  }
+  if (step.data.type === "text") {
+    return renderJobTemplate("chatbot_reply", step.data.template, variables);
+  }
+  if (step.data.type === "link") {
+    return renderJobTemplate("chatbot_reply", `${step.data.text}\n${step.data.url}`, variables);
+  }
+  return "";
 }
 
 function campaignJobAuditTarget(job: Job, phone: string | null): Record<string, string | null> {
@@ -3046,6 +3754,14 @@ function variablesFromPayload(value: unknown): Record<string, string> {
 }
 
 function renderTemplate(template: string, variables: Record<string, string>): string {
+  return renderJobTemplate("campaign_step", template, variables);
+}
+
+function renderJobTemplate(
+  context: "campaign_step" | "chatbot_reply",
+  template: string,
+  variables: Record<string, string>,
+): string {
   const missing = new Set<string>();
   const rendered = template.replace(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g, (match, key: string) => {
     if (!Object.hasOwn(variables, key)) {
@@ -3056,12 +3772,12 @@ function renderTemplate(template: string, variables: Record<string, string>): st
   });
   if (missing.size > 0) {
     throw new PermanentJobError(
-      `campaign_step missing template variables: ${[...missing].join(", ")}`,
+      `${context} missing template variables: ${[...missing].join(", ")}`,
     );
   }
   const body = rendered.trim();
   if (!body) {
-    throw new PermanentJobError("campaign_step rendered an empty message");
+    throw new PermanentJobError(`${context} rendered an empty message`);
   }
   return body;
 }
@@ -3189,6 +3905,15 @@ async function handleBackupJob(job: Job, context: JobHandlerContext): Promise<vo
 
 export function isPermanentJobError(error: unknown): boolean {
   return error instanceof PermanentJobError;
+}
+
+export function retryAfterMsForJobError(error: unknown): number | null {
+  if (!(error instanceof RetryAfterJobError)) {
+    return null;
+  }
+  return Number.isFinite(error.retryAfterMs) && error.retryAfterMs > 0
+    ? Math.ceil(error.retryAfterMs)
+    : 0;
 }
 
 export function isSendJobType(type: JobType): boolean {

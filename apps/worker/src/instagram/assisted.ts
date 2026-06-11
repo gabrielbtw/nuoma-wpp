@@ -1,7 +1,9 @@
 import { setTimeout as sleep } from "node:timers/promises";
 
 import type { WorkerEnv } from "@nuoma/config";
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { chromium, type Browser, type BrowserContext, type Locator, type Page } from "playwright";
+
+import { assertInstagramUsable } from "./guard.js";
 
 export interface InstagramTextSendInput {
   env: WorkerEnv;
@@ -59,14 +61,17 @@ export async function sendInstagramTextViaCdp(
       threadId: input.threadId ?? null,
       username,
     });
+    await assertInstagramUsable(page);
     if (mediaPaths.length > 0) {
       await uploadInstagramMedia(page, mediaPaths);
       if (text) {
         await fillInstagramComposer(page, text);
       }
+      await assertInstagramUsable(page);
       await clickInstagramSend(page);
     } else {
       await fillInstagramComposer(page, text);
+      await assertInstagramUsable(page);
       await clickInstagramSend(page);
     }
     await waitForInstagramSendEvidence(page, text, input.env.IG_SEND_CONFIRMATION_TIMEOUT_MS);
@@ -113,11 +118,11 @@ async function ensureInstagramPage(context: BrowserContext): Promise<Page> {
 }
 
 async function assertInstagramAuthenticated(page: Page): Promise<void> {
-  const state = await page.evaluate<{ loginInput: boolean; href: string; body: string }>(
+  await assertInstagramUsable(page);
+  const state = await page.evaluate<{ loginInput: boolean; href: string }>(
     `(() => ({
       loginInput: Boolean(document.querySelector("input[name='username']")),
       href: location.href,
-      body: String(document.body?.innerText ?? "").replace(/\\s+/g, " ").slice(0, 500),
     }))()`,
   );
   if (state.loginInput || state.href.includes("/accounts/login")) {
@@ -138,8 +143,11 @@ async function openInstagramThreadOrComposer(
       waitUntil: "domcontentloaded",
       timeout: 45_000,
     });
-    await page.waitForTimeout(1_200);
-    if (await hasInstagramComposer(page)) {
+    await assertInstagramUsable(page);
+    if (
+      (await waitForInstagramComposer(page, 10_000, false)) ||
+      (await waitForInstagramMediaUploadInput(page, 4_000))
+    ) {
       return;
     }
   }
@@ -149,6 +157,7 @@ async function openInstagramThreadOrComposer(
     timeout: 45_000,
   });
   await page.waitForTimeout(1_200);
+  await assertInstagramUsable(page);
 
   const searchInput = page.locator("input[name='searchInput']").last();
   if ((await searchInput.count()) === 0) {
@@ -158,6 +167,7 @@ async function openInstagramThreadOrComposer(
   await page.waitForTimeout(1_800);
 
   const selected = await clickBestInstagramRecipientCandidate(page, input.username);
+  await assertInstagramUsable(page);
   if (!selected) {
     throw new Error(`Instagram recipient @${input.username} was not found in composer search`);
   }
@@ -179,6 +189,12 @@ async function hasInstagramComposer(page: Page): Promise<boolean> {
   );
 }
 
+async function hasInstagramMediaUploadInput(page: Page): Promise<boolean> {
+  return page.evaluate<boolean>(
+    `(() => Boolean(document.querySelector("input[type='file']")))()`,
+  );
+}
+
 async function waitForInstagramComposer(
   page: Page,
   timeoutMs = 15_000,
@@ -186,6 +202,7 @@ async function waitForInstagramComposer(
 ): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    await assertInstagramUsable(page);
     if (await hasInstagramComposer(page)) {
       return true;
     }
@@ -195,6 +212,18 @@ async function waitForInstagramComposer(
     return false;
   }
   throw new Error("Instagram composer did not open for selected recipient");
+}
+
+async function waitForInstagramMediaUploadInput(page: Page, timeoutMs = 10_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await assertInstagramUsable(page);
+    if (await hasInstagramMediaUploadInput(page)) {
+      return true;
+    }
+    await sleep(400);
+  }
+  return false;
 }
 
 async function clickBestInstagramRecipientCandidate(
@@ -311,7 +340,7 @@ async function clickInstagramStartMessage(page: Page): Promise<void> {
   }
 }
 
-async function fillInstagramComposer(page: Page, text: string): Promise<void> {
+export async function fillInstagramComposer(page: Page, text: string): Promise<void> {
   await waitForInstagramComposer(page);
   const textarea = page.locator("textarea").last();
   if ((await textarea.count()) > 0) {
@@ -321,21 +350,169 @@ async function fillInstagramComposer(page: Page, text: string): Promise<void> {
 
   const richComposer = page.locator("div[contenteditable='true'][role='textbox']").last();
   if ((await richComposer.count()) > 0) {
-    await richComposer.click();
+    await focusInstagramRichComposer(richComposer);
     await page.keyboard.insertText(text);
-    return;
+    await page.waitForTimeout(150);
+    if (await instagramComposerContains(page, text)) {
+      return;
+    }
+    if (await replaceInstagramRichComposerText(richComposer, text)) {
+      await page.waitForTimeout(150);
+      if (await instagramComposerContains(page, text)) {
+        return;
+      }
+    }
+    throw new Error("Instagram composer field did not accept text");
   }
 
   throw new Error("Instagram composer field was not found");
 }
 
+async function focusInstagramRichComposer(richComposer: Locator): Promise<void> {
+  await richComposer.scrollIntoViewIfNeeded({ timeout: 3_000 }).catch(() => undefined);
+  try {
+    await richComposer.click({ timeout: 5_000 });
+    return;
+  } catch {
+    // Instagram's rich editor can keep moving while Direct loads. Fall through to stronger focus paths.
+  }
+
+  try {
+    await richComposer.click({ force: true, timeout: 3_000 });
+    return;
+  } catch {
+    // DOM focus is safer than giving up when Playwright cannot get a stable click target.
+  }
+
+  await richComposer.evaluate((node) => {
+    if (!(node instanceof HTMLElement)) {
+      return;
+    }
+    node.scrollIntoView({ block: "center", inline: "nearest" });
+    node.focus();
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    range.collapse(false);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    node.dispatchEvent(new FocusEvent("focus", { bubbles: true }));
+  });
+}
+
+async function instagramComposerContains(page: Page, text: string): Promise<boolean> {
+  return page.evaluate(
+    browserArgFunction<string, boolean>(
+      "expectedText",
+      `
+    const textarea = Array.from(document.querySelectorAll("textarea")).at(-1);
+    if (textarea && String(textarea.value ?? "").includes(expectedText)) {
+      return true;
+    }
+    const editors = Array.from(
+      document.querySelectorAll("div[contenteditable='true'][role='textbox']"),
+    );
+    const editor = editors.at(-1);
+    if (!editor) {
+      return false;
+    }
+    return String(editor.textContent ?? "").includes(expectedText);
+  `,
+    ),
+    text,
+  );
+}
+
+async function replaceInstagramRichComposerText(
+  richComposer: Locator,
+  text: string,
+): Promise<boolean> {
+  return richComposer.evaluate((node, message) => {
+    if (!(node instanceof HTMLElement)) {
+      return false;
+    }
+    node.scrollIntoView({ block: "center", inline: "nearest" });
+    node.focus();
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    let inserted = false;
+    try {
+      inserted = document.execCommand("insertText", false, message);
+    } catch {
+      inserted = false;
+    }
+    if (!inserted) {
+      node.textContent = message;
+    }
+
+    try {
+      node.dispatchEvent(
+        new InputEvent("input", {
+          bubbles: true,
+          cancelable: true,
+          data: message,
+          inputType: "insertText",
+        }),
+      );
+    } catch {
+      node.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    node.dispatchEvent(new Event("change", { bubbles: true }));
+    return true;
+  }, text);
+}
+
 async function uploadInstagramMedia(page: Page, mediaPaths: string[]): Promise<void> {
-  const fileInput = page.locator("input[type='file']").last();
-  if ((await fileInput.count()) === 0) {
+  if (!(await waitForInstagramMediaUploadInput(page, 5_000))) {
+    await clickInstagramMediaUploadAffordance(page);
+  }
+  if (!(await waitForInstagramMediaUploadInput(page, 10_000))) {
     throw new Error("Instagram media upload input was not found");
   }
+  const fileInput = page.locator("input[type='file']").last();
   await fileInput.setInputFiles(mediaPaths);
   await page.waitForTimeout(1_600);
+}
+
+async function clickInstagramMediaUploadAffordance(page: Page): Promise<void> {
+  const clicked = await page.evaluate<boolean>(
+    `(() => {
+    const labels = [
+      "add photo or video",
+      "adicionar foto ou vídeo",
+      "adicionar foto ou video",
+      "photo or video",
+      "foto ou vídeo",
+      "foto ou video",
+      "media",
+    ];
+    const nodes = Array.from(document.querySelectorAll("button, div[role='button'], svg[aria-label]"))
+      .filter((node) => node instanceof HTMLElement || node instanceof SVGElement)
+      .reverse();
+    const target = nodes.find((node) => {
+      const text = String(node.textContent ?? "").replace(/\\s+/g, " ").trim().toLowerCase();
+      const aria = String(node.getAttribute("aria-label") ?? "")
+        .replace(/\\s+/g, " ")
+        .trim()
+        .toLowerCase();
+      return labels.some((label) => text.includes(label) || aria.includes(label));
+    });
+    const clickable = target?.closest("button, div[role='button']") ?? target;
+    if (!(clickable instanceof HTMLElement || clickable instanceof SVGElement)) {
+      return false;
+    }
+    clickable.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+    return true;
+  })()`,
+  );
+  if (clicked) {
+    await page.waitForTimeout(800);
+  }
 }
 
 async function clickInstagramSend(page: Page): Promise<void> {
@@ -368,7 +545,9 @@ async function clickInstagramSend(page: Page): Promise<void> {
   })()`,
   );
   if (!clicked) {
-    throw new Error("Instagram send button was not found");
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(900);
+    return;
   }
   await page.waitForTimeout(700);
 }

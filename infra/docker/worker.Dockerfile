@@ -12,7 +12,7 @@ COPY packages/db/package.json packages/db/package.json
 RUN npm ci \
   && npx playwright install --with-deps chromium \
   && apt-get update \
-  && apt-get install -y --no-install-recommends socat \
+  && apt-get install -y --no-install-recommends ffmpeg socat \
   && npm cache clean --force \
   && rm -rf /var/lib/apt/lists/*
 

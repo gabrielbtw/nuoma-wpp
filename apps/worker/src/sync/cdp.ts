@@ -48,6 +48,9 @@ export interface SyncEngineMetrics extends SyncHandlerMetrics {
 export interface SyncEngineRuntime {
   connected: boolean;
   metrics: SyncEngineMetrics;
+  beginContactSession?: (
+    input: SyncBeginContactSessionInput,
+  ) => Promise<SyncBeginContactSessionResult>;
   forceConversation: (input: SyncForceConversationInput) => Promise<SyncForceConversationResult>;
   ensureTemporaryMessages?: (
     input: SyncEnsureTemporaryMessagesInput,
@@ -62,6 +65,30 @@ export interface SyncEngineRuntime {
 }
 
 type CdpClient = CDP.Client;
+type CdpEventListener = (...args: unknown[]) => void;
+
+export type RegisteredCdpListener = {
+  event: string;
+  listener: CdpEventListener | null;
+};
+
+type RemovableCdpClient = {
+  removeListener: (event: string, listener: CdpEventListener) => unknown;
+};
+
+export function removeCdpClientListeners(
+  client: RemovableCdpClient | null,
+  listeners: RegisteredCdpListener[],
+): void {
+  if (!client) {
+    return;
+  }
+  for (const { event, listener } of listeners) {
+    if (listener) {
+      client.removeListener(event, listener);
+    }
+  }
+}
 export const PROFILE_PHOTO_SEEN_BY_THREAD_CAP = 500;
 
 export function getProfilePhotoSeenByThread(
@@ -109,7 +136,7 @@ export interface SyncForceConversationInput {
 }
 
 export interface SyncForceConversationResult {
-  mode: "active-chat" | "phone-navigation" | "unsupported";
+  mode: "active-chat" | "phone-navigation" | "unsupported" | "unresolved";
   conversationId: number | null;
   phone: string | null;
   reason: string;
@@ -182,12 +209,14 @@ interface SyncReconcileSummary {
   visibleExternalIds: string[];
 }
 
-interface ReadyChatState {
+export interface ReadyChatState {
   hasMain: boolean;
   hasSidebar: boolean;
   hasComposer: boolean;
   startingConversation: boolean;
   headerTitle: string;
+  visibleMessages?: number;
+  href?: string;
 }
 
 interface SyncHistoryScrollSummary extends SyncReconcileSummary {
@@ -262,6 +291,21 @@ export interface SyncSendTextMessageInput {
   reason?: string;
 }
 
+export interface SyncBeginContactSessionInput {
+  userId: number;
+  conversationId: number;
+  phone: string;
+  reason?: string;
+}
+
+export interface SyncBeginContactSessionResult {
+  mode: "contact-session";
+  conversationId: number;
+  phone: string;
+  reason: string;
+  navigationMode: "navigated" | "reused-open-chat";
+}
+
 export interface SyncSendTextMessageResult {
   mode: "text-message";
   conversationId: number;
@@ -279,7 +323,7 @@ export interface SyncSendVoiceMessageInput {
   userId: number;
   conversationId: number;
   phone: string;
-  wavPath: string;
+  audioPath: string;
   durationSecs: number;
   reason?: string;
 }
@@ -411,45 +455,78 @@ export async function startSyncEngine(input: {
   let overlayApiQueue: Promise<void> = Promise.resolve();
   let reconcileQueue: Promise<void> = Promise.resolve();
   let reconcileTimer: NodeJS.Timeout | null = null;
+  let runtimeBindingCalledListener: CdpEventListener | null = null;
+  let pageJavascriptDialogOpeningListener: CdpEventListener | null = null;
+  let disconnectListener: CdpEventListener | null = null;
   let openChatPhone: string | null = null;
   let openChatPhoneNavigatedAtMs = 0;
   const profilePhotoSeenByThread = new Map<string, string>();
+
+  function removeClientListeners(): void {
+    removeCdpClientListeners(client as RemovableCdpClient | null, [
+      { event: "Runtime.bindingCalled", listener: runtimeBindingCalledListener },
+      { event: "Page.javascriptDialogOpening", listener: pageJavascriptDialogOpeningListener },
+      { event: "disconnect", listener: disconnectListener },
+    ]);
+    runtimeBindingCalledListener = null;
+    pageJavascriptDialogOpeningListener = null;
+    disconnectListener = null;
+  }
+
   try {
     const target = await selectSyncTarget(input.env);
-    client = await CDP({
-      host: input.env.CHROMIUM_CDP_HOST,
-      port: input.env.CHROMIUM_CDP_PORT,
-      target,
-    });
-
-    await client.Runtime.enable();
-    await client.Page.enable();
-    await client.Runtime.removeBinding({ name: NUOMA_OVERLAY_API_BINDING_NAME }).catch(
-      () => undefined,
+    client = await withTimeout(
+      CDP({
+        host: input.env.CHROMIUM_CDP_HOST,
+        port: input.env.CHROMIUM_CDP_PORT,
+        target,
+      }),
+      5_000,
+      "CDP sync target attach timed out",
     );
-    await client.Runtime.evaluate({
-      expression: `
-        (() => {
-          delete window.${NUOMA_OVERLAY_API_BINDING_NAME};
-          delete window.${NUOMA_OVERLAY_NATIVE_BRIDGE_NAME};
-          delete window.__nuomaApiResolve;
-          if (window.__nuomaOverlayState && typeof window.__nuomaOverlayState === "object") {
-            window.__nuomaOverlayState.apiBridge = null;
-            window.__nuomaOverlayState.apiPending = {};
-            window.__nuomaOverlayState.apiInFlight = false;
-            window.__nuomaOverlayState.apiStatus = "offline";
-            window.__nuomaOverlayState.apiLastMethod = "";
-            window.__nuomaOverlayState.apiLastError = "";
-          }
-          return true;
-        })()
-      `,
-      awaitPromise: false,
-      returnByValue: true,
-      includeCommandLineAPI: false,
-    }).catch(() => undefined);
-    await client.Runtime.addBinding({ name: SYNC_BINDING_NAME });
-    await client.Runtime.addBinding({ name: NUOMA_OVERLAY_API_BINDING_NAME });
+
+    await withTimeout(client.Runtime.enable(), 5_000, "CDP Runtime.enable timed out");
+    await withTimeout(client.Page.enable(), 5_000, "CDP Page.enable timed out");
+    await withTimeout(
+      client.Runtime.removeBinding({ name: NUOMA_OVERLAY_API_BINDING_NAME }),
+      5_000,
+      "CDP overlay binding cleanup timed out",
+    ).catch(() => undefined);
+    await withTimeout(
+      client.Runtime.evaluate({
+        expression: `
+          (() => {
+            delete window.${NUOMA_OVERLAY_API_BINDING_NAME};
+            delete window.${NUOMA_OVERLAY_NATIVE_BRIDGE_NAME};
+            delete window.__nuomaApiResolve;
+            if (window.__nuomaOverlayState && typeof window.__nuomaOverlayState === "object") {
+              window.__nuomaOverlayState.apiBridge = null;
+              window.__nuomaOverlayState.apiPending = {};
+              window.__nuomaOverlayState.apiInFlight = false;
+              window.__nuomaOverlayState.apiStatus = "offline";
+              window.__nuomaOverlayState.apiLastMethod = "";
+              window.__nuomaOverlayState.apiLastError = "";
+            }
+            return true;
+          })()
+        `,
+        awaitPromise: false,
+        returnByValue: true,
+        includeCommandLineAPI: false,
+      }),
+      5_000,
+      "CDP overlay binding cleanup evaluate timed out",
+    ).catch(() => undefined);
+    await withTimeout(
+      client.Runtime.addBinding({ name: SYNC_BINDING_NAME }),
+      5_000,
+      "CDP sync binding add timed out",
+    );
+    await withTimeout(
+      client.Runtime.addBinding({ name: NUOMA_OVERLAY_API_BINDING_NAME }),
+      5_000,
+      "CDP overlay binding add timed out",
+    );
     const overlayBridgePrelude = `
       (() => {
         if (typeof window.${NUOMA_OVERLAY_API_BINDING_NAME} === "function") {
@@ -459,7 +536,8 @@ export async function startSyncEngine(input: {
       })()
     `;
 
-    client.on("Runtime.bindingCalled", (params: { name: string; payload: string }) => {
+    runtimeBindingCalledListener = (paramsValue: unknown) => {
+      const params = paramsValue as { name: string; payload: string };
       if (params.name === NUOMA_OVERLAY_API_BINDING_NAME) {
         metrics.overlayApiCalls += 1;
         const payload = params.payload;
@@ -484,8 +562,11 @@ export async function startSyncEngine(input: {
           metrics.lastError = serializeError(error);
           input.logger.warn({ error }, "sync binding queue failed");
         });
-    });
-    client.on("Page.javascriptDialogOpening", (params: { type?: string; message?: string }) => {
+    };
+    client.on("Runtime.bindingCalled", runtimeBindingCalledListener);
+
+    pageJavascriptDialogOpeningListener = (paramsValue: unknown) => {
+      const params = paramsValue as { type?: string; message?: string };
       void client?.Page.handleJavaScriptDialog({ accept: true }).catch((error: unknown) => {
         metrics.lastError = serializeError(error);
         input.logger.warn({ error }, "failed to auto-accept WhatsApp browser dialog");
@@ -497,31 +578,58 @@ export async function startSyncEngine(input: {
         },
         "WhatsApp browser dialog auto-accepted",
       );
-    });
-    client.on("disconnect", () => {
+    };
+    client.on("Page.javascriptDialogOpening", pageJavascriptDialogOpeningListener);
+
+    disconnectListener = () => {
       metrics.connected = false;
       metrics.lastError = "CDP disconnected";
       input.logger.warn("sync engine CDP disconnected");
-    });
+    };
+    client.on("disconnect", disconnectListener);
 
-    await client.Page.addScriptToEvaluateOnNewDocument({ source: observerSource });
-    await client.Page.addScriptToEvaluateOnNewDocument({ source: overlayBridgePrelude });
-    await client.Page.addScriptToEvaluateOnNewDocument({ source: overlaySource });
-    await client.Runtime.evaluate({
-      expression: observerSource,
-      awaitPromise: false,
-      includeCommandLineAPI: false,
-    });
-    await client.Runtime.evaluate({
-      expression: overlayBridgePrelude,
-      awaitPromise: false,
-      includeCommandLineAPI: false,
-    });
-    await client.Runtime.evaluate({
-      expression: overlaySource,
-      awaitPromise: false,
-      includeCommandLineAPI: false,
-    });
+    await withTimeout(
+      client.Page.addScriptToEvaluateOnNewDocument({ source: observerSource }),
+      5_000,
+      "CDP observer preload timed out",
+    );
+    await withTimeout(
+      client.Page.addScriptToEvaluateOnNewDocument({ source: overlayBridgePrelude }),
+      5_000,
+      "CDP overlay bridge preload timed out",
+    );
+    await withTimeout(
+      client.Page.addScriptToEvaluateOnNewDocument({ source: overlaySource }),
+      5_000,
+      "CDP overlay preload timed out",
+    );
+    await withTimeout(
+      client.Runtime.evaluate({
+        expression: observerSource,
+        awaitPromise: false,
+        includeCommandLineAPI: false,
+      }),
+      10_000,
+      "CDP observer injection timed out",
+    );
+    await withTimeout(
+      client.Runtime.evaluate({
+        expression: overlayBridgePrelude,
+        awaitPromise: false,
+        includeCommandLineAPI: false,
+      }),
+      5_000,
+      "CDP overlay bridge injection timed out",
+    );
+    await withTimeout(
+      client.Runtime.evaluate({
+        expression: overlaySource,
+        awaitPromise: false,
+        includeCommandLineAPI: false,
+      }),
+      10_000,
+      "CDP overlay injection timed out",
+    );
     metrics.connected = true;
     input.logger.info(
       {
@@ -551,6 +659,7 @@ export async function startSyncEngine(input: {
     metrics.connected = false;
     metrics.lastError = serializeError(error);
     input.logger.warn({ error }, "sync engine CDP startup failed");
+    removeClientListeners();
     await client?.close().catch((closeError: unknown) => {
       input.logger.warn({ closeError }, "sync engine CDP close after startup failure failed");
     });
@@ -1326,7 +1435,7 @@ export async function startSyncEngine(input: {
     reason: string;
   }) {
     const waJid = normalizeWaJid(inputSnapshot.waJid ?? inputSnapshot.phone);
-    let phone = inputSnapshot.phone ?? normalizePhone(waJid);
+    let phone = normalizePhone(inputSnapshot.phone) ?? normalizePhone(waJid);
     const title = stringValue(inputSnapshot.title);
     const identityConversation = waJid
       ? await input.repos.conversations.findByWaJid({
@@ -1417,6 +1526,7 @@ export async function startSyncEngine(input: {
 
     return {
       phone,
+      waJid,
       phoneSource,
       title,
       contact: contact
@@ -1582,8 +1692,31 @@ export async function startSyncEngine(input: {
       };
     }
 
+    if (conversation && !phone) {
+      await input.repos.systemEvents.create({
+        userId: forceInput.userId,
+        type: "sync.force_conversation.missing_identity",
+        severity: "warn",
+        payload: JSON.stringify({
+          conversationId: conversation.id,
+          channel: conversation.channel,
+          externalThreadId: conversation.externalThreadId,
+          waJid: conversation.waJid,
+          reason,
+        }),
+      });
+      return {
+        mode: "unresolved",
+        conversationId: conversation.id,
+        phone: null,
+        reason,
+      };
+    }
+
     if (phone) {
-      await navigateWhatsAppPhone(phone);
+      await navigateWhatsAppPhone(phone, {
+        requireComposer: !forceInput.history?.enabled,
+      });
       await requestActiveReconcile(reason, {
         scope: "force-conversation",
         conversationId: conversation?.id ?? null,
@@ -1621,6 +1754,38 @@ export async function startSyncEngine(input: {
       phone: null,
       reason,
       ...(history ? { history } : {}),
+    };
+  }
+
+  async function beginContactSession(
+    sessionInput: SyncBeginContactSessionInput,
+  ): Promise<SyncBeginContactSessionResult> {
+    if (!client) {
+      throw new Error("sync engine is not connected");
+    }
+    const phone = normalizePhone(sessionInput.phone);
+    if (!phone) {
+      throw new Error("contact session requires a valid WhatsApp phone");
+    }
+    const reason = sessionInput.reason ?? "send.contact_session";
+    const navigationMode = await navigateWhatsAppPhoneForSend({
+      phone,
+      userId: sessionInput.userId,
+      conversationId: sessionInput.conversationId,
+    });
+    await assertActiveSendTarget({
+      expectedPhone: phone,
+      operation: "contact_session",
+      userId: sessionInput.userId,
+      conversationId: sessionInput.conversationId,
+      requireLivePhoneEvidence: true,
+    });
+    return {
+      mode: "contact-session",
+      conversationId: sessionInput.conversationId,
+      phone,
+      reason,
+      navigationMode,
     };
   }
 
@@ -1752,10 +1917,11 @@ export async function startSyncEngine(input: {
     if (!client || !process.env.M303_BEFORE_SEND_SCREENSHOT_PATH) {
       return null;
     }
+    const currentClient = client;
     const proofPath = path.isAbsolute(process.env.M303_BEFORE_SEND_SCREENSHOT_PATH)
       ? process.env.M303_BEFORE_SEND_SCREENSHOT_PATH
       : path.resolve(process.cwd(), process.env.M303_BEFORE_SEND_SCREENSHOT_PATH);
-    const proof = await client.Runtime.evaluate({
+    const proof = await currentClient.Runtime.evaluate({
       expression: temporaryMessagesProofScript(duration),
       awaitPromise: true,
       returnByValue: true,
@@ -1777,8 +1943,8 @@ export async function startSyncEngine(input: {
     const shouldCaptureCdpScreenshot = process.env.M303_CAPTURE_CDP_SCREENSHOT === "true";
     const screenshotData = shouldCaptureCdpScreenshot
       ? await Promise.race([
-          client.Page.enable().then(() =>
-            client.Page.captureScreenshot({ format: "png", fromSurface: true }),
+          currentClient.Page.enable().then(() =>
+            currentClient.Page.captureScreenshot({ format: "png", fromSurface: true }),
           ),
           new Promise<null>((resolve) => setTimeout(() => resolve(null), 5_000)),
         ]).catch(() => null)
@@ -1846,8 +2012,12 @@ export async function startSyncEngine(input: {
       throw new Error("send_voice requires a valid WhatsApp phone");
     }
     const reason = voiceInput.reason ?? "send_voice";
-    const wavBase64 = (await fs.readFile(voiceInput.wavPath)).toString("base64");
-    const initScript = voiceRecorderInitScript(wavBase64);
+    const voiceMimeType = audioMimeTypeForPath(voiceInput.audioPath);
+    if (voiceMimeType !== "audio/ogg; codecs=opus") {
+      throw new Error(`send_voice requires OGG/Opus PTT audio, got ${voiceMimeType}`);
+    }
+    const audioBase64 = (await fs.readFile(voiceInput.audioPath)).toString("base64");
+    const initScript = voiceRecorderInitScript(audioBase64);
     const script = await client.Page.addScriptToEvaluateOnNewDocument({ source: initScript });
     const navigationMode = await navigateWhatsAppPhoneForVoice({
       phone,
@@ -1881,26 +2051,18 @@ export async function startSyncEngine(input: {
       let injectionConsumed = false;
       let fallbackReason: string | null = null;
       let deliveryStatus: SyncSendVoiceMessageResult["deliveryStatus"] = "unknown";
-      const voiceMimeType = audioMimeTypeForPath(voiceInput.wavPath);
-      if (voiceMimeType !== "audio/wav") {
-        fallbackReason = `voice_input_not_wav:${voiceMimeType}`;
+      await clickVoiceRecordButton();
+      try {
+        injectionConsumed = await waitForVoiceInjectionConsumed();
+      } catch (error) {
+        fallbackReason = "native_recorder_injection_not_consumed";
+        input.logger.warn(
+          { error },
+          "send_voice native recorder injection did not consume payload",
+        );
         throw new Error(
           `send_voice requires native WhatsApp PTT recording; internal media fallback blocked (${fallbackReason})`,
         );
-      } else {
-        await clickVoiceRecordButton();
-        try {
-          injectionConsumed = await waitForVoiceInjectionConsumed();
-        } catch (error) {
-          fallbackReason = "native_recorder_injection_not_consumed";
-          input.logger.warn(
-            { error },
-            "send_voice native recorder injection did not consume payload",
-          );
-          throw new Error(
-            `send_voice requires native WhatsApp PTT recording; internal media fallback blocked (${fallbackReason})`,
-          );
-        }
       }
       await sleep(recordingMs);
       await clickSendButton();
@@ -3652,7 +3814,7 @@ export async function startSyncEngine(input: {
       "voice override",
       8_000,
       `
-      (() => Boolean(window.__nuomaVoiceWavBase64))()
+      (() => Boolean(window.__nuomaVoiceAudioBase64))()
     `,
     );
   }
@@ -3748,7 +3910,6 @@ export async function startSyncEngine(input: {
           const ariaValueMax = slider ? slider.getAttribute("aria-valuemax") : null;
           const ariaValueText = slider ? slider.getAttribute("aria-valuetext") : null;
           const nativeVoiceEvidence = Boolean(last.querySelector([
-            "audio",
             "span[data-icon='audio-play']",
             "span[data-icon='ptt']",
             "[aria-label*='voz']",
@@ -3944,7 +4105,10 @@ export async function startSyncEngine(input: {
     return true;
   }
 
-  async function navigateWhatsAppPhone(phone: string): Promise<void> {
+  async function navigateWhatsAppPhone(
+    phone: string,
+    options?: { requireComposer?: boolean },
+  ): Promise<void> {
     if (!client) {
       return;
     }
@@ -3961,6 +4125,7 @@ export async function startSyncEngine(input: {
     await sleep(input.env.WORKER_SYNC_MULTI_CHAT_DELAY_MS + 2_000);
     await waitForWhatsAppChatReady(
       Math.max(input.env.WORKER_SYNC_MULTI_CHAT_DELAY_MS + 20_000, 25_000),
+      { requireComposer: options?.requireComposer ?? true },
     );
     await client.Runtime.evaluate({
       expression: observerSource,
@@ -4053,16 +4218,12 @@ export async function startSyncEngine(input: {
       return false;
     }
     const state = await readActiveSendTargetState();
-    const expectedTitle = await expectedSendTargetTitle(userId, conversationId);
-    const allowedSelfChatPhones = parseAllowedSendPhones(input.env);
     const canReuse = shouldAllowActiveSendTarget({
       expectedPhone: normalizedPhone,
       state,
       openChatPhone,
       openChatPhoneNavigatedAtMs,
       nowMs: Date.now(),
-      allowedSelfChatPhones,
-      expectedTitle,
     });
     if (!canReuse) {
       openChatPhone = null;
@@ -4083,11 +4244,6 @@ export async function startSyncEngine(input: {
     if (!client) {
       throw new Error(`${assertInput.operation} blocked: sync engine is not connected`);
     }
-    const expectedTitle = await expectedSendTargetTitle(
-      assertInput.userId,
-      assertInput.conversationId,
-    );
-    const allowedSelfChatPhones = parseAllowedSendPhones(input.env);
     const deadline = Date.now() + 25_000;
     let state = await readActiveSendTargetState();
     let contactInfoChecked = false;
@@ -4099,8 +4255,6 @@ export async function startSyncEngine(input: {
           openChatPhone,
           openChatPhoneNavigatedAtMs,
           nowMs: Date.now(),
-          allowedSelfChatPhones,
-          expectedTitle,
           requireLivePhoneEvidence: assertInput.requireLivePhoneEvidence,
         })
       ) {
@@ -4120,21 +4274,8 @@ export async function startSyncEngine(input: {
     openChatPhone = null;
     openChatPhoneNavigatedAtMs = 0;
     throw new Error(
-      `${assertInput.operation} blocked: active WhatsApp chat does not match target phone ${assertInput.expectedPhone}; hrefPhone=${state.hrefPhone ?? "none"} titlePhone=${state.titlePhone ?? "none"} overlayPhone=${state.overlayPhone ?? "none"} contactInfoPhone=${state.contactInfoPhone ?? "none"} expectedTitle=${JSON.stringify(expectedTitle)} title=${JSON.stringify(state.title)} href=${JSON.stringify(state.href)}`,
+      `${assertInput.operation} blocked: active WhatsApp chat does not match target phone ${assertInput.expectedPhone}; hrefPhone=${state.hrefPhone ?? "none"} titlePhone=${state.titlePhone ?? "none"} overlayPhone=${state.overlayPhone ?? "none"} contactInfoPhone=${state.contactInfoPhone ?? "none"} title=${JSON.stringify(state.title)} href=${JSON.stringify(state.href)}`,
     );
-  }
-
-  async function expectedSendTargetTitle(
-    userId: number,
-    conversationId: number,
-  ): Promise<string | null> {
-    const expectedConversation = await input.repos.conversations.findById({
-      userId,
-      id: conversationId,
-    });
-    return isUsefulSendTitle(expectedConversation?.title ?? null)
-      ? normalizeTitle(expectedConversation?.title ?? "")
-      : null;
   }
 
   async function readActiveSendTargetState(): Promise<ActiveSendTargetState> {
@@ -4206,7 +4347,7 @@ export async function startSyncEngine(input: {
             href,
             hrefPhone: normalizePhone(hrefPhone),
             title,
-            titlePhone: normalizePhone(title),
+            titlePhone: null,
             overlayPhone,
             hasComposer: Boolean(document.querySelector("footer [contenteditable='true']")),
           };
@@ -4343,11 +4484,16 @@ export async function startSyncEngine(input: {
     return normalizePhone(typeof result.result.value === "string" ? result.result.value : null);
   }
 
-  async function waitForWhatsAppChatReady(timeoutMs: number): Promise<void> {
+  async function waitForWhatsAppChatReady(
+    timeoutMs: number,
+    options?: { requireComposer?: boolean },
+  ): Promise<void> {
     if (!client) {
       return;
     }
     const deadline = Date.now() + timeoutMs;
+    const requireComposer = options?.requireComposer ?? true;
+    let lastState: unknown = null;
     while (Date.now() < deadline) {
       const invalidPhoneMessage = await dismissInvalidPhoneDialog();
       if (invalidPhoneMessage) {
@@ -4370,12 +4516,17 @@ export async function startSyncEngine(input: {
         includeCommandLineAPI: false,
       });
       const value = result.result.value;
-      if (isReadyChatState(value)) {
+      lastState = value;
+      if (isReadyChatState(value, { requireComposer })) {
         return;
       }
       await sleep(250);
     }
-    throw new Error("WhatsApp chat did not become ready: composer not found");
+    throw new Error(
+      `WhatsApp chat did not become ready: ${describeReadyChatStateFailure(lastState, {
+        requireComposer,
+      })}`,
+    );
   }
 
   async function isWhatsAppChatReady(): Promise<boolean> {
@@ -4416,6 +4567,7 @@ export async function startSyncEngine(input: {
       return metrics.connected;
     },
     metrics,
+    beginContactSession,
     forceConversation,
     ensureTemporaryMessages,
     sendTextMessage,
@@ -4425,9 +4577,12 @@ export async function startSyncEngine(input: {
     close: async () => {
       if (reconcileTimer) {
         clearInterval(reconcileTimer);
+        reconcileTimer = null;
       }
+      removeClientListeners();
       handler.close();
       await client?.close();
+      client = null;
       metrics.connected = false;
     },
   };
@@ -4439,79 +4594,27 @@ export function shouldAllowActiveSendTarget(input: {
   openChatPhone: string | null;
   openChatPhoneNavigatedAtMs: number;
   nowMs: number;
-  allowedSelfChatPhones: string[];
-  expectedTitle: string | null;
-  recentNavigationGraceMs?: number;
   requireLivePhoneEvidence?: boolean;
 }): boolean {
   if (!input.state.hasComposer) {
     return false;
   }
-  const normalizedTitle = normalizeTitle(input.state.title);
-  const hasExpectedTitleMatch = Boolean(
-    input.expectedTitle &&
-    (normalizedTitle === input.expectedTitle ||
-      normalizedTitle.startsWith(`${input.expectedTitle} `)),
-  );
-  const recentNavigationGraceMs = input.recentNavigationGraceMs ?? 45_000;
-  const hasRecentNavigationEvidence =
-    phonesMatchForSendTarget(input.openChatPhone, input.expectedPhone) &&
-    input.nowMs - input.openChatPhoneNavigatedAtMs >= 0 &&
-    input.nowMs - input.openChatPhoneNavigatedAtMs <= recentNavigationGraceMs &&
-    (!input.expectedTitle ||
-      isSyntheticImportedSendTitle(input.expectedTitle) ||
-      hasExpectedTitleMatch);
   const livePhoneMismatch =
     (Boolean(input.state.hrefPhone) &&
       !phonesMatchForSendTarget(input.state.hrefPhone, input.expectedPhone)) ||
-    (Boolean(input.state.titlePhone) &&
-      !phonesMatchForSendTarget(input.state.titlePhone, input.expectedPhone)) ||
     (Boolean(input.state.contactInfoPhone) &&
       !phonesMatchForSendTarget(input.state.contactInfoPhone, input.expectedPhone));
   if (livePhoneMismatch) {
     return false;
   }
-  if (
-    input.expectedTitle &&
-    !hasRecentNavigationEvidence &&
-    isUsefulSendTitle(input.state.title) &&
-    normalizedTitle !== input.expectedTitle &&
-    !normalizedTitle.startsWith(`${input.expectedTitle} `)
-  ) {
-    return false;
-  }
   const hasLivePhoneEvidence =
     phonesMatchForSendTarget(input.state.hrefPhone, input.expectedPhone) ||
-    phonesMatchForSendTarget(input.state.titlePhone, input.expectedPhone) ||
     phonesMatchForSendTarget(input.state.overlayPhone, input.expectedPhone) ||
     phonesMatchForSendTarget(input.state.contactInfoPhone, input.expectedPhone);
-  const isAllowlistedExpectedPhone = input.allowedSelfChatPhones.some((phone) =>
-    phonesMatchForSendTarget(phone, input.expectedPhone),
-  );
-  const hasAllowlistedSavedContactTitleEvidence =
-    isAllowlistedExpectedPhone && hasExpectedTitleMatch && isUsefulSendTitle(input.state.title);
-  const hasAllowlistedPostNavigationTitleEvidence =
-    hasAllowlistedSavedContactTitleEvidence && hasRecentNavigationEvidence;
   if (input.requireLivePhoneEvidence ?? true) {
-    return (
-      hasLivePhoneEvidence ||
-      hasAllowlistedPostNavigationTitleEvidence ||
-      hasAllowlistedSavedContactTitleEvidence
-    );
+    return hasLivePhoneEvidence;
   }
-  return (
-    hasLivePhoneEvidence ||
-    hasAllowlistedPostNavigationTitleEvidence ||
-    hasAllowlistedSavedContactTitleEvidence ||
-    (hasRecentNavigationEvidence && isUsefulSendTitle(input.state.title)) ||
-    isAllowedSelfChatTarget({
-      expectedPhone: input.expectedPhone,
-      allowedPhones: input.allowedSelfChatPhones,
-      title: input.state.title,
-      expectedTitle: input.expectedTitle,
-    }) ||
-    hasExpectedTitleMatch
-  );
+  return hasLivePhoneEvidence;
 }
 
 async function selectSyncTarget(env: WorkerEnv): Promise<CDP.Target | undefined> {
@@ -4551,29 +4654,37 @@ async function scoreSyncTarget(env: WorkerEnv, target: CDP.Target): Promise<numb
   } else if (target.url.includes("web.whatsapp.com")) {
     score += 10;
   }
-  const targetClient = await CDP({
-    host: env.CHROMIUM_CDP_HOST,
-    port: env.CHROMIUM_CDP_PORT,
-    target,
-  }).catch(() => null);
+  const targetClient = await withTimeout(
+    CDP({
+      host: env.CHROMIUM_CDP_HOST,
+      port: env.CHROMIUM_CDP_PORT,
+      target,
+    }),
+    5_000,
+    "CDP target attach timed out",
+  ).catch(() => null);
   if (!targetClient) {
     return score;
   }
   try {
-    const result = await targetClient.Runtime.evaluate({
-      expression: `
-        (() => ({
-          href: location.href,
-          title: document.title,
-          body: String(document.body?.innerText || "").slice(0, 2000),
-          hasComposer: Boolean(document.querySelector("#main footer [contenteditable='true'], footer [contenteditable='true']")),
-          hasChatList: Boolean(document.querySelector("[aria-label='Lista de conversas'], [aria-label='Chat list'], #pane-side"))
-        }))()
-      `,
-      awaitPromise: false,
-      returnByValue: true,
-      includeCommandLineAPI: false,
-    });
+    const result = await withTimeout(
+      targetClient.Runtime.evaluate({
+        expression: `
+          (() => ({
+            href: location.href,
+            title: document.title,
+            body: String(document.body?.innerText || "").slice(0, 2000),
+            hasComposer: Boolean(document.querySelector("#main footer [contenteditable='true'], footer [contenteditable='true']")),
+            hasChatList: Boolean(document.querySelector("[aria-label='Lista de conversas'], [aria-label='Chat list'], #pane-side"))
+          }))()
+        `,
+        awaitPromise: false,
+        returnByValue: true,
+        includeCommandLineAPI: false,
+      }),
+      5_000,
+      "CDP target scoring timed out",
+    );
     const value = result.result.value;
     if (!isRecord(value)) {
       return score;
@@ -4601,7 +4712,23 @@ async function scoreSyncTarget(env: WorkerEnv, target: CDP.Target): Promise<numb
     }
     return score;
   } finally {
-    await targetClient.close().catch(() => null);
+    await withTimeout(targetClient.close(), 2_000, "CDP target close timed out").catch(() => null);
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeout: NodeJS.Timeout | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
   }
 }
 
@@ -5444,18 +5571,51 @@ function isOutgoingDeliveryStatus(value: unknown): value is OutgoingDeliveryStat
   );
 }
 
-function isReadyChatState(value: unknown): value is ReadyChatState {
+export function isReadyChatState(
+  value: unknown,
+  options?: { requireComposer?: boolean },
+): value is ReadyChatState {
   // WA Web can leave a visible "Iniciando conversa" overlay around even after
   // the target chat composer is ready. The send path still validates the active
   // target with live phone evidence before typing into the composer.
-  return (
-    isRecord(value) &&
-    value.hasMain === true &&
-    value.hasSidebar === true &&
-    value.hasComposer === true &&
-    typeof value.headerTitle === "string" &&
-    value.headerTitle.trim().length > 0
-  );
+  if (!isRecord(value) || value.hasMain !== true || value.hasSidebar !== true) {
+    return false;
+  }
+  const hasTitle = typeof value.headerTitle === "string" && value.headerTitle.trim().length > 0;
+  if (!hasTitle) {
+    return false;
+  }
+  if (options?.requireComposer ?? true) {
+    return value.hasComposer === true;
+  }
+  const visibleMessages = numberFromUnknown(value.visibleMessages);
+  return value.hasComposer === true || (visibleMessages !== null && visibleMessages > 0);
+}
+
+function describeReadyChatStateFailure(
+  value: unknown,
+  options: { requireComposer: boolean },
+): string {
+  if (!isRecord(value)) {
+    return "state not readable";
+  }
+  const parts = [
+    `main=${String(value.hasMain === true)}`,
+    `sidebar=${String(value.hasSidebar === true)}`,
+    `composer=${String(value.hasComposer === true)}`,
+    `requireComposer=${String(options.requireComposer)}`,
+    `startingConversation=${String(value.startingConversation === true)}`,
+    `visibleMessages=${String(numberFromUnknown(value.visibleMessages) ?? 0)}`,
+  ];
+  const headerTitle = typeof value.headerTitle === "string" ? value.headerTitle.trim() : "";
+  if (headerTitle) {
+    parts.push(`headerTitle=${JSON.stringify(headerTitle.slice(0, 80))}`);
+  }
+  const href = typeof value.href === "string" ? value.href : "";
+  if (href) {
+    parts.push(`href=${JSON.stringify(href.slice(0, 160))}`);
+  }
+  return parts.join(" ");
 }
 
 function parseDisplayDurationSecs(text: string): number | null {
@@ -5476,11 +5636,11 @@ function numberFromUnknown(value: unknown): number | null {
   return Number.isFinite(number) && number >= 0 ? number : null;
 }
 
-function voiceRecorderInitScript(wavBase64: string): string {
+function voiceRecorderInitScript(audioBase64: string): string {
   return `
     (() => {
       const w = window;
-      w.__nuomaVoiceWavBase64 = ${JSON.stringify(wavBase64)};
+      w.__nuomaVoiceAudioBase64 = ${JSON.stringify(audioBase64)};
       w.__nuomaVoiceLastInjection = null;
       w.__nuomaVoiceLastInjectionError = null;
       if (w.__nuomaVoiceInitInstalled) return;
@@ -5539,7 +5699,7 @@ function voiceRecorderInitScript(wavBase64: string): string {
         return audioBuffer;
       };
       navigator.mediaDevices.getUserMedia = async (constraints) => {
-        const b64Data = w.__nuomaVoiceWavBase64;
+        const b64Data = w.__nuomaVoiceAudioBase64;
         if (constraints && constraints.audio && b64Data) {
           try {
             const binaryStr = w.atob(b64Data);
@@ -5548,7 +5708,7 @@ function voiceRecorderInitScript(wavBase64: string): string {
               bytes[index] = binaryStr.charCodeAt(index);
             }
             const AudioCtx = w.AudioContext || w.webkitAudioContext;
-            const audioCtx = new AudioCtx({ sampleRate: 48000 });
+            const audioCtx = new AudioCtx({ sampleRate: 16000 });
             if (audioCtx.state === "suspended") {
               await audioCtx.resume();
             }
@@ -5706,25 +5866,6 @@ function isHttpUrl(value: string): boolean {
   }
 }
 
-function normalizeTitle(value: string): string {
-  return value.replace(/\s+/g, " ").trim().toLowerCase();
-}
-
-function isUsefulSendTitle(value: string | null): boolean {
-  const title = normalizeTitle(value ?? "");
-  return Boolean(
-    title &&
-    title !== "online" &&
-    title !== "whatsapp" &&
-    title !== "whatsapp business" &&
-    !normalizePhone(title),
-  );
-}
-
-function isSyntheticImportedSendTitle(value: string | null): boolean {
-  return /^\d{4}\s+bh$/.test(normalizeTitle(value ?? ""));
-}
-
 function phonesMatchForSendTarget(actual: string | null, expected: string): boolean {
   if (!actual) {
     return false;
@@ -5748,40 +5889,6 @@ function phonesMatchForSendTarget(actual: string | null, expected: string): bool
   return (
     withoutBrazilMobileNinthDigit(normalizedActual) ===
     withoutBrazilMobileNinthDigit(normalizedExpected)
-  );
-}
-
-function parseAllowedSendPhones(env: WorkerEnv): string[] {
-  const phones = new Set<string>();
-  for (const raw of [...(env.WA_SEND_ALLOWED_PHONES ?? "").split(","), env.WA_SEND_ALLOWED_PHONE]) {
-    const phone = normalizePhone(raw);
-    if (phone) {
-      phones.add(phone);
-    }
-  }
-  return [...phones];
-}
-
-function isAllowedSelfChatTarget(input: {
-  expectedPhone: string;
-  allowedPhones: string[];
-  title: string;
-  expectedTitle: string | null;
-}): boolean {
-  if (!input.allowedPhones.includes(input.expectedPhone)) {
-    return false;
-  }
-  const title = normalizeTitle(input.title);
-  const expectedTitle = normalizeTitle(input.expectedTitle ?? "");
-  return (
-    title === "mensagens para mim" ||
-    title === "message yourself" ||
-    title.includes("(voce)") ||
-    title.includes("(você)") ||
-    title.includes("(you)") ||
-    expectedTitle.includes("(voce)") ||
-    expectedTitle.includes("(você)") ||
-    expectedTitle.includes("(you)")
   );
 }
 

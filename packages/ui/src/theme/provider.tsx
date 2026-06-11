@@ -1,14 +1,11 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
 
-export type ThemePreference = "void-flow" | "aurora" | "ocean";
+/**
+ * Nuoma Editorial · Indigo ships a single dark signature theme — there is no
+ * theme switcher. The provider applies the theme to <html> once and exposes a
+ * minimal context for backwards compatibility with existing consumers.
+ */
+export type ThemePreference = "editorial";
 export type ResolvedTheme = ThemePreference;
 
 export const THEME_OPTIONS: Array<{
@@ -17,19 +14,9 @@ export const THEME_OPTIONS: Array<{
   description: string;
 }> = [
   {
-    value: "void-flow",
-    label: "Void Flow",
-    description: "Controle tecnico, profundo e compacto.",
-  },
-  {
-    value: "aurora",
-    label: "Aurora",
-    description: "Escuro suave com acentos organicos.",
-  },
-  {
-    value: "ocean",
-    label: "Ocean",
-    description: "Azul-petroleo calmo para sessoes longas.",
+    value: "editorial",
+    label: "Editorial",
+    description: "Assinatura escura, editorial, com acento índigo.",
   },
 ];
 
@@ -40,48 +27,24 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
-const STORAGE_KEY = "nuoma:theme";
-const DEFAULT_THEME: ThemePreference = "void-flow";
-const validThemes = new Set<ThemePreference>(THEME_OPTIONS.map((theme) => theme.value));
+const THEME: ThemePreference = "editorial";
 
-function readStored(): ThemePreference {
-  if (typeof localStorage === "undefined") return DEFAULT_THEME;
-  const value = localStorage.getItem(STORAGE_KEY);
-  if (validThemes.has(value as ThemePreference)) return value as ThemePreference;
-  return DEFAULT_THEME;
-}
-
-function resolve(pref: ThemePreference): ResolvedTheme {
-  return validThemes.has(pref) ? pref : DEFAULT_THEME;
-}
-
-function applyToDom(theme: ResolvedTheme) {
+function applyToDom() {
   if (typeof document === "undefined") return;
-  document.documentElement.dataset.theme = theme;
-  document.documentElement.classList.add("dark");
-  document.documentElement.style.colorScheme = "dark";
+  const root = document.documentElement;
+  root.dataset.theme = THEME;
+  root.classList.add("dark");
+  root.style.colorScheme = "dark";
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [preference, setPreferenceState] = useState<ThemePreference>(() => readStored());
-  const [resolved, setResolved] = useState<ResolvedTheme>(() => resolve(preference));
-
   useEffect(() => {
-    setResolved(resolve(preference));
-  }, [preference]);
-
-  useEffect(() => {
-    applyToDom(resolved);
-  }, [resolved]);
-
-  const setPreference = useCallback((pref: ThemePreference) => {
-    if (typeof localStorage !== "undefined") localStorage.setItem(STORAGE_KEY, pref);
-    setPreferenceState(pref);
+    applyToDom();
   }, []);
 
   const value = useMemo<ThemeContextValue>(
-    () => ({ preference, resolved, setPreference }),
-    [preference, resolved, setPreference],
+    () => ({ preference: THEME, resolved: THEME, setPreference: () => undefined }),
+    [],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

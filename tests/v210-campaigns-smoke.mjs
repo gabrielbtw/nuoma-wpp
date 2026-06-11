@@ -44,6 +44,45 @@ async function main() {
       state: "visible",
       timeout: 10_000,
     });
+    const validationBeforeInvalid = await waitForFlowValidation(page, "valid");
+    if (validationBeforeInvalid.status !== "valid") {
+      throw new Error(
+        `expected campaign builder validation to start valid: ${JSON.stringify(validationBeforeInvalid)}`,
+      );
+    }
+    const firstMessageTextarea = page.getByTestId("campaign-step-message-1");
+    const originalMessage = await firstMessageTextarea.inputValue();
+    await firstMessageTextarea.fill("");
+    const validationAfterInvalid = await waitForFlowValidation(page, "invalid");
+    const messageError = page.getByTestId("campaign-step-message-1-error");
+    await messageError.waitFor({
+      state: "visible",
+      timeout: 5_000,
+    });
+    const messageErrorText = (await messageError.textContent()) ?? "";
+    const messageFieldInvalid = await firstMessageTextarea.getAttribute("aria-invalid");
+    if (
+      validationAfterInvalid.status !== "invalid" ||
+      validationAfterInvalid.failedChecks < 1 ||
+      !messageErrorText.includes("Step 1: mensagem vazia.") ||
+      validationAfterInvalid.text.includes("Fluxo válido") ||
+      messageFieldInvalid !== "true"
+    ) {
+      throw new Error(
+        `campaign builder validation did not surface invalid step inline: ${JSON.stringify(validationAfterInvalid)}`,
+      );
+    }
+    await firstMessageTextarea.fill(originalMessage || "Olá {{nome}}, tudo bem?");
+    const validationAfterRestore = await waitForFlowValidation(page, "valid");
+    await page.getByTestId("campaign-step-message-1-error").waitFor({
+      state: "detached",
+      timeout: 5_000,
+    });
+    if (validationAfterRestore.status !== "valid") {
+      throw new Error(
+        `campaign builder validation did not recover after fixing step: ${JSON.stringify(validationAfterRestore)}`,
+      );
+    }
 
     await page.getByTestId("campaign-builder-tab-audience").click();
     await page
@@ -324,6 +363,30 @@ async function captureWhatsAppPrint(outputPath) {
       await browser.close();
     }
   }
+}
+
+async function readFlowValidation(page) {
+  return page.getByTestId("campaign-flow-validation-card").evaluate((element) => ({
+    status: element.getAttribute("data-status"),
+    text: element.textContent ?? "",
+    failedChecks: Array.from(
+      element.querySelectorAll('[data-testid="campaign-flow-validation-check"]'),
+    ).filter((check) => check.getAttribute("data-ok") === "false").length,
+  }));
+}
+
+async function waitForFlowValidation(page, status, includesText) {
+  const selector = `[data-testid="campaign-flow-validation-card"][data-status="${status}"]`;
+  await page.locator(selector).waitFor({ state: "visible", timeout: 5_000 });
+  if (includesText) {
+    await page.waitForFunction(
+      ({ selector: targetSelector, includesText: targetText }) =>
+        document.querySelector(targetSelector)?.textContent?.includes(targetText),
+      { selector, includesText },
+      { timeout: 5_000 },
+    );
+  }
+  return readFlowValidation(page);
 }
 
 async function assertHttp(url, label) {

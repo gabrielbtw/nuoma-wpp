@@ -320,10 +320,7 @@ async function deriveConversationInstagramHandle(
       if (fromContact) return fromContact;
     }
   }
-  return (
-    normalizeInstagramHandle(conversation.externalThreadId) ??
-    normalizeInstagramHandle(conversation.title)
-  );
+  return normalizeInstagramHandle(conversation.externalThreadId);
 }
 
 function normalizeInstagramHandle(value: string | null | undefined): string | null {

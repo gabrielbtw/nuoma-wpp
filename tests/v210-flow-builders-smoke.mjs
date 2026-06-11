@@ -12,8 +12,7 @@ const automationScreenshotPath =
   process.env.AUTOMATION_APP_SCREENSHOT_PATH ?? "data/v210-flow-builders-m31-automations-app.png";
 const chatbotScreenshotPath =
   process.env.CHATBOT_APP_SCREENSHOT_PATH ?? "data/v210-flow-builders-m31-chatbots-app.png";
-const wppScreenshotPath =
-  process.env.WPP_SCREENSHOT_PATH ?? "data/v210-flow-builders-m31-wpp.png";
+const wppScreenshotPath = process.env.WPP_SCREENSHOT_PATH ?? "data/v210-flow-builders-m31-wpp.png";
 const databaseUrl = path.resolve(process.env.DATABASE_URL ?? "data/nuoma-v2.db");
 const cdpUrl = process.env.CDP_URL ?? "http://127.0.0.1:9223";
 const whatsappUrl = process.env.WA_WEB_URL ?? "https://web.whatsapp.com/";
@@ -53,6 +52,34 @@ async function main() {
     }
 
     await page.getByText("Delay + branch", { exact: true }).click();
+    await page.getByTestId("automation-flow-canvas-board").waitFor({
+      state: "visible",
+      timeout: 10_000,
+    });
+    await page.getByTestId("automation-xyflow-canvas").waitFor({
+      state: "visible",
+      timeout: 10_000,
+    });
+    await page.waitForFunction(
+      () =>
+        document.querySelectorAll('[data-testid="automation-xyflow-canvas"] .react-flow__node')
+          .length >= 4,
+      undefined,
+      { timeout: 10_000 },
+    );
+    const automationCanvasNodes = await page
+      .locator('[data-testid="automation-xyflow-canvas"] .react-flow__node')
+      .count();
+    const automationCanvasTypes = await page
+      .locator('[data-testid="automation-xyflow-canvas"] [data-testid="automation-canvas-node"]')
+      .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-action-type") ?? ""));
+    for (const expected of ["delay", "branch", "send_step"]) {
+      if (!automationCanvasTypes.includes(expected)) {
+        throw new Error(
+          `automation canvas missing ${expected}: ${automationCanvasTypes.join(",")}`,
+        );
+      }
+    }
     await page.getByTestId("automation-flow-preview").waitFor({ state: "visible" });
     const delayBranchTypes = await actionTypesFromPreview(page);
     for (const expected of ["delay", "branch", "send_step"]) {
@@ -60,9 +87,9 @@ async function main() {
         throw new Error(`automation preview missing ${expected}: ${delayBranchTypes.join(",")}`);
       }
     }
-    const draggableActions = await page.getByTestId("automation-action-row").evaluateAll((rows) =>
-      rows.filter((row) => row.getAttribute("draggable") === "true").length,
-    );
+    const draggableActions = await page
+      .getByTestId("automation-action-row")
+      .evaluateAll((rows) => rows.filter((row) => row.getAttribute("draggable") === "true").length);
     if (draggableActions < 3) {
       throw new Error(`expected draggable automation actions, got ${draggableActions}`);
     }
@@ -89,7 +116,9 @@ async function main() {
     if (!automationMetadata.actionRegistry?.includes("trigger_automation")) {
       throw new Error("automation action registry metadata missing trigger_automation");
     }
-    if (!automationActions.every((action) => typeof action.id === "string" && action.id.length > 0)) {
+    if (
+      !automationActions.every((action) => typeof action.id === "string" && action.id.length > 0)
+    ) {
       throw new Error("persisted automation actions must carry ids for branch targeting");
     }
 
@@ -101,7 +130,10 @@ async function main() {
     await page.getByTestId("chatbot-rule-builder").waitFor({ state: "visible" });
     await page.getByTestId("chatbot-dry-run-chatbot-select").click();
     await page.getByRole("option", { name: "V2.10.26-34 Smoke" }).click();
-    await page.getByTestId("chatbot-rule-item").first().waitFor({ state: "visible", timeout: 10_000 });
+    await page
+      .getByTestId("chatbot-rule-item")
+      .first()
+      .waitFor({ state: "visible", timeout: 10_000 });
     const priorityHandles = await page.getByTestId("chatbot-rule-priority-dnd").count();
     if (priorityHandles < 2) {
       throw new Error(`expected at least 2 priority drag handles, got ${priorityHandles}`);
@@ -121,7 +153,9 @@ async function main() {
     if (!dryRunText.includes("4 ação")) {
       throw new Error(`chatbot dry-run should expose 4 planned actions, got: ${dryRunText}`);
     }
-    const regexState = await page.getByTestId("chatbot-regex-tester").getAttribute("data-regex-state");
+    const regexState = await page
+      .getByTestId("chatbot-regex-tester")
+      .getAttribute("data-regex-state");
     if (!regexState) {
       throw new Error("chatbot regex tester did not expose state");
     }
@@ -132,7 +166,9 @@ async function main() {
 
     const sendJobsAfter = countSendJobsForPhone(canaryPhone);
     if (sendJobsAfter !== sendJobsBefore) {
-      throw new Error(`flow builder smoke created send jobs: before=${sendJobsBefore} after=${sendJobsAfter}`);
+      throw new Error(
+        `flow builder smoke created send jobs: before=${sendJobsBefore} after=${sendJobsAfter}`,
+      );
     }
 
     const wppMode = await captureWhatsAppPrint(wppScreenshotPath);
@@ -140,6 +176,7 @@ async function main() {
       [
         "v210-flow-builders",
         `automationTemplates=${automationTemplates}`,
+        `automationCanvasNodes=${automationCanvasNodes}`,
         `draggableActions=${draggableActions}`,
         `automationCreated=${createdAutomation.id}`,
         `chatbot=${fixture.chatbotId}`,
@@ -176,7 +213,9 @@ function seedFlowBuilderFixture() {
     }
     db.prepare("DELETE FROM chatbots WHERE user_id = 1 AND name LIKE 'V2.10.26-34 Smoke%'").run();
     db.prepare("DELETE FROM automations WHERE user_id = 1 AND name = 'Escalar atendimento'").run();
-    db.prepare("DELETE FROM automations WHERE user_id = 1 AND name LIKE 'V2.10.33 Smoke Child%'").run();
+    db.prepare(
+      "DELETE FROM automations WHERE user_id = 1 AND name LIKE 'V2.10.33 Smoke Child%'",
+    ).run();
 
     const childInfo = db
       .prepare(
@@ -232,7 +271,12 @@ function seedFlowBuilderFixture() {
     const actions = [
       { id: "tag-match", type: "apply_tag", tagId: 1 },
       { id: "status-match", type: "set_status", status: "active" },
-      { id: "notify-match", type: "notify_attendant", attendantId: null, message: "Chatbot pediu atendimento." },
+      {
+        id: "notify-match",
+        type: "notify_attendant",
+        attendantId: null,
+        message: "Chatbot pediu atendimento.",
+      },
       { id: "trigger-match", type: "trigger_automation", automationId: childAutomationId },
     ];
     const ruleInfo = insertRule.run({
@@ -324,9 +368,9 @@ function countSendJobsForPhone(phone) {
 }
 
 async function actionTypesFromPreview(page) {
-  return page.getByTestId("automation-preview-node").evaluateAll((nodes) =>
-    nodes.map((node) => node.getAttribute("data-action-type") ?? ""),
-  );
+  return page
+    .getByTestId("automation-preview-node")
+    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-action-type") ?? ""));
 }
 
 async function blockingAxeViolations(page) {

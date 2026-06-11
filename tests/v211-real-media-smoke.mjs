@@ -5,6 +5,11 @@ import path from "node:path";
 import { promisify } from "node:util";
 import Database from "better-sqlite3";
 import { chromium } from "playwright";
+import {
+  backfillSmokeWhatsappIdentity,
+  findSmokeWhatsappContact,
+  findSmokeWhatsappConversation,
+} from "./helpers/contact-identity.mjs";
 
 const execFileAsync = promisify(execFile);
 const rootDir = process.cwd();
@@ -147,13 +152,7 @@ async function mediaInput(type, mimeType, filePath, durationMs = null) {
 
 function seedConversation() {
   const now = nowIso();
-  let contact = db
-    .prepare(
-      `SELECT * FROM contacts
-       WHERE user_id = ? AND deleted_at IS NULL AND phone = ?
-       ORDER BY id ASC LIMIT 1`,
-    )
-    .get(userId, phone);
+  let contact = findSmokeWhatsappContact(db, { userId, phone });
 
   if (contact) {
     db.prepare(
@@ -172,23 +171,11 @@ function seedConversation() {
     contact = { id: Number(result.lastInsertRowid), phone };
   }
 
-  let conversation = db
-    .prepare(
-      `SELECT c.*
-       FROM conversations c
-       LEFT JOIN contacts ct ON ct.id = c.contact_id
-       WHERE c.user_id = ?
-         AND c.channel = 'whatsapp'
-         AND (
-           c.contact_id = ?
-           OR c.external_thread_id = ?
-           OR c.external_thread_id = ?
-           OR ct.phone = ?
-         )
-       ORDER BY c.last_message_at DESC NULLS LAST, c.id ASC
-       LIMIT 1`,
-    )
-    .get(userId, contact.id, phone, `${phone}@c.us`, phone);
+  let conversation = findSmokeWhatsappConversation(db, {
+    userId,
+    phone,
+    contactId: contact.id,
+  });
 
   if (conversation) {
     db.prepare(
@@ -206,6 +193,14 @@ function seedConversation() {
       .run(userId, contact.id, `${phone}@c.us`, `Smoke Canary ${phone}`, now, now);
     conversation = { id: Number(result.lastInsertRowid), contact_id: contact.id };
   }
+
+  backfillSmokeWhatsappIdentity(db, {
+    userId,
+    phone,
+    contactId: Number(contact.id),
+    conversationId: Number(conversation.id),
+    now,
+  });
 
   return { contactId: Number(contact.id), conversationId: Number(conversation.id) };
 }

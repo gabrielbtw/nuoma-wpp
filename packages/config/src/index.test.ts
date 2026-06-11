@@ -96,6 +96,8 @@ describe("loadWorkerEnv", () => {
     expect(env.WA_SEND_ALLOWED_PHONES).toBe("");
     expect(env.WA_SEND_RATE_LIMIT_WINDOW_MS).toBe(60_000);
     expect(env.WA_SEND_RATE_LIMIT_MAX).toBe(12);
+    expect(env.IG_SEND_RATE_LIMIT_WINDOW_MS).toBe(60 * 60_000);
+    expect(env.IG_SEND_RATE_LIMIT_MAX).toBe(30);
     expect(env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS).toBe(15_000);
     expect(env.WORKER_SEND_STRICT_DELIVERY).toBe(true);
     expect(env.WORKER_IDEMPOTENCY_GUARD_ENABLED).toBe(true);
@@ -115,6 +117,8 @@ describe("loadWorkerEnv", () => {
       WA_SEND_ALLOWED_PHONES: "5531982066263, 5531999999999",
       WA_SEND_RATE_LIMIT_WINDOW_MS: "30000",
       WA_SEND_RATE_LIMIT_MAX: "3",
+      IG_SEND_RATE_LIMIT_WINDOW_MS: "120000",
+      IG_SEND_RATE_LIMIT_MAX: "2",
       WORKER_SEND_CONFIRMATION_TIMEOUT_MS: "5000",
       WORKER_SEND_STRICT_DELIVERY: "false",
       WORKER_IDEMPOTENCY_GUARD_ENABLED: "false",
@@ -125,6 +129,8 @@ describe("loadWorkerEnv", () => {
     expect(env.WA_SEND_ALLOWED_PHONES).toBe("5531982066263, 5531999999999");
     expect(env.WA_SEND_RATE_LIMIT_WINDOW_MS).toBe(30_000);
     expect(env.WA_SEND_RATE_LIMIT_MAX).toBe(3);
+    expect(env.IG_SEND_RATE_LIMIT_WINDOW_MS).toBe(120_000);
+    expect(env.IG_SEND_RATE_LIMIT_MAX).toBe(2);
     expect(env.WORKER_SEND_CONFIRMATION_TIMEOUT_MS).toBe(5_000);
     expect(env.WORKER_SEND_STRICT_DELIVERY).toBe(false);
     expect(env.WORKER_IDEMPOTENCY_GUARD_ENABLED).toBe(false);

@@ -1,5 +1,6 @@
 import {
   Animate,
+  Badge,
   Button,
   Card,
   CardContent,
@@ -15,7 +16,18 @@ import {
   TimeAgo,
   useToast,
 } from "@nuoma/ui";
-import { Search } from "lucide-react";
+import {
+  Clock3,
+  Instagram,
+  MessageCircle,
+  MoreVertical,
+  Phone,
+  Plus,
+  Search,
+  ShieldCheck,
+  Tag,
+  UserRound,
+} from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
 
 import { trpc } from "../lib/trpc.js";
@@ -60,6 +72,9 @@ export function ContactsPage() {
       instagram: allContacts.filter((contact) => contact.primaryChannel === "instagram").length,
     };
   }, [contacts.data?.contacts]);
+  const selectedContact = filteredContacts[0] ?? contacts.data?.contacts[0] ?? null;
+  const visibleContacts = filteredContacts.slice(0, 9);
+  const recentContacts = filteredContacts.filter((contact) => contact.lastMessageAt).slice(0, 4);
   const createContact = trpc.contacts.create.useMutation({
     async onSuccess() {
       setName("");
@@ -159,38 +174,41 @@ export function ContactsPage() {
       )}
 
       <Animate preset="rise-in" delaySeconds={0.1}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Lista</CardTitle>
-            <CardDescription>
-              {contacts.data
-                ? `${filteredContacts.length}/${contacts.data.contacts.length} contatos`
-                : "—"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <label className="flex min-w-0 flex-1 items-center gap-2 rounded-lg bg-bg-sunken/76 px-3 py-2 shadow-pressed-sm">
-                <Search className="h-4 w-4 shrink-0 text-fg-dim" aria-hidden="true" />
-                <Input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Buscar por nome, telefone, status ou nota"
-                  className="border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
-                />
-              </label>
-              <SegmentedControl
-                size="sm"
-                value={channelFilter}
-                onValueChange={setChannelFilter}
-                aria-label="Filtrar canal"
-                options={[
-                  { value: "all", label: `Todos ${channelCounts.all}` },
-                  { value: "whatsapp", label: `WPP ${channelCounts.whatsapp}` },
-                  { value: "instagram", label: `IG ${channelCounts.instagram}` },
-                ]}
-              />
+        <section className="nuoma-ops-split nuoma-contacts-v2">
+          <aside className="nuoma-ops-panel nuoma-contacts-list-panel">
+            <div className="nuoma-ops-panel-head">
+              <div>
+                <h2>Lista ao vivo</h2>
+                <p>
+                  {contacts.data
+                    ? `${filteredContacts.length}/${contacts.data.contacts.length} contatos`
+                    : "—"}
+                </p>
+              </div>
+              <Button variant="soft" size="sm" className="aspect-square px-0" aria-label="Criar">
+                <Plus className="h-4 w-4" />
+              </Button>
             </div>
+            <label className="nuoma-ops-search">
+              <Search className="h-4 w-4" aria-hidden="true" />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Buscar por nome, telefone, status ou nota"
+                className="border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
+              />
+            </label>
+            <SegmentedControl
+              size="sm"
+              value={channelFilter}
+              onValueChange={setChannelFilter}
+              aria-label="Filtrar canal"
+              options={[
+                { value: "all", label: `Todos ${channelCounts.all}` },
+                { value: "whatsapp", label: `WPP ${channelCounts.whatsapp}` },
+                { value: "instagram", label: `IG ${channelCounts.instagram}` },
+              ]}
+            />
             {contacts.isLoading ? (
               <LoadingState />
             ) : contacts.error ? (
@@ -200,25 +218,171 @@ export function ContactsPage() {
             ) : filteredContacts.length === 0 ? (
               <EmptyState description="Nenhum contato corresponde aos filtros atuais." />
             ) : (
-              <ul className="flex flex-col gap-1">
-                {filteredContacts.map((contact) => (
-                  <li
-                    key={contact.id}
-                    className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg hover:bg-bg-base hover:shadow-flat transition-shadow"
-                  >
-                    <div className="min-w-0">
-                      <div className="text-sm truncate">{contact.name}</div>
-                      {contact.phone && (
-                        <div className="font-mono text-[0.65rem] text-fg-dim">{contact.phone}</div>
-                      )}
-                    </div>
-                    {contact.lastMessageAt && <TimeAgo date={contact.lastMessageAt} />}
+              <ul className="nuoma-contact-list" tabIndex={0} aria-label="Lista de contatos">
+                {visibleContacts.map((contact, index) => (
+                  <li key={contact.id} className={index === 0 ? "is-active" : undefined}>
+                    <span className="nuoma-contact-avatar">
+                      {contact.name.slice(0, 2).toUpperCase()}
+                    </span>
+                    <span className="min-w-0">
+                      <strong>{contact.name}</strong>
+                      <em>{contact.phone ?? contact.instagramHandle ?? contact.status}</em>
+                      <span>
+                        <Badge
+                          variant={contact.primaryChannel === "instagram" ? "warning" : "cyan"}
+                        >
+                          {contact.primaryChannel === "instagram" ? "IG" : "WA"}
+                        </Badge>
+                        <Badge variant={contact.status === "lead" ? "success" : "neutral"}>
+                          {contact.status}
+                        </Badge>
+                      </span>
+                    </span>
+                    {contact.lastMessageAt ? <TimeAgo date={contact.lastMessageAt} /> : null}
                   </li>
                 ))}
               </ul>
             )}
-          </CardContent>
-        </Card>
+          </aside>
+
+          <section className="nuoma-ops-panel nuoma-contact-detail-panel">
+            <div className="nuoma-contact-titlebar">
+              <div className="nuoma-contact-avatar is-large">
+                {selectedContact ? selectedContact.name.slice(0, 2).toUpperCase() : "NC"}
+              </div>
+              <div className="min-w-0">
+                <h2>{selectedContact?.name ?? "Nenhum contato selecionado"}</h2>
+                <p>
+                  {selectedContact?.phone ?? "sem telefone"} ·{" "}
+                  {selectedContact?.instagramHandle
+                    ? `@${selectedContact.instagramHandle}`
+                    : "sem IG"}
+                </p>
+              </div>
+              <Badge variant={selectedContact?.status === "lead" ? "success" : "neutral"}>
+                {selectedContact?.status ?? "sem status"}
+              </Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="aspect-square px-0"
+                aria-label="Mais ações"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="nuoma-contact-metrics">
+              <div>
+                <Phone className="h-4 w-4" />
+                <span>Telefone</span>
+                <strong>{selectedContact?.phone ?? "—"}</strong>
+              </div>
+              <div>
+                <Instagram className="h-4 w-4" />
+                <span>Instagram</span>
+                <strong>
+                  {selectedContact?.instagramHandle ? `@${selectedContact.instagramHandle}` : "—"}
+                </strong>
+              </div>
+              <div>
+                <Clock3 className="h-4 w-4" />
+                <span>Última msg</span>
+                <strong>
+                  {selectedContact?.lastMessageAt ? (
+                    <TimeAgo date={selectedContact.lastMessageAt} />
+                  ) : (
+                    "—"
+                  )}
+                </strong>
+              </div>
+            </div>
+
+            <div className="nuoma-contact-thread">
+              <div className="nuoma-contact-message">
+                <span>Perfil</span>
+                <p>
+                  {selectedContact?.notes ||
+                    "Contato sem notas. Use este painel para revisar canal, status e histórico antes de acionar campanhas ou automações."}
+                </p>
+              </div>
+              <div className="nuoma-contact-message is-outbound">
+                <span>Próxima ação</span>
+                <p>
+                  Validar elegibilidade do contato, manter trilha de auditoria e acionar campanha
+                  apenas por canal liberado.
+                </p>
+              </div>
+            </div>
+
+            <div className="nuoma-contact-composer">
+              <button type="button">Detalhes</button>
+              <button type="button">Histórico</button>
+              <button type="button">Tags</button>
+              <button type="button">Notas</button>
+            </div>
+          </section>
+
+          <aside className="nuoma-ops-panel nuoma-contact-side-panel">
+            <section>
+              <div className="nuoma-ops-panel-head">
+                <h2>Ações do contato</h2>
+                <Badge variant="cyan">Catálogo</Badge>
+              </div>
+              <div className="nuoma-contact-action-grid">
+                <button type="button">
+                  <MessageCircle className="h-4 w-4" />
+                  Responder
+                </button>
+                <button type="button">
+                  <Tag className="h-4 w-4" />
+                  Tag
+                </button>
+                <button type="button">
+                  <ShieldCheck className="h-4 w-4" />
+                  Campanha
+                </button>
+              </div>
+            </section>
+            <section>
+              <h2>Saúde do contato</h2>
+              <div className="nuoma-contact-health">
+                <strong>{selectedContact ? "8.4" : "—"}</strong>
+                <span>{selectedContact ? "Ótimo" : "Sem leitura"}</span>
+              </div>
+              <dl className="nuoma-contact-facts">
+                <dt>Canal</dt>
+                <dd>{selectedContact?.primaryChannel ?? "—"}</dd>
+                <dt>Status</dt>
+                <dd>{selectedContact?.status ?? "—"}</dd>
+                <dt>ID</dt>
+                <dd>#{selectedContact?.id ?? "—"}</dd>
+              </dl>
+            </section>
+            <section>
+              <h2>Trilha recente</h2>
+              <ul className="nuoma-contact-audit">
+                {(recentContacts.length > 0 ? recentContacts : visibleContacts.slice(0, 4)).map(
+                  (contact) => (
+                    <li key={contact.id}>
+                      <UserRound className="h-4 w-4" />
+                      <span>
+                        <strong>{contact.name}</strong>
+                        <em>
+                          {contact.lastMessageAt ? (
+                            <TimeAgo date={contact.lastMessageAt} />
+                          ) : (
+                            "sem interação"
+                          )}
+                        </em>
+                      </span>
+                    </li>
+                  ),
+                )}
+              </ul>
+            </section>
+          </aside>
+        </section>
       </Animate>
     </div>
   );

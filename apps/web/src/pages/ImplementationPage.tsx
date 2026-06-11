@@ -1,17 +1,14 @@
-import { CheckCircle2, Circle, CircleDashed, FileText } from "lucide-react";
-
 import {
-  Animate,
-  Badge,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  ErrorState,
-  LoadingState,
-  cn,
-} from "@nuoma/ui";
+  CheckCircle2,
+  Circle,
+  CircleDashed,
+  FileText,
+  GitBranch,
+  ListChecks,
+  TerminalSquare,
+} from "lucide-react";
+
+import { Animate, Badge, ErrorState, LoadingState, cn } from "@nuoma/ui";
 
 import { trpc } from "../lib/trpc.js";
 
@@ -75,9 +72,7 @@ export function ImplementationPage() {
       <Animate preset="rise-in">
         <header className="nuoma-workspace-header flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="botforge-kicker">
-              Implementação
-            </p>
+            <p className="botforge-kicker">Implementação</p>
             <h1 className="botforge-display mt-2 text-3xl md:text-4xl">
               Execução <span className="nuoma-gradient-text">visível</span>.
             </h1>
@@ -97,43 +92,80 @@ export function ImplementationPage() {
         </header>
       </Animate>
 
-      <Animate preset="rise-in" delaySeconds={0.05}>
-        <section className="grid gap-3 md:grid-cols-4">
-          <SummaryTile label="Progresso" value={`${donePercent}%`} accent="cyan" />
-          <SummaryTile label="Feito" value={status.data.summary.done} accent="success" />
-          <SummaryTile label="Parcial" value={status.data.summary.partial} accent="warning" />
-          <SummaryTile label="Falta" value={status.data.summary.pending} accent="neutral" />
-        </section>
-      </Animate>
-
       <Animate preset="rise-in" delaySeconds={0.1}>
-        <section className="grid gap-4 xl:grid-cols-3">
-          {(["done", "partial", "pending"] as const).map((itemStatus) => (
-            <StatusColumn
-              key={itemStatus}
-              status={itemStatus}
-              items={itemsByStatus[itemStatus]}
-            />
-          ))}
-        </section>
-      </Animate>
+        <section className="nuoma-implementation-v2">
+          <aside className="nuoma-implementation-rail">
+            <section>
+              <div className="nuoma-ops-panel-head">
+                <div>
+                  <h2>Progresso</h2>
+                  <p>Status consolidado do README.</p>
+                </div>
+                <TerminalSquare className="h-4 w-4" />
+              </div>
+              <div className="nuoma-implementation-progress">
+                <strong>{donePercent}%</strong>
+                <span>concluído</span>
+              </div>
+            </section>
 
-      <Animate preset="rise-in" delaySeconds={0.15}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Markdown bruto</CardTitle>
-            <CardDescription>Espelho da fonte de execução para revisão rápida.</CardDescription>
-          </CardHeader>
-          <CardContent>
+            <section className="nuoma-implementation-summary">
+              <SummaryTile label="Feito" value={status.data.summary.done} accent="success" />
+              <SummaryTile label="Parcial" value={status.data.summary.partial} accent="warning" />
+              <SummaryTile label="Falta" value={status.data.summary.pending} accent="neutral" />
+            </section>
+
+            <section>
+              <div className="nuoma-ops-panel-head">
+                <div>
+                  <h2>Fonte</h2>
+                  <p>Contrato vivo da execução.</p>
+                </div>
+                <GitBranch className="h-4 w-4" />
+              </div>
+              <div className="nuoma-implementation-source-path">
+                <FileText className="h-4 w-4" />
+                <span>{status.data.markdownPath}</span>
+              </div>
+            </section>
+          </aside>
+
+          <main className="nuoma-implementation-board">
+            <div className="nuoma-implementation-board-head">
+              <div>
+                <h2>Board de execução</h2>
+                <p>Feito, parcial e falta em colunas escaneáveis.</p>
+              </div>
+              <Badge variant="cyan">{total} itens</Badge>
+            </div>
+            <div className="nuoma-implementation-columns">
+              {(["done", "partial", "pending"] as const).map((itemStatus) => (
+                <StatusColumn
+                  key={itemStatus}
+                  status={itemStatus}
+                  items={itemsByStatus[itemStatus]}
+                />
+              ))}
+            </div>
+          </main>
+
+          <aside className="nuoma-implementation-markdown">
+            <div className="nuoma-ops-panel-head">
+              <div>
+                <h2>Markdown bruto</h2>
+                <p>Espelho da fonte para revisão rápida.</p>
+              </div>
+              <ListChecks className="h-4 w-4" />
+            </div>
             <pre
               tabIndex={0}
               aria-label="Markdown bruto do status de implementação"
-              className="max-h-[28rem] overflow-auto rounded-lg bg-bg-base p-4 text-xs leading-6 text-fg-muted shadow-pressed-sm whitespace-pre-wrap focus:outline-none focus:ring-2 focus:ring-brand-cyan/50"
+              className="nuoma-implementation-pre focus:outline-none focus:ring-2 focus:ring-brand-cyan/50"
             >
               {status.data.markdown}
             </pre>
-          </CardContent>
-        </Card>
+          </aside>
+        </section>
       </Animate>
     </div>
   );
@@ -149,11 +181,11 @@ function SummaryTile({
   accent: "cyan" | "success" | "warning" | "neutral";
 }) {
   return (
-    <div className="rounded-xl bg-bg-base px-4 py-4 shadow-flat">
-      <div className="text-xs text-fg-muted">{label}</div>
+    <div className="nuoma-implementation-tile">
+      <div>{label}</div>
       <div
         className={cn(
-          "mt-2 text-3xl font-semibold tracking-tight",
+          "mt-2 text-3xl font-semibold",
           accent === "cyan" && "text-brand-cyan",
           accent === "success" && "text-semantic-success",
           accent === "warning" && "text-semantic-warning",
@@ -183,52 +215,45 @@ function StatusColumn({
   const Icon = meta.icon;
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <CardTitle>{meta.columnTitle}</CardTitle>
-            <CardDescription>{items.length} item(ns)</CardDescription>
-          </div>
-          <Badge variant={meta.tone}>{meta.label}</Badge>
+    <section className="nuoma-implementation-column" data-status={status}>
+      <div className="nuoma-implementation-column-head">
+        <div>
+          <h3>{meta.columnTitle}</h3>
+          <span>{items.length} item(ns)</span>
         </div>
-      </CardHeader>
-      <CardContent>
-        <ul className="flex flex-col gap-2">
-          {items.map((item) => (
-            <li
-              key={`${item.section}-${item.title}`}
-              className="rounded-lg bg-bg-base px-3 py-3 shadow-flat"
-            >
-              <div className="flex items-start gap-3">
-                <Icon
-                  className={cn(
-                    "mt-0.5 h-4 w-4 shrink-0",
-                    status === "done" && "text-semantic-success",
-                    status === "partial" && "text-semantic-warning",
-                    status === "pending" && "text-fg-dim",
+        <Badge variant={meta.tone}>{meta.label}</Badge>
+      </div>
+      <ul tabIndex={0} aria-label={`Itens com status ${meta.columnTitle}`}>
+        {items.map((item) => (
+          <li key={`${item.section}-${item.title}`}>
+            <div className="flex items-start gap-3">
+              <Icon
+                className={cn(
+                  "mt-0.5 h-4 w-4 shrink-0",
+                  status === "done" && "text-semantic-success",
+                  status === "partial" && "text-semantic-warning",
+                  status === "pending" && "text-fg-dim",
+                )}
+              />
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  {item.id && (
+                    <span className="font-mono text-[0.65rem] text-fg-dim">{item.id}</span>
                   )}
-                />
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {item.id && (
-                      <span className="font-mono text-[0.65rem] text-fg-dim">{item.id}</span>
-                    )}
-                    <span className="text-sm font-medium text-fg-primary">{item.title}</span>
-                  </div>
-                  {item.description && (
-                    <p className="mt-1 text-xs leading-5 text-fg-muted">{item.description}</p>
-                  )}
-                  <div className="mt-2 text-[0.65rem] uppercase tracking-widest text-fg-dim font-mono">
-                    {item.section}
-                  </div>
+                  <span className="text-sm font-medium text-fg-primary">{item.title}</span>
+                </div>
+                {item.description && (
+                  <p className="mt-1 text-xs leading-5 text-fg-muted">{item.description}</p>
+                )}
+                <div className="mt-2 text-[0.65rem] uppercase text-fg-dim font-mono">
+                  {item.section}
                 </div>
               </div>
-            </li>
-          ))}
-        </ul>
-      </CardContent>
-    </Card>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

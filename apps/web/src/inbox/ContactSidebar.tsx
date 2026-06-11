@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 
+import { normalizePhone } from "@nuoma/contracts";
 import {
   Animate,
   Avatar,
@@ -50,6 +51,7 @@ import { trpc } from "../lib/trpc.js";
 import { mediaAssetUrl } from "../lib/media-url.js";
 import { INBOX_CONVERSATION_LIMIT } from "./conversation-list-config.js";
 import { conversationDisplayTitle, conversationIdentityLine } from "./conversation-display.js";
+import { validateContactDetailsDraft } from "./contact-details-validation.js";
 import { MarkdownLitePreview } from "./MarkdownLitePreview.js";
 
 interface ContactSidebarProps {
@@ -290,6 +292,13 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
   });
 
   const contact = contactDetails.data?.contact ?? null;
+  const contactDetailsValidation = validateContactDetailsDraft({
+    name: nameDraft,
+    phone: phoneDraft,
+    email: emailDraft,
+    instagramHandle: instagramDraft,
+  });
+  const contactDetailsErrors = detailsEditing ? contactDetailsValidation.errors : {};
 
   useEffect(() => {
     setNotesDraft(contact?.notes ?? "");
@@ -360,11 +369,16 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
   function handleContactDetailsSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!contact) return;
-    const nextName = nameDraft.trim();
-    if (!nextName) {
+    const validation = validateContactDetailsDraft({
+      name: nameDraft,
+      phone: phoneDraft,
+      email: emailDraft,
+      instagramHandle: instagramDraft,
+    });
+    if (!validation.valid) {
       toast.push({
-        title: "Nome obrigatório",
-        description: "O contato precisa continuar com um nome visível.",
+        title: "Revise os campos",
+        description: "Corrija os erros destacados antes de salvar.",
         variant: "warning",
       });
       return;
@@ -372,10 +386,10 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
     updateContact.mutate(
       {
         id: contact.id,
-        name: nextName,
-        phone: phoneDraft.trim() || null,
-        email: emailDraft.trim() || null,
-        instagramHandle: instagramDraft.trim().replace(/^@/, "") || null,
+        name: validation.values.name,
+        phone: validation.values.phone,
+        email: validation.values.email,
+        instagramHandle: validation.values.instagramHandle,
       },
       {
         onSuccess() {
@@ -410,7 +424,8 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
 
   const displayTitle = conversationDisplayTitle(conversation);
   const identity = conversationIdentityLine(conversation);
-  const phone = conversation.externalThreadId.replace(/\D/g, "");
+  const phone =
+    normalizePhone(conversation.waJid) ?? normalizePhone(conversation.externalThreadId) ?? "";
   const initials = displayTitle.slice(0, 2).toUpperCase();
   const profilePhotoShortHash = conversation.profilePhotoSha256?.slice(0, 12) ?? null;
   const avatarUrl = mediaAssetUrl(
@@ -436,7 +451,11 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
           <div className="relative">
             <Avatar className="h-14 w-14">
               {avatarUrl ? (
-                <AvatarImage src={avatarUrl} alt={displayTitle} data-testid="inbox-profile-avatar-image" />
+                <AvatarImage
+                  src={avatarUrl}
+                  alt={displayTitle}
+                  data-testid="inbox-profile-avatar-image"
+                />
               ) : null}
               <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
@@ -946,25 +965,63 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                       value={nameDraft}
                       onChange={(event) => setNameDraft(event.target.value)}
                       placeholder="Nome"
+                      invalid={Boolean(contactDetailsErrors.name)}
+                      aria-invalid={Boolean(contactDetailsErrors.name)}
+                      aria-describedby={
+                        contactDetailsErrors.name ? "inbox-contact-edit-name-error" : undefined
+                      }
                       data-testid="inbox-contact-edit-name"
+                    />
+                    <FieldError
+                      id="inbox-contact-edit-name-error"
+                      message={contactDetailsErrors.name}
                     />
                     <Input
                       value={phoneDraft}
                       onChange={(event) => setPhoneDraft(event.target.value)}
                       placeholder="Telefone"
+                      invalid={Boolean(contactDetailsErrors.phone)}
+                      aria-invalid={Boolean(contactDetailsErrors.phone)}
+                      aria-describedby={
+                        contactDetailsErrors.phone ? "inbox-contact-edit-phone-error" : undefined
+                      }
                       data-testid="inbox-contact-edit-phone"
+                    />
+                    <FieldError
+                      id="inbox-contact-edit-phone-error"
+                      message={contactDetailsErrors.phone}
                     />
                     <Input
                       value={emailDraft}
                       onChange={(event) => setEmailDraft(event.target.value)}
                       placeholder="Email"
+                      invalid={Boolean(contactDetailsErrors.email)}
+                      aria-invalid={Boolean(contactDetailsErrors.email)}
+                      aria-describedby={
+                        contactDetailsErrors.email ? "inbox-contact-edit-email-error" : undefined
+                      }
                       data-testid="inbox-contact-edit-email"
+                    />
+                    <FieldError
+                      id="inbox-contact-edit-email-error"
+                      message={contactDetailsErrors.email}
                     />
                     <Input
                       value={instagramDraft}
                       onChange={(event) => setInstagramDraft(event.target.value)}
                       placeholder="@instagram"
+                      invalid={Boolean(contactDetailsErrors.instagramHandle)}
+                      aria-invalid={Boolean(contactDetailsErrors.instagramHandle)}
+                      aria-describedby={
+                        contactDetailsErrors.instagramHandle
+                          ? "inbox-contact-edit-instagram-error"
+                          : undefined
+                      }
                       data-testid="inbox-contact-edit-instagram"
+                    />
+                    <FieldError
+                      id="inbox-contact-edit-instagram-error"
+                      message={contactDetailsErrors.instagramHandle}
                     />
                     <div className="grid grid-cols-2 gap-2">
                       <Button
@@ -985,6 +1042,7 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                       <Button
                         type="submit"
                         size="sm"
+                        disabled={!contactDetailsValidation.valid}
                         loading={updateContact.isPending}
                         leftIcon={<CheckCircle2 className="h-3 w-3" />}
                         data-testid="inbox-contact-edit-save"
@@ -1631,5 +1689,16 @@ function Field({ label, value, mono }: { label: string; value: React.ReactNode; 
         {value}
       </span>
     </div>
+  );
+}
+
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) {
+    return null;
+  }
+  return (
+    <p id={id} className="-mt-1 font-mono text-[0.65rem] text-semantic-danger">
+      {message}
+    </p>
   );
 }

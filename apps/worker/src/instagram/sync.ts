@@ -3,16 +3,21 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
 import { CONSTANTS, type WorkerEnv } from "@nuoma/config";
-import type { MessageDirection } from "@nuoma/contracts";
+import type {
+  MessageContentType,
+  MessageDirection,
+  TimestampPrecision,
+} from "@nuoma/contracts";
 import type { Repositories } from "@nuoma/db";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import type { Logger } from "pino";
 
 import { normalizeInstagramHandle } from "./assisted.js";
+import { assertInstagramUsable, detectInstagramGuard } from "./guard.js";
 
 export interface InstagramSessionState {
   mode: "shared-cdp";
-  status: "connected" | "assisted" | "not_open" | "error";
+  status: "connected" | "assisted" | "challenge" | "not_open" | "error";
   authenticated: boolean;
   username: string | null;
   pageUrl: string | null;
@@ -84,12 +89,14 @@ interface InstagramThreadSnapshot {
   messages: InstagramThreadMessageSnapshot[];
 }
 
-interface InstagramThreadMessageSnapshot {
+export interface InstagramThreadMessageSnapshot {
   externalId: string | null;
   direction: "incoming" | "outgoing";
   body: string;
-  contentType: "text";
+  contentType: Extract<MessageContentType, "text" | "image" | "video" | "audio">;
   sentAt: string | null;
+  sentAtText?: string | null;
+  timestampPrecision?: TimestampPrecision;
 }
 
 function browserArgFunction<TArg, TResult>(
@@ -250,6 +257,22 @@ export async function readInstagramSessionViaCdp(input: {
         threadCount: 0,
         messageCount: 0,
         errorMessage: null,
+      };
+    }
+    const guard = await detectInstagramGuard(page);
+    if (guard.blocked) {
+      return {
+        mode: "shared-cdp",
+        status: guard.reason === "login_required" ? "assisted" : "challenge",
+        authenticated: false,
+        username: null,
+        pageUrl: page.url(),
+        browserEndpoint: endpoint,
+        lastCheckedAt: checkedAt,
+        lastSyncAt: null,
+        threadCount: 0,
+        messageCount: 0,
+        errorMessage: guard.reason === "login_required" ? null : guard.message,
       };
     }
     const authenticated = await detectInstagramAuthenticated(page);
@@ -448,7 +471,23 @@ async function persistInstagramThreads(input: {
       unreadCount: thread.unreadCount,
     });
 
+    const recentMessages = await input.repos.messages.listByConversation({
+      userId: input.userId,
+      conversationId: conversation.id,
+      limit: 200,
+      includeDeleted: false,
+    });
+
     for (const [index, message] of thread.messages.entries()) {
+      if (
+        shouldSkipInstagramSyncedDuplicate({
+          message,
+          existingMessages: recentMessages,
+          syncedAt,
+        })
+      ) {
+        continue;
+      }
       const externalId = stableInstagramMessageExternalId(thread, index, message);
       const inserted = await input.repos.messages.insertOrIgnore({
         userId: input.userId,
@@ -462,7 +501,7 @@ async function persistInstagramThreads(input: {
         mediaAssetId: null,
         media: null,
         observedAtUtc: message.sentAt ?? syncedAt,
-        timestampPrecision: message.sentAt ? "second" : "unknown",
+        timestampPrecision: message.timestampPrecision ?? (message.sentAt ? "second" : "unknown"),
         messageSecond: null,
         waInferredSecond: null,
         waDisplayedAt: null,
@@ -472,9 +511,11 @@ async function persistInstagramThreads(input: {
           instagramHandle,
           threadId: thread.threadId,
           originalExternalId: message.externalId,
+          sentAtText: message.sentAtText ?? null,
         },
       });
       if (inserted) {
+        recentMessages.unshift(inserted);
         importedMessages += 1;
         if (message.direction === "incoming") {
           importedIncomingMessages += 1;
@@ -552,6 +593,10 @@ async function resolveInstagramPage(
 }
 
 async function detectInstagramAuthenticated(page: Page): Promise<boolean> {
+  const guard = await detectInstagramGuard(page);
+  if (guard.blocked) {
+    return false;
+  }
   const state = await page.evaluate<{ loginInput: boolean; href: string }>(
     `(() => ({
       loginInput: Boolean(document.querySelector("input[name='username']")),
@@ -562,6 +607,7 @@ async function detectInstagramAuthenticated(page: Page): Promise<boolean> {
 }
 
 async function assertInstagramAuthenticated(page: Page): Promise<void> {
+  await assertInstagramUsable(page);
   if (!(await detectInstagramAuthenticated(page))) {
     throw new Error("Instagram is not authenticated in the shared Chromium profile");
   }
@@ -706,7 +752,7 @@ async function visibleInstagramInboxRows(
       document.querySelector("[aria-label='Chats']") ??
       document.querySelector("main");
     if (!nav) return [];
-    const noise = [/nova mensagem/i, /new message/i, /^primary$/i, /^general$/i, /^pedidos$/i, /^requests$/i];
+    const noise = [/nova mensagem/i, /new message/i, /^primary$/i, /^general$/i, /^from ads$/i, /^pedidos( \\(\\d+\\))?$/i, /^requests( \\(\\d+\\))?$/i];
     return Array.from(nav.querySelectorAll("div[role='button'], button, a"))
       .map((element, index) => {
         const node = element;
@@ -794,21 +840,127 @@ async function scrapeOpenInstagramThread(
         text: clean(anchor.textContent),
       }))
       .filter((entry) => entry.href);
-    const relativeTimePattern = /^(\\d+\\s*(s|min|h|d|sem|w|hr|hrs|days?|weeks?|months?|meses?|hora|horas|dia|dias|semana|semanas|minuto|minutos|segundo|segundos)|hoje|ontem|yesterday|today|just now|agora)$/i;
+    const sidebar =
+      document.querySelector("[aria-label='Lista de tópicos']") ??
+      document.querySelector("[aria-label='Threads']") ??
+      document.querySelector("[aria-label='Chats']");
+    const sidebarRect = sidebar?.getBoundingClientRect();
+    const chatLeft =
+      sidebarRect && sidebarRect.width > 0 ? sidebarRect.right - 4 : window.innerWidth * 0.35;
+    const isThreadPaneRect = (rect) =>
+      rect.width > 0 &&
+      rect.height > 0 &&
+      rect.bottom > 0 &&
+      rect.top < window.innerHeight &&
+      rect.right > chatLeft &&
+      rect.left >= chatLeft - 12;
+    const relativeTimePattern = /^(há\\s*)?(\\d+\\s*(s|min|m|h|d|sem|w|hr|hrs|days?|weeks?|months?|meses?|mês|hora|horas|dia|dias|semana|semanas|minuto|minutos|segundo|segundos)|hoje|ontem|yesterday|today|just now|agora)$/i;
+    const receiptStatusPattern = /^(visto|seen|enviado|sent|entregue|delivered|visualizado|read)(:|\\b)/i;
+    const threadChromePattern = /^(primary|general|from ads|requests(?: \\(\\d+\\))?|pedidos(?: \\(\\d+\\))?|sua nota|no que você está pensando\\?|new messages|\\d+ new messages|novas mensagens|\\d+ novas mensagens|número de telefone|numero de telefone|phone number)$/i;
+    const dateSeparatorPattern = /^(seg|ter|qua|qui|sex|sab|sáb|dom),?\\s+\\d{1,2}:\\d{2}$|^\\d{1,2}\\/\\d{1,2}\\/\\d{2,4}\\s+\\d{1,2}:\\d{2}$|^\\d{1,2}\\s+de\\s+\\S+\\s+de\\s+\\d{4}\\s+\\d{1,2}:\\d{2}$/i;
+    const isTimestampText = (text) => relativeTimePattern.test(text) || dateSeparatorPattern.test(text);
+    const isReceiptOrTime = (text) => {
+      const normalized = clean(text);
+      return (
+        !normalized ||
+        relativeTimePattern.test(normalized) ||
+        receiptStatusPattern.test(normalized) ||
+        threadChromePattern.test(normalized) ||
+        dateSeparatorPattern.test(normalized)
+      );
+    };
+    const contentTypeFor = (element) => {
+      const container = element.closest("div[role='row'], div[role='listitem'], article, div") || element;
+      const label = clean([
+        container.getAttribute("aria-label"),
+        container.textContent,
+        ...Array.from(container.querySelectorAll("[aria-label]")).map((node) => node.getAttribute("aria-label")),
+      ].filter(Boolean).join(" "));
+      if (container.querySelector("video")) return "video";
+      if (container.querySelector("audio") || /\\b(audio|áudio|voice|voz)\\b/i.test(label)) return "audio";
+      const images = Array.from(container.querySelectorAll("img")).filter((image) => {
+        const rect = image.getBoundingClientRect();
+        const alt = clean(image.getAttribute("alt"));
+        return rect.width >= 80 && rect.height >= 80 && !/profile|perfil|avatar/i.test(alt);
+      });
+      if (images.length > 0) return "image";
+      return "text";
+    };
+    const timeNodes = Array.from(document.querySelectorAll("main time, main span[dir='auto'], main div[dir='auto']"))
+      .map((node) => {
+        const element = node;
+        const text = clean(element.getAttribute("datetime") || element.textContent);
+        const rect = element.getBoundingClientRect();
+        if (!text || !isThreadPaneRect(rect) || !isTimestampText(text)) {
+          return null;
+        }
+        return { text, top: rect.top };
+      })
+      .filter(Boolean);
+    const nearestTimeText = (top) => {
+      let best = null;
+      for (const time of timeNodes) {
+        const distance = Math.abs(top - time.top);
+        if (distance > 180) continue;
+        if (!best || distance < best.distance || (distance === best.distance && time.top <= top)) {
+          best = { text: time.text, distance };
+        }
+      }
+      return best?.text ?? null;
+    };
     const textNodes = Array.from(document.querySelectorAll("main div[dir='auto'], main span[dir='auto'], main div[role='row']"))
       .map((node) => {
         const element = node;
         const text = clean(element.textContent);
         const rect = element.getBoundingClientRect();
-        if (!text || rect.width <= 0 || rect.height <= 0 || relativeTimePattern.test(text)) {
+        if (!text || !isThreadPaneRect(rect) || rect.top < 70 || isReceiptOrTime(text)) {
           return null;
         }
-        return { text, left: rect.left, top: rect.top };
+        return {
+          text,
+          left: rect.left,
+          top: rect.top,
+          contentType: contentTypeFor(element),
+          sentAtText: nearestTimeText(rect.top),
+        };
+      })
+      .filter(Boolean);
+    const mediaNodes = Array.from(document.querySelectorAll("main video, main audio, main img"))
+      .map((node) => {
+        const element = node;
+        const rect = element.getBoundingClientRect();
+        if (!isThreadPaneRect(rect) || rect.width < 80 || rect.height < 40) {
+          return null;
+        }
+        const alt = clean(element.getAttribute("alt"));
+        if (/profile|perfil|avatar/i.test(alt)) {
+          return null;
+        }
+        const contentType =
+          element.tagName.toLowerCase() === "video"
+            ? "video"
+            : element.tagName.toLowerCase() === "audio"
+              ? "audio"
+              : "image";
+        return {
+          text: alt && !isReceiptOrTime(alt) ? alt : "",
+          left: rect.left,
+          top: rect.top,
+          contentType,
+          sentAtText: nearestTimeText(rect.top),
+        };
       })
       .filter(Boolean);
     const deduped = [];
-    for (const node of textNodes) {
-      if (!deduped.some((seen) => seen.text === node.text && Math.abs(seen.top - node.top) <= 2)) {
+    for (const node of [...textNodes, ...mediaNodes]) {
+      if (
+        !deduped.some(
+          (seen) =>
+            seen.text === node.text &&
+            seen.contentType === node.contentType &&
+            Math.abs(seen.top - node.top) <= 4,
+        )
+      ) {
         deduped.push(node);
       }
     }
@@ -819,8 +971,10 @@ async function scrapeOpenInstagramThread(
         externalId: null,
         direction: item.left > window.innerWidth * 0.5 ? "outgoing" : "incoming",
         body: item.text,
-        contentType: "text",
+        contentType: item.contentType,
         sentAt: null,
+        sentAtText: item.sentAtText,
+        timestampPrecision: "unknown",
       }));
     const lastMessage = messages[messages.length - 1] ?? null;
     return {
@@ -841,6 +995,18 @@ async function scrapeOpenInstagramThread(
     fallbackTitle: input.username ?? input.title ?? snapshot.title,
   });
   const username = normalizeInstagramHandle(input.username) ?? participant.username ?? "";
+  const observedAtUtc = new Date().toISOString();
+  const messages = snapshot.messages.map((message) => {
+    const parsedTimestamp = parseInstagramDisplayedTimestamp(message.sentAtText, observedAtUtc);
+    return {
+      ...message,
+      sentAt: message.sentAt ?? parsedTimestamp?.sentAt ?? null,
+      timestampPrecision:
+        message.timestampPrecision && message.timestampPrecision !== "unknown"
+          ? message.timestampPrecision
+          : (parsedTimestamp?.timestampPrecision ?? "unknown"),
+    };
+  });
   return {
     threadId: input.threadId,
     username,
@@ -852,7 +1018,7 @@ async function scrapeOpenInstagramThread(
     unreadCount: snapshot.unreadCount,
     lastMessagePreview: snapshot.lastMessagePreview,
     lastMessageAt: snapshot.lastMessageAt,
-    messages: snapshot.messages,
+    messages,
   };
 }
 
@@ -889,6 +1055,199 @@ function resolveInstagramThreadParticipant(input: {
   };
 }
 
+export function shouldSkipInstagramSyncedDuplicate(input: {
+  message: Pick<InstagramThreadMessageSnapshot, "direction" | "body" | "contentType" | "sentAt">;
+  existingMessages: Array<{
+    direction: MessageDirection;
+    status: string;
+    body: string | null;
+    contentType: MessageContentType;
+    mediaAssetId?: number | null;
+    observedAtUtc: string;
+  }>;
+  syncedAt: string;
+}): boolean {
+  const body = input.message.body.replace(/\s+/g, " ").trim();
+  const messageMs = Date.parse(input.message.sentAt ?? input.syncedAt);
+  const expectedDirection = input.message.direction === "incoming" ? "inbound" : "outbound";
+  for (const existing of input.existingMessages) {
+    if (existing.status === "failed") {
+      continue;
+    }
+    const existingMs = Date.parse(existing.observedAtUtc);
+    if (
+      Number.isFinite(messageMs) &&
+      Number.isFinite(existingMs) &&
+      Math.abs(existingMs - messageMs) > 36 * 60 * 60 * 1000
+    ) {
+      continue;
+    }
+    const existingBody = String(existing.body ?? "").replace(/\s+/g, " ").trim();
+    if (
+      existing.direction === expectedDirection &&
+      existing.contentType === input.message.contentType &&
+      existingBody === body
+    ) {
+      return true;
+    }
+    if (input.message.direction !== "outgoing" || existing.direction !== "outbound") {
+      continue;
+    }
+    if (body && existingBody === body) {
+      return true;
+    }
+    if (
+      !body &&
+      input.message.contentType !== "text" &&
+      existing.contentType === input.message.contentType &&
+      existing.mediaAssetId !== null
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function parseInstagramDisplayedTimestamp(
+  value: string | null | undefined,
+  observedAtUtc = new Date().toISOString(),
+): { sentAt: string; timestampPrecision: TimestampPrecision } | null {
+  const observedMs = Date.parse(observedAtUtc);
+  if (!Number.isFinite(observedMs)) {
+    return null;
+  }
+  const raw = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (!raw) {
+    return null;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T/.test(raw)) {
+    const absoluteMs = Date.parse(raw);
+    return Number.isFinite(absoluteMs)
+      ? { sentAt: new Date(absoluteMs).toISOString(), timestampPrecision: "second" }
+      : null;
+  }
+
+  const normalized = raw
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/^ha\s+/, "")
+    .replace(/^about\s+/, "")
+    .replace(/^cerca de\s+/, "")
+    .trim();
+
+  if (normalized === "agora" || normalized === "just now") {
+    return { sentAt: new Date(observedMs).toISOString(), timestampPrecision: "second" };
+  }
+  if (normalized === "hoje" || normalized === "today") {
+    return { sentAt: new Date(observedMs).toISOString(), timestampPrecision: "date" };
+  }
+  if (normalized === "ontem" || normalized === "yesterday") {
+    return {
+      sentAt: new Date(observedMs - 24 * 60 * 60 * 1000).toISOString(),
+      timestampPrecision: "date",
+    };
+  }
+
+  const ptAbsolute = normalized.match(
+    /^(\d{1,2})\s+de\s+(jan|janeiro|fev|fevereiro|mar|marco|abr|abril|mai|maio|jun|junho|jul|julho|ago|agosto|set|setembro|out|outubro|nov|novembro|dez|dezembro)\s+de\s+(\d{4})\s+(\d{1,2}):(\d{2})$/,
+  );
+  if (ptAbsolute) {
+    const monthByName = new Map([
+      ["jan", 1],
+      ["janeiro", 1],
+      ["fev", 2],
+      ["fevereiro", 2],
+      ["mar", 3],
+      ["marco", 3],
+      ["abr", 4],
+      ["abril", 4],
+      ["mai", 5],
+      ["maio", 5],
+      ["jun", 6],
+      ["junho", 6],
+      ["jul", 7],
+      ["julho", 7],
+      ["ago", 8],
+      ["agosto", 8],
+      ["set", 9],
+      ["setembro", 9],
+      ["out", 10],
+      ["outubro", 10],
+      ["nov", 11],
+      ["novembro", 11],
+      ["dez", 12],
+      ["dezembro", 12],
+    ]);
+    const day = Number(ptAbsolute[1]);
+    const month = monthByName.get(ptAbsolute[2]!) ?? 0;
+    const year = Number(ptAbsolute[3]);
+    const hour = Number(ptAbsolute[4]);
+    const minute = Number(ptAbsolute[5]);
+    const candidate = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(
+      2,
+      "0",
+    )}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00.000-03:00`;
+    const candidateMs = Date.parse(candidate);
+    if (Number.isFinite(candidateMs)) {
+      return { sentAt: new Date(candidateMs).toISOString(), timestampPrecision: "minute" };
+    }
+  }
+
+  const match = normalized.match(
+    /^(\d{1,4})\s*(s|sec|secs|second|seconds|segundo|segundos|min|m|minute|minutes|minuto|minutos|h|hr|hrs|hour|hours|hora|horas|d|day|days|dia|dias|w|week|weeks|sem|semana|semanas|mes|meses|month|months)$/i,
+  );
+  if (!match) {
+    return null;
+  }
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount) || amount < 0) {
+    return null;
+  }
+  const unit = match[2]!.toLowerCase();
+  const minuteMs = 60 * 1000;
+  const hourMs = 60 * minuteMs;
+  const dayMs = 24 * hourMs;
+  if (["s", "sec", "secs", "second", "seconds", "segundo", "segundos"].includes(unit)) {
+    return {
+      sentAt: new Date(observedMs - amount * 1000).toISOString(),
+      timestampPrecision: "second",
+    };
+  }
+  if (["min", "m", "minute", "minutes", "minuto", "minutos"].includes(unit)) {
+    return {
+      sentAt: new Date(observedMs - amount * minuteMs).toISOString(),
+      timestampPrecision: "minute",
+    };
+  }
+  if (["h", "hr", "hrs", "hour", "hours", "hora", "horas"].includes(unit)) {
+    return {
+      sentAt: new Date(observedMs - amount * hourMs).toISOString(),
+      timestampPrecision: "minute",
+    };
+  }
+  if (["d", "day", "days", "dia", "dias"].includes(unit)) {
+    return {
+      sentAt: new Date(observedMs - amount * dayMs).toISOString(),
+      timestampPrecision: "date",
+    };
+  }
+  if (["w", "week", "weeks", "sem", "semana", "semanas"].includes(unit)) {
+    return {
+      sentAt: new Date(observedMs - amount * 7 * dayMs).toISOString(),
+      timestampPrecision: "date",
+    };
+  }
+  if (["mes", "meses", "month", "months"].includes(unit)) {
+    return {
+      sentAt: new Date(observedMs - amount * 30 * dayMs).toISOString(),
+      timestampPrecision: "date",
+    };
+  }
+  return null;
+}
+
 function normalizeThreadSnapshots(threads: InstagramThreadSnapshot[]): InstagramThreadSnapshot[] {
   return threads.map((thread) => {
     const messages = thread.messages
@@ -896,7 +1255,12 @@ function normalizeThreadSnapshots(threads: InstagramThreadSnapshot[]): Instagram
         ...message,
         body: message.body.replace(/\s+/g, " ").trim(),
       }))
-      .filter((message) => message.body || message.contentType !== "text");
+      .filter(
+        (message) =>
+          (message.body || message.contentType !== "text") &&
+          message.sentAt &&
+          message.timestampPrecision !== "unknown",
+      );
     const lastMessage = messages[messages.length - 1] ?? null;
     return {
       ...thread,

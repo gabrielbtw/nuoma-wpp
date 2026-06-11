@@ -5,7 +5,7 @@ import { cn } from "../utils/cn.js";
 /**
  * Surface — foundational Nuoma premium primitive.
  *
- * `raised`: satin operational panel with a gold contour edge.
+ * `raised`: satin operational panel with a restrained blue/teal contour edge.
  * `pressed`: inset panel for inputs and active navigation.
  * `flat`: one-line contour for compact chips and dividers.
  * `glass`: tiered transparent surface for product chrome.

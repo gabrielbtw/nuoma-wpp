@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   PROFILE_PHOTO_SEEN_BY_THREAD_CAP,
   getProfilePhotoSeenByThread,
+  isReadyChatState,
   parseTemporaryMessagesDuration,
+  removeCdpClientListeners,
   setProfilePhotoSeenByThread,
   shouldAllowActiveSendTarget,
   temporaryMessagesUiScript,
@@ -19,6 +21,30 @@ const baseState: ActiveSendTargetState = {
   contactInfoPhone: null,
   hasComposer: true,
 };
+
+describe("CDP listener cleanup", () => {
+  it("removes registered listeners and ignores null placeholders", () => {
+    const removed: Array<[string, (...args: unknown[]) => void]> = [];
+    const fakeClient = {
+      removeListener(event: string, listener: (...args: unknown[]) => void) {
+        removed.push([event, listener]);
+      },
+    };
+    const runtimeListener = () => undefined;
+    const dialogListener = () => undefined;
+
+    removeCdpClientListeners(fakeClient, [
+      { event: "Runtime.bindingCalled", listener: runtimeListener },
+      { event: "Page.javascriptDialogOpening", listener: dialogListener },
+      { event: "disconnect", listener: null },
+    ]);
+
+    expect(removed).toEqual([
+      ["Runtime.bindingCalled", runtimeListener],
+      ["Page.javascriptDialogOpening", dialogListener],
+    ]);
+  });
+});
 
 describe("CDP profile photo seen cache", () => {
   it("keeps only the 500 most recently used profile-photo entries", () => {
@@ -54,8 +80,6 @@ describe("CDP active send target guard", () => {
         openChatPhone: "5531982066263",
         openChatPhoneNavigatedAtMs: nowMs - 60_000,
         nowMs,
-        allowedSelfChatPhones: [],
-        expectedTitle: null,
       }),
     ).toBe(false);
   });
@@ -70,8 +94,6 @@ describe("CDP active send target guard", () => {
         openChatPhone: "5531982066263",
         openChatPhoneNavigatedAtMs: nowMs - 5_000,
         nowMs,
-        allowedSelfChatPhones: [],
-        expectedTitle: null,
       }),
     ).toBe(false);
   });
@@ -87,8 +109,6 @@ describe("CDP active send target guard", () => {
         openChatPhone: null,
         openChatPhoneNavigatedAtMs: 0,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: [],
-        expectedTitle: null,
       }),
     ).toBe(true);
   });
@@ -104,8 +124,6 @@ describe("CDP active send target guard", () => {
         openChatPhone: "5531982066263",
         openChatPhoneNavigatedAtMs: 995_000,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: [],
-        expectedTitle: "gabriel braga nuoma",
       }),
     ).toBe(true);
   });
@@ -117,14 +135,11 @@ describe("CDP active send target guard", () => {
         state: {
           ...baseState,
           title: "+55 31 8896-2330",
-          titlePhone: "553188962330",
           overlayPhone: "553188962330",
         },
         openChatPhone: null,
         openChatPhoneNavigatedAtMs: 0,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: [],
-        expectedTitle: null,
       }),
     ).toBe(true);
   });
@@ -136,14 +151,11 @@ describe("CDP active send target guard", () => {
         state: {
           ...baseState,
           title: "31 9127-5407 Bh",
-          titlePhone: "3191275407",
           overlayPhone: "3191275407",
         },
         openChatPhone: null,
         openChatPhoneNavigatedAtMs: 0,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: [],
-        expectedTitle: "5407 bh",
       }),
     ).toBe(true);
   });
@@ -155,16 +167,28 @@ describe("CDP active send target guard", () => {
         state: {
           ...baseState,
           title: "31982066263",
-          titlePhone: "31982066263",
           overlayPhone: "31982066263",
         },
         openChatPhone: null,
         openChatPhoneNavigatedAtMs: 0,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: [],
-        expectedTitle: null,
       }),
     ).toBe(true);
+  });
+
+  it("does not treat a phone-looking WhatsApp title as live phone evidence", () => {
+    expect(
+      shouldAllowActiveSendTarget({
+        expectedPhone: "5531982066263",
+        state: {
+          ...baseState,
+          title: "31982066263",
+        },
+        openChatPhone: null,
+        openChatPhoneNavigatedAtMs: 0,
+        nowMs: 1_000_000,
+      }),
+    ).toBe(false);
   });
 
   it("allows a saved-contact title immediately after navigating when overlay confirms the live target phone", () => {
@@ -179,8 +203,6 @@ describe("CDP active send target guard", () => {
         openChatPhone: "5531985657732",
         openChatPhoneNavigatedAtMs: 995_000,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: [],
-        expectedTitle: "7732 bh",
       }),
     ).toBe(true);
   });
@@ -193,13 +215,11 @@ describe("CDP active send target guard", () => {
         openChatPhone: "5531982066263",
         openChatPhoneNavigatedAtMs: 995_000,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: [],
-        expectedTitle: "gabriel braga nuoma",
       }),
     ).toBe(false);
   });
 
-  it("allows title-only evidence for an explicitly allowlisted phone during the post-navigation window", () => {
+  it("blocks title-only evidence for an explicitly allowlisted phone during the post-navigation window", () => {
     expect(
       shouldAllowActiveSendTarget({
         expectedPhone: "5531982066263",
@@ -207,13 +227,11 @@ describe("CDP active send target guard", () => {
         openChatPhone: "5531982066263",
         openChatPhoneNavigatedAtMs: 995_000,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: ["5531982066263"],
-        expectedTitle: "gabriel braga nuoma",
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it("allows title-only evidence for an already-open explicitly allowlisted saved contact", () => {
+  it("blocks title-only evidence for an already-open explicitly allowlisted saved contact", () => {
     expect(
       shouldAllowActiveSendTarget({
         expectedPhone: "5531982066263",
@@ -221,13 +239,11 @@ describe("CDP active send target guard", () => {
         openChatPhone: null,
         openChatPhoneNavigatedAtMs: 0,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: ["5531982066263"],
-        expectedTitle: "gabriel braga nuoma",
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it("blocks when /send phone matches but the active WhatsApp header is another phone", () => {
+  it("blocks when /send phone matches but contact details reveal another phone", () => {
     expect(
       shouldAllowActiveSendTarget({
         expectedPhone: "5531982066263",
@@ -236,18 +252,16 @@ describe("CDP active send target guard", () => {
           href: "https://web.whatsapp.com/send?phone=5531982066263",
           hrefPhone: "5531982066263",
           title: "+55 31 9296-2471",
-          titlePhone: "553192962471",
+          contactInfoPhone: "553192962471",
         },
         openChatPhone: "5531982066263",
         openChatPhoneNavigatedAtMs: 995_000,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: [],
-        expectedTitle: "gabriel braga nuoma",
       }),
     ).toBe(false);
   });
 
-  it("blocks when /send phone matches but the active WhatsApp title is another saved contact", () => {
+  it("allows when /send phone matches even if the active WhatsApp title is another saved contact", () => {
     expect(
       shouldAllowActiveSendTarget({
         expectedPhone: "5531982066263",
@@ -260,10 +274,41 @@ describe("CDP active send target guard", () => {
         openChatPhone: "5531982066263",
         openChatPhoneNavigatedAtMs: 995_000,
         nowMs: 1_000_000,
-        allowedSelfChatPhones: [],
-        expectedTitle: "gabriel braga nuoma",
+      }),
+    ).toBe(true);
+  });
+});
+
+describe("CDP WhatsApp readiness", () => {
+  it("requires composer by default for send-safe navigation", () => {
+    expect(
+      isReadyChatState({
+        hasMain: true,
+        hasSidebar: true,
+        hasComposer: false,
+        startingConversation: false,
+        headerTitle: "Gabriel Braga",
+        visibleMessages: 12,
+        href: "https://web.whatsapp.com/send?phone=5531982066263",
       }),
     ).toBe(false);
+  });
+
+  it("allows read-only history sync when messages are visible without composer", () => {
+    expect(
+      isReadyChatState(
+        {
+          hasMain: true,
+          hasSidebar: true,
+          hasComposer: false,
+          startingConversation: false,
+          headerTitle: "Gabriel Braga",
+          visibleMessages: 12,
+          href: "https://web.whatsapp.com/send?phone=5531982066263",
+        },
+        { requireComposer: false },
+      ),
+    ).toBe(true);
   });
 });
 

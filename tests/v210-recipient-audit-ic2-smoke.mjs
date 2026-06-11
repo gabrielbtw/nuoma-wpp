@@ -36,7 +36,7 @@ async function main() {
     await page.click('button[type="submit"]');
     await page.waitForURL(`${webUrl}/`);
 
-    await page.goto(`${webUrl}/campaigns`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${webUrl}/campaigns?tab=recipients`, { waitUntil: "domcontentloaded" });
     const campaignRow = page.locator(
       `[data-testid="campaign-list-item"][data-campaign-id="${fixture.campaignId}"]`,
     );
@@ -45,8 +45,14 @@ async function main() {
 
     await campaignRow.getByText("reuso").first().waitFor({ state: "visible", timeout: 10_000 });
     await campaignRow.getByText("batch:3/3").first().waitFor({ state: "visible", timeout: 10_000 });
-    await campaignRow.getByText("restaurado 90d").first().waitFor({ state: "visible", timeout: 10_000 });
-    await campaignRow.getByText("24h falhou").first().waitFor({ state: "visible", timeout: 10_000 });
+    await campaignRow
+      .getByText("restaurado 90d")
+      .first()
+      .waitFor({ state: "visible", timeout: 10_000 });
+    await campaignRow
+      .getByText("24h falhou")
+      .first()
+      .waitFor({ state: "visible", timeout: 10_000 });
 
     const recipientRows = await campaignRow
       .locator('[data-testid="campaign-recipient-row"]')
@@ -143,7 +149,9 @@ function seedFixture() {
       .prepare("SELECT id FROM campaigns WHERE user_id = 1 AND name LIKE 'V2.10.10-13 Smoke%'")
       .all();
     for (const row of existing) {
-      db.prepare("DELETE FROM campaign_recipients WHERE user_id = 1 AND campaign_id = ?").run(row.id);
+      db.prepare("DELETE FROM campaign_recipients WHERE user_id = 1 AND campaign_id = ?").run(
+        row.id,
+      );
       db.prepare("DELETE FROM jobs WHERE user_id = 1 AND dedupe_key LIKE ?").run(
         `campaign_step:${row.id}:%`,
       );
@@ -152,7 +160,9 @@ function seedFixture() {
       );
     }
     db.prepare("DELETE FROM campaigns WHERE user_id = 1 AND name LIKE 'V2.10.10-13 Smoke%'").run();
-    db.prepare("DELETE FROM system_events WHERE user_id = 1 AND payload_json LIKE '%v2.10.10-13-smoke%'").run();
+    db.prepare(
+      "DELETE FROM system_events WHERE user_id = 1 AND payload_json LIKE '%v2.10.10-13-smoke%'",
+    ).run();
 
     const steps = [
       {

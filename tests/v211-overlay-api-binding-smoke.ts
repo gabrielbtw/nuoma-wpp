@@ -109,7 +109,11 @@ async function validateWhatsAppWeb() {
     await waitForConversationHeader(page);
 
     let state = await resetInjectAndReadState(page);
-    if (!state.mounted || !state.title || (state.phone && state.phone !== canaryPhone)) {
+    if (
+      !state.mounted ||
+      (!state.phone && !state.waJid) ||
+      (state.phone && state.phone !== canaryPhone)
+    ) {
       const targetUrl = `${whatsappUrl.replace(/\/$/, "")}/send?phone=${encodeURIComponent(canaryPhone)}`;
       await page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 45_000 });
       await waitForConversationHeader(page);
@@ -117,7 +121,7 @@ async function validateWhatsAppWeb() {
     }
     if (
       !state.mounted ||
-      (!state.phone && !state.title) ||
+      (!state.phone && !state.waJid) ||
       (state.phone && state.phone !== canaryPhone)
     ) {
       throw new Error(`wpp overlay did not detect canary phone: ${JSON.stringify(state)}`);
@@ -307,11 +311,15 @@ async function injectAndReadState(page: Page) {
 
 async function resetInjectAndReadState(page: Page) {
   await page.evaluate((rootId) => {
+    const bridgeWindow = window as unknown as {
+      __nuomaApi?: ((...args: unknown[]) => unknown) | unknown;
+      __nuomaApiNativeBridge?: ((...args: unknown[]) => unknown) | unknown;
+    };
     const nativeBridge =
-      typeof (window as unknown as Record<string, unknown>).__nuomaApiNativeBridge === "function"
-        ? (window as unknown as Record<string, unknown>).__nuomaApiNativeBridge
-        : typeof (window as unknown as Record<string, unknown>).__nuomaApi === "function"
-          ? ((window as unknown as Record<string, Function>).__nuomaApi as Function).bind(window)
+      typeof bridgeWindow.__nuomaApiNativeBridge === "function"
+        ? bridgeWindow.__nuomaApiNativeBridge
+        : typeof bridgeWindow.__nuomaApi === "function"
+          ? bridgeWindow.__nuomaApi.bind(window)
           : null;
     document.getElementById(rootId)?.remove();
     delete (window as unknown as { __nuomaOverlayState?: unknown }).__nuomaOverlayState;
@@ -339,6 +347,7 @@ async function readOverlayState(page: Page) {
           __nuomaOverlayRefresh?: () => {
             mounted: boolean;
             phone: string;
+            waJid: string;
             phoneSource: string;
             title: string;
             apiStatus: string;
@@ -349,6 +358,7 @@ async function readOverlayState(page: Page) {
       return {
         mounted: Boolean(state?.mounted),
         phone: state?.phone ?? "",
+        waJid: state?.waJid ?? host?.getAttribute("data-nuoma-wa-jid") ?? "",
         phoneSource: state?.phoneSource ?? "",
         title: state?.title ?? "",
         apiStatus: state?.apiStatus ?? host?.getAttribute("data-nuoma-api-status") ?? "",
@@ -470,7 +480,15 @@ function overlayData(label: string, params: Record<string, unknown>): NuomaOverl
         observedAtUtc: new Date().toISOString(),
       },
     ],
-    automations: [{ id: 35, name: "Overlay API binding", category: "Embed", status: "active" }],
+    automations: [
+      {
+        id: 35,
+        name: "Overlay API binding",
+        category: "Embed",
+        status: "active",
+        overlayEnabled: true,
+      },
+    ],
     notes: "Ponte Runtime.addBinding validada no overlay.",
     source: "nuoma-api",
     apiStatus: "online",

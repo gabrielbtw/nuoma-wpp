@@ -4,6 +4,8 @@ import { chromium } from "playwright";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
+import { backfillSmokeWhatsappIdentity } from "./helpers/contact-identity.mjs";
+
 const webUrl = process.env.WEB_URL ?? "http://127.0.0.1:3002";
 const apiUrl = process.env.API_URL ?? "http://127.0.0.1:3001";
 const email = process.env.SMOKE_EMAIL ?? "admin@nuoma.local";
@@ -118,6 +120,12 @@ function seedQuickReplyConversation() {
     if (!conversation?.id) {
       throw new Error("quick replies smoke conversation was not created");
     }
+    backfillSmokeWhatsappIdentity(db, {
+      userId: 1,
+      phone: smokePhone,
+      conversationId: Number(conversation.id),
+      now,
+    });
 
     db.prepare(
       `

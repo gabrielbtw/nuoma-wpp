@@ -40,6 +40,7 @@ export interface NuomaOverlayData {
     triggerChannel?: string | null;
     actionsCount?: number;
     sendStepsCount?: number;
+    overlayEnabled?: boolean;
     eligible?: boolean;
     reasons?: string[];
     wouldEnqueueJobs?: boolean;
@@ -52,6 +53,7 @@ export interface NuomaOverlayData {
     channel?: string | null;
     stepsCount?: number;
     firstStepType?: string | null;
+    overlayEnabled?: boolean;
     eligible?: boolean;
     reasons?: string[];
     canDispatchReal?: boolean;
@@ -95,19 +97,19 @@ export interface NuomaOverlayData {
 }
 
 const overlayTokens = {
-  bg: "oklch(0.17 0.022 198 / 0.94)",
-  bgHover: "oklch(0.25 0.030 192 / 0.96)",
-  fg: "oklch(0.94 0.010 175)",
-  fgMuted: "oklch(0.80 0.018 182)",
-  fgDim: "oklch(0.72 0.018 188)",
-  cyan: "oklch(0.74 0.12 202)",
-  warning: "oklch(0.78 0.15 74)",
-  surface: "oklch(0.22 0.026 196 / 0.88)",
-  elevated: "oklch(0.25 0.030 192 / 0.92)",
-  contour: "oklch(0.58 0.040 188 / 0.42)",
-  contourMuted: "oklch(0.31 0.026 190 / 0.42)",
-  shadow: "0 0 0 1px oklch(0.58 0.040 188 / 0.42), 0 18px 48px oklch(0.06 0.020 205 / 0.44)",
-  glow: "0 0 0 1px oklch(0.74 0.12 202 / 0.78), 0 0 24px oklch(0.74 0.12 202 / 0.18)",
+  bg: "oklch(0.16 0.018 214 / 0.94)",
+  bgHover: "oklch(0.23 0.026 210 / 0.96)",
+  fg: "oklch(0.94 0.010 190)",
+  fgMuted: "oklch(0.80 0.018 198)",
+  fgDim: "oklch(0.70 0.018 205)",
+  cyan: "oklch(0.63 0.055 185)",
+  warning: "oklch(0.66 0.090 210)",
+  surface: "oklch(0.21 0.024 210 / 0.90)",
+  elevated: "oklch(0.24 0.028 210 / 0.94)",
+  contour: "oklch(0.54 0.045 205 / 0.42)",
+  contourMuted: "oklch(0.31 0.024 210 / 0.42)",
+  shadow: "0 0 0 1px oklch(0.54 0.045 205 / 0.38), 0 18px 48px oklch(0.06 0.020 215 / 0.44)",
+  glow: "0 0 0 1px oklch(0.63 0.055 185 / 0.58), 0 12px 28px oklch(0.06 0.020 215 / 0.24)",
   fontFamily:
     '"Geist Variable", "Geist", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
 } as const;
@@ -1472,7 +1474,29 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
   }
 
   function candidatePhoneFromElement(element) {
-    return bestPhoneFromElement(element);
+    const values = [];
+    const collect = (node) => {
+      if (!node || !node.getAttribute) {
+        return;
+      }
+      values.push(node.getAttribute("data-id"));
+      values.push(node.getAttribute("data-pre-plain-text"));
+      values.push(node.getAttribute("href"));
+    };
+    collect(element);
+    const descendants = Array.from(
+      element.querySelectorAll('[data-id], [data-pre-plain-text], a[href], [href]'),
+    );
+    for (const node of descendants) {
+      collect(node);
+    }
+    for (const value of values) {
+      const waJid = normalizeWaJid(value);
+      if (waJid) {
+        return normalizePhone(waJid);
+      }
+    }
+    return bestPhoneFromValues(values);
   }
 
   function rowLooksActive(row) {
@@ -1486,7 +1510,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     );
   }
 
-  function phoneFromSidebarActive(title) {
+  function phoneFromSidebarActive() {
     const sidebar = document.querySelector("#pane-side");
     if (!sidebar) {
       return "";
@@ -1496,13 +1520,9 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         '[aria-selected="true"], [data-nuoma-active-chat="true"], [data-testid="cell-frame-container"], [role="listitem"]',
       ),
     );
-    const normalizedTitle = text(title).toLowerCase();
     const activeRows = rows.filter(rowLooksActive);
-    const titleRows = normalizedTitle
-      ? rows.filter((row) => text(row.textContent).toLowerCase().includes(normalizedTitle))
-      : [];
     const fallbackRows = rows.length === 1 ? rows : [];
-    for (const row of [...activeRows, ...titleRows, ...fallbackRows]) {
+    for (const row of [...activeRows, ...fallbackRows]) {
       const phone = candidatePhoneFromElement(row);
       if (phone) {
         return phone;
@@ -1596,11 +1616,6 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       };
     }
 
-    const headerPhone = directPhoneFromText(title);
-    if (headerPhone) {
-      return { title, phone: headerPhone, waJid: normalizeWaJid(headerPhone), phoneSource: "header-title" };
-    }
-
     const urlPhone = phoneFromUrl();
     if (urlPhone) {
       return { title, phone: urlPhone, waJid: normalizeWaJid(urlPhone), phoneSource: "url-phone" };
@@ -1616,7 +1631,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       return { title, phone: contactDetailsPhone, waJid: normalizeWaJid(contactDetailsPhone), phoneSource: "contact-details" };
     }
 
-    const sidebarPhone = phoneFromSidebarActive(title);
+    const sidebarPhone = phoneFromSidebarActive();
     if (sidebarPhone) {
       return { title, phone: sidebarPhone, waJid: normalizeWaJid(sidebarPhone), phoneSource: "sidebar-active" };
     }
@@ -2137,7 +2152,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       const syncAction = document.createElement("button");
       syncAction.type = "button";
       syncAction.className = "nuoma-empty-action";
-      syncAction.disabled = !phone || state.apiInFlight;
+      syncAction.disabled = !hasDispatchTarget || state.apiInFlight;
       syncAction.setAttribute("aria-label", "Sincronizar conversa para criar resumo do contato");
       syncAction.textContent = state.apiInFlight ? "Sincronizando..." : "Sincronizar conversa";
       syncAction.addEventListener("click", () => {
@@ -2176,9 +2191,14 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     syncButton.type = "button";
     syncButton.className = "nuoma-action";
     syncButton.textContent = state.apiInFlight ? "Sincronizando..." : "Forcar sync";
-    syncButton.disabled = !phone || state.apiInFlight;
-    syncButton.setAttribute("aria-label", phone ? "Forcar sync da conversa atual" : "Sync bloqueado sem telefone identificado");
-    syncButton.title = phone ? "Rele a conversa atual pelo WhatsApp Web" : "Identifique o telefone para liberar o sync manual";
+    syncButton.disabled = !hasDispatchTarget || state.apiInFlight;
+    syncButton.setAttribute(
+      "aria-label",
+      hasDispatchTarget ? "Forcar sync da conversa atual" : "Sync bloqueado sem identidade identificada",
+    );
+    syncButton.title = hasDispatchTarget
+      ? "Rele a conversa atual pelo WhatsApp Web"
+      : "Identifique o telefone ou JID para liberar o sync manual";
     syncButton.addEventListener("click", () => {
       void forceSyncCurrentConversation(host);
     });
@@ -2196,7 +2216,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         .filter(Boolean)
         .join(" · ");
     } else {
-      syncNote.textContent = phone
+      syncNote.textContent = hasDispatchTarget
         ? "Rele a conversa atual pelo WhatsApp Web e grava mensagens por ID unico."
         : "Abra uma conversa individual para liberar o sync manual.";
     }
@@ -2331,6 +2351,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         const meta = document.createElement("div");
         meta.className = "nuoma-campaign-meta";
         meta.appendChild(campaignChip(campaign.eligible ? "elegivel" : "bloqueada", campaign.eligible ? "ok" : "blocked"));
+        meta.appendChild(campaignChip(campaign.overlayEnabled ? "overlay sim" : "overlay nao", campaign.overlayEnabled ? "ok" : "blocked"));
         meta.appendChild(campaignChip(text(campaign.status) || "status", ""));
         meta.appendChild(campaignChip(String(campaign.stepsCount || 0) + " step(s)", ""));
         if (campaign.firstStepType) {
@@ -2405,6 +2426,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         const meta = document.createElement("div");
         meta.className = "nuoma-campaign-meta";
         meta.appendChild(campaignChip(automation.eligible ? "elegivel" : "bloqueada", automation.eligible ? "ok" : "blocked"));
+        meta.appendChild(campaignChip(automation.overlayEnabled ? "overlay sim" : "overlay nao", automation.overlayEnabled ? "ok" : "blocked"));
         meta.appendChild(campaignChip(text(automation.status) || "status", ""));
         meta.appendChild(campaignChip(String(automation.actionsCount || 0) + " acao(oes)", ""));
         if (automation.wouldEnqueueJobs) {
@@ -2586,7 +2608,6 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     const host = ensureHost(header);
     const dataPhone = text(state.data && state.data.phone);
     const dataWaJid = text(state.data && state.data.waJid);
-    const dataTitle = text(state.data && state.data.title);
     const dataPhoneSource = text(state.data && state.data.phoneSource);
     const sameAsDataWaJid = Boolean(thread.waJid && normalizeWaJid(dataWaJid) === thread.waJid);
     const sameAsExistingWaJid = Boolean(thread.waJid && existingWaJid === thread.waJid);
@@ -2611,7 +2632,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       (thread.waJid && dataWaJid && normalizeWaJid(dataWaJid) !== thread.waJid) ||
       (thread.phone && dataPhone && dataPhone !== thread.phone) ||
       (!hasCanonicalThreadIdentity &&
-        Boolean(dataPhone || dataWaJid || (thread.title && dataTitle !== thread.title)));
+        Boolean(dataPhone || dataWaJid || (state.data && state.data.source !== "dom")));
     if (threadChanged) {
       state.data = {
         phone: thread.phone || retainedPhone,
@@ -2636,7 +2657,8 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         : retainedPhone
           ? retainedPhoneSource || "retained"
           : thread.phoneSource;
-    const displayTitle = thread.title || text(state.data && state.data.title);
+    const displayTitle =
+      thread.title || (displayPhone || displayWaJid ? text(state.data && state.data.title) : "");
     if ((displayPhone || displayWaJid) && displayTitle) {
       if (state.data && !state.data.phone) {
         state.data.phone = displayPhone;

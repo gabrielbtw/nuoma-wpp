@@ -154,7 +154,7 @@ describe("messages.sendVoice", () => {
       db.close();
       await fs.rm(tempDir, { recursive: true, force: true });
     }
-  });
+  }, 15_000);
 
   it("enqueues a guarded send_voice job from a recorded media asset", async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "nuoma-v29-voice-api-"));
@@ -342,6 +342,21 @@ describe("messages.sendVoice", () => {
       sourceUrl: null,
       deletedAt: null,
     });
+    const audioPath = path.join(tempDir, "audio.ogg");
+    const audioBytes = Buffer.from("nuoma-v29-audio");
+    await fs.writeFile(audioPath, audioBytes);
+    const audioAsset = await repos.mediaAssets.create({
+      userId: user.id,
+      type: "audio",
+      fileName: "audio.ogg",
+      mimeType: "audio/ogg",
+      sha256: createHash("sha256").update(audioBytes).digest("hex"),
+      sizeBytes: audioBytes.byteLength,
+      durationMs: 1000,
+      storagePath: audioPath,
+      sourceUrl: null,
+      deletedAt: null,
+    });
 
     const app = await buildApiApp({
       env: loadApiEnv({
@@ -361,6 +376,74 @@ describe("messages.sendVoice", () => {
       });
       const cookies = cookieHeader(login.setCookie);
       const csrfToken = login.data!.csrfToken;
+
+      const blockedInstagramText = await trpcCall(
+        app,
+        "POST",
+        "messages.send",
+        {
+          conversationId: instagramConversation.id,
+          body: "DM fora da janela",
+          clientNonce: "composer:ig-text:no-window",
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(blockedInstagramText.statusCode).toBe(400);
+      expect(blockedInstagramText.error?.message).toContain("no inbound message found");
+
+      const blockedInstagramImage = await trpcCall(
+        app,
+        "POST",
+        "messages.sendMedia",
+        {
+          conversationId: instagramConversation.id,
+          mediaAssetId: imageAsset.id,
+          caption: "Foto IG fora da janela",
+          clientNonce: "composer:ig-media:no-window",
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(blockedInstagramImage.statusCode).toBe(400);
+      expect(blockedInstagramImage.error?.message).toContain("no inbound message found");
+
+      const latestAudit = await repos.sendAuditEvents.list({
+        userId: user.id,
+        conversationId: instagramConversation.id,
+        phase: "policy_block",
+        limit: 2,
+      });
+      expect(latestAudit).toHaveLength(2);
+      expect(latestAudit[0]).toMatchObject({
+        channel: "instagram",
+        errorCode: "instagram_24h_window_missing",
+      });
+
+      await repos.messages.create({
+        userId: user.id,
+        conversationId: instagramConversation.id,
+        contactId: instagramContact.id,
+        externalId: "ig-inbound-window",
+        direction: "inbound",
+        contentType: "text",
+        status: "received",
+        body: "Oi pelo Instagram",
+        observedAtUtc: new Date().toISOString(),
+      });
+
+      const scheduledOutsideWindow = await trpcCall(
+        app,
+        "POST",
+        "messages.send",
+        {
+          conversationId: instagramConversation.id,
+          body: "DM agendada fora da janela",
+          scheduledAt: new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString(),
+          clientNonce: "composer:ig-text:scheduled-outside-window",
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(scheduledOutsideWindow.statusCode).toBe(400);
+      expect(scheduledOutsideWindow.error?.message).toContain("outside the 24h window");
 
       const sendImage = await trpcCall<{
         job: {
@@ -483,10 +566,25 @@ describe("messages.sendVoice", () => {
       );
       expect(sendInstagramDocument.statusCode).toBe(400);
       expect(sendInstagramDocument.error?.message).toMatch(/image and video/i);
+
+      const sendInstagramAudio = await trpcCall(
+        app,
+        "POST",
+        "messages.sendMedia",
+        {
+          conversationId: instagramConversation.id,
+          mediaAssetId: audioAsset.id,
+          caption: "Audio IG",
+          clientNonce: "composer:ig-audio:test-nonce",
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(sendInstagramAudio.statusCode).toBe(400);
+      expect(sendInstagramAudio.error?.message).toMatch(/Unsupported composer media type: audio/i);
     } finally {
       await app.close();
       db.close();
       await fs.rm(tempDir, { recursive: true, force: true });
     }
-  });
+  }, 15_000);
 });

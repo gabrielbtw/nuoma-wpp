@@ -426,8 +426,7 @@ async function resolveExistingInstagramThread(input: {
   const byHandle = conversations.find(
     (conversation) =>
       conversation.channel === "instagram" &&
-      (normalizeInstagramHandle(conversation.title) === input.instagramHandle ||
-        normalizeInstagramHandle(conversation.externalThreadId) === input.instagramHandle),
+      normalizeInstagramHandle(conversation.externalThreadId) === input.instagramHandle,
   );
   return byHandle ? { externalThreadId: byHandle.externalThreadId, title: byHandle.title } : null;
 }

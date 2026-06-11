@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, gte, inArray, isNull, like, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, like, lt, lte, or, sql } from "drizzle-orm";
 
 import {
   attendantSchema,
@@ -74,9 +74,11 @@ import {
   refreshSessions,
   reminders,
   schedulerLocks,
+  sendAuditEvents,
   systemEvents,
   tags,
   users,
+  workerSendBuckets,
   workerState,
   type NewContact,
   type NewConversation,
@@ -86,6 +88,7 @@ import {
   type NewJobDead,
   type NewMessage,
   type NewMessageDispatchAttempt,
+  type NewSendAuditEvent,
   type NewQuickReply,
   type NewUser,
 } from "./schema.js";
@@ -121,7 +124,29 @@ type CreateAttachmentCandidateRecord = Omit<NewAttachmentCandidate, "metadata"> 
 type CreateChatbotVariantEventRecord = Omit<NewChatbotVariantEvent, "metadata"> & {
   metadata?: JsonObject;
 };
+type CreateSendAuditEventRecord = Omit<NewSendAuditEvent, "metadata"> & {
+  metadata?: JsonObject;
+};
+type SendAuditEventRecord = Omit<typeof sendAuditEvents.$inferSelect, "metadata"> & {
+  metadata: JsonObject;
+};
+type WorkerSendBucketRow = typeof workerSendBuckets.$inferSelect;
+type WorkerSendBucketConsumeResult =
+  | {
+      allowed: true;
+      bucketKey: string;
+      tokensRemaining: number;
+      recentAllowedCount: number;
+    }
+  | {
+      allowed: false;
+      bucketKey: string;
+      tokensRemaining: number;
+      recentAllowedCount: number;
+      retryAfterMs: number;
+    };
 type ContactRow = typeof contacts.$inferSelect;
+const SEND_RATE_TOKEN_SCALE = 1_000;
 const serialSendJobTypes: NewJob["type"][] = [
   "send_message",
   "send_instagram_message",
@@ -131,6 +156,7 @@ const serialSendJobTypes: NewJob["type"][] = [
   "campaign_step",
   "chatbot_reply",
 ];
+const queuedSendAuditJobTypes = new Set<NewJob["type"]>(serialSendJobTypes);
 
 export interface PushSubscriptionRecord {
   id: number;
@@ -469,7 +495,7 @@ function normalizeCampaignPipelinePhone(value: string | null | undefined): strin
   return normalizePhone(value);
 }
 
-function normalizeCampaignPipelineInstagram(value: string | null | undefined): string | null {
+function normalizeCampaignPipelineInstagram(value: unknown): string | null {
   const cleaned = String(value ?? "")
     .trim()
     .replace(/^ig:/i, "")
@@ -481,7 +507,7 @@ function normalizeCampaignPipelineInstagram(value: string | null | undefined): s
 function campaignActivePipelineKey(input: {
   channel: typeof campaignRecipients.$inferSelect.channel;
   phone?: string | null | undefined;
-  instagramHandle?: string | null | undefined;
+  instagramHandle?: unknown;
   metadata?: JsonObject | null | undefined;
   status?: typeof campaignRecipients.$inferSelect.status | undefined;
 }): string | null {
@@ -640,6 +666,13 @@ function mapSystemEvent(row: typeof systemEvents.$inferSelect) {
   };
 }
 
+function mapSendAuditEvent(row: typeof sendAuditEvents.$inferSelect): SendAuditEventRecord {
+  return {
+    ...row,
+    metadata: decodeJsonObject(row.metadata),
+  };
+}
+
 function mapReminder(row: typeof reminders.$inferSelect): Reminder {
   return reminderSchema.parse(row);
 }
@@ -653,7 +686,12 @@ function nowIso(): string {
 }
 
 function normalizedPhoneSql(valueSql: string): string {
-  const digits = `replace(replace(replace(replace(replace(coalesce(${valueSql}, ''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', '')`;
+  const source = `(CASE
+    WHEN instr(coalesce(${valueSql}, ''), '@') > 0
+      THEN substr(coalesce(${valueSql}, ''), 1, instr(coalesce(${valueSql}, ''), '@') - 1)
+    ELSE coalesce(${valueSql}, '')
+  END)`;
+  const digits = `replace(replace(replace(replace(replace(${source}, ' ', ''), '-', ''), '(', ''), ')', ''), '+', '')`;
   return `(CASE
     WHEN length(${digits}) IN (12, 13) AND substr(${digits}, 1, 2) = '55' THEN ${digits}
     WHEN length(${digits}) IN (10, 11) THEN '55' || ${digits}
@@ -662,7 +700,96 @@ function normalizedPhoneSql(valueSql: string): string {
 }
 
 function normalizedJsonPhoneSql(tableAlias: string): string {
-  return normalizedPhoneSql(`json_extract(${tableAlias}.payload_json, '$.phone')`);
+  return normalizedPhoneSql(
+    `coalesce(
+      json_extract(${tableAlias}.payload_json, '$.waJid'),
+      json_extract(${tableAlias}.payload_json, '$.externalThreadId'),
+      json_extract(${tableAlias}.payload_json, '$.phone')
+    )`,
+  );
+}
+
+function normalizedJsonInstagramHandleSql(tableAlias: string): string {
+  const raw = `lower(trim(coalesce(json_extract(${tableAlias}.payload_json, '$.instagramHandle'), json_extract(${tableAlias}.payload_json, '$.username'), json_extract(${tableAlias}.payload_json, '$.recipientNormalizedValue'), '')))`;
+  const withoutPrefix = `replace(replace(${raw}, '@', ''), 'ig:', '')`;
+  return `(CASE WHEN length(${withoutPrefix}) BETWEEN 1 AND 30 THEN ${withoutPrefix} ELSE '' END)`;
+}
+
+function normalizedConversationWhatsappTargetSql(tableAlias: string): string {
+  return normalizedPhoneSql(`(
+    SELECT coalesce(c.wa_jid, c.external_thread_id, ct.wa_jid, ct.phone_e164, ct.phone, '')
+    FROM conversations c
+    LEFT JOIN contacts ct ON ct.id = c.contact_id AND ct.user_id = c.user_id
+    WHERE c.user_id = ${tableAlias}.user_id
+      AND c.id = cast(coalesce(json_extract(${tableAlias}.payload_json, '$.conversationId'), 0) AS integer)
+      AND c.channel = 'whatsapp'
+    LIMIT 1
+  )`);
+}
+
+function normalizedConversationInstagramTargetSql(tableAlias: string): string {
+  const raw = `(SELECT lower(trim(coalesce(c.external_thread_id, ct.instagram_handle, '')))
+    FROM conversations c
+    LEFT JOIN contacts ct ON ct.id = c.contact_id AND ct.user_id = c.user_id
+    WHERE c.user_id = ${tableAlias}.user_id
+      AND c.id = cast(coalesce(json_extract(${tableAlias}.payload_json, '$.conversationId'), 0) AS integer)
+      AND c.channel = 'instagram'
+    LIMIT 1)`;
+  const withoutPrefix = `replace(replace(${raw}, '@', ''), 'ig:', '')`;
+  return `(CASE WHEN length(${withoutPrefix}) BETWEEN 1 AND 128 THEN ${withoutPrefix} ELSE '' END)`;
+}
+
+function normalizedJsonSerialTargetSql(tableAlias: string): string {
+  const phone = normalizedJsonPhoneSql(tableAlias);
+  const instagramHandle = normalizedJsonInstagramHandleSql(tableAlias);
+  const conversationPhone = normalizedConversationWhatsappTargetSql(tableAlias);
+  const conversationInstagram = normalizedConversationInstagramTargetSql(tableAlias);
+  return `(CASE
+    WHEN ${conversationPhone} != '' THEN 'wa:' || ${conversationPhone}
+    WHEN ${phone} != '' THEN 'wa:' || ${phone}
+    WHEN ${conversationInstagram} != '' THEN 'ig:' || ${conversationInstagram}
+    WHEN ${instagramHandle} != '' THEN 'ig:' || ${instagramHandle}
+    ELSE ''
+  END)`;
+}
+
+function roundBucketTokens(tokens: number): number {
+  return Math.max(0, Math.round(tokens * 1000) / 1000);
+}
+
+function queuedAuditChannel(
+  job: Job,
+  resolvedChannel: NewSendAuditEvent["channel"] | null,
+): NewSendAuditEvent["channel"] {
+  if (resolvedChannel === "whatsapp" || resolvedChannel === "instagram") {
+    return resolvedChannel;
+  }
+  if (
+    job.type === "send_instagram_message" ||
+    normalizeInstagramHandleForAudit(stringFromJson(job.payload.instagramHandle)) ||
+    normalizeInstagramHandleForAudit(stringFromJson(job.payload.username)) ||
+    normalizeInstagramHandleForAudit(stringFromJson(job.payload.recipientNormalizedValue))
+  ) {
+    return "instagram";
+  }
+  return "whatsapp";
+}
+
+function numberFromJson(value: unknown): number | null {
+  const number = typeof value === "number" ? value : Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+function stringFromJson(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizeInstagramHandleForAudit(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+  const handle = value.trim().toLowerCase().replace(/^ig:/, "").replace(/^@/, "");
+  return /^[a-z0-9._]{1,128}$/.test(handle) ? handle : null;
 }
 
 function normalizedJsonInstagramHandleSql(tableAlias: string): string {
@@ -697,7 +824,115 @@ export function createRepositories(handle: DbHandle) {
       .values({ ...input, payload: encodeJson(input.payload) })
       .onConflictDoNothing()
       .returning();
-    return rows[0] ? mapJob(rows[0]) : null;
+    const row = rows[0];
+    if (!row) {
+      return null;
+    }
+    const job = mapJob(row);
+    await recordQueuedSendAuditForJob(job);
+    return job;
+  }
+
+  async function recordQueuedSendAuditForJob(job: Job): Promise<void> {
+    if (!queuedSendAuditJobTypes.has(job.type)) {
+      return;
+    }
+
+    const conversationId = numberFromJson(job.payload.conversationId);
+    const conversation = conversationId
+      ? await db
+          .select({
+            id: conversations.id,
+            channel: conversations.channel,
+            contactId: conversations.contactId,
+          })
+          .from(conversations)
+          .where(and(eq(conversations.userId, job.userId), eq(conversations.id, conversationId)))
+          .get()
+      : null;
+    const recipientId = numberFromJson(job.payload.recipientId);
+    const recipient = recipientId
+      ? await db
+          .select({
+            campaignId: campaignRecipients.campaignId,
+            contactId: campaignRecipients.contactId,
+            channel: campaignRecipients.channel,
+          })
+          .from(campaignRecipients)
+          .where(
+            and(eq(campaignRecipients.userId, job.userId), eq(campaignRecipients.id, recipientId)),
+          )
+          .get()
+      : null;
+    const campaignId = await existingCampaignId(
+      numberFromJson(job.payload.campaignId) ?? recipient?.campaignId ?? null,
+      job.userId,
+    );
+    const contactId = await existingContactId(
+      numberFromJson(job.payload.contactId) ??
+        conversation?.contactId ??
+        recipient?.contactId ??
+        null,
+      job.userId,
+    );
+    const channel = queuedAuditChannel(job, conversation?.channel ?? recipient?.channel ?? null);
+    const idempotencyKey = stringFromJson(job.payload.idempotencyKey);
+
+    await db.insert(sendAuditEvents).values({
+      userId: job.userId,
+      campaignId,
+      contactId,
+      conversationId: conversation?.id ?? null,
+      messageId: null,
+      jobId: job.id,
+      channel,
+      phase: "queued",
+      latencyMs: null,
+      errorCode: null,
+      errorMessage: null,
+      payloadHash: idempotencyKey ?? job.dedupeKey ?? null,
+      workerId: null,
+      metadata: encodeJson({
+        jobType: job.type,
+        idempotencyKey,
+        dedupeKey: job.dedupeKey,
+        scheduledAt: job.scheduledAt,
+        priority: job.priority,
+        campaignBatchId: stringFromJson(job.payload.campaignBatchId),
+        campaignBatchIndex: numberFromJson(job.payload.campaignBatchIndex),
+        recipientId,
+      }),
+    });
+  }
+
+  async function existingCampaignId(
+    campaignId: number | null,
+    userId: number,
+  ): Promise<number | null> {
+    if (!campaignId) {
+      return null;
+    }
+    const row = await db
+      .select({ id: campaigns.id })
+      .from(campaigns)
+      .where(and(eq(campaigns.userId, userId), eq(campaigns.id, campaignId)))
+      .get();
+    return row?.id ?? null;
+  }
+
+  async function existingContactId(
+    contactId: number | null,
+    userId: number,
+  ): Promise<number | null> {
+    if (!contactId) {
+      return null;
+    }
+    const row = await db
+      .select({ id: contacts.id })
+      .from(contacts)
+      .where(and(eq(contacts.userId, userId), eq(contacts.id, contactId)))
+      .get();
+    return row?.id ?? null;
   }
 
   async function tagIdsForContact(contactId: number): Promise<number[]> {
@@ -1155,6 +1390,49 @@ export function createRepositories(handle: DbHandle) {
           input.channel === "whatsapp"
             ? normalizeWaJid(input.waJid ?? input.externalThreadId)
             : null;
+        if (input.channel === "whatsapp" && waJid) {
+          const existingByWaJid = await db
+            .select()
+            .from(conversations)
+            .where(
+              and(
+                eq(conversations.userId, input.userId),
+                eq(conversations.channel, "whatsapp"),
+                eq(conversations.waJid, waJid),
+                eq(conversations.isArchived, false),
+              ),
+            )
+            .orderBy(desc(conversations.lastMessageAt), desc(conversations.id))
+            .limit(1)
+            .get();
+          if (existingByWaJid && existingByWaJid.externalThreadId !== input.externalThreadId) {
+            const [row] = await db
+              .update(conversations)
+              .set({
+                contactId: input.contactId ?? existingByWaJid.contactId,
+                waJid,
+                title: input.title || existingByWaJid.title,
+                lastMessageAt: lastMessageAt ?? existingByWaJid.lastMessageAt,
+                lastPreview: input.lastPreview ?? existingByWaJid.lastPreview,
+                unreadCount: input.unreadCount ?? existingByWaJid.unreadCount,
+                profilePhotoMediaAssetId:
+                  input.profilePhotoMediaAssetId ?? existingByWaJid.profilePhotoMediaAssetId,
+                profilePhotoSha256:
+                  input.profilePhotoSha256 ?? existingByWaJid.profilePhotoSha256,
+                profilePhotoUpdatedAt:
+                  profilePhotoUpdatedAt ?? existingByWaJid.profilePhotoUpdatedAt,
+                updatedAt,
+              })
+              .where(
+                and(
+                  eq(conversations.userId, input.userId),
+                  eq(conversations.id, existingByWaJid.id),
+                ),
+              )
+              .returning();
+            return mapConversation(expectRow(row, "conversations.upsertObserved.waJid"));
+          }
+        }
 
         handle.raw
           .prepare(
@@ -1242,6 +1520,12 @@ export function createRepositories(handle: DbHandle) {
         if (!waJid) {
           return null;
         }
+        const phone = normalizePhone(waJid);
+        const externalThreadCandidates = [
+          phone,
+          phone ? `${phone}@c.us` : null,
+          phone ? `${phone}@s.whatsapp.net` : null,
+        ].filter((value): value is string => Boolean(value));
         const row = await db
           .select()
           .from(conversations)
@@ -1249,7 +1533,10 @@ export function createRepositories(handle: DbHandle) {
             and(
               eq(conversations.userId, input.userId),
               eq(conversations.channel, "whatsapp"),
-              eq(conversations.waJid, waJid),
+              or(
+                eq(conversations.waJid, waJid),
+                inArray(conversations.externalThreadId, externalThreadCandidates),
+              ),
               eq(conversations.isArchived, false),
             ),
           )
@@ -1672,6 +1959,46 @@ export function createRepositories(handle: DbHandle) {
           .orderBy(desc(messages.observedAtUtc))
           .limit(input.limit ?? 100);
         return rows.map(mapMessage);
+      },
+      async findLatestInboundByConversation(input: {
+        userId: number;
+        conversationId: number;
+      }): Promise<Message | null> {
+        const row = await db
+          .select()
+          .from(messages)
+          .where(
+            and(
+              eq(messages.userId, input.userId),
+              eq(messages.conversationId, input.conversationId),
+              eq(messages.direction, "inbound"),
+              isNull(messages.deletedAt),
+            ),
+          )
+          .orderBy(desc(messages.observedAtUtc), desc(messages.id))
+          .limit(1)
+          .get();
+        return row ? mapMessage(row) : null;
+      },
+      async failedConversationIds(input: {
+        userId: number;
+        conversationIds: number[];
+      }): Promise<Set<number>> {
+        if (input.conversationIds.length === 0) {
+          return new Set();
+        }
+        const placeholders = input.conversationIds.map(() => "?").join(", ");
+        const rows = handle.raw
+          .prepare(
+            `SELECT DISTINCT conversation_id AS conversationId
+             FROM messages
+             WHERE user_id = ?
+               AND status = 'failed'
+               AND deleted_at IS NULL
+               AND conversation_id IN (${placeholders})`,
+          )
+          .all(input.userId, ...input.conversationIds) as Array<{ conversationId: number }>;
+        return new Set(rows.map((row) => row.conversationId));
       },
       async update(input: {
         id: number;
@@ -2200,7 +2527,10 @@ export function createRepositories(handle: DbHandle) {
           metadata?: JsonObject;
         },
       ): Promise<CampaignRecipient> {
-        const activePipelineKey = campaignActivePipelineKey(input);
+        const activePipelineKey = campaignActivePipelineKey({
+          ...input,
+          instagramHandle: input.metadata?.instagramHandle ?? input.metadata?.instagram,
+        });
         const [row] = await db
           .insert(campaignRecipients)
           .values({ ...input, activePipelineKey, metadata: encodeJson(input.metadata) })
@@ -2798,33 +3128,203 @@ export function createRepositories(handle: DbHandle) {
           .map(mapJob);
       },
 
-      async markCompleted(jobId: number): Promise<void> {
-        await db
-          .update(jobs)
-          .set({
-            status: "completed",
-            completedAt: nowIso(),
-            updatedAt: nowIso(),
-          })
-          .where(eq(jobs.id, jobId));
+      async claimNextDueSerialJobForTarget(input: {
+        workerId: string;
+        completedJobId: number;
+        now?: string;
+        excludeTypes?: NewJob["type"][];
+      }): Promise<Job | null> {
+        const now = input.now ?? nowIso();
+        const claimedAt = nowIso();
+        const excludeTypes = input.excludeTypes ?? [];
+
+        const tx = handle.raw.transaction(() => {
+          const typeFilter =
+            excludeTypes.length > 0
+              ? `AND candidate_jobs.type NOT IN (${excludeTypes.map(() => "?").join(", ")})`
+              : "";
+          const sendTypePlaceholders = serialSendJobTypes.map(() => "?").join(", ");
+          const currentTargetExpr = normalizedJsonSerialTargetSql("current_job");
+          const candidateTargetExpr = normalizedJsonSerialTargetSql("candidate_jobs");
+          const activeTargetExpr = normalizedJsonSerialTargetSql("active_jobs");
+          const candidatePhoneExpr = normalizedJsonPhoneSql("candidate_jobs");
+          const candidateRecipientPhoneExpr = normalizedPhoneSql("candidate_recipients.phone");
+
+          const row = handle.raw
+            .prepare(
+              `SELECT candidate_jobs.id, ${candidateTargetExpr} AS target_key
+               FROM jobs candidate_jobs
+               WHERE candidate_jobs.status = 'queued'
+                 AND candidate_jobs.scheduled_at <= ?
+                 AND candidate_jobs.type IN (${sendTypePlaceholders})
+                 ${typeFilter}
+                 AND ${candidateTargetExpr} != ''
+                 AND ${candidateTargetExpr} = (
+                   SELECT ${currentTargetExpr}
+                   FROM jobs current_job
+                   WHERE current_job.id = ?
+                   LIMIT 1
+                 )
+                 AND NOT (
+                   candidate_jobs.type = 'campaign_step'
+                   AND coalesce(json_extract(candidate_jobs.payload_json, '$.campaignBatchId'), '') != ''
+                   AND EXISTS (
+                     SELECT 1
+                     FROM jobs earlier_campaign_steps
+                     WHERE earlier_campaign_steps.user_id = candidate_jobs.user_id
+                       AND earlier_campaign_steps.type = 'campaign_step'
+                       AND earlier_campaign_steps.id != candidate_jobs.id
+                       AND coalesce(json_extract(earlier_campaign_steps.payload_json, '$.campaignBatchId'), '') =
+                         coalesce(json_extract(candidate_jobs.payload_json, '$.campaignBatchId'), '')
+                       AND cast(coalesce(json_extract(earlier_campaign_steps.payload_json, '$.campaignBatchIndex'), 0) as integer) <
+                         cast(coalesce(json_extract(candidate_jobs.payload_json, '$.campaignBatchIndex'), 0) as integer)
+                       AND earlier_campaign_steps.status != 'completed'
+                   )
+                 )
+                 AND NOT (
+                   candidate_jobs.type = 'campaign_step'
+                   AND coalesce(json_extract(candidate_jobs.payload_json, '$.campaignId'), '') != ''
+                   AND ${candidatePhoneExpr} != ''
+                   AND EXISTS (
+                     SELECT 1
+                     FROM campaign_recipients candidate_recipients
+                     JOIN campaign_recipients earlier_recipients
+                       ON earlier_recipients.user_id = candidate_recipients.user_id
+                      AND earlier_recipients.campaign_id = candidate_recipients.campaign_id
+                      AND earlier_recipients.id < candidate_recipients.id
+                      AND earlier_recipients.status IN ('queued', 'running')
+                     WHERE candidate_recipients.user_id = candidate_jobs.user_id
+                       AND candidate_recipients.campaign_id =
+                         cast(json_extract(candidate_jobs.payload_json, '$.campaignId') as integer)
+                       AND candidate_recipients.channel = 'whatsapp'
+                       AND ${candidateRecipientPhoneExpr} = ${candidatePhoneExpr}
+                   )
+                 )
+                 AND NOT (
+                   EXISTS (
+                     SELECT 1
+                     FROM jobs active_jobs
+                     WHERE active_jobs.id != candidate_jobs.id
+                       AND active_jobs.status IN ('claimed', 'running')
+                       AND active_jobs.type IN (${sendTypePlaceholders})
+                       AND ${activeTargetExpr} = ${candidateTargetExpr}
+                   )
+                 )
+               ORDER BY candidate_jobs.priority ASC, candidate_jobs.scheduled_at ASC, candidate_jobs.id ASC
+               LIMIT 1`,
+            )
+            .get(
+              ...[
+                now,
+                ...serialSendJobTypes,
+                ...excludeTypes,
+                input.completedJobId,
+                ...serialSendJobTypes,
+              ],
+            ) as { id: number; target_key: string | null } | undefined;
+
+          if (!row) {
+            return null;
+          }
+
+          const result = handle.raw
+            .prepare(
+              `UPDATE jobs
+               SET status = 'claimed',
+                   claimed_at = ?,
+                   claimed_by = ?,
+                   attempts = attempts + 1,
+                   updated_at = ?
+               WHERE id = ? AND status = 'queued'`,
+            )
+            .run(claimedAt, input.workerId, claimedAt, row.id);
+
+          return result.changes > 0 ? row.id : null;
+        });
+
+        const id = tx.immediate();
+        if (!id) {
+          return null;
+        }
+        const [row] = await db.select().from(jobs).where(eq(jobs.id, id));
+        return row ? mapJob(row) : null;
+      },
+
+      async markCompleted(jobId: number, workerId?: string): Promise<boolean> {
+        const completedAt = nowIso();
+        const result = workerId
+          ? handle.raw
+              .prepare(
+                `UPDATE jobs
+                 SET status = 'completed',
+                     claimed_at = NULL,
+                     claimed_by = NULL,
+                     last_error = NULL,
+                     completed_at = ?,
+                     updated_at = ?
+                 WHERE id = ?
+                   AND status IN ('claimed', 'running')
+                   AND claimed_by = ?`,
+              )
+              .run(completedAt, completedAt, jobId, workerId)
+          : handle.raw
+              .prepare(
+                `UPDATE jobs
+                 SET status = 'completed',
+                     claimed_at = NULL,
+                     claimed_by = NULL,
+                     last_error = NULL,
+                     completed_at = ?,
+                     updated_at = ?
+                 WHERE id = ?
+                   AND status IN ('claimed', 'running')`,
+              )
+              .run(completedAt, completedAt, jobId);
+        return result.changes > 0;
       },
 
       async releaseForRetry(input: {
         jobId: number;
         error: string;
         scheduledAt: string;
-      }): Promise<void> {
-        await db
-          .update(jobs)
-          .set({
-            status: "queued",
-            claimedAt: null,
-            claimedBy: null,
-            scheduledAt: input.scheduledAt,
-            lastError: input.error,
-            updatedAt: nowIso(),
-          })
-          .where(eq(jobs.id, input.jobId));
+        workerId?: string;
+        preserveAttempt?: boolean;
+      }): Promise<boolean> {
+        const updatedAt = nowIso();
+        const attemptPatch = input.preserveAttempt
+          ? "attempts = CASE WHEN attempts > 0 THEN attempts - 1 ELSE 0 END,"
+          : "";
+        const result = input.workerId
+          ? handle.raw
+              .prepare(
+                `UPDATE jobs
+                 SET status = 'queued',
+                     claimed_at = NULL,
+                     claimed_by = NULL,
+                     scheduled_at = ?,
+                     ${attemptPatch}
+                     last_error = ?,
+                     updated_at = ?
+                 WHERE id = ?
+                   AND status IN ('claimed', 'running')
+                   AND claimed_by = ?`,
+              )
+              .run(input.scheduledAt, input.error, updatedAt, input.jobId, input.workerId)
+          : handle.raw
+              .prepare(
+                `UPDATE jobs
+                 SET status = 'queued',
+                     claimed_at = NULL,
+                     claimed_by = NULL,
+                     scheduled_at = ?,
+                     ${attemptPatch}
+                     last_error = ?,
+                     updated_at = ?
+                 WHERE id = ?
+                   AND status IN ('claimed', 'running')`,
+              )
+              .run(input.scheduledAt, input.error, updatedAt, input.jobId);
+        return result.changes > 0;
       },
 
       async releaseStaleClaims(input: {
@@ -2886,10 +3386,49 @@ export function createRepositories(handle: DbHandle) {
         };
       },
 
-      async moveToDead(input: { jobId: number; error: string }): Promise<void> {
-        const job = await db.select().from(jobs).where(eq(jobs.id, input.jobId)).get();
+      async moveToDead(input: { jobId: number; error: string; workerId?: string }): Promise<boolean> {
+        const job = await db
+          .select()
+          .from(jobs)
+          .where(
+            and(
+              eq(jobs.id, input.jobId),
+              inArray(jobs.status, ["claimed", "running"]),
+              input.workerId ? eq(jobs.claimedBy, input.workerId) : undefined,
+            ),
+          )
+          .get();
         if (!job) {
-          return;
+          return false;
+        }
+
+        const completedAt = nowIso();
+        const result = input.workerId
+          ? handle.raw
+              .prepare(
+                `UPDATE jobs
+                 SET status = 'failed',
+                     last_error = ?,
+                     completed_at = ?,
+                     updated_at = ?
+                 WHERE id = ?
+                   AND status IN ('claimed', 'running')
+                   AND claimed_by = ?`,
+              )
+              .run(input.error, completedAt, completedAt, job.id, input.workerId)
+          : handle.raw
+              .prepare(
+                `UPDATE jobs
+                 SET status = 'failed',
+                     last_error = ?,
+                     completed_at = ?,
+                     updated_at = ?
+                 WHERE id = ?
+                   AND status IN ('claimed', 'running')`,
+              )
+              .run(input.error, completedAt, completedAt, job.id);
+        if (result.changes === 0) {
+          return false;
         }
 
         await db.insert(jobsDead).values({
@@ -2901,15 +3440,7 @@ export function createRepositories(handle: DbHandle) {
           attempts: job.attempts,
           lastError: input.error,
         } satisfies NewJobDead);
-        await db
-          .update(jobs)
-          .set({
-            status: "failed",
-            lastError: input.error,
-            completedAt: nowIso(),
-            updatedAt: nowIso(),
-          })
-          .where(eq(jobs.id, job.id));
+        return true;
       },
 
       async listDead(userId: number, limit = 100): Promise<DeadJob[]> {
@@ -3239,6 +3770,176 @@ export function createRepositories(handle: DbHandle) {
     auditLogs: {
       async create(input: typeof auditLogs.$inferInsert): Promise<void> {
         await db.insert(auditLogs).values(input);
+      },
+    },
+
+    sendAuditEvents: {
+      async create(input: CreateSendAuditEventRecord): Promise<SendAuditEventRecord> {
+        const values: NewSendAuditEvent = {
+          ...input,
+          metadata: encodeJson(input.metadata),
+        };
+        const [row] = await db.insert(sendAuditEvents).values(values).returning();
+        return mapSendAuditEvent(expectRow(row, "sendAuditEvents.create"));
+      },
+      async list(input: {
+        userId: number;
+        campaignId?: number;
+        contactId?: number;
+        conversationId?: number;
+        jobId?: number;
+        phase?: NewSendAuditEvent["phase"];
+        limit?: number;
+      }): Promise<SendAuditEventRecord[]> {
+        const clauses = [
+          eq(sendAuditEvents.userId, input.userId),
+          input.campaignId !== undefined
+            ? eq(sendAuditEvents.campaignId, input.campaignId)
+            : undefined,
+          input.contactId !== undefined
+            ? eq(sendAuditEvents.contactId, input.contactId)
+            : undefined,
+          input.conversationId !== undefined
+            ? eq(sendAuditEvents.conversationId, input.conversationId)
+            : undefined,
+          input.jobId !== undefined ? eq(sendAuditEvents.jobId, input.jobId) : undefined,
+          input.phase ? eq(sendAuditEvents.phase, input.phase) : undefined,
+        ].filter(Boolean);
+
+        const rows = await db
+          .select()
+          .from(sendAuditEvents)
+          .where(and(...clauses))
+          .orderBy(desc(sendAuditEvents.occurredAt), desc(sendAuditEvents.id))
+          .limit(Math.min(input.limit ?? 100, 500));
+        return rows.map(mapSendAuditEvent);
+      },
+      async countOlderThan(input: { occurredBefore: string; userId?: number }): Promise<number> {
+        const clauses = [
+          lt(sendAuditEvents.occurredAt, input.occurredBefore),
+          input.userId !== undefined ? eq(sendAuditEvents.userId, input.userId) : undefined,
+        ].filter(Boolean);
+        const [row] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(sendAuditEvents)
+          .where(and(...clauses));
+        return Number(row?.count ?? 0);
+      },
+      async deleteOlderThan(input: { occurredBefore: string; userId?: number }): Promise<number> {
+        const clauses = [
+          lt(sendAuditEvents.occurredAt, input.occurredBefore),
+          input.userId !== undefined ? eq(sendAuditEvents.userId, input.userId) : undefined,
+        ].filter(Boolean);
+        const rows = await db
+          .delete(sendAuditEvents)
+          .where(and(...clauses))
+          .returning({ id: sendAuditEvents.id });
+        return rows.length;
+      },
+    },
+
+    workerSendBuckets: {
+      consume(input: {
+        userId: number;
+        bucketKey: string;
+        rateLimitMax: number;
+        refillWindowMs: number;
+        nowMs?: number;
+      }): WorkerSendBucketConsumeResult {
+        const rateLimitMax = Math.max(1, Math.trunc(input.rateLimitMax));
+        const refillWindowMs = Math.max(1, Math.trunc(input.refillWindowMs));
+        const capacityMilli = rateLimitMax * SEND_RATE_TOKEN_SCALE;
+        const nowMs = Math.max(0, Math.trunc(input.nowMs ?? Date.now()));
+        const nowIsoValue = new Date(nowMs).toISOString();
+        const bucketKey = input.bucketKey.trim();
+
+        const tx = handle.raw.transaction(() => {
+          const existing = handle.raw
+            .prepare(
+              `SELECT
+                 tokens_milli AS tokensMilli,
+                 refilled_at_ms AS refilledAtMs
+               FROM worker_send_buckets
+               WHERE user_id = ? AND bucket_key = ?`,
+            )
+            .get(input.userId, bucketKey) as
+            | Pick<WorkerSendBucketRow, "tokensMilli" | "refilledAtMs">
+            | undefined;
+
+          const existingTokens = existing
+            ? Math.min(capacityMilli, Math.max(0, existing.tokensMilli))
+            : capacityMilli;
+          const elapsedMs = existing ? Math.max(0, nowMs - existing.refilledAtMs) : 0;
+          const refilledTokensMilli = Math.min(
+            capacityMilli,
+            Math.floor(existingTokens + (elapsedMs * capacityMilli) / refillWindowMs),
+          );
+          const allowed = refilledTokensMilli >= SEND_RATE_TOKEN_SCALE;
+          const nextTokensMilli = allowed
+            ? refilledTokensMilli - SEND_RATE_TOKEN_SCALE
+            : refilledTokensMilli;
+
+          handle.raw
+            .prepare(
+              `INSERT INTO worker_send_buckets (
+                 user_id,
+                 bucket_key,
+                 tokens_milli,
+                 rate_limit_max,
+                 refill_window_ms,
+                 refilled_at_ms,
+                 last_seen_at,
+                 updated_at
+               )
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(user_id, bucket_key) DO UPDATE SET
+                 tokens_milli = excluded.tokens_milli,
+                 rate_limit_max = excluded.rate_limit_max,
+                 refill_window_ms = excluded.refill_window_ms,
+                 refilled_at_ms = excluded.refilled_at_ms,
+                 last_seen_at = excluded.last_seen_at,
+                 updated_at = excluded.updated_at`,
+            )
+            .run(
+              input.userId,
+              bucketKey,
+              nextTokensMilli,
+              rateLimitMax,
+              refillWindowMs,
+              nowMs,
+              nowIsoValue,
+              nowIsoValue,
+            );
+
+          const tokensRemaining = roundBucketTokens(nextTokensMilli / SEND_RATE_TOKEN_SCALE);
+          const recentAllowedCount = Math.min(
+            rateLimitMax,
+            Math.max(0, Math.ceil(rateLimitMax - tokensRemaining)),
+          );
+          if (allowed) {
+            return {
+              allowed: true,
+              bucketKey,
+              tokensRemaining,
+              recentAllowedCount,
+            } satisfies WorkerSendBucketConsumeResult;
+          }
+
+          const refillPerMs = capacityMilli / refillWindowMs;
+          const retryAfterMs = Math.max(
+            1,
+            Math.ceil((SEND_RATE_TOKEN_SCALE - nextTokensMilli) / refillPerMs),
+          );
+          return {
+            allowed: false,
+            bucketKey,
+            tokensRemaining,
+            recentAllowedCount,
+            retryAfterMs,
+          } satisfies WorkerSendBucketConsumeResult;
+        });
+
+        return tx.immediate();
       },
     },
 

@@ -13,14 +13,14 @@ export interface NuomaLogoProps extends SVGProps<SVGSVGElement> {
 
 const tones = {
   default: {
-    primary: "rgb(var(--color-brand-gold, 202 166 106))",
-    secondary: "rgb(var(--color-brand-gold-soft, 232 201 141))",
+    primary: "rgb(var(--color-brand-blue, 75 119 154))",
+    secondary: "rgb(var(--color-brand-teal-soft, 176 213 222))",
     ghost: "rgb(var(--color-fg-faint, 82 88 104))",
   },
   gold: {
-    primary: "rgb(var(--color-brand-gold, 202 166 106))",
-    secondary: "rgb(var(--color-brand-gold-soft, 232 201 141))",
-    ghost: "rgb(var(--color-brand-gold, 202 166 106))",
+    primary: "rgb(var(--color-brand-blue, 75 119 154))",
+    secondary: "rgb(var(--color-brand-teal-soft, 176 213 222))",
+    ghost: "rgb(var(--color-brand-blue, 75 119 154))",
   },
   mono: {
     primary: "currentColor",
@@ -70,7 +70,7 @@ function Wordmark({ tone }: { tone: NuomaLogoTone }) {
       x="0"
       y="82"
       fill={color.primary}
-      fontFamily="Geist Variable, Geist, Avenir Next, system-ui, sans-serif"
+      fontFamily="Inter Variable, Inter, Avenir Next, system-ui, sans-serif"
       fontSize="98"
       fontWeight="620"
       letterSpacing="0"

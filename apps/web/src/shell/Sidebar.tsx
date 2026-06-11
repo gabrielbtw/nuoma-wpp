@@ -8,6 +8,7 @@ import {
   Inbox,
   LayoutDashboard,
   ListChecks,
+  Radio,
   Settings,
   Sparkles,
   Users,
@@ -29,20 +30,22 @@ import {
 interface NavItem {
   to: string;
   label: string;
+  displayLabel?: string;
   icon: typeof LayoutDashboard;
   shortcut: string;
 }
 
 export const SHELL_NAV_ITEMS: NavItem[] = [
-  { to: "/", label: "Visão geral", icon: LayoutDashboard, shortcut: "1" },
-  { to: "/inbox", label: "Mensagens", icon: Inbox, shortcut: "2" },
+  { to: "/", label: "Dashboard", displayLabel: "Signal Board", icon: LayoutDashboard, shortcut: "1" },
+  { to: "/inbox", label: "Inbox", icon: Inbox, shortcut: "2" },
   { to: "/contacts", label: "Contatos", icon: Users, shortcut: "3" },
   { to: "/campaigns", label: "Campanhas", icon: Sparkles, shortcut: "4" },
-  { to: "/automations", label: "Automação", icon: Activity, shortcut: "5" },
-  { to: "/chatbots", label: "Chatbots", icon: Bot, shortcut: "6" },
-  { to: "/jobs", label: "Jobs", icon: ListChecks, shortcut: "7" },
-  { to: "/implementation", label: "Implementação", icon: ClipboardList, shortcut: "8" },
-  { to: "/evidence", label: "Evidências", icon: FolderSearch, shortcut: "v" },
+  { to: "/automations", label: "Automações", displayLabel: "Automação", icon: Activity, shortcut: "5" },
+  { to: "/chatbots", label: "Chatbots", displayLabel: "Respostas", icon: Bot, shortcut: "6" },
+  { to: "/operations", label: "Operações", displayLabel: "Operação", icon: Radio, shortcut: "o" },
+  { to: "/jobs", label: "Jobs", displayLabel: "Logs", icon: ListChecks, shortcut: "7" },
+  { to: "/implementation", label: "Implementação", displayLabel: "Fluxos", icon: ClipboardList, shortcut: "8" },
+  { to: "/evidence", label: "Evidências", displayLabel: "Auditoria", icon: FolderSearch, shortcut: "v" },
 ];
 
 export const SHELL_FOOTER_NAV_ITEMS: NavItem[] = [
@@ -82,10 +85,10 @@ export function Sidebar({ mode = "desktop", onNavigate, runtimeStatus }: Sidebar
     >
       <div
         className={cn(
-          "botforge-surface flex flex-col gap-2 rounded-lg p-2",
+          "flex flex-col gap-1 p-3",
           mode === "desktop"
-            ? "sticky top-3 h-[calc(100vh-1.5rem)]"
-            : "min-h-[calc(100vh-1.25rem)]",
+            ? "sticky top-0 h-screen border-r border-border-subtle bg-bg-base"
+            : "min-h-screen",
         )}
       >
         <MicroGrid className="hidden" size={48} />
@@ -93,18 +96,25 @@ export function Sidebar({ mode = "desktop", onNavigate, runtimeStatus }: Sidebar
           to="/"
           aria-label="Nuoma"
           onClick={onNavigate}
-          className="inline-flex h-12 items-center justify-center gap-3 rounded-lg px-1 outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-brand-cyan/60 xl:w-full xl:justify-start xl:px-2"
+          className="mb-1 inline-flex h-12 items-center justify-center gap-3 rounded-md px-1 outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-accent xl:w-full xl:justify-start xl:px-2"
         >
-          <NuomaLogo variant="small" tone="gold" className="h-10 w-10 shrink-0" />
+          <NuomaLogo variant="small" tone="gold" className="h-9 w-9 shrink-0" />
           <span className="hidden min-w-0 xl:block">
-            <span className="block truncate text-sm font-semibold text-fg-primary">Nuoma WPP</span>
-            <span className="mt-0.5 block truncate font-mono text-[0.62rem] uppercase text-fg-dim">
+            <span className="block truncate text-sm font-semibold tracking-tight text-fg-primary">
+              Nuoma WPP
+            </span>
+            <span className="mt-0.5 block truncate font-mono text-[0.62rem] uppercase tracking-wider text-fg-dim">
               Operação local
             </span>
           </span>
         </Link>
 
-        <div className="my-1 h-px w-full bg-white/10" />
+        <div
+          className="mb-2 mt-1 hidden px-2 font-mono text-[0.6rem] uppercase tracking-[0.14em] text-fg-faint xl:block"
+          aria-hidden
+        >
+          Operações
+        </div>
 
         <nav className="flex w-full flex-col gap-1.5">
           {SHELL_NAV_ITEMS.map((item) => (
@@ -117,8 +127,10 @@ export function Sidebar({ mode = "desktop", onNavigate, runtimeStatus }: Sidebar
           ))}
         </nav>
 
-        <div className="nuoma-sidebar-workspace mt-auto hidden rounded-lg border border-brand-cyan/15 bg-brand-cyan/8 p-3 shadow-flat-subtle xl:block">
-          <div className="font-mono text-[0.62rem] uppercase text-fg-dim">Workspace</div>
+        <div className="nuoma-sidebar-workspace mt-auto hidden rounded-md border border-border-subtle bg-bg-surface p-3 xl:block">
+          <div className="font-mono text-[0.6rem] uppercase tracking-wider text-fg-faint">
+            Workspace
+          </div>
           <div className="mt-1 truncate text-sm font-medium text-fg-primary">
             Operação Principal
           </div>
@@ -128,7 +140,7 @@ export function Sidebar({ mode = "desktop", onNavigate, runtimeStatus }: Sidebar
           </div>
         </div>
 
-        <div className="nuoma-sidebar-footer flex w-full flex-col items-center gap-1.5 border-t border-white/10 pt-2 xl:items-stretch">
+        <div className="nuoma-sidebar-footer mt-2 flex w-full flex-col items-center gap-1 border-t border-border-subtle pt-2 xl:items-stretch">
           {SHELL_FOOTER_NAV_ITEMS.map((item) => (
             <NavLink
               key={item.to}
@@ -196,29 +208,30 @@ function NavLink({
           to={item.to}
           aria-label={item.label}
           onClick={onNavigate}
-          className="relative rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-brand-cyan/60"
+          className="relative rounded-md outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <motion.span
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.96 }}
+            whileTap={{ scale: 0.97 }}
             transition={{ type: "spring", stiffness: 400, damping: 22 }}
             className={cn(
-              "relative inline-flex h-10 w-10 items-center justify-center rounded-lg xl:w-full xl:justify-start xl:gap-3 xl:px-3",
-              "border transition-[background-color,box-shadow,color] duration-base ease-out",
+              "group relative inline-flex h-9 w-9 items-center justify-center rounded-md xl:w-full xl:justify-start xl:gap-3 xl:px-3",
+              "transition-colors duration-fast ease-out",
               active
-                ? "border-brand-cyan/40 bg-brand-cyan/12 text-brand-cyan shadow-glow-cyan"
-                : "border-border-subtle/10 bg-bg-surface/30 text-fg-muted shadow-flat-subtle hover:border-border-muted/20 hover:bg-bg-surface/64 hover:text-fg-primary hover:shadow-flat",
+                ? "bg-accent/12 text-accent-strong"
+                : "text-fg-muted hover:bg-fg-primary/[0.05] hover:text-fg-primary",
             )}
           >
-            <Icon className={cn("h-4 w-4", active && "drop-shadow-[0_0_8px_var(--glow-active)]")} />
-            <span className="nuoma-nav-label hidden min-w-0 flex-1 truncate text-sm xl:block">{item.label}</span>
-            <span className="nuoma-nav-shortcut hidden font-mono text-[0.62rem] text-fg-dim xl:block">
+            <Icon className="h-[1.05rem] w-[1.05rem] shrink-0" />
+            <span className="nuoma-nav-label hidden min-w-0 flex-1 truncate text-[0.86rem] xl:block">
+              {item.displayLabel ?? item.label}
+            </span>
+            <span className="nuoma-nav-shortcut hidden font-mono text-[0.62rem] text-fg-faint xl:block">
               {item.shortcut}
             </span>
             {active && (
               <motion.span
                 layoutId="sidebar-active-marker"
-                className="absolute -left-2 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-brand-cyan shadow-glow-cyan"
+                className="absolute -left-3 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-accent"
                 transition={{ type: "spring", stiffness: 380, damping: 28 }}
               />
             )}

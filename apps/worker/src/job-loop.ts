@@ -1,7 +1,7 @@
 import { setTimeout as sleep } from "node:timers/promises";
 
 import type { WorkerEnv } from "@nuoma/config";
-import type { Job } from "@nuoma/contracts";
+import { normalizePhone, type Job } from "@nuoma/contracts";
 import type { Repositories } from "@nuoma/db";
 import type { Logger } from "pino";
 
@@ -9,10 +9,12 @@ import {
   handleJob,
   isPermanentJobError,
   isSendJobType,
+  retryAfterMsForJobError,
   type JobHandlerContext,
 } from "./job-handlers.js";
 
 const syncJobTypes: Job["type"][] = ["sync_conversation", "sync_history"];
+const SERIAL_TARGET_DRAIN_LIMIT = 25;
 export interface WorkerMetrics {
   claimed: number;
   completed: number;
@@ -21,6 +23,8 @@ export interface WorkerMetrics {
   emptyPolls: number;
   errors: number;
   reaped: number;
+  contactSessionsStarted: number;
+  contactSessionReuses: number;
 }
 
 export interface JobLoopState {
@@ -51,6 +55,8 @@ export function createJobLoop(input: {
       emptyPolls: 0,
       errors: 0,
       reaped: 0,
+      contactSessionsStarted: 0,
+      contactSessionReuses: 0,
     },
     lastError: null,
   };
@@ -84,17 +90,126 @@ export function createJobLoop(input: {
       return false;
     }
 
+    recordClaimedJob(job);
+
+    await processClaimedJobChain(job, excludeTypes);
+    return true;
+  }
+
+  async function processClaimedJobChain(firstJob: Job, excludeTypes: Job["type"][]): Promise<void> {
+    const previousSendSession = input.handlerContext.sendSession;
+    input.handlerContext.sendSession = isSendJobType(firstJob.type)
+      ? createContactSendSession()
+      : previousSendSession;
+    let job: Job | null = firstJob;
+    let drainedJobs = 0;
+    try {
+      while (job) {
+        const completed = await processClaimedJob(job);
+        if (!completed || !isSendJobType(job.type)) {
+          return;
+        }
+        if (drainedJobs >= SERIAL_TARGET_DRAIN_LIMIT) {
+          input.logger.warn(
+            { jobId: job.id, type: job.type, drainLimit: SERIAL_TARGET_DRAIN_LIMIT },
+            "serial target drain limit reached",
+          );
+          return;
+        }
+
+        const nextJob = await input.repos.jobs.claimNextDueSerialJobForTarget({
+          workerId: input.env.WORKER_ID,
+          completedJobId: job.id,
+          excludeTypes,
+        });
+        if (!nextJob) {
+          return;
+        }
+        drainedJobs += 1;
+        recordClaimedJob(nextJob, { serialTargetDrainIndex: drainedJobs });
+        job = nextJob;
+      }
+    } finally {
+      input.handlerContext.sendSession = previousSendSession;
+    }
+  }
+
+  function createContactSendSession(): NonNullable<JobHandlerContext["sendSession"]> {
+    let activeTargetKey: string | null = null;
+    let opened = false;
+    return {
+      async beginWhatsAppContact(sessionInput) {
+        const phone = normalizePhone(sessionInput.phone);
+        if (!phone || !input.handlerContext.sync?.connected) {
+          return;
+        }
+        const targetKey = `wa:${phone}`;
+        if (opened && activeTargetKey === targetKey) {
+          state.metrics.contactSessionReuses += 1;
+          input.logger.debug(
+            {
+              conversationId: sessionInput.conversationId,
+              phone,
+              reason: sessionInput.reason,
+              targetKey,
+            },
+            "contact send session reused open WhatsApp chat",
+          );
+          return;
+        }
+        if (!input.handlerContext.sync.beginContactSession) {
+          return;
+        }
+        const result = await input.handlerContext.sync.beginContactSession({
+          userId: sessionInput.userId,
+          conversationId: sessionInput.conversationId,
+          phone,
+          reason: sessionInput.reason,
+        });
+        activeTargetKey = targetKey;
+        opened = true;
+        state.metrics.contactSessionsStarted += 1;
+        input.logger.info(
+          {
+            conversationId: sessionInput.conversationId,
+            phone,
+            reason: sessionInput.reason,
+            targetKey,
+            navigationMode: result.navigationMode,
+          },
+          "contact send session opened WhatsApp chat",
+        );
+      },
+    };
+  }
+
+  function recordClaimedJob(job: Job, extra: Record<string, unknown> = {}): void {
     state.metrics.claimed += 1;
     state.currentJobId = job.id;
     state.lastError = null;
     input.logger.info(
-      { jobId: job.id, type: job.type, attempts: job.attempts, maxAttempts: job.maxAttempts },
+      {
+        jobId: job.id,
+        type: job.type,
+        attempts: job.attempts,
+        maxAttempts: job.maxAttempts,
+        ...extra,
+      },
       "job claimed",
     );
+  }
 
+  async function processClaimedJob(job: Job): Promise<boolean> {
     try {
       await handleJob(job, input.handlerContext);
-      await input.repos.jobs.markCompleted(job.id);
+      const completed = await input.repos.jobs.markCompleted(job.id, input.env.WORKER_ID);
+      if (!completed) {
+        input.logger.warn(
+          { jobId: job.id, type: job.type, workerId: input.env.WORKER_ID },
+          "job completion skipped because ownership was lost",
+        );
+        return false;
+      }
       state.metrics.completed += 1;
       input.logger.info({ jobId: job.id, type: job.type }, "job completed");
       return true;
@@ -108,24 +223,51 @@ export function createJobLoop(input: {
         isNonRetryableSendError(message) ||
         job.attempts >= job.maxAttempts
       ) {
-        await input.repos.jobs.moveToDead({ jobId: job.id, error: message });
-        state.metrics.dead += 1;
-        input.logger.warn({ jobId: job.id, type: job.type, error: message }, "job moved to DLQ");
-        return true;
+        const moved = await input.repos.jobs.moveToDead({
+          jobId: job.id,
+          error: message,
+          workerId: input.env.WORKER_ID,
+        });
+        if (moved) {
+          state.metrics.dead += 1;
+          input.logger.warn({ jobId: job.id, type: job.type, error: message }, "job moved to DLQ");
+        } else {
+          input.logger.warn(
+            { jobId: job.id, type: job.type, error: message, workerId: input.env.WORKER_ID },
+            "job DLQ transition skipped because ownership was lost",
+          );
+        }
+        return false;
       }
 
-      const scheduledAt = nextRetryAt(job).toISOString();
-      await input.repos.jobs.releaseForRetry({
+      const retryAfterMs = retryAfterMsForJobError(error);
+      const scheduledAt = nextRetryAt(job, retryAfterMs).toISOString();
+      const released = await input.repos.jobs.releaseForRetry({
         jobId: job.id,
         error: message,
         scheduledAt,
+        workerId: input.env.WORKER_ID,
+        preserveAttempt: retryAfterMs !== null,
       });
-      state.metrics.retried += 1;
-      input.logger.warn(
-        { jobId: job.id, type: job.type, scheduledAt, error: message },
-        "job released for retry",
-      );
-      return true;
+      if (released) {
+        state.metrics.retried += 1;
+        input.logger.warn(
+          { jobId: job.id, type: job.type, scheduledAt, error: message },
+          "job released for retry",
+        );
+      } else {
+        input.logger.warn(
+          {
+            jobId: job.id,
+            type: job.type,
+            scheduledAt,
+            error: message,
+            workerId: input.env.WORKER_ID,
+          },
+          "job retry release skipped because ownership was lost",
+        );
+      }
+      return false;
     } finally {
       state.currentJobId = null;
     }
@@ -173,8 +315,11 @@ function isNonRetryableSendError(message: string): boolean {
   return /^WhatsApp rejected target phone:/i.test(message);
 }
 
-function nextRetryAt(job: Job): Date {
+function nextRetryAt(job: Job, retryAfterMs?: number | null): Date {
   const now = Date.now();
+  if (retryAfterMs !== null && retryAfterMs !== undefined) {
+    return new Date(now + Math.max(0, retryAfterMs));
+  }
   if (isSendJobType(job.type)) {
     return new Date(now + 60_000);
   }

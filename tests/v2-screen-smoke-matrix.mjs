@@ -10,7 +10,9 @@ const email = process.env.SMOKE_EMAIL ?? "admin@nuoma.local";
 const password = process.env.SMOKE_PASSWORD ?? "nuoma-dev-admin-123";
 const databaseUrl = path.resolve(process.env.DATABASE_URL ?? "data/nuoma-v2.db");
 const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-const outputDir = path.resolve(process.env.V2_SCREEN_SMOKE_DIR ?? `data/v2-screen-smoke-${timestamp}`);
+const outputDir = path.resolve(
+  process.env.V2_SCREEN_SMOKE_DIR ?? `data/v2-screen-smoke-${timestamp}`,
+);
 
 const routes = [
   {
@@ -71,6 +73,14 @@ const routes = [
     details: "Fila duravel, jobs recentes e dead-letter queue.",
   },
   {
+    version: "V2.11",
+    name: "Operações",
+    path: "/operations",
+    waitTestId: "operations-health-page",
+    file: "08b-v211-operations.png",
+    details: "Worker, CDP, fila, readiness e send_audit_events em tela operacional dedicada.",
+  },
+  {
     version: "V2.1-V2.15",
     name: "Status de implementação",
     path: "/implementation",
@@ -98,7 +108,7 @@ const routes = [
     version: "V2.8",
     name: "Componentes visuais",
     path: "/dev/components",
-    waitText: "Componentes",
+    waitTestId: "dev-components-page",
     file: "12-v28-components.png",
     details: "Inventario visual do design system Cartographic Operations.",
   },
@@ -113,12 +123,14 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
   const report = [];
   try {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 980 } });
+    const context = await browser.newContext({
+      viewport: { width: 1440, height: 980 },
+      serviceWorkers: "block",
+    });
     const page = await context.newPage();
 
     await page.goto(`${webUrl}/login`, { waitUntil: "networkidle" });
-    await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Senha").fill(password);
+    await fillLogin(page);
     await page.screenshot({ path: path.join(outputDir, "01-v24-login.png"), fullPage: true });
     report.push({
       version: "V2.4",
@@ -127,16 +139,28 @@ async function main() {
       print: path.join(outputDir, "01-v24-login.png"),
       details: "Cookies httpOnly/CSRF sao emitidos apos submit.",
     });
-    await page.click('button[type="submit"]');
-    await page.waitForURL(`${webUrl}/`);
+    await submitLogin(page);
 
     for (const route of routes) {
       await page.goto(`${webUrl}${route.path}`, { waitUntil: "domcontentloaded" });
-      const waitWarning = await waitForRouteSignal(page, route);
+      if (await isLoginScreen(page)) {
+        await fillLogin(page);
+        await submitLogin(page);
+        await page.goto(`${webUrl}${route.path}`, { waitUntil: "domcontentloaded" });
+      }
+      let waitWarning = await waitForRouteSignal(page, route);
+      if (await isLoginScreen(page)) {
+        await fillLogin(page);
+        await submitLogin(page);
+        await page.goto(`${webUrl}${route.path}`, { waitUntil: "domcontentloaded" });
+        waitWarning = await waitForRouteSignal(page, route);
+      }
       const extra = route.action ? await route.action(page, fixture) : null;
       const screenshotPath = path.join(outputDir, route.file);
-      await page.screenshot({ path: screenshotPath, fullPage: true });
+      await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
+      await page.waitForTimeout(700);
       const blocking = await blockingA11yViolations(page);
+      await page.screenshot({ path: screenshotPath, fullPage: true });
       report.push({
         version: route.version,
         name: route.name,
@@ -179,6 +203,24 @@ async function waitForRouteSignal(page, route) {
   }
 }
 
+async function fillLogin(page) {
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Senha").fill(password);
+}
+
+async function submitLogin(page) {
+  await page.click('button[type="submit"]');
+  await page.waitForURL(`${webUrl}/`);
+}
+
+async function isLoginScreen(page) {
+  if (new URL(page.url()).pathname === "/login") return true;
+  return await page
+    .getByRole("heading", { name: "Entrar" })
+    .isVisible({ timeout: 500 })
+    .catch(() => false);
+}
+
 async function validateRemarketingBatchPanel(page, fixture) {
   if (page.url() !== `${webUrl}/campaigns?campaignId=${fixture.campaignId}`) {
     await page.goto(`${webUrl}/campaigns?campaignId=${fixture.campaignId}`, {
@@ -197,22 +239,26 @@ async function validateRemarketingBatchPanel(page, fixture) {
   const canDispatch = await report.getAttribute("data-can-dispatch");
   const accepted = await report.getAttribute("data-accepted");
   const plannedJobs = await report.getAttribute("data-planned-jobs");
-  const issueCodes = await page
-    .getByTestId("campaign-blocking-issue")
-    .evaluateAll((nodes) =>
-      nodes.map((node) => ({
-        code: node.getAttribute("data-code"),
-        severity: node.getAttribute("data-severity"),
-      })),
-    );
+  const issueCodes = await page.getByTestId("campaign-blocking-issue").evaluateAll((nodes) =>
+    nodes.map((node) => ({
+      code: node.getAttribute("data-code"),
+      severity: node.getAttribute("data-severity"),
+    })),
+  );
   const blockingCodes = issueCodes
     .filter((item) => item.severity === "error" && item.code !== "accepted_recipients")
     .map((item) => item.code);
   const onlyExistingRuntimeBlocks =
     canDispatch === "false" &&
     blockingCodes.length > 0 &&
-    blockingCodes.every((code) => code === "active_campaign_step_jobs" || code === "active_campaign_recipients");
-  if ((canDispatch !== "true" && !onlyExistingRuntimeBlocks) || accepted !== "1" || Number(plannedJobs) < 1) {
+    blockingCodes.every(
+      (code) => code === "active_campaign_step_jobs" || code === "active_campaign_recipients",
+    );
+  if (
+    (canDispatch !== "true" && !onlyExistingRuntimeBlocks) ||
+    accepted !== "1" ||
+    Number(plannedJobs) < 1
+  ) {
     throw new Error(
       `remarketing batch guard mismatch: ${JSON.stringify({
         canDispatch,
@@ -242,7 +288,9 @@ function seedScreenSmokeFixture() {
       .prepare("SELECT id FROM campaigns WHERE user_id = 1 AND name LIKE 'V2 Screen Smoke%'")
       .all();
     for (const row of existing) {
-      db.prepare("DELETE FROM campaign_recipients WHERE user_id = 1 AND campaign_id = ?").run(row.id);
+      db.prepare("DELETE FROM campaign_recipients WHERE user_id = 1 AND campaign_id = ?").run(
+        row.id,
+      );
       db.prepare("DELETE FROM jobs WHERE user_id = 1 AND dedupe_key LIKE ?").run(
         `campaign_step:${row.id}:%`,
       );
@@ -287,7 +335,7 @@ function seedScreenSmokeFixture() {
             evergreen, starts_at, completed_at, metadata_json, created_at, updated_at
           )
           VALUES (
-            1, 'V2 Screen Smoke Remarketing Real', 'draft', 'whatsapp', NULL, @steps,
+            1, 'V2 Screen Smoke Remarketing Real', 'running', 'whatsapp', NULL, @steps,
             0, NULL, NULL, @metadata, @now, @now
           )
         `,
@@ -300,12 +348,7 @@ function seedScreenSmokeFixture() {
 }
 
 function renderReport(items) {
-  const lines = [
-    "# V2 Screen Smoke Matrix",
-    "",
-    `Gerado em ${new Date().toISOString()}.`,
-    "",
-  ];
+  const lines = ["# V2 Screen Smoke Matrix", "", `Gerado em ${new Date().toISOString()}.`, ""];
   for (const item of items) {
     lines.push(
       `## ${item.version} ${item.name}`,

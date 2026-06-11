@@ -3,13 +3,7 @@ import { forwardRef, type ReactNode } from "react";
 
 import { cn } from "../utils/cn.js";
 
-export type ButtonVariant =
-  | "primary"
-  | "secondary"
-  | "ghost"
-  | "danger"
-  | "soft"
-  | "accent";
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "soft" | "accent";
 export type ButtonSize = "xs" | "sm" | "md" | "lg";
 
 export interface ButtonProps extends HTMLMotionProps<"button"> {
@@ -21,25 +15,24 @@ export interface ButtonProps extends HTMLMotionProps<"button"> {
 }
 
 const VARIANTS: Record<ButtonVariant, string> = {
+  // Neutral default action — solid surface + hairline, no fill.
   primary:
-    "bg-bg-elevated/82 text-fg-primary shadow-raised-sm hover:shadow-raised-md active:shadow-pressed-sm",
+    "border border-border-muted bg-bg-elevated text-fg-primary hover:border-fg-faint hover:bg-bg-subtle",
   secondary:
-    "bg-bg-surface/72 text-fg-muted shadow-raised-sm hover:text-fg-primary hover:shadow-raised-md active:shadow-pressed-sm",
-  soft:
-    "bg-bg-surface/54 text-fg-muted shadow-flat hover:shadow-raised-sm hover:text-fg-primary active:shadow-pressed-sm",
-  ghost:
-    "bg-transparent text-fg-muted hover:bg-bg-surface hover:shadow-raised-sm hover:text-fg-primary active:shadow-pressed-sm",
-  accent:
-    "bg-brand-gold text-bg-deep shadow-raised-sm hover:shadow-glow-gold active:shadow-pressed-sm",
+    "border border-border-subtle bg-bg-surface text-fg-muted hover:border-border-muted hover:bg-bg-elevated hover:text-fg-primary",
+  soft: "bg-fg-primary/[0.05] text-fg-muted hover:bg-fg-primary/[0.09] hover:text-fg-primary",
+  ghost: "bg-transparent text-fg-muted hover:bg-fg-primary/[0.06] hover:text-fg-primary",
+  // The real CTA — filled electric indigo.
+  accent: "bg-accent text-white hover:bg-accent-strong",
   danger:
-    "bg-bg-elevated text-semantic-danger shadow-raised-sm hover:shadow-glow-danger active:shadow-pressed-sm",
+    "border border-semantic-danger/30 bg-semantic-danger/10 text-semantic-danger hover:bg-semantic-danger/16",
 };
 
 const SIZES: Record<ButtonSize, string> = {
   xs: "h-7 px-3 text-xs gap-1.5 rounded-md",
   sm: "h-9 px-4 text-sm gap-1.5 rounded-md",
-  md: "h-11 px-5 text-sm gap-2 rounded-lg",
-  lg: "h-13 px-6 text-base gap-2.5 rounded-xl",
+  md: "h-10 px-5 text-sm gap-2 rounded-md",
+  lg: "h-12 px-6 text-[0.95rem] gap-2.5 rounded-lg",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -71,8 +64,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         className={cn(
           "inline-flex items-center justify-center font-medium tracking-tight",
           "whitespace-nowrap",
-          "outline-none focus-visible:ring-2 focus-visible:ring-brand-cyan/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base",
-          "transition-shadow duration-base ease-out",
+          "outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg-canvas",
+          "transition-colors duration-fast ease-out",
           "disabled:cursor-not-allowed disabled:opacity-50",
           VARIANTS[variant],
           SIZES[size],
@@ -91,12 +84,7 @@ Button.displayName = "Button";
 
 function Spinner() {
   return (
-    <svg
-      className="animate-spin h-3.5 w-3.5"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
+    <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
       <path
         d="M22 12a10 10 0 0 1-10 10"

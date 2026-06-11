@@ -136,6 +136,94 @@ describe("automation engine daemon", () => {
     expect(reminders[0]?.title).toBe("Follow-up");
   });
 
+  it("resolves WhatsApp automations by wa_jid when the thread id is a saved display name", async () => {
+    const repos = createRepositories(db);
+    const passwordHash = await argon2.hash("initial-password-123", { type: argon2.argon2id });
+    const user = await repos.users.create({
+      email: "admin-wa-jid-automation@nuoma.local",
+      passwordHash,
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel Salvo",
+      phone: "+55 31 9 8206-6263",
+      waJid: "5531982066263@s.whatsapp.net",
+      primaryChannel: "whatsapp",
+      status: "lead",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "whatsapp",
+      externalThreadId: "Gabriel Salvo",
+      waJid: "5531982066263@s.whatsapp.net",
+      title: "Gabriel Salvo",
+    });
+    await repos.automations.create({
+      userId: user.id,
+      name: "Resposta por JID",
+      category: "Relacionamento",
+      status: "active",
+      trigger: { type: "message_received", channel: "whatsapp" },
+      condition: { segment: null, requireWithin24hWindow: true },
+      actions: [
+        {
+          type: "send_step",
+          step: {
+            id: "jid-reply",
+            label: "Resposta JID",
+            type: "text",
+            template: "Oi {{telefone}}",
+            delaySeconds: 0,
+            conditions: [],
+          },
+        },
+      ],
+      metadata: {},
+    });
+    await repos.messages.create({
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: contact.id,
+      externalId: "MSG-JID-IN-1",
+      direction: "inbound",
+      contentType: "text",
+      status: "received",
+      body: "Oi",
+      observedAtUtc: "2026-05-04T12:00:00.000Z",
+    });
+
+    const daemon = createAutomationEngineDaemon({
+      repos,
+      logger: pino({ level: "silent" }),
+      enabled: true,
+      userId: user.id,
+      allowedPhone: "31982066263",
+      intervalMs: 1_000,
+    });
+
+    const result = await daemon.tick();
+    const jobs = await repos.jobs.list(user.id, "queued");
+
+    expect(result).toMatchObject({
+      scannedMessages: 1,
+      automationsEvaluated: 1,
+      triggered: 1,
+      jobsCreated: 1,
+    });
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.payload).toMatchObject({
+      automationId: expect.any(Number),
+      phone: "5531982066263",
+      sourceMessageId: 1,
+      variables: expect.objectContaining({
+        telefone: "5531982066263",
+        phone: "5531982066263",
+      }),
+    });
+  });
+
   it("triggers Instagram inbound automations using instagramHandle identity", async () => {
     const repos = createRepositories(db);
     const passwordHash = await argon2.hash("initial-password-123", { type: argon2.argon2id });
@@ -224,6 +312,85 @@ describe("automation engine daemon", () => {
         instagramHandle: "gabriell_braga",
       },
     });
+  });
+
+  it("does not trigger Instagram automations from a display-title-only handle", async () => {
+    const repos = createRepositories(db);
+    const passwordHash = await argon2.hash("initial-password-123", { type: argon2.argon2id });
+    const user = await repos.users.create({
+      email: "admin-ig-title-only@nuoma.local",
+      passwordHash,
+      role: "admin",
+    });
+    const contact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel IG",
+      phone: null,
+      primaryChannel: "instagram",
+      instagramHandle: null,
+      status: "lead",
+    });
+    const conversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: contact.id,
+      channel: "instagram",
+      externalThreadId: "direct-thread-123",
+      title: "@gabriell_braga",
+    });
+    await repos.automations.create({
+      userId: user.id,
+      name: "Resposta IG",
+      category: "Instagram",
+      status: "active",
+      trigger: { type: "message_received", channel: "instagram" },
+      condition: { segment: null, requireWithin24hWindow: true },
+      actions: [
+        {
+          type: "send_step",
+          step: {
+            id: "ig-reply",
+            label: "Resposta IG",
+            type: "text",
+            template: "Oi @{{instagram}}",
+            delaySeconds: 0,
+            conditions: [],
+          },
+        },
+      ],
+      metadata: {},
+    });
+    await repos.messages.create({
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: contact.id,
+      externalId: "IG-IN-TITLE",
+      direction: "inbound",
+      contentType: "text",
+      status: "received",
+      body: "Oi IG",
+      observedAtUtc: "2026-05-04T12:00:00.000Z",
+    });
+
+    const daemon = createAutomationEngineDaemon({
+      repos,
+      logger: pino({ level: "silent" }),
+      enabled: true,
+      userId: user.id,
+      allowedPhone: "5531982066263",
+      intervalMs: 1_000,
+    });
+
+    const result = await daemon.tick();
+    const jobs = await repos.jobs.list(user.id, "queued");
+
+    expect(result).toMatchObject({
+      scannedMessages: 1,
+      automationsEvaluated: 0,
+      triggered: 0,
+      jobsCreated: 0,
+      skipped: [expect.objectContaining({ reason: "conversation_instagram_missing" })],
+    });
+    expect(jobs).toHaveLength(0);
   });
 
   it("executes delay, branch target, notify and child automation actions safely", async () => {

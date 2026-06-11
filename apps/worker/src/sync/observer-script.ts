@@ -81,12 +81,13 @@ export function createWhatsAppObserverScript(bindingName = SYNC_BINDING_NAME): s
       chatTitleFromHeader(header) ||
       textOf("[data-testid='conversation-info-header-chat-title']", header) ||
       "WhatsApp";
-    const phone = normalizePhone(title);
     const hrefKey = location.href.includes("/send?phone=")
       ? new URL(location.href).searchParams.get("phone")
       : null;
-    const waJid = currentChatJidFromStore() || normalizeWaJid(hrefKey) || normalizeWaJid(phone);
-    const externalThreadId = waJid || hrefKey || phone || title;
+    const hrefPhone = normalizePhone(hrefKey);
+    const waJid = currentChatJidFromStore() || normalizeWaJid(hrefKey);
+    const phone = hrefPhone || normalizePhone(waJid);
+    const externalThreadId = waJid || hrefPhone || hrefKey || "unknown-whatsapp-thread";
     return {
       channel,
       externalThreadId,
@@ -971,8 +972,9 @@ export function createWhatsAppObserverScript(bindingName = SYNC_BINDING_NAME): s
       if (!title || title === "WhatsApp" || title.includes("Clique para conversar") || !isChatTitleCandidate(title)) {
         continue;
       }
-      const phone = phoneFromText(title) || phoneFromText(text);
-      const unreadText = cleanText(text.replace(title, " "));
+      const rowTextWithoutTitle = cleanText(text.replace(title, " "));
+      const phone = phoneFromText(rowTextWithoutTitle);
+      const unreadText = rowTextWithoutTitle;
       const unreadMatch =
         unreadText.match(/(?:^|\\D)(\\d+)\\s+mensagens? não lidas/i) ||
         unreadText.match(/(?:^|\\D)(\\d+)\\s+unread messages?/i);
@@ -1062,7 +1064,6 @@ export function createWhatsAppObserverScript(bindingName = SYNC_BINDING_NAME): s
     const restorePhone = phoneFromText(options && options.restorePhone);
     const restore = sidebarChats(Math.max(limit, 10)).find(
       (candidate) =>
-        candidate.title === startedThread.title ||
         (restorePhone && candidate.phone === restorePhone) ||
         (startedThread.phone && candidate.phone === startedThread.phone),
     );

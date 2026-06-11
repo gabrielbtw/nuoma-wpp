@@ -5,6 +5,7 @@ import {
   triggerAutomationForPhone,
   type TriggerAutomationResult,
 } from "./automation-trigger.js";
+import { isOverlayEnabled } from "./overlay-eligibility.js";
 import {
   evaluateApiRealSendTarget,
   normalizePhone,
@@ -19,6 +20,7 @@ export interface OverlayAutomationOption {
   triggerChannel: Automation["trigger"]["channel"] | null;
   actionsCount: number;
   sendStepsCount: number;
+  overlayEnabled: boolean;
   eligible: boolean;
   reasons: string[];
   wouldEnqueueJobs: boolean;
@@ -57,6 +59,7 @@ export async function listOverlayAutomationOptions(input: {
       .filter((automation) => {
         return (
           automation.status === "active" &&
+          isOverlayEnabled(automation.metadata) &&
           (!automation.trigger.channel || automation.trigger.channel === "whatsapp")
         );
       })
@@ -65,7 +68,7 @@ export async function listOverlayAutomationOptions(input: {
           repos: input.repos,
           userId: input.userId,
           automationId: automation.id,
-          phone,
+          phone: phone ?? "",
           dryRun: true,
           allowedPhones: input.sendPolicy.allowedPhones,
           sendPolicyMode: input.sendPolicy.mode,
@@ -89,6 +92,7 @@ export async function listOverlayAutomationOptions(input: {
           actionsCount: automation.actions.length,
           sendStepsCount: automation.actions.filter((action) => action.type === "send_step")
             .length,
+          overlayEnabled: true,
           eligible,
           reasons,
           wouldEnqueueJobs: dryRun.wouldEnqueueJobs,
@@ -130,6 +134,9 @@ export async function runOverlayAutomationNow(input: {
   });
   if (!automation) {
     return blockedRun(null, phone, "automation_not_found");
+  }
+  if (!isOverlayEnabled(automation.metadata)) {
+    return blockedRun(automation, phone, "overlay_not_enabled");
   }
 
   const replay = replayOverlayRun(automation, phone, input.idempotencyKey);

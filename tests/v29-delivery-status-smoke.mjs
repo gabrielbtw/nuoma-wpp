@@ -6,6 +6,8 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { backfillSmokeWhatsappIdentity } from "./helpers/contact-identity.mjs";
+
 const webUrl = process.env.WEB_URL ?? "http://127.0.0.1:3002";
 const apiUrl = process.env.API_URL ?? "http://127.0.0.1:3001";
 const email = process.env.SMOKE_EMAIL ?? "admin@nuoma.local";
@@ -149,6 +151,12 @@ function seedDeliveryStatusFixture(dbPath) {
     if (!conversation?.id) {
       throw new Error("failed to create delivery status smoke conversation");
     }
+    backfillSmokeWhatsappIdentity(db, {
+      userId: 1,
+      phone: conversationThread,
+      conversationId: Number(conversation.id),
+      now: lastMessageAt,
+    });
 
     db.prepare(
       `DELETE FROM messages WHERE user_id = 1 AND conversation_id = ? AND external_id LIKE 'v29-11-%'`,

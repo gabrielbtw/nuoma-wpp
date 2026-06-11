@@ -764,6 +764,18 @@ describe("api health", () => {
       externalThreadId: "5531982066263",
       title: "5531982066263",
     });
+    await repos.sendAuditEvents.create({
+      userId: user.id,
+      conversationId: conversation.id,
+      jobId: claimed?.id ?? null,
+      channel: "whatsapp",
+      phase: "failed",
+      latencyMs: 1234,
+      errorCode: "invalid_recipient",
+      errorMessage: "invalid recipient",
+      workerId: "worker-1",
+      metadata: { source: "api-test" },
+    });
 
     const app = await buildApiApp({
       env: loadApiEnv({
@@ -779,6 +791,8 @@ describe("api health", () => {
     try {
       const unauthenticated = await trpcCall(app, "GET", "jobs.listDead", undefined);
       expect(unauthenticated.statusCode).toBe(401);
+      const auditUnauthenticated = await trpcCall(app, "GET", "system.sendAuditEvents", undefined);
+      expect(auditUnauthenticated.statusCode).toBe(401);
 
       const login = await trpcCall<{ csrfToken: string }>(app, "POST", "auth.login", {
         email: "admin@nuoma.local",
@@ -806,6 +820,30 @@ describe("api health", () => {
           type: "sync.dom_changed",
           severity: "warn",
           payload: { reason: "test" },
+        }),
+      ]);
+
+      const sendAuditEvents = await trpcCall<{
+        events: Array<{
+          channel: string;
+          phase: string;
+          latencyMs: number | null;
+          errorCode: string | null;
+          errorMessage: string | null;
+          workerId: string | null;
+          metadata: unknown;
+        }>;
+      }>(app, "GET", "system.sendAuditEvents", { phase: "failed", limit: 5 }, { cookie: cookies });
+      expect(sendAuditEvents.statusCode).toBe(200);
+      expect(sendAuditEvents.data?.events).toEqual([
+        expect.objectContaining({
+          channel: "whatsapp",
+          phase: "failed",
+          latencyMs: 1234,
+          errorCode: "invalid_recipient",
+          errorMessage: "invalid recipient",
+          workerId: "worker-1",
+          metadata: { source: "api-test" },
         }),
       ]);
 
@@ -2449,6 +2487,13 @@ describe("api health", () => {
       primaryChannel: "whatsapp",
       notes: "Nao deve entrar no disparo rapido do overlay.",
     });
+    const titleDecoyContact = await repos.contacts.create({
+      userId: user.id,
+      name: "Gabriel Braga Nuoma",
+      phone: "553185596476",
+      primaryChannel: "whatsapp",
+      notes: "Contato salvo com nome igual ao titulo exibido no WhatsApp.",
+    });
     const conversation = await repos.conversations.create({
       userId: user.id,
       contactId: contact.id,
@@ -2458,6 +2503,16 @@ describe("api health", () => {
       title: "Neferpeel",
       lastMessageAt: "2026-05-07T10:00:00.000Z",
       lastPreview: "Resumo do contato",
+    });
+    const titleDecoyConversation = await repos.conversations.create({
+      userId: user.id,
+      contactId: titleDecoyContact.id,
+      channel: "whatsapp",
+      externalThreadId: "553185596476",
+      waJid: "553185596476@s.whatsapp.net",
+      title: "Gabriel Braga Nuoma",
+      lastMessageAt: "2026-05-07T09:59:00.000Z",
+      lastPreview: "Resumo do decoy",
     });
     await repos.messages.insertOrIgnore({
       userId: user.id,
@@ -2469,6 +2524,17 @@ describe("api health", () => {
       status: "received",
       body: "Oi pelo Chrome Extension",
       observedAtUtc: "2026-05-07T10:00:00.000Z",
+    });
+    await repos.messages.insertOrIgnore({
+      userId: user.id,
+      conversationId: titleDecoyConversation.id,
+      contactId: titleDecoyContact.id,
+      externalId: "M38-DECOY-MSG1",
+      direction: "inbound",
+      contentType: "text",
+      status: "received",
+      body: "Mensagem do decoy por titulo",
+      observedAtUtc: "2026-05-07T09:59:00.000Z",
     });
     const campaign = await repos.campaigns.create({
       userId: user.id,
@@ -2487,6 +2553,7 @@ describe("api health", () => {
         },
       ],
       metadata: {
+        overlayEnabled: true,
         temporaryMessages: {
           enabled: true,
           beforeSendDuration: "24h",
@@ -2510,6 +2577,34 @@ describe("api health", () => {
           template: "Oi {{contact.name}}, posso te ajudar por aqui?",
         },
       ],
+      metadata: {
+        overlayEnabled: true,
+      },
+    });
+    const campaignOverlayDisabled = await repos.campaigns.create({
+      userId: user.id,
+      name: "Campanha Overlay Desligado",
+      status: "running",
+      channel: "whatsapp",
+      steps: [
+        {
+          id: "intro",
+          label: "Intro",
+          delaySeconds: 0,
+          conditions: [],
+          type: "text",
+          template: "Nao deve aparecer no overlay.",
+        },
+      ],
+      metadata: {
+        overlayEnabled: false,
+        temporaryMessages: {
+          enabled: true,
+          beforeSendDuration: "24h",
+          afterCompletionDuration: "90d",
+          restoreOnFailure: true,
+        },
+      },
     });
     const automation = await repos.automations.create({
       userId: user.id,
@@ -2531,7 +2626,29 @@ describe("api health", () => {
           },
         },
       ],
-      metadata: {},
+      metadata: { overlayEnabled: true },
+    });
+    const automationOverlayDisabled = await repos.automations.create({
+      userId: user.id,
+      name: "Automacao Overlay Desligado",
+      category: "Overlay",
+      status: "active",
+      trigger: { type: "message_received", channel: "whatsapp" },
+      condition: { segment: null, requireWithin24hWindow: false },
+      actions: [
+        {
+          type: "send_step",
+          step: {
+            id: "auto-disabled",
+            label: "Auto disabled",
+            delaySeconds: 0,
+            conditions: [],
+            type: "text",
+            template: "Nao deve aparecer no overlay.",
+          },
+        },
+      ],
+      metadata: { overlayEnabled: false },
     });
 
     const app = await buildApiApp({
@@ -2596,7 +2713,7 @@ describe("api health", () => {
           id: "m38-summary",
           method: "contactSummary",
           params: {
-            title: "Neferpeel",
+            title: "Gabriel Braga Nuoma",
             waJid: "5531982066263@s.whatsapp.net",
             phoneSource: "unresolved",
             reason: "m38-api-test",
@@ -2620,13 +2737,36 @@ describe("api health", () => {
       expect(summary.json().data.latestMessages[0]).toMatchObject({
         body: "Oi pelo Chrome Extension",
       });
+      expect(summary.json().data.latestMessages).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            body: "Mensagem do decoy por titulo",
+          }),
+        ]),
+      );
+      expect(summary.json().data.conversations).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: titleDecoyConversation.id,
+          }),
+        ]),
+      );
       expect(summary.json().data.automations).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
             id: automation.id,
             name: "Automacao Overlay",
+            overlayEnabled: true,
             eligible: true,
             canDispatchReal: true,
+          }),
+        ]),
+      );
+      expect(summary.json().data.automations).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: automationOverlayDisabled.id,
+            name: "Automacao Overlay Desligado",
           }),
         ]),
       );
@@ -2635,13 +2775,23 @@ describe("api health", () => {
           expect.objectContaining({
             id: campaign.id,
             name: "Campanha Overlay",
+            overlayEnabled: true,
             eligible: true,
           }),
           expect.objectContaining({
             id: campaignWithoutM303.id,
             name: "Campanha Overlay Sem M30.3",
+            overlayEnabled: true,
             eligible: false,
             reasons: expect.arrayContaining(["temporary_messages_audit_only"]),
+          }),
+        ]),
+      );
+      expect(summary.json().data.campaigns).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: campaignOverlayDisabled.id,
+            name: "Campanha Overlay Desligado",
           }),
         ]),
       );
@@ -2670,6 +2820,37 @@ describe("api health", () => {
       expect(missingMutation.json()).toMatchObject({
         ok: false,
         error: { code: "mutation_guard_required" },
+      });
+
+      const mismatchedIdentity = await app.inject({
+        method: "POST",
+        url: "/api/extension/overlay",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${accessToken}`,
+        },
+        payload: {
+          id: "m38-run-campaign-identity-mismatch",
+          method: "runCampaignForPhone",
+          params: {
+            campaignId: campaign.id,
+            phone: "553185596476",
+            waJid: "5531982066263@s.whatsapp.net",
+            phoneSource: "wa-jid",
+            reason: "m38-api-test",
+          },
+          mutation: {
+            nonce: "overlay-nonce-mismatch",
+            idempotencyKey: "overlay-key-mismatch",
+            confirmed: true,
+          },
+          version: "v2.11.7-m35-m38-extension",
+        },
+      });
+      expect(mismatchedIdentity.statusCode).toBe(400);
+      expect(mismatchedIdentity.json()).toMatchObject({
+        ok: false,
+        error: { code: "overlay_thread_mismatch" },
       });
 
       const blockedMissingM303 = await app.inject({
@@ -2701,6 +2882,37 @@ describe("api health", () => {
       expect(blockedMissingM303.json()).toMatchObject({
         ok: false,
         error: { code: "temporary_messages_audit_only" },
+      });
+
+      const blockedOverlayNo = await app.inject({
+        method: "POST",
+        url: "/api/extension/overlay",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${accessToken}`,
+        },
+        payload: {
+          id: "m38-run-campaign-overlay-no",
+          method: "runCampaignForPhone",
+          params: {
+            campaignId: campaignOverlayDisabled.id,
+            phone: "31982066263",
+            waJid: "5531982066263@s.whatsapp.net",
+            phoneSource: "wa-jid",
+            reason: "m38-api-test",
+          },
+          mutation: {
+            nonce: "overlay-nonce-disabled",
+            idempotencyKey: "overlay-key-disabled",
+            confirmed: true,
+          },
+          version: "v2.11.7-m35-m38-extension",
+        },
+      });
+      expect(blockedOverlayNo.statusCode).toBe(200);
+      expect(blockedOverlayNo.json()).toMatchObject({
+        ok: false,
+        error: { code: "overlay_not_enabled" },
       });
 
       const runCampaign = await app.inject({
@@ -2832,6 +3044,37 @@ describe("api health", () => {
         "5531982066263",
       );
 
+      const blockedAutomationOverlayNo = await app.inject({
+        method: "POST",
+        url: "/api/extension/overlay",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${accessToken}`,
+        },
+        payload: {
+          id: "m38-run-automation-overlay-no",
+          method: "runAutomationForPhone",
+          params: {
+            automationId: automationOverlayDisabled.id,
+            phone: "31982066263",
+            waJid: "5531982066263@s.whatsapp.net",
+            phoneSource: "wa-jid",
+            reason: "m38-api-test",
+          },
+          mutation: {
+            nonce: "overlay-automation-disabled-nonce",
+            idempotencyKey: "overlay-automation-disabled-key",
+            confirmed: true,
+          },
+          version: "v2.11.7-m35-m38-extension",
+        },
+      });
+      expect(blockedAutomationOverlayNo.statusCode).toBe(200);
+      expect(blockedAutomationOverlayNo.json()).toMatchObject({
+        ok: false,
+        error: { code: "overlay_not_enabled" },
+      });
+
       const mutation = await app.inject({
         method: "POST",
         url: "/api/extension/overlay",
@@ -2961,6 +3204,16 @@ describe("api health", () => {
       primaryChannel: "whatsapp",
       status: "active",
     });
+    const priorityTag = await repos.tags.create({
+      userId: user.id,
+      name: "Prioridade",
+      color: "#2dd4bf",
+    });
+    await repos.contactTags.add({
+      userId: user.id,
+      contactId: whatsappContact.id,
+      tagId: priorityTag.id,
+    });
     const instagramContact = await repos.contacts.create({
       userId: user.id,
       name: "Neferpeel Instagram",
@@ -2969,7 +3222,7 @@ describe("api health", () => {
       instagramHandle: "neferpeel.bh",
       status: "lead",
     });
-    await repos.conversations.create({
+    const whatsappConversation = await repos.conversations.create({
       userId: user.id,
       contactId: whatsappContact.id,
       channel: "whatsapp",
@@ -2977,6 +3230,7 @@ describe("api health", () => {
       title: "Gabriel WhatsApp",
       lastMessageAt: "2026-05-07T10:00:00.000Z",
       lastPreview: "WA recente",
+      unreadCount: 2,
     });
     await repos.conversations.create({
       userId: user.id,
@@ -2986,6 +3240,17 @@ describe("api health", () => {
       title: "@neferpeel.bh",
       lastMessageAt: "2026-05-07T10:05:00.000Z",
       lastPreview: "DM recente",
+    });
+    await repos.messages.create({
+      userId: user.id,
+      conversationId: whatsappConversation.id,
+      contactId: whatsappContact.id,
+      externalId: "FAILED-WA-1",
+      direction: "outbound",
+      contentType: "text",
+      status: "failed",
+      body: "falhou",
+      observedAtUtc: "2026-05-07T10:01:00.000Z",
     });
 
     const app = await buildApiApp({
@@ -3010,14 +3275,24 @@ describe("api health", () => {
         conversations: Array<{
           channel: string;
           title: string;
-          contact: { instagramHandle: string | null; phone: string | null } | null;
+          contact: {
+            instagramHandle: string | null;
+            phone: string | null;
+            tagIds: number[];
+          } | null;
           target: { kind: string; identity: string; label: string };
+          hasFailedMessages: boolean;
         }>;
         summary: {
           total: number;
           returned: number;
           channels: { instagram: number; system: number; whatsapp: number };
-          filters: { channel: string; search: string | null };
+          filters: {
+            channel: string;
+            search: string | null;
+            operationalStatus: string;
+            tagId: number | null;
+          };
         };
       }>(
         app,
@@ -3031,7 +3306,7 @@ describe("api health", () => {
         total: 2,
         returned: 2,
         channels: { instagram: 1, system: 0, whatsapp: 1 },
-        filters: { channel: "all", search: null },
+        filters: { channel: "all", search: null, operationalStatus: "all", tagId: null },
       });
       expect(unified.data?.conversations.map((conversation) => conversation.channel)).toEqual([
         "instagram",
@@ -3046,10 +3321,19 @@ describe("api health", () => {
           label: "Neferpeel Instagram",
         },
       });
+      expect(unified.data?.conversations[1]).toMatchObject({
+        channel: "whatsapp",
+        contact: { tagIds: [priorityTag.id] },
+        hasFailedMessages: true,
+      });
 
       const byIgHandle = await trpcCall<{
         conversations: Array<{ channel: string; target: { identity: string } }>;
-        summary: { total: number; channels: { instagram: number; whatsapp: number } };
+        summary: {
+          total: number;
+          channels: { instagram: number; whatsapp: number };
+          filters: { operationalStatus: string; tagId: number | null };
+        };
       }>(
         app,
         "GET",
@@ -3066,6 +3350,66 @@ describe("api health", () => {
         expect.objectContaining({
           channel: "instagram",
           target: expect.objectContaining({ identity: "@neferpeel.bh" }),
+        }),
+      ]);
+
+      const unread = await trpcCall<{
+        conversations: Array<{ channel: string; unreadCount: number }>;
+        summary: { total: number; filters: { operationalStatus: string } };
+      }>(
+        app,
+        "GET",
+        "conversations.listUnified",
+        { operationalStatus: "unread", limit: 10 },
+        { cookie: cookies },
+      );
+      expect(unread.statusCode, JSON.stringify(unread.error)).toBe(200);
+      expect(unread.data?.summary).toMatchObject({
+        total: 1,
+        filters: { operationalStatus: "unread" },
+      });
+      expect(unread.data?.conversations).toEqual([
+        expect.objectContaining({ channel: "whatsapp", unreadCount: 2 }),
+      ]);
+
+      const failed = await trpcCall<{
+        conversations: Array<{ channel: string; hasFailedMessages: boolean }>;
+        summary: { total: number; filters: { operationalStatus: string } };
+      }>(
+        app,
+        "GET",
+        "conversations.listUnified",
+        { operationalStatus: "failed", limit: 10 },
+        { cookie: cookies },
+      );
+      expect(failed.statusCode, JSON.stringify(failed.error)).toBe(200);
+      expect(failed.data?.summary).toMatchObject({
+        total: 1,
+        filters: { operationalStatus: "failed" },
+      });
+      expect(failed.data?.conversations).toEqual([
+        expect.objectContaining({ channel: "whatsapp", hasFailedMessages: true }),
+      ]);
+
+      const byTag = await trpcCall<{
+        conversations: Array<{ channel: string; contact: { tagIds: number[] } | null }>;
+        summary: { total: number; filters: { tagId: number | null } };
+      }>(
+        app,
+        "GET",
+        "conversations.listUnified",
+        { tagId: priorityTag.id, limit: 10 },
+        { cookie: cookies },
+      );
+      expect(byTag.statusCode, JSON.stringify(byTag.error)).toBe(200);
+      expect(byTag.data?.summary).toMatchObject({
+        total: 1,
+        filters: { tagId: priorityTag.id },
+      });
+      expect(byTag.data?.conversations).toEqual([
+        expect.objectContaining({
+          channel: "whatsapp",
+          contact: expect.objectContaining({ tagIds: [priorityTag.id] }),
         }),
       ]);
     } finally {
@@ -3461,6 +3805,38 @@ describe("api health", () => {
         expect.arrayContaining([
           expect.objectContaining({ code: "batch_has_rejections", severity: "error" }),
         ]),
+      );
+
+      const cappedAfterRejected = await trpcCall<{
+        canDispatch: boolean;
+        summary: { acceptedRecipients: number };
+        accepted: Array<{ phone: string | null }>;
+        rejected: Array<{ reason: string }>;
+      }>(
+        app,
+        "POST",
+        "campaigns.remarketingBatchReady",
+        {
+          campaignId: campaign.id,
+          rawPhones: "5531999999999\n5531982066263",
+          allowedPhone: "5531982066263",
+          maxRecipients: 1,
+        },
+        { cookie: cookies, csrfToken },
+      );
+      expect(cappedAfterRejected.statusCode, JSON.stringify(cappedAfterRejected.error)).toBe(200);
+      expect(cappedAfterRejected.data?.canDispatch).toBe(false);
+      expect(cappedAfterRejected.data?.summary.acceptedRecipients).toBe(1);
+      expect(cappedAfterRejected.data?.accepted).toEqual([
+        expect.objectContaining({ phone: "5531982066263" }),
+      ]);
+      expect(cappedAfterRejected.data?.rejected).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ reason: "not_allowlisted_for_test_execution" }),
+        ]),
+      );
+      expect(cappedAfterRejected.data?.rejected).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ reason: "max_recipients_exceeded" })]),
       );
 
       const ready = await trpcCall<{

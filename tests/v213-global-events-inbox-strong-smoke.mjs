@@ -3,6 +3,11 @@ import Database from "better-sqlite3";
 import { chromium } from "playwright";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import {
+  backfillSmokeWhatsappIdentity,
+  findSmokeWhatsappContact,
+  findSmokeWhatsappConversation,
+} from "./helpers/contact-identity.mjs";
 
 const webUrl = process.env.WEB_URL ?? "http://127.0.0.1:3002";
 const apiUrl = process.env.API_URL ?? "http://127.0.0.1:3001";
@@ -142,9 +147,7 @@ function seedInboxFixture(preview) {
 }
 
 function upsertContact(db, nowIso) {
-  const existing = db
-    .prepare("SELECT id FROM contacts WHERE user_id = 1 AND phone = ? ORDER BY id DESC LIMIT 1")
-    .get(smokePhone);
+  const existing = findSmokeWhatsappContact(db, { userId: 1, phone: smokePhone });
   if (existing?.id) {
     db.prepare(
       `
@@ -175,10 +178,14 @@ function upsertContact(db, nowIso) {
       `,
     ).run({ title: smokeTitle, phone: smokePhone, nowIso });
   }
-  const contact = db
-    .prepare("SELECT id FROM contacts WHERE user_id = 1 AND phone = ? ORDER BY id DESC LIMIT 1")
-    .get(smokePhone);
+  const contact = findSmokeWhatsappContact(db, { userId: 1, phone: smokePhone });
   if (!contact?.id) throw new Error("V2.13 contact was not created");
+  backfillSmokeWhatsappIdentity(db, {
+    userId: 1,
+    phone: smokePhone,
+    contactId: Number(contact.id),
+    now: nowIso,
+  });
   return Number(contact.id);
 }
 
@@ -206,12 +213,19 @@ function upsertConversation(db, contactId, preview, nowIso) {
         updated_at = excluded.updated_at
     `,
   ).run({ contactId, phone: smokePhone, title: smokeTitle, preview, nowIso });
-  const conversation = db
-    .prepare(
-      "SELECT id FROM conversations WHERE user_id = 1 AND channel = 'whatsapp' AND external_thread_id = ?",
-    )
-    .get(smokePhone);
+  const conversation = findSmokeWhatsappConversation(db, {
+    userId: 1,
+    phone: smokePhone,
+    contactId,
+  });
   if (!conversation?.id) throw new Error("V2.13 conversation was not created");
+  backfillSmokeWhatsappIdentity(db, {
+    userId: 1,
+    phone: smokePhone,
+    contactId,
+    conversationId: Number(conversation.id),
+    now: nowIso,
+  });
   return Number(conversation.id);
 }
 
