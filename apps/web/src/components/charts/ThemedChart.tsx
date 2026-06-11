@@ -29,30 +29,32 @@ import {
   ZAxis,
 } from "recharts";
 
+/* Chaves mantêm nomes históricos (teal/blue/…) até a wave de re-skin dos
+ * consumidores; os valores já vêm da paleta de gráfico Carvão & Cobre. */
 const VAR_NAMES = {
-  teal: "--color-brand-teal",
-  blue: "--color-brand-blue",
-  green: "--color-brand-green",
-  danger: "--color-semantic-danger",
-  success: "--color-semantic-success",
-  warning: "--color-semantic-warning",
-  text: "--color-fg-primary",
-  muted: "--color-fg-dim",
-  grid: "--color-border-subtle",
-  surface: "--color-bg-elevated",
+  teal: "--nw-chart-1",
+  blue: "--nw-chart-3",
+  green: "--nw-chart-4",
+  danger: "--nw-status-error",
+  success: "--nw-status-ok",
+  warning: "--nw-status-warn",
+  text: "--nw-ink-strong",
+  muted: "--nw-chart-label",
+  grid: "--nw-chart-grid",
+  surface: "--nw-surface-4",
 } as const;
 
 const FALLBACK = {
-  teal: "rgb(91 91 246)",
-  blue: "rgb(91 91 246)",
-  green: "rgb(43 184 126)",
-  danger: "rgb(242 86 106)",
-  success: "rgb(43 184 126)",
-  warning: "rgb(224 163 58)",
-  text: "rgb(244 244 248)",
-  muted: "rgb(162 162 178)",
-  grid: "rgb(48 48 62)",
-  surface: "rgb(18 18 25)",
+  teal: "rgb(232 100 44)",
+  blue: "rgb(92 162 250)",
+  green: "rgb(52 199 123)",
+  danger: "rgb(240 90 86)",
+  success: "rgb(52 199 123)",
+  warning: "rgb(230 176 28)",
+  text: "rgb(245 242 236)",
+  muted: "rgb(141 134 123)",
+  grid: "rgb(42 38 33)",
+  surface: "rgb(37 33 28)",
 } as const;
 
 export type ChartPalette = Record<keyof typeof VAR_NAMES, string> & { series: string[] };

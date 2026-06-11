@@ -1,0 +1,161 @@
+/* ============================================================================
+ * Nuoma Carvão & Cobre — tokens de tema.
+ *
+ * Triplets RGB consumidos via rgb(var(--…) / <alpha>) pelo preset Tailwind
+ * (@nuoma/ui/tailwind-preset). Este arquivo é a ÚNICA fonte de cor do app:
+ * nenhum hex/rgb cru em TSX ou em CSS de página.
+ *
+ * Vocabulário: superfícies numeradas (elevação), tinta por intensidade,
+ * UM acento (cobre), linhas, status, canais e paleta de gráfico dedicada.
+ * ========================================================================= */
+:root,
+[data-theme="editorial"] {
+  color-scheme: dark;
+
+  /* Superfícies — carvão quente, elevação numérica (0 = canvas) */
+  --nw-surface-deep: 10 9 8;
+  --nw-surface-0: 14 13 11;
+  --nw-surface-1: 21 19 16;
+  --nw-surface-2: 26 24 20;
+  --nw-surface-3: 31 28 24;
+  --nw-surface-4: 37 33 28;
+  --nw-surface-5: 45 41 35;
+
+  /* Tinta — off-white quente */
+  --nw-ink-strong: 245 242 236;
+  --nw-ink-base: 178 171 159;
+  --nw-ink-soft: 141 134 123;
+  --nw-ink-faint: 113 107 97;
+
+  /* Acento único — cobre. `on` é a tinta sobre superfícies cobre (AA). */
+  --nw-accent: 232 100 44;
+  --nw-accent-hover: 255 122 69;
+  --nw-accent-muted: 156 74 38;
+  --nw-accent-on: 26 13 6;
+
+  /* Linhas */
+  --nw-line-hairline: 42 38 33;
+  --nw-line-soft: 58 53 45;
+  --nw-line-strong: 82 75 65;
+
+  /* Status operacional */
+  --nw-status-ok: 52 199 123;
+  --nw-status-warn: 230 176 28;
+  --nw-status-error: 240 90 86;
+  --nw-status-info: 92 162 250;
+
+  /* Canais */
+  --nw-channel-wa: 43 209 126;
+  --nw-channel-ig: 225 86 143;
+  --nw-channel-sys: 232 100 44;
+
+  /* Data-viz — paleta dedicada (ThemedChart lê daqui, nunca duplica) */
+  --nw-chart-1: 232 100 44;
+  --nw-chart-2: 217 164 91;
+  --nw-chart-3: 92 162 250;
+  --nw-chart-4: 52 199 123;
+  --nw-chart-5: 196 145 220;
+  --nw-chart-6: 240 90 86;
+  --nw-chart-grid: 42 38 33;
+  --nw-chart-label: 141 134 123;
+
+  /* Profundidade — hairline rings + sombras baixas, sem glow */
+  --nw-shadow-flat: 0 0 0 1px rgb(255 255 255 / 0.05);
+  --nw-shadow-raised: 0 6px 18px -8px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.06);
+  --nw-shadow-lifted: 0 28px 64px -24px rgb(0 0 0 / 0.66), 0 0 0 1px rgb(255 255 255 / 0.07);
+  --nw-shadow-inset: inset 0 2px 6px rgb(0 0 0 / 0.42);
+
+  /* ==========================================================================
+   * CAMADA COMPAT (deprecated) — nomes da era Editorial·Indigo resolvendo para
+   * os tokens novos. Mantém o CSS legado e as utilities antigas do preset
+   * renderizando já na paleta Carvão & Cobre. Morre junto com styles/legacy.css.
+   * ======================================================================= */
+  --color-bg-canvas: var(--nw-surface-0);
+  --color-bg-deep: var(--nw-surface-deep);
+  --color-bg-sunken: var(--nw-surface-deep);
+  --color-bg-base: var(--nw-surface-1);
+  --color-bg-surface: var(--nw-surface-2);
+  --color-bg-raised: var(--nw-surface-3);
+  --color-bg-elevated: var(--nw-surface-4);
+  --color-bg-subtle: var(--nw-surface-5);
+  --color-bg-panel: var(--nw-surface-1);
+
+  --color-fg-primary: var(--nw-ink-strong);
+  --color-fg-muted: var(--nw-ink-base);
+  --color-fg-dim: var(--nw-ink-soft);
+  --color-fg-faint: var(--nw-ink-faint);
+
+  --color-accent: var(--nw-accent);
+  --color-accent-strong: var(--nw-accent-hover);
+  --color-accent-soft: var(--nw-accent-hover);
+  --color-accent-dim: var(--nw-accent-muted);
+
+  --color-channel-whatsapp: var(--nw-channel-wa);
+  --color-channel-instagram: var(--nw-channel-ig);
+  --color-channel-system: var(--nw-channel-sys);
+  --color-semantic-success: var(--nw-status-ok);
+  --color-semantic-warning: var(--nw-status-warn);
+  --color-semantic-danger: var(--nw-status-error);
+  --color-semantic-info: var(--nw-status-info);
+
+  --color-brand-blue: var(--nw-accent);
+  --color-brand-blue-soft: var(--nw-accent-hover);
+  --color-brand-blue-glow: var(--nw-accent);
+  --color-brand-green: var(--nw-status-ok);
+  --color-brand-green-soft: var(--nw-status-ok);
+  --color-brand-green-glow: var(--nw-status-ok);
+  --color-brand-teal: var(--nw-accent);
+  --color-brand-teal-soft: var(--nw-accent-hover);
+  --color-brand-teal-glow: var(--nw-accent);
+  --color-brand-gold: var(--nw-accent);
+  --color-brand-gold-soft: var(--nw-accent-hover);
+  --color-brand-gold-glow: var(--nw-accent);
+  --color-brand-violet: var(--nw-accent);
+  --color-brand-violet-soft: var(--nw-accent-hover);
+  --color-brand-violet-glow: var(--nw-accent);
+  --color-brand-cyan: var(--nw-accent);
+  --color-brand-cyan-soft: var(--nw-accent-hover);
+  --color-brand-cyan-glow: var(--nw-accent);
+  --color-brand-lime: var(--nw-status-ok);
+  --color-brand-lime-glow: var(--nw-status-ok);
+
+  --color-contour-line: var(--nw-accent);
+  --color-contour-line-muted: var(--nw-line-soft);
+  --color-contour-accent: var(--nw-accent);
+  --color-contour-grid: var(--nw-line-soft);
+  --color-border-subtle: var(--nw-line-hairline);
+  --color-border-muted: var(--nw-line-soft);
+  --color-border-active: var(--nw-accent);
+
+  --color-signal-active: var(--nw-accent);
+  --color-signal-idle: var(--nw-line-strong);
+  --color-signal-error: var(--nw-status-error);
+  --color-signal-degraded: var(--nw-status-warn);
+
+  --color-shadow-light: var(--nw-accent-hover);
+  --color-shadow-light-soft: var(--nw-accent);
+  --color-shadow-dark: 0 0 0;
+  --color-shadow-dark-soft: 0 0 0;
+
+  --shadow-raised-sm: 0 1px 2px rgb(0 0 0 / 0.4), 0 0 0 1px rgb(255 255 255 / 0.05);
+  --shadow-raised-md: var(--nw-shadow-raised);
+  --shadow-raised-lg: 0 16px 40px -16px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.07);
+  --shadow-raised-xl: var(--nw-shadow-lifted);
+  --shadow-pressed-sm: inset 0 1px 2px rgb(0 0 0 / 0.36);
+  --shadow-pressed-md: var(--nw-shadow-inset);
+  --shadow-pressed-lg: inset 0 4px 12px rgb(0 0 0 / 0.48);
+  --shadow-flat: var(--nw-shadow-flat);
+  --shadow-flat-subtle: 0 0 0 1px rgb(255 255 255 / 0.04);
+  --shadow-lift: var(--nw-shadow-lifted);
+  --shadow-glow-violet: 0 0 0 1px rgb(var(--nw-accent) / 0.5);
+  --shadow-glow-gold: 0 0 0 1px rgb(var(--nw-accent) / 0.5);
+  --shadow-glow-cyan: 0 0 0 1px rgb(var(--nw-accent) / 0.5);
+  --shadow-glow-green: 0 0 0 1px rgb(var(--nw-status-ok) / 0.45);
+  --shadow-glow-lime: 0 0 0 1px rgb(var(--nw-status-ok) / 0.45);
+  --shadow-glow-danger: 0 0 0 1px rgb(var(--nw-status-error) / 0.55);
+  --shadow-glow-aura: 0 16px 40px -16px rgb(0 0 0 / 0.6);
+
+  --gradient-accent: linear-gradient(120deg, rgb(var(--nw-accent)), rgb(var(--nw-accent-hover)));
+  --gradient-aura: radial-gradient(120% 120% at 0% 0%, rgb(var(--nw-accent) / 0.08), transparent 60%);
+  --gradient-glass: linear-gradient(180deg, rgb(255 255 255 / 0.02), transparent 60%);
+}

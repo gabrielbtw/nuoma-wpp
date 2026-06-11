@@ -1,5 +1,11 @@
 /**
- * Tailwind 3 preset mapping V2.8 Cartographic Operations tokens to theme keys.
+ * Tailwind 3 preset — Nuoma Carvão & Cobre.
+ *
+ * Vocabulário novo (--nw-*): superfícies numeradas, tinta por intensidade,
+ * um acento, linhas, status, canais e paleta de gráfico. As escalas da era
+ * Editorial·Indigo (bg/fg/border/semantic/brand/contour/signal) permanecem
+ * como ALIASES DEPRECATED — resolvem para os mesmos tokens via a camada
+ * compat de styles/tokens.css — e morrem junto com o CSS legado.
  */
 import type { Config } from "tailwindcss";
 
@@ -20,6 +26,70 @@ const withOpacity = (variable: string) => `rgb(var(${variable}) / <alpha-value>)
 
 function flatColors() {
   return {
+    /* ------------------------------------------------------------------ */
+    /* Vocabulário Carvão & Cobre                                          */
+    /* ------------------------------------------------------------------ */
+    surface: {
+      deep: withOpacity("--nw-surface-deep"),
+      0: withOpacity("--nw-surface-0"),
+      1: withOpacity("--nw-surface-1"),
+      2: withOpacity("--nw-surface-2"),
+      3: withOpacity("--nw-surface-3"),
+      4: withOpacity("--nw-surface-4"),
+      5: withOpacity("--nw-surface-5"),
+    },
+    ink: {
+      DEFAULT: withOpacity("--nw-ink-base"),
+      strong: withOpacity("--nw-ink-strong"),
+      base: withOpacity("--nw-ink-base"),
+      soft: withOpacity("--nw-ink-soft"),
+      faint: withOpacity("--nw-ink-faint"),
+    },
+    accent: {
+      DEFAULT: withOpacity("--nw-accent"),
+      hover: withOpacity("--nw-accent-hover"),
+      muted: withOpacity("--nw-accent-muted"),
+      on: withOpacity("--nw-accent-on"),
+      /* deprecated (Editorial·Indigo) */
+      strong: withOpacity("--nw-accent-hover"),
+      soft: withOpacity("--nw-accent-hover"),
+      dim: withOpacity("--nw-accent-muted"),
+    },
+    line: {
+      hairline: withOpacity("--nw-line-hairline"),
+      soft: withOpacity("--nw-line-soft"),
+      strong: withOpacity("--nw-line-strong"),
+    },
+    status: {
+      ok: withOpacity("--nw-status-ok"),
+      warn: withOpacity("--nw-status-warn"),
+      error: withOpacity("--nw-status-error"),
+      info: withOpacity("--nw-status-info"),
+    },
+    channel: {
+      wa: withOpacity("--nw-channel-wa"),
+      ig: withOpacity("--nw-channel-ig"),
+      sys: withOpacity("--nw-channel-sys"),
+      /* deprecated (nomes longos) */
+      whatsapp: withOpacity("--nw-channel-wa"),
+      instagram: withOpacity("--nw-channel-ig"),
+      system: withOpacity("--nw-channel-sys"),
+    },
+    chart: {
+      1: withOpacity("--nw-chart-1"),
+      2: withOpacity("--nw-chart-2"),
+      3: withOpacity("--nw-chart-3"),
+      4: withOpacity("--nw-chart-4"),
+      5: withOpacity("--nw-chart-5"),
+      6: withOpacity("--nw-chart-6"),
+      grid: withOpacity("--nw-chart-grid"),
+      label: withOpacity("--nw-chart-label"),
+    },
+
+    /* ------------------------------------------------------------------ */
+    /* DEPRECATED — escalas Editorial·Indigo (resolvem via camada compat). */
+    /* Não usar em código novo; removidas quando styles/legacy.css morrer. */
+    /* ------------------------------------------------------------------ */
     bg: {
       base: withOpacity("--color-bg-base"),
       deep: withOpacity("--color-bg-deep"),
@@ -36,17 +106,6 @@ function flatColors() {
       muted: withOpacity("--color-fg-muted"),
       dim: withOpacity("--color-fg-dim"),
       faint: withOpacity("--color-fg-faint"),
-    },
-    accent: {
-      DEFAULT: withOpacity("--color-accent"),
-      strong: withOpacity("--color-accent-strong"),
-      soft: withOpacity("--color-accent-soft"),
-      dim: withOpacity("--color-accent-dim"),
-    },
-    channel: {
-      whatsapp: withOpacity("--color-channel-whatsapp"),
-      instagram: withOpacity("--color-channel-instagram"),
-      system: withOpacity("--color-channel-system"),
     },
     semantic: {
       success: withOpacity("--color-semantic-success"),
@@ -107,6 +166,11 @@ function flatColors() {
 function flatBoxShadow() {
   return {
     none: "none",
+    flat: "var(--nw-shadow-flat)",
+    raised: "var(--nw-shadow-raised)",
+    lifted: "var(--nw-shadow-lifted)",
+    inset: "var(--nw-shadow-inset)",
+    /* deprecated (Editorial·Indigo) */
     "raised-sm": "var(--shadow-raised-sm)",
     "raised-md": "var(--shadow-raised-md)",
     "raised-lg": "var(--shadow-raised-lg)",
@@ -114,7 +178,6 @@ function flatBoxShadow() {
     "pressed-sm": "var(--shadow-pressed-sm)",
     "pressed-md": "var(--shadow-pressed-md)",
     "pressed-lg": "var(--shadow-pressed-lg)",
-    flat: "var(--shadow-flat)",
     "flat-subtle": "var(--shadow-flat-subtle)",
     lift: "var(--shadow-lift)",
     "glow-violet": "var(--shadow-glow-violet)",

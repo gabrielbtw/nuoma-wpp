@@ -1,68 +1,73 @@
 /**
- * Nuoma Editorial · Indigo — design tokens.
+ * Nuoma Carvão & Cobre — design tokens.
  *
- * A single dark editorial signature: a cool near-black canvas tinted faintly
- * toward indigo, off-white ink, hairline separators, and ONE electric-indigo
- * accent reserved for action, focus, and live/active state. No glass, no glow,
- * no gradients behind data, no secondary accent colors.
+ * Identidade única dark: canvas carvão quente, tinta off-white quente,
+ * separadores hairline e UM acento cobre reservado a ação, foco e estado
+ * vivo. Superfícies numeradas por elevação, status separado de acento,
+ * paleta de gráfico dedicada. Sem glass, sem glow, sem gradiente atrás
+ * de dado denso, sem segunda cor de marca.
  *
- * The Tailwind preset reads CSS variables (defined in apps/web styles.css) by
- * name, so these JS values are the source of truth for typography, shape,
- * spacing, and motion — the color triplets live alongside in the stylesheet.
+ * O preset Tailwind lê CSS variables (definidas em apps/web
+ * src/styles/tokens.css) por nome; estes valores JS são a fonte da verdade
+ * para tipografia, forma, espaçamento e motion — os triplets de cor vivem
+ * no stylesheet ao lado.
  */
 
 export const colors = {
-  bg: {
-    canvas: "11 11 16",
-    deep: "8 8 12",
-    sunken: "8 8 12",
-    base: "15 15 21",
-    surface: "18 18 25",
-    raised: "20 20 28",
-    elevated: "23 23 32",
-    subtle: "30 30 40",
-    panel: "15 15 21",
+  /** Elevação numérica: deep < 0 (canvas) < 1..5 (modal/hover). */
+  surface: {
+    deep: "10 9 8",
+    0: "14 13 11",
+    1: "21 19 16",
+    2: "26 24 20",
+    3: "31 28 24",
+    4: "37 33 28",
+    5: "45 41 35",
   },
-  fg: {
-    primary: "244 244 248",
-    muted: "162 162 178",
-    dim: "132 132 148",
-    faint: "100 100 116",
+  ink: {
+    strong: "245 242 236",
+    base: "178 171 159",
+    soft: "141 134 123",
+    faint: "113 107 97",
   },
-  channels: {
-    whatsapp: "43 209 126",
-    instagram: "225 86 143",
-    system: "91 91 246",
-  },
-  semantic: {
-    success: "43 184 126",
-    warning: "224 163 58",
-    danger: "242 86 106",
-    info: "91 91 246",
-  },
-  /** Single accent — electric indigo. `strong` is the lighter hover/focus tone. */
+  /** Acento único — cobre. `on` é a tinta sobre superfícies cobre (AA). */
   accent: {
-    base: "91 91 246",
-    strong: "124 124 255",
-    dim: "66 66 150",
+    base: "232 100 44",
+    hover: "255 122 69",
+    muted: "156 74 38",
+    on: "26 13 6",
   },
-  border: {
-    subtle: "35 35 46",
-    muted: "48 48 62",
-    active: "91 91 246",
+  line: {
+    hairline: "42 38 33",
+    soft: "58 53 45",
+    strong: "82 75 65",
   },
-  signal: {
-    active: "91 91 246",
-    idle: "74 74 90",
-    error: "242 86 106",
-    degraded: "224 163 58",
+  status: {
+    ok: "52 199 123",
+    warn: "230 176 28",
+    error: "240 90 86",
+    info: "92 162 250",
+  },
+  channel: {
+    wa: "43 209 126",
+    ig: "225 86 143",
+    sys: "232 100 44",
+  },
+  chart: {
+    1: "232 100 44",
+    2: "217 164 91",
+    3: "92 162 250",
+    4: "52 199 123",
+    5: "196 145 220",
+    6: "240 90 86",
+    grid: "42 38 33",
+    label: "141 134 123",
   },
 } as const;
 
 /**
- * Restrained, near-invisible gradient washes. Reserved for empty states and
- * the auth screen only — never behind dense data. Resolve to CSS vars so each
- * stays theme-driven.
+ * Washes de gradiente quase invisíveis. Reservados a empty states e à tela
+ * de auth — nunca atrás de dado denso. Resolvem para CSS vars.
  */
 export const gradients = {
   accent: "var(--gradient-accent)",
@@ -70,9 +75,7 @@ export const gradients = {
   glass: "var(--gradient-glass)",
 } as const;
 
-/**
- * Letter-spacing. Editorial display tightens; eyebrows (mono labels) open up.
- */
+/** Letter-spacing: display aperta; eyebrows (labels mono) abrem. */
 export const letterSpacing = {
   tight: "-0.01em",
   display: "-0.02em",
@@ -83,7 +86,7 @@ export const letterSpacing = {
   widest: "0.14em",
 } as const;
 
-/** Restrained, editorial radii — no oversized pills on cards. */
+/** Raios contidos — cards 10px, pill só em badge/contagem. */
 export const radii = {
   none: "0",
   xs: "0.375rem",
@@ -96,7 +99,7 @@ export const radii = {
   full: "9999px",
 } as const;
 
-/** Fluid spacing scale — breathes on larger screens. */
+/** Escala de espaçamento fluida — respira em telas maiores. */
 export const spacing = {
   px: "1px",
   0: "0",
@@ -116,8 +119,9 @@ export const spacing = {
 } as const;
 
 /**
- * Editorial type scale (fluid). `eyebrow` is the mono label; `body` is the
- * comfortable reading size. Tuple = [size, { lineHeight, letterSpacing, fontWeight }].
+ * Escala tipográfica fluida. `eyebrow` é o label mono; `body` o tamanho de
+ * leitura. Display/h1/h2 são servidos em Space Grotesk via font-display.
+ * Tupla = [size, { lineHeight, letterSpacing, fontWeight }].
  */
 export const fontSize = {
   eyebrow: ["0.6875rem", { lineHeight: "1", letterSpacing: "0.08em", fontWeight: "560" }],
@@ -149,9 +153,9 @@ export const blurs = {
 } as const;
 
 /**
- * Editorial depth: hairline rings + low, soft shadows. No neon/glow. The "glow"
- * names are kept as compatibility aliases (consumed via CSS vars) but resolve to
- * restrained rings.
+ * Profundidade: hairline rings + sombras baixas e macias. Sem neon/glow.
+ * Nomes "glow" são aliases de compatibilidade (resolvem para rings contidos)
+ * e morrem junto com o CSS legado.
  */
 export const shadows = {
   none: "none",
@@ -166,12 +170,12 @@ export const shadows = {
   flatSubtle: "0 0 0 1px rgb(255 255 255 / 0.04)",
   lift: "0 28px 64px -24px rgb(0 0 0 / 0.7)",
   glow: {
-    accent: "0 0 0 1px rgb(91 91 246 / 0.5)",
-    violet: "0 0 0 1px rgb(91 91 246 / 0.5)",
-    gold: "0 0 0 1px rgb(91 91 246 / 0.5)",
-    cyan: "0 0 0 1px rgb(91 91 246 / 0.5)",
-    lime: "0 0 0 1px rgb(43 184 126 / 0.45)",
-    danger: "0 0 0 1px rgb(242 86 106 / 0.55)",
+    accent: "0 0 0 1px rgb(232 100 44 / 0.5)",
+    violet: "0 0 0 1px rgb(232 100 44 / 0.5)",
+    gold: "0 0 0 1px rgb(232 100 44 / 0.5)",
+    cyan: "0 0 0 1px rgb(232 100 44 / 0.5)",
+    lime: "0 0 0 1px rgb(52 199 123 / 0.45)",
+    danger: "0 0 0 1px rgb(240 90 86 / 0.55)",
     aura: "0 16px 40px -16px rgb(0 0 0 / 0.6)",
   },
 } as const;
@@ -219,9 +223,9 @@ export const microGrid = {
 
 export const fontFamily = {
   sans: '"Inter Variable", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-  display: '"Inter Variable", "Inter", system-ui, sans-serif',
-  serif: '"Inter Variable", "Inter", system-ui, sans-serif',
-  mono: '"Geist Mono Variable", "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace',
+  display: '"Space Grotesk Variable", "Space Grotesk", "Inter Variable", system-ui, sans-serif',
+  serif: '"Space Grotesk Variable", "Space Grotesk", "Inter Variable", system-ui, sans-serif',
+  mono: '"JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace',
 } as const;
 
 export const tokens = {
