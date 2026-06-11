@@ -131,21 +131,20 @@ export interface NuomaOverlayData {
 }
 
 const overlayTokens = {
-  bg: "oklch(0.16 0.018 214 / 0.94)",
-  bgHover: "oklch(0.23 0.026 210 / 0.96)",
-  fg: "oklch(0.94 0.010 190)",
-  fgMuted: "oklch(0.80 0.018 198)",
-  fgDim: "oklch(0.70 0.018 205)",
-  cyan: "oklch(0.63 0.055 185)",
-  warning: "oklch(0.66 0.090 210)",
-  surface: "oklch(0.21 0.024 210 / 0.90)",
-  elevated: "oklch(0.24 0.028 210 / 0.94)",
-  contour: "oklch(0.54 0.045 205 / 0.42)",
-  contourMuted: "oklch(0.31 0.024 210 / 0.42)",
-  shadow: "0 0 0 1px oklch(0.54 0.045 205 / 0.38), 0 18px 48px oklch(0.06 0.020 215 / 0.44)",
-  glow: "0 0 0 1px oklch(0.63 0.055 185 / 0.58), 0 12px 28px oklch(0.06 0.020 215 / 0.24)",
-  fontFamily:
-    '"Geist Variable", "Geist", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  bg: "var(--nwo-surface-0)",
+  bgHover: "var(--nwo-surface-1)",
+  fg: "var(--nwo-ink-strong)",
+  fgMuted: "var(--nwo-ink-base)",
+  fgDim: "var(--nwo-ink-dim)",
+  cyan: "var(--nwo-accent)",
+  warning: "var(--nwo-status-warn)",
+  surface: "var(--nwo-surface-1)",
+  elevated: "var(--nwo-surface-2)",
+  contour: "var(--nwo-line)",
+  contourMuted: "var(--nwo-line-soft)",
+  shadow: "0 0 0 1px var(--nwo-line), 0 18px 48px #00000070",
+  activeShadow: "0 0 0 1px var(--nwo-accent), 0 12px 24px #00000052",
+  fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
 } as const;
 
 function createNuomaOverlayCss(): string {
@@ -161,9 +160,24 @@ function createNuomaOverlayCss(): string {
   block-size: 48px;
   pointer-events: none;
   color-scheme: dark;
-  font-family: ${overlayTokens.fontFamily};
-  letter-spacing: 0;
-}
+	  font-family: ${overlayTokens.fontFamily};
+	  letter-spacing: 0;
+	  --nwo-surface-0: #0E0D0B;
+	  --nwo-surface-1: #151311;
+	  --nwo-surface-2: #201D19;
+	  --nwo-ink-strong: #F5F2EC;
+	  --nwo-ink-base: #B2AB9F;
+	  --nwo-ink-dim: #8D867B;
+	  --nwo-accent: #E8642C;
+	  --nwo-accent-hover: #FF7A45;
+	  --nwo-accent-on: #1A0D06;
+	  --nwo-line: #2A2621;
+	  --nwo-line-soft: #3A352D;
+	  --nwo-status-ok: #34C77B;
+	  --nwo-status-warn: #E6B01C;
+	  --nwo-status-error: #F05A56;
+	  --nwo-status-info: #5CA2FA;
+	}
 
 * {
   box-sizing: border-box;
@@ -176,14 +190,13 @@ function createNuomaOverlayCss(): string {
   block-size: 44px;
   display: inline-grid;
   place-items: center;
-  border-radius: 14px;
-  color: ${overlayTokens.fg};
-  background:
-    linear-gradient(145deg, oklch(0.25 0.030 192 / 0.96), ${overlayTokens.bg});
-  border: 1px solid oklch(0.74 0.12 202 / 0.44);
+	  border-radius: 14px;
+	  color: ${overlayTokens.fg};
+	  background: ${overlayTokens.bg};
+  border: 1px solid #E8642C70;
   box-shadow:
-    0 12px 30px oklch(0.05 0.020 205 / 0.34),
-    inset 0 1px 0 oklch(1 0 0 / 0.12);
+    0 12px 30px #00000057,
+    inset 0 1px 0 #ffffff1f;
   cursor: pointer;
   overflow: visible;
   pointer-events: auto;
@@ -199,12 +212,11 @@ function createNuomaOverlayCss(): string {
 .nuoma-fab:hover,
 .nuoma-fab:focus-visible {
   transform: translateY(-1px);
-  background:
-    linear-gradient(145deg, oklch(0.29 0.034 192 / 0.98), ${overlayTokens.bgHover});
+	  background: ${overlayTokens.bgHover};
   box-shadow:
-    0 0 0 1px oklch(0.74 0.12 202 / 0.52),
-    0 14px 34px oklch(0.05 0.020 205 / 0.38),
-    inset 0 1px 0 oklch(1 0 0 / 0.14);
+    0 0 0 1px #E8642C85,
+    0 14px 34px #00000061,
+    inset 0 1px 0 #ffffff24;
   outline: none;
 }
 
@@ -227,15 +239,13 @@ function createNuomaOverlayCss(): string {
   inline-size: 30px;
   block-size: 30px;
   place-items: center;
-  border-radius: 10px;
-  color: oklch(0.94 0.010 175);
-  background:
-    linear-gradient(145deg, oklch(0.74 0.12 202 / 0.18), oklch(0.62 0.018 260 / 0.16)),
-    oklch(0.12 0.022 202 / 0.74);
-  border: 1px solid oklch(0.74 0.12 202 / 0.34);
+	  border-radius: 10px;
+	  color: var(--nwo-ink-strong);
+	  background: var(--nwo-surface-2);
+  border: 1px solid #E8642C57;
   box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.16),
-    0 8px 18px oklch(0.05 0.020 205 / 0.30);
+    inset 0 1px 0 #ffffff29,
+    0 8px 18px #0000004d;
   font-size: 14px;
   font-weight: 800;
   line-height: 1;
@@ -252,9 +262,34 @@ function createNuomaOverlayCss(): string {
   block-size: 9px;
   border-radius: 999px;
   background: ${overlayTokens.cyan};
-  border: 2px solid oklch(0.12 0.022 202);
-  box-shadow: 0 0 10px oklch(0.74 0.12 202 / 0.34);
-}
+	  border: 2px solid var(--nwo-surface-0);
+	  box-shadow: 0 0 10px #E8642C57;
+	}
+
+	:host([data-nuoma-visual-state="idle"]) .nuoma-brand-status {
+	  background: var(--nwo-ink-dim);
+	  box-shadow: none;
+	}
+
+	:host([data-nuoma-visual-state="waiting"]) .nuoma-brand-status {
+	  background: var(--nwo-status-warn);
+	  box-shadow: none;
+	}
+
+	:host([data-nuoma-visual-state="running"]) .nuoma-brand-status {
+	  background: var(--nwo-accent);
+	  animation: nuoma-brand-pulse 900ms ease-in-out infinite;
+	}
+
+	:host([data-nuoma-visual-state="review"]) .nuoma-brand-status {
+	  background: var(--nwo-status-info);
+	  box-shadow: 0 0 0 3px #5CA2FA30;
+	}
+
+	:host([data-nuoma-visual-state="failed"]) .nuoma-brand-status {
+	  background: var(--nwo-status-error);
+	  box-shadow: 0 0 0 3px #F05A5630;
+	}
 
 .nuoma-sync-live {
   display: inline-flex;
@@ -272,21 +307,21 @@ function createNuomaOverlayCss(): string {
   block-size: 8px;
   border-radius: 999px;
   background: ${overlayTokens.cyan};
-  box-shadow: 0 0 12px oklch(0.74 0.12 202 / 0.48);
+  box-shadow: 0 0 12px #E8642C7a;
   animation: nuoma-brand-pulse 850ms ease-in-out infinite;
 }
 
 :host([data-nuoma-debug="true"]) [data-nuoma-locator] {
-  outline: 1px solid oklch(0.62 0.20 25 / 0.95);
+  outline: 1px solid var(--nwo-status-error);
   outline-offset: 2px;
 }
 
 :host([data-nuoma-dom-status="changed"]) .nuoma-fab {
-  border-color: oklch(0.78 0.15 74 / 0.62);
+  border-color: #E6B01C9e;
   box-shadow:
-    0 0 0 1px oklch(0.78 0.15 74 / 0.38),
-    0 14px 34px oklch(0.05 0.020 205 / 0.38),
-    inset 0 1px 0 oklch(1 0 0 / 0.14);
+    0 0 0 1px #E6B01C61,
+    0 14px 34px #00000061,
+    inset 0 1px 0 #ffffff24;
 }
 
 :host([data-nuoma-api-status="offline"]) .nuoma-brand-status {
@@ -301,14 +336,14 @@ function createNuomaOverlayCss(): string {
 
 :host([data-nuoma-api-status="error"]) .nuoma-brand-status {
   background: ${overlayTokens.warning};
-  box-shadow: 0 0 12px oklch(0.78 0.15 74 / 0.48);
+  box-shadow: 0 0 12px #E6B01C7a;
 }
 
 :host([data-nuoma-state="open"]) .nuoma-fab {
   opacity: 0;
   pointer-events: none;
   transform: translateY(-4px) scale(0.92);
-  box-shadow: ${overlayTokens.glow};
+	  box-shadow: ${overlayTokens.activeShadow};
 }
 
 :host([data-nuoma-state="open"]) .nuoma-brand-button {
@@ -357,10 +392,8 @@ function createNuomaOverlayCss(): string {
   flex-direction: column;
   overflow: hidden;
   border-radius: 10px;
-  color: ${overlayTokens.fg};
-  background:
-    linear-gradient(90deg, oklch(0.74 0.12 202 / 0.18), transparent 34%) 0 0 / 100% 3px no-repeat,
-    linear-gradient(160deg, oklch(0.23 0.028 192 / 0.97), oklch(0.13 0.020 198 / 0.96));
+	  color: ${overlayTokens.fg};
+	  background: ${overlayTokens.bg};
   border: 1px solid ${overlayTokens.contour};
   box-shadow: ${overlayTokens.shadow};
   opacity: 0;
@@ -482,8 +515,8 @@ function createNuomaOverlayCss(): string {
   padding: 3px 8px;
   border-radius: 999px;
   color: ${overlayTokens.cyan};
-  background: oklch(0.74 0.12 202 / 0.08);
-  border: 1px solid oklch(0.74 0.12 202 / 0.22);
+  background: #E8642C14;
+  border: 1px solid #E8642C38;
   font-size: 10px;
   font-weight: 700;
   overflow: hidden;
@@ -520,12 +553,9 @@ function createNuomaOverlayCss(): string {
   min-block-size: 34px;
   min-inline-size: 0;
   padding: 8px 28px 8px 10px;
-  border-radius: 8px;
-  color: ${overlayTokens.fg};
-  background:
-    linear-gradient(45deg, transparent 50%, ${overlayTokens.fgMuted} 50%) calc(100% - 14px) 14px / 5px 5px no-repeat,
-    linear-gradient(135deg, ${overlayTokens.fgMuted} 50%, transparent 50%) calc(100% - 9px) 14px / 5px 5px no-repeat,
-    oklch(0.12 0.022 202 / 0.56);
+	  border-radius: 8px;
+	  color: ${overlayTokens.fg};
+	  background: #0E0D0B8f;
   border: 1px solid ${overlayTokens.contourMuted};
   cursor: pointer;
   font-size: 11px;
@@ -542,7 +572,7 @@ function createNuomaOverlayCss(): string {
 }
 
 .nuoma-select:focus-visible {
-  border-color: oklch(0.74 0.12 202 / 0.68);
+  border-color: #E8642Cad;
   outline: none;
 }
 
@@ -556,8 +586,8 @@ function createNuomaOverlayCss(): string {
   padding: 8px 10px;
   border-radius: 10px;
   color: ${overlayTokens.fg};
-  background: oklch(0.74 0.12 202 / 0.14);
-  border: 1px solid oklch(0.74 0.12 202 / 0.34);
+  background: #E8642C24;
+  border: 1px solid #E8642C57;
   cursor: pointer;
   font-size: 12px;
   font-weight: 700;
@@ -572,8 +602,8 @@ function createNuomaOverlayCss(): string {
 
 .nuoma-action:hover,
 .nuoma-action:focus-visible {
-  border-color: oklch(0.74 0.12 202 / 0.68);
-  background: oklch(0.74 0.12 202 / 0.20);
+  border-color: #E8642Cad;
+  background: #E8642C33;
   outline: none;
 }
 
@@ -598,8 +628,8 @@ function createNuomaOverlayCss(): string {
   padding: 7px 9px;
   border-radius: 8px;
   color: ${overlayTokens.fg};
-  background: oklch(0.74 0.12 202 / 0.12);
-  border: 1px solid oklch(0.74 0.12 202 / 0.30);
+  background: #E8642C1f;
+  border: 1px solid #E8642C4d;
   cursor: pointer;
   font-size: 11px;
   font-weight: 700;
@@ -608,7 +638,7 @@ function createNuomaOverlayCss(): string {
 
 .nuoma-small-action:hover,
 .nuoma-small-action:focus-visible {
-  border-color: oklch(0.74 0.12 202 / 0.58);
+  border-color: #E8642C94;
   outline: none;
 }
 
@@ -632,7 +662,7 @@ function createNuomaOverlayCss(): string {
   padding: 2px 6px;
   border-radius: 999px;
   color: ${overlayTokens.fgMuted};
-  background: oklch(0.12 0.022 202 / 0.58);
+  background: #0E0D0B94;
   border: 1px solid ${overlayTokens.contourMuted};
   font-size: 9px;
   font-weight: 700;
@@ -641,14 +671,14 @@ function createNuomaOverlayCss(): string {
 
 .nuoma-campaign-chip[data-state="ok"] {
   color: ${overlayTokens.cyan};
-  border-color: oklch(0.74 0.12 202 / 0.30);
-  background: oklch(0.74 0.12 202 / 0.08);
+  border-color: #E8642C4d;
+  background: #E8642C14;
 }
 
 .nuoma-campaign-chip[data-state="blocked"] {
   color: ${overlayTokens.warning};
-  border-color: oklch(0.78 0.15 74 / 0.28);
-  background: oklch(0.78 0.15 74 / 0.08);
+  border-color: #E6B01C47;
+  background: #E6B01C14;
 }
 
 .nuoma-sync-note {
@@ -661,7 +691,7 @@ function createNuomaOverlayCss(): string {
   min-width: 0;
   padding: 8px;
   border-radius: 10px;
-  background: oklch(0.15 0.024 205 / 0.42);
+  background: #1513116b;
   border: 1px solid ${overlayTokens.contourMuted};
 }
 
@@ -692,7 +722,7 @@ function createNuomaOverlayCss(): string {
   gap: 4px;
   padding: 9px;
   border-radius: 8px;
-  background: oklch(0.15 0.024 205 / 0.38);
+  background: #15131161;
   border: 1px solid ${overlayTokens.contourMuted};
 }
 
@@ -731,7 +761,7 @@ function createNuomaOverlayCss(): string {
   gap: 4px;
   padding: 11px;
   border-radius: 10px;
-  background: oklch(0.15 0.024 205 / 0.48);
+  background: #1513117a;
   border: 1px solid ${overlayTokens.contourMuted};
 }
 
@@ -763,7 +793,7 @@ function createNuomaOverlayCss(): string {
   padding: 7px 8px;
   border-radius: 9px;
   color: ${overlayTokens.fgDim};
-  background: oklch(0.12 0.022 202 / 0.56);
+  background: #0E0D0B8f;
   border: 1px solid ${overlayTokens.contourMuted};
   cursor: pointer;
   font-size: 11px;
@@ -958,7 +988,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       setApiStatus("ready", "", "");
       return state.apiBridge;
     }
-    setApiStatus("offline", "", "Runtime.addBinding indisponivel");
+    setApiStatus("offline", "", "Runtime.addBinding indisponível");
     return null;
   }
 
@@ -1076,7 +1106,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         ok: false,
         error: {
           code: "binding_unavailable",
-          message: "Runtime.addBinding nao registrou window.__nuomaApi",
+          message: "Runtime.addBinding não registrou window.__nuomaApi",
         },
       });
     }
@@ -1153,7 +1183,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         const intent = prepareMutation("forceConversationSync", input || {});
         return requestNuomaApi("forceConversationSync", input || {}, {
           mutationIntent: intent,
-          confirmationText: "Forcar sync da conversa atual",
+          confirmationText: "Forçar sync da conversa atual",
           confirm: true,
           timeoutMs: 30000,
         }).then((response) => {
@@ -1174,7 +1204,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         const intent = prepareMutation("runCampaignForPhone", input || {});
         return requestNuomaApi("runCampaignForPhone", input || {}, {
           mutationIntent: intent,
-          confirmationText: "Rodar campanha no numero atual",
+          confirmationText: "Rodar campanha no número atual",
           confirm: true,
           timeoutMs: 30000,
         }).then((response) => {
@@ -1198,7 +1228,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         const intent = prepareMutation("runAutomationForPhone", input || {});
         return requestNuomaApi("runAutomationForPhone", input || {}, {
           mutationIntent: intent,
-          confirmationText: "Rodar automacao no numero atual",
+          confirmationText: "Rodar automação no número atual",
           confirm: true,
           timeoutMs: 30000,
         }).then((response) => {
@@ -1262,11 +1292,11 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
           quickActionStatus: response.ok ? "done" : "error",
           quickActionLastResult: response.data.result || null,
           quickActionLastError:
-            response.ok ? null : response.error && response.error.message ? response.error.message : "Acao rapida bloqueada",
+            response.ok ? null : response.error && response.error.message ? response.error.message : "Ação rápida bloqueada",
           apiStatus: response.ok ? "online" : "error",
           apiLastMethod: method,
           apiLastError:
-            response.ok ? null : response.error && response.error.message ? response.error.message : "Acao rapida bloqueada",
+            response.ok ? null : response.error && response.error.message ? response.error.message : "Ação rápida bloqueada",
         });
       }
       return response;
@@ -2280,13 +2310,13 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
             quickActionLastError:
               response && response.error && response.error.message
                 ? response.error.message
-                : "Acao rapida bloqueada",
+                : "Ação rápida bloqueada",
             apiStatus: "error",
             apiLastMethod: method,
             apiLastError:
               response && response.error && response.error.message
                 ? response.error.message
-                : "Acao rapida bloqueada",
+                : "Ação rápida bloqueada",
           };
         }
         renderPanel(host);
@@ -2391,7 +2421,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       titleWrap,
       "div",
       "nuoma-panel-subtitle",
-      phone ? "+" + phone : "Telefone nao identificado",
+      phone ? "+" + phone : "Telefone não identificado",
     );
     header.appendChild(titleWrap);
     const close = document.createElement("button");
@@ -2413,7 +2443,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       appendPanelState(
         body,
         "Carregando contato",
-        "Buscando resumo, automacoes elegiveis, mensagens recentes e notas pelo bridge seguro.",
+        "Buscando resumo, automações elegíveis, mensagens recentes e notas pelo bridge seguro.",
         "loading",
       );
     }
@@ -2422,7 +2452,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       const errorCard = appendPanelState(
         body,
         "Erro na ponte API",
-        apiLastError || "Nao foi possivel hidratar este contato agora. O painel continua em modo leitura local.",
+        apiLastError || "Não foi possível hidratar este contato agora. O painel continua em modo leitura local.",
         "error",
       );
       const errorActions = document.createElement("div");
@@ -2442,8 +2472,8 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     if (hasNoContact) {
       const stateCard = appendPanelState(
         body,
-        "Contato nao encontrado no CRM",
-        "O telefone foi detectado no WhatsApp, mas ainda nao existe contato vinculado no Nuoma. Sincronize a conversa ou copie o numero para criar o cadastro na tela de contatos.",
+        "Contato não encontrado no CRM",
+        "O telefone foi detectado no WhatsApp, mas ainda não existe contato vinculado no Nuoma. Sincronize a conversa ou copie o numero para criar o cadastro na tela de contatos.",
         "empty-contact",
       );
       const actions = document.createElement("div");
@@ -2496,11 +2526,11 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     const syncButton = document.createElement("button");
     syncButton.type = "button";
     syncButton.className = "nuoma-action";
-    syncButton.textContent = state.apiInFlight ? "Sincronizando..." : "Forcar sync";
+    syncButton.textContent = state.apiInFlight ? "Sincronizando..." : "Forçar sync";
     syncButton.disabled = !hasDispatchTarget || state.apiInFlight;
     syncButton.setAttribute(
       "aria-label",
-      hasDispatchTarget ? "Forcar sync da conversa atual" : "Sync bloqueado sem identidade identificada",
+      hasDispatchTarget ? "Forçar sync da conversa atual" : "Sync bloqueado sem identidade identificada",
     );
     syncButton.title = hasDispatchTarget
       ? "Rele a conversa atual pelo WhatsApp Web"
@@ -2530,7 +2560,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     syncSection.appendChild(syncActions);
     body.appendChild(syncSection);
 
-    const quickSection = section("Acao rapida", hasDispatchTarget ? "numero atual" : "sem numero");
+    const quickSection = section("Ação rápida", hasDispatchTarget ? "número atual" : "sem número");
     const quickGrid = document.createElement("div");
     quickGrid.className = "nuoma-quick-grid";
 
@@ -2546,7 +2576,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     campaignQuickRow.className = "nuoma-quick-row";
     const campaignSelect = document.createElement("select");
     campaignSelect.className = "nuoma-select";
-    campaignSelect.setAttribute("aria-label", "Selecionar campanha para disparar no numero atual");
+    campaignSelect.setAttribute("aria-label", "Selecionar campanha para disparar no número atual");
     campaignSelect.setAttribute("data-nuoma-quick-campaign", "true");
     campaignSelect.disabled = campaigns.length === 0 || state.apiInFlight;
     for (const campaign of campaigns.slice(0, 5)) {
@@ -2574,7 +2604,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       ? "Identifique o telefone para disparar campanha"
       : selectedCampaign && !selectedCampaign.eligible
         ? (selectedCampaign.reasons || [])[0] || "Campanha bloqueada para este contato"
-        : "Enfileira a campanha selecionada somente para o numero atual";
+        : "Enfileira a campanha selecionada somente para o número atual";
     campaignQuickButton.addEventListener("click", () => {
       const campaign =
         campaigns.find((candidate) => String(candidate.id || "") === text(state.quickCampaignId)) ||
@@ -2596,7 +2626,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     automationQuickRow.className = "nuoma-quick-row";
     const automationSelect = document.createElement("select");
     automationSelect.className = "nuoma-select";
-    automationSelect.setAttribute("aria-label", "Selecionar automacao para disparar no numero atual");
+    automationSelect.setAttribute("aria-label", "Selecionar automação para disparar no número atual");
     automationSelect.setAttribute("data-nuoma-quick-automation", "true");
     automationSelect.disabled = automations.length === 0 || state.apiInFlight;
     for (const automation of automations.slice(0, 5)) {
@@ -2616,15 +2646,15 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     automationQuickButton.type = "button";
     automationQuickButton.className = "nuoma-action";
     automationQuickButton.textContent =
-      state.apiInFlight && automationRunStatus === "running" ? "Rodando..." : "Disparar automacao";
+      state.apiInFlight && automationRunStatus === "running" ? "Rodando..." : "Disparar automação";
     automationQuickButton.disabled =
       !hasDispatchTarget || !selectedAutomation || !selectedAutomation.eligible || state.apiInFlight;
     automationQuickButton.setAttribute("data-nuoma-quick-run-automation", "true");
     automationQuickButton.title = !hasDispatchTarget
-      ? "Identifique o telefone para disparar automacao"
+      ? "Identifique o telefone para disparar automação"
       : selectedAutomation && !selectedAutomation.eligible
         ? (selectedAutomation.reasons || [])[0] || "Automacao bloqueada para este contato"
-        : "Executa a automacao selecionada somente no numero atual";
+        : "Executa a automação selecionada somente no número atual";
     automationQuickButton.addEventListener("click", () => {
       const automation =
         automations.find((candidate) => String(candidate.id || "") === text(state.quickAutomationId)) ||
@@ -2764,9 +2794,9 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         quickActionStatus === "running"
           ? "Aplicando acao rapida."
           : quickActionStatus === "done"
-            ? "Acao rapida aplicada" +
+            ? "Ação rápida aplicada" +
               (quickActionLastResult && quickActionLastResult.changed === false ? " sem alteracao." : ".")
-            : quickActionLastError || "Acao rapida bloqueada.",
+            : quickActionLastError || "Ação rápida bloqueada.",
       );
     }
     quickSection.appendChild(quickGrid);
@@ -2780,7 +2810,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         campaignList,
         "div",
         "nuoma-empty",
-        phone ? "Nenhuma campanha elegivel para este numero." : "Identifique o telefone para listar campanhas.",
+        phone ? "Nenhuma campanha elegível para este numero." : "Identifique o telefone para listar campanhas.",
       );
     } else {
       for (const campaign of campaigns.slice(0, 5)) {
@@ -2792,8 +2822,8 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         actions.className = "nuoma-campaign-actions";
         const meta = document.createElement("div");
         meta.className = "nuoma-campaign-meta";
-        meta.appendChild(campaignChip(campaign.eligible ? "elegivel" : "bloqueada", campaign.eligible ? "ok" : "blocked"));
-        meta.appendChild(campaignChip(campaign.overlayEnabled ? "overlay sim" : "overlay nao", campaign.overlayEnabled ? "ok" : "blocked"));
+        meta.appendChild(campaignChip(campaign.eligible ? "elegível" : "bloqueada", campaign.eligible ? "ok" : "blocked"));
+        meta.appendChild(campaignChip(campaign.overlayEnabled ? "overlay sim" : "overlay não", campaign.overlayEnabled ? "ok" : "blocked"));
         meta.appendChild(campaignChip(text(campaign.status) || "status", ""));
         meta.appendChild(campaignChip(String(campaign.stepsCount || 0) + " step(s)", ""));
         if (campaign.firstStepType) {
@@ -2808,13 +2838,13 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         runButton.disabled = !hasDispatchTarget || !campaign.eligible || state.apiInFlight;
         runButton.setAttribute(
           "aria-label",
-          "Rodar campanha " + (text(campaign.name) || String(campaign.id || "")) + " para o numero atual",
+          "Rodar campanha " + (text(campaign.name) || String(campaign.id || "")) + " para o número atual",
         );
         runButton.title = !hasDispatchTarget
           ? "Identifique o telefone para rodar campanha"
           : !campaign.eligible
             ? reasons[0] || "Campanha bloqueada para este contato"
-            : "Enfileira esta campanha para o numero detectado";
+            : "Enfileira esta campanha para o número detectado";
         runButton.setAttribute("data-nuoma-campaign-run", String(campaign.id || ""));
         runButton.addEventListener("click", () => {
           void runCampaignForCurrentPhone(host, campaign);
@@ -2857,7 +2887,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     const automationList = document.createElement("div");
     automationList.className = "nuoma-list";
     if (automations.length === 0) {
-      appendText(automationList, "div", "nuoma-empty", "Nenhuma automacao elegivel para este contato.");
+      appendText(automationList, "div", "nuoma-empty", "Nenhuma automação elegível para este contato.");
     } else {
       for (const automation of automations.slice(0, 5)) {
         const item = document.createElement("div");
@@ -2867,8 +2897,8 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         actions.className = "nuoma-campaign-actions";
         const meta = document.createElement("div");
         meta.className = "nuoma-campaign-meta";
-        meta.appendChild(campaignChip(automation.eligible ? "elegivel" : "bloqueada", automation.eligible ? "ok" : "blocked"));
-        meta.appendChild(campaignChip(automation.overlayEnabled ? "overlay sim" : "overlay nao", automation.overlayEnabled ? "ok" : "blocked"));
+        meta.appendChild(campaignChip(automation.eligible ? "elegível" : "bloqueada", automation.eligible ? "ok" : "blocked"));
+        meta.appendChild(campaignChip(automation.overlayEnabled ? "overlay sim" : "overlay não", automation.overlayEnabled ? "ok" : "blocked"));
         meta.appendChild(campaignChip(text(automation.status) || "status", ""));
         meta.appendChild(campaignChip(String(automation.actionsCount || 0) + " acao(oes)", ""));
         if (automation.wouldEnqueueJobs) {
@@ -2879,17 +2909,17 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         const runButton = document.createElement("button");
         runButton.type = "button";
         runButton.className = "nuoma-action";
-        runButton.textContent = state.apiInFlight && automationRunStatus === "running" ? "Rodando..." : "Rodar automacao";
+        runButton.textContent = state.apiInFlight && automationRunStatus === "running" ? "Rodando..." : "Rodar automação";
         runButton.disabled = !hasDispatchTarget || !automation.eligible || state.apiInFlight;
         runButton.setAttribute(
           "aria-label",
-          "Rodar automacao " + (text(automation.name) || String(automation.id || "")) + " para o numero atual",
+          "Rodar automação " + (text(automation.name) || String(automation.id || "")) + " para o número atual",
         );
         runButton.title = !hasDispatchTarget
-          ? "Identifique o telefone para rodar automacao"
+          ? "Identifique o telefone para rodar automação"
           : !automation.eligible
             ? reasons[0] || "Automacao bloqueada para este contato"
-            : "Executa esta automacao para o numero detectado";
+            : "Executa esta automação para o número detectado";
         runButton.setAttribute("data-nuoma-automation-run", String(automation.id || ""));
         runButton.addEventListener("click", () => {
           void runAutomationForCurrentPhone(host, automation);
@@ -2917,7 +2947,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     if (automationRunStatus || automationRunLastResult || automationRunLastError) {
       const resultText =
         automationRunStatus === "running"
-          ? "Executando automacao agora."
+          ? "Executando automação agora."
           : automationRunStatus === "done" && automationRunLastResult
             ? "Criou " +
               (automationRunLastResult.jobsCreated || 0) +
@@ -2935,14 +2965,14 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     body.appendChild(automationSection);
 
     const historySection = section(
-      "Historico automacoes",
+      "Histórico automações",
       automationHistory.length ? String(automationHistory.length) : "0",
     );
     const historyList = document.createElement("div");
     historyList.className = "nuoma-list";
     historyList.setAttribute("data-nuoma-automation-history", "true");
     if (automationHistory.length === 0) {
-      appendText(historyList, "div", "nuoma-empty", "Nenhuma automacao disparada por overlay para este contato.");
+      appendText(historyList, "div", "nuoma-empty", "Nenhuma automação disparada por overlay para este contato.");
     } else {
       for (const item of automationHistory.slice(0, 5)) {
         const row = document.createElement("div");
@@ -3010,7 +3040,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     if (!phone) {
       const unresolved = appendPanelState(
         body,
-        "Telefone nao identificado",
+        "Telefone não identificado",
         "Abra uma conversa individual, carregue os detalhes do contato ou tente reidentificar pelo bridge antes de rodar sync ou campanha.",
         "unresolved-phone",
       );

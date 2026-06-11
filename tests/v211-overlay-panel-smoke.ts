@@ -248,7 +248,7 @@ async function validatePanelStateFeedback(page: Page) {
           errorText.includes("Erro na ponte API") &&
           errorText.includes("bridge offline smoke") &&
           errorText.includes("Reconectar ponte") &&
-          noContactText.includes("Contato nao encontrado no CRM") &&
+          noContactText.includes("Contato não encontrado no CRM") &&
           hasContactActions,
         loadingText,
         errorText,

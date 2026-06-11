@@ -278,7 +278,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
       expect(state.panelText).toContain("+5531982066263");
       expect(state.panelText).toContain("Detector");
       expect(state.panelText).toContain("message-data-id");
-      expect(state.panelText).not.toContain("Telefone nao identificado");
+      expect(state.panelText).not.toContain("Telefone não identificado");
     } finally {
       await browser.close();
     }
@@ -345,7 +345,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
         hostPhone: "",
         hostPhoneSource: "unresolved",
       });
-      expect(state.panelText).toContain("Telefone nao identificado");
+      expect(state.panelText).toContain("Telefone não identificado");
     } finally {
       await browser.close();
     }
@@ -782,7 +782,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
       expect(state.errorText).toContain("Erro na ponte API");
       expect(state.errorText).toContain("bridge offline");
       expect(state.errorText).toContain("Reconectar ponte");
-      expect(state.emptyText).toContain("Contato nao encontrado no CRM");
+      expect(state.emptyText).toContain("Contato não encontrado no CRM");
       expect(state.emptyText).toContain("Sincronizar conversa");
       expect(state.emptyText).toContain("Copiar telefone");
       expect(state.emptyActions).toEqual([
@@ -841,7 +841,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
           const panel = host?.shadowRoot?.querySelector(`[data-testid="${panelTestId}"]`) ?? null;
           const syncButton = Array.from(
             host?.shadowRoot?.querySelectorAll<HTMLButtonElement>(".nuoma-action") ?? [],
-          ).find((button) => button.textContent === "Forcar sync");
+          ).find((button) => button.textContent === "Forçar sync");
 
           return {
             hostPhone: host?.getAttribute("data-nuoma-thread-phone"),
@@ -858,9 +858,9 @@ describe("Nuoma WhatsApp overlay injection", () => {
         hostPhone: "",
         hostWaJid: "5531982066263@s.whatsapp.net",
         syncDisabled: false,
-        syncAria: "Forcar sync da conversa atual",
+        syncAria: "Forçar sync da conversa atual",
       });
-      expect(state.panelText).toContain("Telefone nao identificado");
+      expect(state.panelText).toContain("Telefone não identificado");
     } finally {
       await browser.close();
     }
@@ -1207,7 +1207,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
             method: "forceConversationSync",
             mutation: expect.objectContaining({
               confirmed: true,
-              confirmationText: "Forcar sync da conversa atual",
+              confirmationText: "Forçar sync da conversa atual",
               nonce: expect.any(String),
               idempotencyKey: expect.any(String),
             }),
@@ -1225,7 +1225,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
             method: "runCampaignForPhone",
             mutation: expect.objectContaining({
               confirmed: true,
-              confirmationText: "Rodar campanha no numero atual",
+              confirmationText: "Rodar campanha no número atual",
               nonce: expect.any(String),
               idempotencyKey: expect.any(String),
             }),
@@ -1234,7 +1234,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
             method: "runAutomationForPhone",
             mutation: expect.objectContaining({
               confirmed: true,
-              confirmationText: "Rodar automacao no numero atual",
+              confirmationText: "Rodar automação no número atual",
               nonce: expect.any(String),
               idempotencyKey: expect.any(String),
             }),
@@ -1245,13 +1245,13 @@ describe("Nuoma WhatsApp overlay injection", () => {
       expect(state.panelText).toContain("Contato API Fixture");
       expect(state.panelText).toContain("Ponte API");
       expect(state.panelText).toContain("online / runAutomationForPhone");
-      expect(state.panelText).toContain("Forcar sync");
+      expect(state.panelText).toContain("Forçar sync");
       expect(state.panelText).toContain("atualizado");
       expect(state.panelText).toContain("Bridge automation");
       expect(state.panelText).toContain("Campanha API Fixture");
-      expect(state.panelText).toContain("Acao rapida");
+      expect(state.panelText).toContain("Ação rápida");
       expect(state.panelText).toContain("Disparar campanha");
-      expect(state.panelText).toContain("Disparar automacao");
+      expect(state.panelText).toContain("Disparar automação");
       expect(state.panelText).toContain("Criou 1 recipient(s) e 1 job(s).");
       expect(state.panelText).toContain("Criou 1 job(s) e aplicou 0 acao(oes).");
     } finally {
@@ -1362,7 +1362,7 @@ describe("Nuoma WhatsApp overlay injection", () => {
       expect(state.panelText).toContain("VIP");
       expect(state.panelText).toContain("Lead quente");
       expect(state.panelText).toContain("Retornar lead");
-      expect(state.panelText).toContain("Historico automacoes");
+      expect(state.panelText).toContain("Histórico automações");
       expect(state.panelText).toContain("Automation #42 disparada");
       expect(state.hasSyncIndicator).toBe(true);
       expect(state.hasQuickTag).toBe(true);
