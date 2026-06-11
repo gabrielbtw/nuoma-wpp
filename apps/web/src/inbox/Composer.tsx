@@ -37,7 +37,10 @@ import type { QuickReply } from "@nuoma/contracts";
 import { API_URL } from "../lib/api-url.js";
 import { csrfFromCookie } from "../lib/csrf.js";
 import { trpc } from "../lib/trpc.js";
-import type { MessageActionDraft } from "./message-action-draft.js";
+import {
+  composerBodyForAction,
+  type MessageActionDraft,
+} from "./message-action-draft.js";
 import type { OptimisticMessageResult } from "./optimistic-message.js";
 
 interface ComposerProps {
@@ -337,7 +340,7 @@ export function Composer({
 
   function submit() {
     if (!conversationId || !text.trim() || send.isPending) return;
-    const body = text.trim();
+    const body = composerBodyForAction({ actionDraft, text });
     const failedTextSend = failedTextSendRef.current;
     const clientNonce =
       failedTextSend?.conversationId === conversationId && failedTextSend.body === body
@@ -736,7 +739,7 @@ export function Composer({
             {actionDraft.kind === "reply" ? (
               <Reply className="h-3.5 w-3.5" />
             ) : actionDraft.kind === "edit" ? (
-              <Save className="h-3.5 w-3.5" />
+              <MessageSquareText className="h-3.5 w-3.5" />
             ) : (
               <Forward className="h-3.5 w-3.5" />
             )}
@@ -744,9 +747,9 @@ export function Composer({
           <div className="min-w-0 flex-1">
             <div className="font-mono text-[0.62rem] uppercase tracking-widest text-brand-cyan">
               {actionDraft.kind === "reply"
-                ? "Respondendo"
+                ? "Citando mensagem"
                 : actionDraft.kind === "edit"
-                  ? "Editando rascunho"
+                  ? "Reusando texto"
                   : "Encaminhando"}{" "}
               · #{actionDraft.messageId}
             </div>
@@ -903,7 +906,9 @@ export function Composer({
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Mensagem… (enter envia · shift+enter quebra)"
+          aria-label="Mensagem"
+          aria-describedby="composer-enter-hint"
+          placeholder="Mensagem..."
           data-testid="composer-textarea"
           rows={1}
           className={cn(
@@ -913,6 +918,9 @@ export function Composer({
           )}
           style={{ minHeight: "2.5rem", maxHeight: "10rem" }}
         />
+        <span id="composer-enter-hint" className="sr-only">
+          Enter envia. Shift+Enter quebra linha.
+        </span>
         <div className="flex items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
@@ -921,7 +929,7 @@ export function Composer({
                 whileHover={{ y: -1 }}
                 whileTap={{ y: 1, scale: 0.96 }}
                 onClick={() => documentInputRef.current?.click()}
-                aria-label="Anexar"
+                aria-label="Anexar documento"
                 data-testid="composer-attach-menu"
                 disabled={Boolean(mediaUploading)}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-bg-base shadow-flat hover:shadow-raised-sm text-fg-muted hover:text-fg-primary transition-shadow"
@@ -929,7 +937,7 @@ export function Composer({
                 <Paperclip className="h-3.5 w-3.5" />
               </motion.button>
             </TooltipTrigger>
-            <TooltipContent>Anexar</TooltipContent>
+            <TooltipContent>Anexar documento</TooltipContent>
           </Tooltip>
           <Button
             size="md"
