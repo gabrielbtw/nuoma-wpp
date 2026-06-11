@@ -4,6 +4,9 @@ description: Run Spike 4 — dryrun V1 SQLite → V2 schema mapping. Read storag
 user_invocable: true
 ---
 
+> [!CAUTION]
+> LEGACY V1: este skill referencia a stack antiga (`apps/web-app`, `packages/core`, `apps/wa-worker`, `apps/scheduler`). Use apenas como referencia historica/cutover; antes de executar comandos ou editar codigo, confirme o equivalente V2 ativo.
+
 # /v1-to-v2-migration-dryrun — Migration Spike 4
 
 You are running **Spike 4** from [`docs/architecture/V2_SPIKES.md`](../../docs/architecture/V2_SPIKES.md). Goal: prove that data from V1 SQLite can be mapped cleanly to a V2 Drizzle schema candidate, with row counts matching, FK orphans <5%, and decisions documented for any V1 fields without obvious V2 equivalent.

@@ -4,6 +4,9 @@ description: Pre-cutover checklist for V1 → V2 transition. Verify backups, V2 
 user_invocable: true
 ---
 
+> [!CAUTION]
+> LEGACY/CUTOVER: este skill pode parar processos V1 (`wa-worker`, `scheduler`) e so deve ser usado em janela de cutover/rollback aprovada. Para a stack canonica V2, confirme `ecosystem.canonical.config.cjs`.
+
 # /nuoma-cutover-checklist — V1→V2 cutover protocol
 
 You are gating the cutover from V1 to V2. This skill is invoked **only** when V2 is feature-complete, has soaked for at least 2 weeks on a test number, and team confidence is high. Do **NOT** run cutover on a whim.
@@ -107,12 +110,12 @@ pm2 stop scheduler
 
 ```bash
 ssh ubuntu@3.149.108.173 'cd ~/nuoma-wpp-v2 && \
-  bun run migrate:v1-to-v2 --source=/path/to/v1-snapshot.db --target=/data/nuoma-v2.db'
+  V215_CONFIRM_CUTOVER=SIM npm run migration:v215:apply -- --report=data/reports/v215-apply.json'
 ```
 
 Validate:
 
-- Migration log shows expected row counts.
+- Migration log/report shows expected row counts.
 - V2 health check passes.
 - Spot check: open V2 inbox, see latest conversations from V1.
 
@@ -165,7 +168,8 @@ Validate:
 
 - [`docs/migration/V1_TO_V2_DATA_MAP.md`](../../docs/migration/V1_TO_V2_DATA_MAP.md)
 - [`docs/architecture/V2_DECISION.md`](../../docs/architecture/V2_DECISION.md)
-- [`docs/runbooks/CUTOVER_ROLLBACK.md`](../../docs/runbooks/CUTOVER_ROLLBACK.md) (a ser criado durante Fase 14a)
+- [`docs/migration/CUTOVER_PLAN.md`](../../docs/migration/CUTOVER_PLAN.md)
+- [`docs/runbooks/CUTOVER_ROLLBACK.md`](../../docs/runbooks/CUTOVER_ROLLBACK.md)
 
 ## When to invoke
 

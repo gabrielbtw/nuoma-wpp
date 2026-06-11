@@ -1,5 +1,9 @@
 # Diagrama de Fluxo Principal
 
+> HISTORICO / LEGACY V1: este fluxo descreve `web-app`, `packages/core`,
+> `wa-worker` e `scheduler`. A stack canonica da Fase 1 esta em
+> `docs/adr/0013-canonical-runtime-stack.md` e no README principal.
+
 ```mermaid
 sequenceDiagram
   participant Operacao

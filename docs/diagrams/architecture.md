@@ -1,5 +1,9 @@
 # Diagrama de Arquitetura Geral
 
+> HISTORICO / LEGACY V1: este diagrama descreve `web-app`, `packages/core`,
+> `wa-worker` e `scheduler`. A stack canonica da Fase 1 esta em
+> `docs/adr/0013-canonical-runtime-stack.md` e no README principal.
+
 ```mermaid
 flowchart LR
   operator["Operacao interna"] --> ui["React UI<br/>apps/web-app/src/client"]

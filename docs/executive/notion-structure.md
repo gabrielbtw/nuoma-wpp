@@ -356,7 +356,7 @@ Inserir um diagrama simples com leitura executiva, baseado em:
 
 Usar como base o diagrama em:
 
-- [Visao simplificada para cliente](/Users/gabrielbraga/Projetos/nuoma-wpp/docs/diagrams/client-overview.md)
+- [Visao simplificada para cliente](../diagrams/client-overview.md)
 
 ### Legenda recomendada
 

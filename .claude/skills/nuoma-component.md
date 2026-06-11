@@ -4,6 +4,9 @@ description: Create or modify a shared React component following Nuoma design pa
 user_invocable: true
 ---
 
+> [!CAUTION]
+> LEGACY V1: este skill referencia a stack antiga (`apps/web-app`, `packages/core`, `apps/wa-worker`, `apps/scheduler`). Use apenas como referencia historica/cutover; antes de executar comandos ou editar codigo, confirme o equivalente V2 ativo.
+
 # /nuoma-component — Shared Component Work
 
 You are creating or modifying a shared component in Nuoma WPP.

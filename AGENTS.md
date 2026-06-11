@@ -1,251 +1,351 @@
 # AGENTS
 
 ## Objetivo
-Organizar o desenvolvimento por camada, com ownership exclusivo por pasta, baixo acoplamento e handoff claro.
+
+Organizar o desenvolvimento por camada, com ownership exclusivo por pasta,
+baixo acoplamento e handoff claro.
+
+## Stack Canonica Da Fase 1
+
+A Fase 1 decidiu que a stack canonica para novas features, refactors,
+validacoes padrao e operacao V2 e:
+
+- `apps/api`
+- `apps/web`
+- `apps/worker`
+- `packages/db`
+- `packages/contracts`
+- `packages/ui`
+- `packages/config`
+
+Apps companion `apps/chrome-extension` e `apps/safari-extension` sao satelites
+da linha V2 e seguem o agente de runtime/plataforma conforme o escopo.
+
+A stack legada fica preservada como `legacy-maintenance`:
+
+- `apps/web-app`
+- `apps/wa-worker`
+- `apps/scheduler`
+- `packages/core`
+
+Stack legada so deve receber hotfix, leitura comparativa, rollback/cutover ou
+suporte de migracao com justificativa explicita. A remocao da stack legada nao
+faz parte da Fase 1.
 
 ## Stack Detectada
-- Monorepo com `npm workspaces`
+
+- Monorepo com `npm workspaces` e Turborepo
 - Runtime: `Node.js 22+`
 - Linguagem: `TypeScript` ESM
-- Backend HTTP: `Fastify`
-- Frontend: `React 19`, `Vite 7`, `Tailwind 3`, `Radix UI`, `TanStack Query`, `React Router 7`
-- Worker de canal: `Playwright` com Chromium persistente
-- Orquestracao: processo `scheduler` em Node
-- Persistencia: `SQLite` com `better-sqlite3`
+- Backend HTTP: `Fastify` + tRPC/REST
+- Frontend: `React 19`, `Vite 7`, `Tailwind 3`, `Radix UI`, `TanStack Query`
+- Worker de canal: `Playwright` + CDP com Chromium persistente
+- Persistencia canonica: `SQLite` com `better-sqlite3` + Drizzle
 - Validacao: `zod`
 - Logs: `pino`
 - Processo local: `PM2`
-- Testes atuais: `node:test` + `tsx`
+- Testes atuais: Vitest, `node:test`, `tsx` e smokes operacionais
 
 ## Diretrizes De Trabalho
 
-- Antes de alterar qualquer arquivo, revisar o codigo existente, o fluxo atual e o ownership da camada.
-- Priorizar legibilidade, simplicidade e manutencao acima de cleverness ou abstracoes prematuras.
-- Evitar imports, helpers e bibliotecas desnecessarias; se algo puder ser resolvido com a base atual, preferir a base atual.
-- Nao introduzir dependencias pesadas sem justificativa tecnica objetiva, impacto esperado e comparacao com a alternativa de nao adicionar dependencia.
-- Manter documentacao tecnica e executiva sincronizadas com o codigo sempre que a mudanca alterar arquitetura, fluxo operacional, setup ou backlog.
-- Trabalhar por etapas pequenas, reversiveis e validaveis; preferir sequencia de mudancas pequenas a refactors amplos de uma vez.
-- Antes de qualquer refactor grande, explicar o impacto esperado, o risco, as fronteiras afetadas e o plano de validacao.
-- Quando um diagrama ajudar a explicar arquitetura, fluxo ou ownership, preferir Mermaid.
+- Antes de alterar qualquer arquivo, revisar o codigo existente, o fluxo atual
+  e o ownership da camada.
+- Priorizar legibilidade, simplicidade e manutencao acima de cleverness ou
+  abstracoes prematuras.
+- Evitar imports, helpers e bibliotecas desnecessarias; se algo puder ser
+  resolvido com a base atual, preferir a base atual.
+- Nao introduzir dependencias pesadas sem justificativa tecnica objetiva,
+  impacto esperado e comparacao com a alternativa de nao adicionar dependencia.
+- Manter documentacao tecnica e executiva sincronizadas quando a mudanca alterar
+  arquitetura, fluxo operacional, setup ou backlog.
+- Trabalhar por etapas pequenas, reversiveis e validaveis.
+- Antes de qualquer refactor grande, explicar impacto esperado, risco,
+  fronteiras afetadas e plano de validacao.
+- Quando um diagrama ajudar a explicar arquitetura, fluxo ou ownership, preferir
+  Mermaid.
 
 ## Agentes Ativos
 
 ### 1. `core-api`
-Funcao: dono unico de contratos, regras de negocio, banco, repositorios, servicos e API HTTP.
+
+Funcao: dono de contratos publicos, regras de negocio server-side, persistencia
+V2 e API HTTP.
 
 Atua em:
-- `packages/core/src/**`
-- `apps/web-app/src/server/**`
+
+- `apps/api/src/**`
+- `packages/contracts/src/**`
+- `packages/db/src/**`
 
 Pode:
-- Criar e alterar schema de entrada e saida
-- Definir DTOs, formatos de payload e contratos de jobs
-- Alterar regras de negocio de contatos, campanhas, automacoes, conversas, logs e configuracoes
-- Alterar queries SQLite, migrations e acesso a dados
-- Criar ou alterar rotas Fastify
-- Expor contratos consumidos por frontend, worker e scheduler
+
+- Definir schema de entrada/saida, DTOs, contratos tRPC/REST e payloads de job.
+- Alterar regras de negocio server-side, repositorios Drizzle e migrations V2.
+- Expor contratos consumidos por web, worker e companions.
 
 Nao pode:
-- Editar `apps/web-app/src/client/**`
-- Editar `apps/wa-worker/src/**`
-- Editar `apps/scheduler/src/**`
-- Editar manifests, configs globais, scripts raiz ou testes compartilhados sem handoff para `platform-workspace`
+
+- Editar UI em `apps/web/**` ou `packages/ui/**`.
+- Editar runtime Playwright/CDP em `apps/worker/**`.
+- Editar stack legada sem handoff para `legacy-maintenance`.
+- Editar manifests, configs globais, PM2, docs ou testes compartilhados sem
+  handoff para `platform-workspace`.
 
 Validacao minima:
-- `npm run typecheck --workspace @nuoma/core`
-- `npm run typecheck --workspace @nuoma/web-app`
+
+- `npm run typecheck --workspace @nuoma/contracts`
+- `npm run typecheck --workspace @nuoma/db`
+- `npm run typecheck --workspace @nuoma/api`
+- `npm run test --workspace @nuoma/db`
+- `npm run test --workspace @nuoma/api`
 
 ### 2. `frontend-web`
-Funcao: dono unico da experiencia web, telas, componentes, estado de UI e consumo da API.
+
+Funcao: dono da experiencia web canonica, telas, componentes, estado de UI,
+design system e consumo da API.
 
 Atua em:
-- `apps/web-app/src/client/**`
-- `apps/web-app/index.html`
+
+- `apps/web/src/**`
+- `apps/web/index.html`
+- `packages/ui/src/**`
 
 Pode:
-- Criar e alterar paginas, componentes, estilos e interacoes
-- Consumir endpoints existentes
-- Adaptar a UI a novos contratos definidos por `core-api`
-- Ajustar roteamento client-side, loading states, filtros, formularios e feedback visual
+
+- Criar e alterar paginas, componentes, estilos, interacoes e estados de UI.
+- Consumir contratos existentes da API.
+- Adaptar a UI a contratos definidos por `core-api`.
+- Evoluir tokens e componentes compartilhados em `packages/ui`.
 
 Nao pode:
-- Alterar resposta de endpoint, schema, DTO, query SQL ou regra de negocio
-- Editar `apps/web-app/src/server/**`
-- Editar `packages/core/src/**`
-- Editar configs de build, dependencias ou testes compartilhados sem handoff para `platform-workspace`
+
+- Alterar schema, DTO, query SQL, migration ou regra de negocio server-side.
+- Editar worker/canal em `apps/worker/**`.
+- Editar stack legada sem handoff para `legacy-maintenance`.
+- Editar dependencias, build configs ou testes compartilhados sem handoff para
+  `platform-workspace`.
 
 Validacao minima:
-- `npm run typecheck --workspace @nuoma/web-app`
-- `npm run build --workspace @nuoma/web-app`
 
-### 3. `wa-worker`
-Funcao: dono unico do runtime de automacao do WhatsApp Web e da execucao browser-based.
+- `npm run typecheck --workspace @nuoma/ui`
+- `npm run typecheck --workspace @nuoma/web`
+- `npm run build --workspace @nuoma/web`
+
+### 3. `worker-runtime`
+
+Funcao: dono do runtime de canal, automacao browser-based, sync, envio guardado,
+artifacts e companion runtime quando houver impacto direto no Chromium/overlay.
 
 Atua em:
-- `apps/wa-worker/src/**`
+
+- `apps/worker/src/**`
+- `apps/chrome-extension/src/**` quando o escopo for overlay/bridge de canal
+- `apps/safari-extension/src/**` quando o escopo for wrapper/acceptance de
+  companion
 
 Pode:
-- Alterar boot, sessao, autenticacao e sync do Playwright
-- Alterar envio de mensagens, captura de falhas, artifacts e heartbeat do worker
-- Ajustar seletores, estrategia de navegacao e recuperacao de sessao
-- Consumir contratos e jobs definidos por `core-api`
+
+- Alterar boot, sessao, CDP, Playwright, sync, envio, evidencia e heartbeat.
+- Consumir jobs e contratos definidos por `core-api`.
+- Ajustar guards de canal, seletores, navegacao e recuperacao de sessao.
 
 Nao pode:
-- Alterar schema de banco, contratos de jobs, DTOs ou respostas HTTP
-- Editar `packages/core/src/**`
-- Editar `apps/web-app/src/client/**`
-- Editar `apps/scheduler/src/**`
-- Editar dependencias, PM2, env de exemplo ou testes compartilhados sem handoff para `platform-workspace`
+
+- Alterar schema de banco, contratos publicos, migrations ou DTOs.
+- Editar UI do produto em `apps/web/**` ou `packages/ui/**`.
+- Editar stack legada sem handoff para `legacy-maintenance`.
+- Editar dependencias, PM2, env ou testes compartilhados sem handoff para
+  `platform-workspace`.
 
 Validacao minima:
-- `npm run typecheck --workspace @nuoma/wa-worker`
 
-### 4. `scheduler-runtime`
-Funcao: dono unico da orquestracao periodica, watchdog, ciclos e operacao agendada.
+- `npm run typecheck --workspace @nuoma/worker`
+- `npm run test --workspace @nuoma/worker`
+
+### 4. `legacy-maintenance`
+
+Funcao: dono unico da stack legada preservada para manutencao, comparacao,
+rollback/cutover e migracao.
 
 Atua em:
-- `apps/scheduler/src/**`
+
+- `apps/web-app/**`
+- `apps/wa-worker/**`
+- `apps/scheduler/**`
+- `packages/core/**`
 
 Pode:
-- Alterar cadence de execucao, watchdog, cleanup e publicacao de estado do scheduler
-- Ajustar estrategia de restart operacional e controle de ciclo
-- Consumir contratos e funcoes expostas por `core-api`
+
+- Ler e comparar comportamento legado.
+- Fazer hotfix explicitamente aprovado na stack legada.
+- Apoiar V2.15 cutover, rollback e validacao historica.
 
 Nao pode:
-- Alterar regras de elegibilidade de automacoes ou campanhas que vivem em `packages/core`
-- Alterar contratos de jobs, DTOs ou rotas HTTP
-- Editar `apps/wa-worker/src/**`
-- Editar `apps/web-app/src/client/**`
-- Editar configs globais, dependencias ou testes compartilhados sem handoff para `platform-workspace`
+
+- Iniciar novas features ou refactors de produto na stack legada.
+- Alterar banco V2, contratos V2 ou runtime canonico sem handoff para o agente
+  canonico dono.
+- Rodar envio real ou PM2 real sem revisao explicita de plataforma + runtime.
 
 Validacao minima:
-- `npm run typecheck --workspace @nuoma/scheduler`
+
+- `npm run legacy:typecheck`
 
 ### 5. `platform-workspace`
-Funcao: dono unico da infraestrutura de workspace, manifests, scripts, build, docs e validacao compartilhada.
+
+Funcao: dono da infraestrutura de workspace, manifests, scripts, build, PM2,
+docs, CI, testes compartilhados e validacao repo-wide.
 
 Atua em:
+
 - `package.json`
 - `package-lock.json`
+- `turbo.json`
 - `tsconfig.json`
 - `tsconfig.base.json`
 - `.env.example`
+- `.github/**`
 - `README.md`
+- `docs/**`
+- `.claude/**`
 - `ecosystem.config.cjs`
+- `ecosystem.canonical.config.cjs`
+- `scripts/**`
 - `tests/**`
-- `apps/web-app/package.json`
-- `apps/web-app/tsconfig.json`
-- `apps/web-app/vite.config.ts`
-- `apps/web-app/tailwind.config.ts`
-- `apps/web-app/postcss.config.cjs`
-- `apps/wa-worker/package.json`
-- `apps/wa-worker/tsconfig.json`
-- `apps/scheduler/package.json`
-- `apps/scheduler/tsconfig.json`
-- `packages/core/package.json`
-- `packages/core/tsconfig.json`
+- `apps/*/package.json`
+- `apps/*/tsconfig.json`
+- `packages/*/package.json`
+- `packages/*/tsconfig.json`
+- `apps/migration/**`
 
 Pode:
-- Alterar dependencias, scripts, configs de build e documentacao
-- Ajustar setup local, PM2, comandos de dev e automacao de ambiente
-- Atualizar o harness de testes compartilhados
-- Consolidar validacao repo-wide apos mudancas cross-layer
+
+- Alterar dependencias, scripts, configs de build, PM2 e documentacao.
+- Ajustar setup local, comandos de dev e automacao de ambiente.
+- Atualizar harness de testes compartilhados e smokes operacionais.
+- Consolidar validacao repo-wide apos mudancas cross-layer.
 
 Nao pode:
-- Implementar regra de negocio dentro de `src/**` dos apps ou do core
-- Alterar comportamento de produto sem demanda originada por outro agente
+
+- Implementar regra de negocio dentro de `src/**` de apps/pacotes sem demanda do
+  agente dono.
+- Alterar comportamento de produto sem contrato aprovado pelo agente dono.
 
 Validacao minima:
+
+- `npm run lint`
 - `npm run typecheck`
 - `npm test`
 - `npm run build`
 
 ## Regras Gerais
+
 - Regra de dono unico: cada arquivo tem um unico agente responsavel por editar.
-- Regra de contrato primeiro: `core-api` define schema, rotas, DTOs, payloads de job e formato de estado. Os demais agentes se adaptam.
-- Regra de config unica: qualquer mudanca em `package.json`, `tsconfig`, build config, docs, `.env.example`, PM2 ou testes compartilhados passa por `platform-workspace`.
-- Regra de camada: frontend nao acessa banco nem assume estrutura interna; worker e scheduler nao criam contrato publico por conta propria.
-- Regra de handoff: se um agente precisar de mudanca fora da propria area, ele abre demanda para o dono da pasta e espera o contrato final.
-- Regra de validacao: cada agente valida o proprio escopo antes de entregar.
-- Regra de artefato: nao editar manualmente `node_modules/**`, `apps/web-app/dist/**`, `storage/**` ou outros artefatos gerados.
-- Regra de smoke de envio: todo teste de envio real deve conferir o destino/canal testado e anexar evidencia visual. Quando houver Instagram/DM disponivel no fluxo, tambem anexar print do Instagram; se o teste for WhatsApp-only sem IG aplicavel, registrar explicitamente `IG nao aplicavel` no resultado.
-
-## Trilha Separada De Integracoes
-Instagram, Data Lake e AI ficam fora do fluxo cotidiano e so entram quando houver iniciativa explicita.
-
-Ownership dessa trilha continua seguindo a camada:
-- `core-api`: `apps/web-app/src/server/lib/instagram-assisted.ts`, `apps/web-app/src/server/lib/instagram-sync.ts`, `apps/web-app/src/server/routes/instagram.ts`, `apps/web-app/src/server/routes/data-lake.ts`, `packages/core/src/services/data-lake-service.ts`, `packages/core/src/services/instagram-contact-import-service.ts`, `packages/core/src/services/instagram-contact-matching-service.ts`, `packages/core/src/repositories/data-lake-repository.ts`
-- `frontend-web`: `apps/web-app/src/client/pages/imports.tsx`, `apps/web-app/src/client/pages/trends.tsx` e qualquer UI futura dessa trilha
-- `wa-worker`: somente quando a integracao exigir impacto direto em sessao compartilhada de browser ou automacao do Chromium
-- `platform-workspace`: configs, deps, docs e testes da trilha
-
-Regra adicional:
-- Quando a trilha de integracoes estiver ativa, `core-api` coordena o contrato, e os demais agentes alteram apenas a propria camada.
+- Regra de stack canonica: novas features/refactors partem da linha V2 ativa.
+- Regra de legado: `apps/web-app`, `apps/wa-worker`, `apps/scheduler` e
+  `packages/core` sao manutencao, nao destino padrao de produto novo.
+- Regra de contrato primeiro: `core-api` define schemas, rotas, DTOs, payloads
+  de job e formato de estado. Os demais agentes se adaptam.
+- Regra de config unica: mudanca em manifests, tsconfig, build config, docs,
+  `.env.example`, PM2, CI ou testes compartilhados passa por
+  `platform-workspace`.
+- Regra de camada: frontend nao acessa banco; worker nao cria contrato publico;
+  legado nao escreve no banco V2 sem caminho de migracao aprovado.
+- Regra de split-brain: `DATABASE_URL` e `DATABASE_PATH` devem apontar para o
+  banco da stack correta; mismatch deve falhar com `NUOMA_DB_STACK_MISMATCH`.
+- Regra de custo IA: OpenAI/Data Lake remoto/Sora live exigem env explicita
+  (`AI_COST_APPROVED=SIM` ou `SORA_BUDGET_APPROVED=SIM`).
+- Regra de artefato: nao editar manualmente `node_modules/**`, `dist/**`,
+  `.turbo/**`, `data/**`, `storage/**` ou outros artefatos gerados.
+- Regra de smoke de envio: todo teste de envio real deve conferir destino/canal
+  e anexar evidencia visual. Se o teste for WhatsApp-only sem IG aplicavel,
+  registrar explicitamente `IG nao aplicavel`.
 
 ## Workflow Recomendado
 
 ### Fluxo Padrao De Feature
-1. `frontend-web`, `wa-worker` ou `scheduler-runtime` identifica necessidade de contrato novo ou mudanca de comportamento.
-2. `core-api` define ou altera schema, rota, payload, regra de negocio e persistencia.
-3. `platform-workspace` ajusta dependencias, configs ou testes compartilhados se necessario.
+
+1. `frontend-web`, `worker-runtime` ou `platform-workspace` identifica
+   necessidade de contrato novo ou mudanca de comportamento.
+2. `core-api` define ou altera schema, rota, payload, regra de negocio e
+   persistencia V2.
+3. `platform-workspace` ajusta dependencias, configs ou testes compartilhados se
+   necessario.
 4. O agente consumidor adapta sua propria camada.
-5. `platform-workspace` roda validacao repo-wide apenas quando houve mudanca cross-layer.
+5. `platform-workspace` roda validacao repo-wide quando houver mudanca
+   cross-layer.
 
 ### Fluxo De Incidente Operacional
-1. `wa-worker` trata falhas de sessao, Playwright, seletor, sync e artifacts.
-2. `scheduler-runtime` trata watchdog, ciclo, restart e limpeza operacional.
-3. Se o incidente exigir mudanca de contrato, fila, schema ou regra de negocio, `core-api` entra antes da correcao final.
-4. `platform-workspace` entra apenas se o incidente exigir ajuste de ambiente, script, PM2, docs ou teste compartilhado.
+
+1. `worker-runtime` trata falhas de sessao, Playwright, CDP, seletor, sync e
+   artifacts.
+2. `core-api` entra quando o incidente exigir contrato, fila, schema,
+   persistencia ou regra de negocio.
+3. `frontend-web` entra quando o incidente exigir feedback visual ou fluxo de
+   operador.
+4. `platform-workspace` entra quando o incidente exigir ambiente, script, PM2,
+   docs, CI ou teste compartilhado.
+5. `legacy-maintenance` entra apenas quando o incidente estiver na stack legada
+   ou em cutover/rollback.
 
 ### Fluxo De Dependencias E Setup
+
 1. O agente de camada detecta necessidade de dependencia, script ou config.
 2. `platform-workspace` executa a mudanca.
 3. O agente de camada conclui a implementacao usando a nova base.
 
-## Quem Chama Quem
-- `frontend-web` chama `core-api` para qualquer mudanca de contrato.
-- `wa-worker` chama `core-api` para qualquer mudanca de payload, fila, schema ou estado persistido.
-- `scheduler-runtime` chama `core-api` para qualquer mudanca em regra de automacao, campanha ou contratos de fila.
-- Todos os agentes chamam `platform-workspace` para manifests, configs, docs e testes compartilhados.
-- `platform-workspace` nao inicia feature de produto sozinho; ele suporta os demais.
-
 ## Decisoes De Controle
+
 - Maximo de 5 agentes ativos.
-- `packages/core` tem dono unico: `core-api`.
-- Cada agente valida apenas o proprio escopo.
+- Stack canonica: `apps/api`, `apps/web`, `apps/worker`, `packages/db`,
+  `packages/contracts`, `packages/ui`, `packages/config`.
+- Stack legada: `apps/web-app`, `apps/wa-worker`, `apps/scheduler`,
+  `packages/core`.
+- Cada agente valida apenas o proprio escopo; `platform-workspace` consolida
+  validacao repo-wide.
 - Mudanca cross-layer sem contrato aprovado por `core-api` deve ser evitada.
 
-## Decisoes Arquiteturais Confirmadas (Abril 2026)
+## Decisoes Arquiteturais Confirmadas
 
-### Modelo de Convergencia de Fluxos
-- **3 tipos explicitos**: Campanha (push manual/CSV), Automacao (trigger continuo), Chatbot (reativo por mensagem)
-- **Builder unico**: componente compartilhado que adapta UI conforme o tipo de fluxo
-- **Chatbot como entidade separada**: tabela propria, nao e subtipo de automacao
-- Ownership do builder unificado: `frontend-web` (componente), `core-api` (contratos e tipos compartilhados)
+### Modelo De Convergencia De Fluxos
+
+- 3 tipos explicitos: Campanha (push manual/CSV), Automacao (trigger continuo),
+  Chatbot (reativo por mensagem).
+- Builder unico adapta UI conforme tipo de fluxo.
+- Chatbot e entidade separada, nao subtipo de automacao.
+- Ownership do builder unificado: `frontend-web` na UI e `core-api` nos
+  contratos/tipos compartilhados.
 
 ### Campanhas
-- Templates com variaveis (`{{nome}}`, `{{telefone}}`, etc.) e formatacao WhatsApp
-- Condicoes em steps: replied->exit, has_tag->branch, channel_is->skip, outside_window->wait
-- Campanhas evergreen: auto-avaliacao de novos contatos + adicao manual
-- Novos step types: document (PDF), link (com preview)
+
+- Templates com variaveis (`{{nome}}`, `{{telefone}}`) e formatacao WhatsApp.
+- Condicoes em steps: `replied`, `has_tag`, `channel_is`, `outside_window`.
+- Campanhas evergreen com auto-avaliacao de novos contatos e adicao manual.
+- Step types incluem texto, documento, link e midia.
 
 ### Inbox Unificada
-- Timeline unica por contato (WA + IG misturados cronologicamente)
-- Compositor com seletor manual de canal
-- Quick actions: tag, status, lembrete, inscrever campanha, notas
+
+- Timeline unica por contato com WhatsApp e Instagram em ordem cronologica.
+- Compositor com seletor manual de canal.
+- Quick actions: tag, status, lembrete, campanha e notas.
 
 ### Segmentacao
-- Filtro builder AND/OR reutilizavel em contatos, campanhas e automacoes
-- Criterios: tag, status, canal, datas, procedimento, relationship Instagram
+
+- Filtro builder AND/OR reutilizavel em contatos, campanhas e automacoes.
+- Criterios: tag, status, canal, datas, procedimento e relacionamento
+  Instagram.
 
 ### Automacoes
-- Triggers por eventos: message_received, campaign_completed, tag_applied/removed
-- Condicoes compostas (evento AND tag AND status)
-- Categorias customizaveis via UI (nao mais enum fixo)
 
-### Restricoes confirmadas
-- Single-user, desktop-only, Brasil timezone unico
-- Apenas WhatsApp + Instagram (sem novos canais)
-- Minimo de AI/LLM
-- SQLite com otimizacoes (5k-50k contatos)
-- Browser automation (sem API oficial Meta)
+- Triggers por eventos: `message_received`, `campaign_completed`,
+  `tag_applied` e `tag_removed`.
+- Condicoes compostas por evento, tag e status.
+- Categorias customizaveis via UI, nao enum fixo.
+
+### Restricoes Confirmadas
+
+- Single-user inicial, desktop/local-first e timezone Brasil.
+- Apenas WhatsApp + Instagram como canais.
+- Minimo de AI/LLM no fluxo cotidiano.
+- SQLite otimizado para 5k-50k contatos.
+- Browser automation, sem API oficial Meta no caminho de envio.

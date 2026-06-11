@@ -60,7 +60,7 @@ You are reviewing code changes in Nuoma WPP.
 4. Run validation:
    ```bash
    npm run typecheck
-   npm run hygiene
+   npm run lint
    npm test
    ```
 5. Provide feedback organized by severity (blocking / suggestion / nitpick)

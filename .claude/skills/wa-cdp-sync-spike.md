@@ -4,6 +4,9 @@ description: Run Spike 1 — connect CDP to running Chromium, inject a MutationO
 user_invocable: true
 ---
 
+> [!CAUTION]
+> LEGACY V1: este skill referencia a stack antiga (`apps/web-app`, `packages/core`, `apps/wa-worker`, `apps/scheduler`). Use apenas como referencia historica/cutover; antes de executar comandos ou editar codigo, confirme o equivalente V2 ativo.
+
 # /wa-cdp-sync-spike — CDP observer latency spike
 
 You are running **Spike 1** from [`docs/architecture/V2_SPIKES.md`](../../docs/architecture/V2_SPIKES.md). Goal: prove a CDP-injected MutationObserver can capture real WhatsApp messages with end-to-end latency p50<1s, p95<3s, zero duplicate, zero loss in a sample of 50 messages.

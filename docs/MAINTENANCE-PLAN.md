@@ -1,5 +1,10 @@
 # Nuoma WPP - Plano de Manutencao, Testes e Melhorias
 
+> HISTORICO / LEGACY V1: este plano foi produzido antes da canonicalizacao da
+> Fase 1 e ainda contem referencias a `apps/web-app`, `packages/core`,
+> `apps/wa-worker` e `apps/scheduler`. Use como backlog historico, nao como
+> mapa operacional canonico.
+
 Data: 2026-04-04
 Baseado na analise de 80+ decisoes, 24 tech debts, 25 design findings, 18 arch risks.
 
@@ -129,7 +134,7 @@ apps/web-app/src/server/routes/
 - [ ] Limpar temp files: `rm -rf storage/temp/*`
 
 ### 2.3 Rotina Mensal
-- [ ] Rodar `npm run typecheck` e `npm run hygiene`
+- [ ] Rodar `npm run typecheck`, `npm run lint` e `npm test`
 - [ ] Verificar dependencias: `npm outdated`
 - [ ] Revisar PHASE-11-ANALYSIS.md: quantos items foram resolvidos
 - [ ] Verificar performance com volume atual de contatos

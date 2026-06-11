@@ -4,6 +4,9 @@ description: Investigate worker health — stuck jobs, dedupe key analysis, sche
 user_invocable: true
 ---
 
+> [!CAUTION]
+> LEGACY V1: este skill referencia a stack antiga (`apps/web-app`, `packages/core`, `apps/wa-worker`, `apps/scheduler`). Use apenas como referencia historica/cutover; antes de executar comandos ou editar codigo, confirme o equivalente V2 ativo.
+
 # /nuoma-worker-observability — Worker health diagnostics
 
 You are diagnosing the health of the Nuoma worker (V1) — or eventually V2. Generate SQL queries, summarize findings, suggest concrete actions. No mutations without explicit user confirmation.

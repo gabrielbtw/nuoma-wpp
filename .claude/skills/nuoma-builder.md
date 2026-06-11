@@ -4,6 +4,9 @@ description: Work on the campaign/automation/chatbot builder component. Understa
 user_invocable: true
 ---
 
+> [!CAUTION]
+> LEGACY V1: este skill referencia a stack antiga (`apps/web-app`, `packages/core`, `apps/wa-worker`, `apps/scheduler`). Use apenas como referencia historica/cutover; antes de executar comandos ou editar codigo, confirme o equivalente V2 ativo.
+
 # /nuoma-builder — Flow Builder Work
 
 You are working on the unified flow builder for Nuoma WPP.

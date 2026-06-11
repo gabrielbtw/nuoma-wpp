@@ -85,6 +85,16 @@ nuoma-wpp-v2/
   data/                 local runtime data, DB, evidence and browser profile
 ```
 
+Fase 1 canonical stack:
+
+- Canonical runtime: `apps/api`, `apps/web`, `apps/worker`, `packages/db`,
+  `packages/contracts`, `packages/ui`, `packages/config`.
+- Companion satellites: `apps/chrome-extension` and `apps/safari-extension`.
+- Legacy maintenance only: `apps/web-app`, `apps/wa-worker`, `apps/scheduler`,
+  `packages/core`.
+- PM2 canonical process map: `ecosystem.canonical.config.cjs`.
+- PM2 legacy/reference process map: `ecosystem.config.cjs`.
+
 Main stack decisions:
 
 - Node 22, npm workspaces and Turborepo monorepo.
@@ -370,8 +380,8 @@ Local development:
 ```bash
 nvm use
 npm install
-npm run typecheck
-npm run dev
+npm run typecheck:canonical
+npm run dev:canonical
 ```
 
 Default endpoints:
@@ -406,7 +416,7 @@ Hosted deployment summary:
 Important environment knobs:
 
 - `DATABASE_URL`
-- `JWT_SECRET`
+- `API_JWT_SECRET`
 - `API_SEND_POLICY_MODE`
 - `API_SEND_ALLOWED_PHONES`
 - `WA_SEND_POLICY_MODE`
@@ -414,13 +424,25 @@ Important environment knobs:
 - `WA_SEND_ALLOWED_PHONE`
 - `WORKER_BROWSER_ENABLED`
 - `WORKER_SYNC_ENABLED`
-- `WORKER_CDP_URL`
+- `CHROMIUM_CDP_HOST`
+- `CHROMIUM_CDP_PORT`
 
 ## Testes E Smokes
 
 Core validation:
 
 ```bash
+npm run lint:canonical
+npm run typecheck:canonical
+npm run build:canonical
+npm run test:canonical
+npm run test:phase1-guards
+```
+
+Repo-wide validation:
+
+```bash
+npm run lint
 npm run typecheck
 npm test
 npm run build

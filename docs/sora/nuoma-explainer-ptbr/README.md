@@ -27,17 +27,21 @@ Variaveis opcionais:
 
 ```bash
 export OPENAI_API_KEY="<nova-chave-rotacionada>"
+export SORA_BUDGET_APPROVED=SIM
 export SORA_CLI="$HOME/.codex/skills/sora/scripts/sora.py"
 export UV_CACHE_DIR="/tmp/uv-cache"
 ```
+
+Na Fase 0, somente `check` e `dry-run` sao permitidos sem aprovacao de custo.
+Qualquer comando que possa consumir Sora exige `SORA_BUDGET_APPROVED=SIM`.
 
 ## Execucao
 
 Validar o lote sem chamar a API:
 
 ```bash
-/Users/gabrielbraga/Projetos/nuoma-wpp/scripts/sora/nuoma-explainer-ptbr.sh check
-/Users/gabrielbraga/Projetos/nuoma-wpp/scripts/sora/nuoma-explainer-ptbr.sh dry-run
+scripts/sora/nuoma-explainer-ptbr.sh check
+scripts/sora/nuoma-explainer-ptbr.sh dry-run
 ```
 
 O comando `check` reporta se `python3`, `uv`, `ffmpeg`, `SORA_CLI` e `OPENAI_API_KEY` estao prontos para a geracao real.
@@ -45,19 +49,19 @@ O comando `check` reporta se `python3`, `uv`, `ffmpeg`, `SORA_CLI` e `OPENAI_API
 Gerar as 7 cenas:
 
 ```bash
-/Users/gabrielbraga/Projetos/nuoma-wpp/scripts/sora/nuoma-explainer-ptbr.sh create-batch
+SORA_BUDGET_APPROVED=SIM scripts/sora/nuoma-explainer-ptbr.sh create-batch
 ```
 
 Baixar uma cena apos a criacao do job:
 
 ```bash
-/Users/gabrielbraga/Projetos/nuoma-wpp/scripts/sora/nuoma-explainer-ptbr.sh poll scene-01-overview video_abc123
+SORA_BUDGET_APPROVED=SIM scripts/sora/nuoma-explainer-ptbr.sh poll scene-01-overview video_abc123
 ```
 
 Consultar status de um job:
 
 ```bash
-/Users/gabrielbraga/Projetos/nuoma-wpp/scripts/sora/nuoma-explainer-ptbr.sh status video_abc123
+SORA_BUDGET_APPROVED=SIM scripts/sora/nuoma-explainer-ptbr.sh status video_abc123
 ```
 
 ## Iteracoes concretas
@@ -65,25 +69,25 @@ Consultar status de um job:
 Artefato de UI ou texto:
 
 ```bash
-/Users/gabrielbraga/Projetos/nuoma-wpp/scripts/sora/nuoma-explainer-ptbr.sh edit-ui video_abc123
+SORA_BUDGET_APPROVED=SIM scripts/sora/nuoma-explainer-ptbr.sh edit-ui video_abc123
 ```
 
 Narracao corrida ou pouco clara:
 
 ```bash
-/Users/gabrielbraga/Projetos/nuoma-wpp/scripts/sora/nuoma-explainer-ptbr.sh edit-voice video_abc123
+SORA_BUDGET_APPROVED=SIM scripts/sora/nuoma-explainer-ptbr.sh edit-voice video_abc123
 ```
 
 Movimento caotico:
 
 ```bash
-/Users/gabrielbraga/Projetos/nuoma-wpp/scripts/sora/nuoma-explainer-ptbr.sh edit-motion video_abc123
+SORA_BUDGET_APPROVED=SIM scripts/sora/nuoma-explainer-ptbr.sh edit-motion video_abc123
 ```
 
 Se o fechamento precisar respirar mais `8s`:
 
 ```bash
-/Users/gabrielbraga/Projetos/nuoma-wpp/scripts/sora/nuoma-explainer-ptbr.sh extend-finale video_abc123
+SORA_BUDGET_APPROVED=SIM scripts/sora/nuoma-explainer-ptbr.sh extend-finale video_abc123
 ```
 
 ## Montagem final
@@ -91,7 +95,7 @@ Se o fechamento precisar respirar mais `8s`:
 Depois de baixar `scene-01` ate `scene-07` em `docs/sora/nuoma-explainer-ptbr/renders`, concatenar:
 
 ```bash
-/Users/gabrielbraga/Projetos/nuoma-wpp/scripts/sora/nuoma-explainer-ptbr.sh concat
+scripts/sora/nuoma-explainer-ptbr.sh concat
 ```
 
 Saida:

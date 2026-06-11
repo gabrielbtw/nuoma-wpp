@@ -4,6 +4,9 @@ description: Build or modify the reusable segmentation/filter builder component 
 user_invocable: true
 ---
 
+> [!CAUTION]
+> LEGACY V1: este skill referencia a stack antiga (`apps/web-app`, `packages/core`, `apps/wa-worker`, `apps/scheduler`). Use apenas como referencia historica/cutover; antes de executar comandos ou editar codigo, confirme o equivalente V2 ativo.
+
 # /nuoma-segment — Segmentation Builder
 
 You are working on the reusable segmentation builder for Nuoma WPP.

@@ -4,6 +4,9 @@ description: Refactor code in Nuoma WPP following the phased plan (PLANS.md). En
 user_invocable: true
 ---
 
+> [!CAUTION]
+> LEGACY V1: este skill referencia a stack antiga (`apps/web-app`, `packages/core`, `apps/wa-worker`, `apps/scheduler`). Use apenas como referencia historica/cutover; antes de executar comandos ou editar codigo, confirme o equivalente V2 ativo.
+
 # /nuoma-refactor — Safe Refactoring
 
 You are refactoring code in Nuoma WPP following the stability-first philosophy.
@@ -42,7 +45,7 @@ You are refactoring code in Nuoma WPP following the stability-first philosophy.
 6. Validate immediately:
    ```bash
    npm run typecheck
-   npm run hygiene
+   npm run lint
    npm test
    ```
 7. If anything breaks, revert and try a smaller change

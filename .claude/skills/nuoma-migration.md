@@ -4,6 +4,9 @@ description: Create a new SQLite migration for the Nuoma database. Generates pro
 user_invocable: true
 ---
 
+> [!CAUTION]
+> LEGACY V1: este skill referencia a stack antiga (`apps/web-app`, `packages/core`, `apps/wa-worker`, `apps/scheduler`). Use apenas como referencia historica/cutover; antes de executar comandos ou editar codigo, confirme o equivalente V2 ativo.
+
 # /nuoma-migration — Create Database Migration
 
 You are creating a new SQLite migration for Nuoma WPP.

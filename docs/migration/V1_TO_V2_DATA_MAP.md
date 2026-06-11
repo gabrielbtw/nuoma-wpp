@@ -2,16 +2,23 @@
 
 Documento de referência para Spike 4 + ferramenta de migração futura. Lista cada tabela operacional do V1 e como deve ser mapeada para o schema V2.
 
-**Status**: Spike 4a executado em 2026-04-30. Resultado VERDE com política aceita: dry-run leu 488.511 linhas em 2.257ms, schema Drizzle candidato compilou e não houve JSON inválido nem tabela obrigatória ausente. Orphans ligados a contatos apagados serão pulados no import operacional; depois a estabilização V2 roda resync geral. Ver `experiments/spike-4-migration/REPORT.md`.
+**Status**: Spike 4a executado em 2026-04-30. Resultado VERDE com politica aceita: dry-run leu 488.511 linhas em 2.257ms, schema Drizzle candidato compilou e nao houve JSON invalido nem tabela obrigatoria ausente. Orphans ligados a contatos apagados sao pulados ou preservados como evento/auditoria sem FK forte conforme a tabela; depois a estabilizacao V2 roda resync geral. Ver `experiments/spike-4-migration/REPORT.md`.
+
+Implementacao operacional V2.15:
+
+- App/CLI: `apps/migration/src/index.ts`.
+- Comandos: `npm run migration:v215:preflight`, `npm run migration:v215:dry-run`, `npm run migration:v215:apply`, `npm run migration:v215:validate`.
+- Runbook: `docs/migration/CUTOVER_PLAN.md` e `docs/runbooks/CUTOVER_ROLLBACK.md`.
+- Skill interativa: `.claude/skills/v1-to-v2-data-import.md`.
 
 ## Princípios
 
 1. **V1 SQLite é read-only** durante migração. Sempre trabalhar numa cópia.
-2. **`user_id` injetado**: V1 não tem multi-user; toda linha vira `user_id=1` (admin seeded no V2).
+2. **`user_id` injetado**: V1 nao tem multi-user; toda linha vira `user_id=1` por default, ou `V215_TARGET_USER_ID`.
 3. **`data_lake_*`, AI tables, tabelas fora do escopo do produto** são **ignoradas**.
-4. **External IDs preservados** quando existem (`wa_chat_id`, `external_thread_id`, `external_id` em messages).
-5. **FKs com `ON DELETE CASCADE`** no V2 — durante import, valida que todos os parents existem; orphans são reportados, não importados silenciosamente.
-6. **Soft delete preservado**: linhas com `deleted_at` em V1 viram `deleted_at` em V2 (se a tabela tiver no V1; senão, não é introduzido pra esse import).
+4. **External IDs preservados** quando existem (`wa_chat_id`, `external_thread_id`, `external_id` em messages). Mensagens sem `external_id` ficam com `NULL`, mantendo o source row em `raw_json`.
+5. **FKs com `ON DELETE CASCADE`** no V2 — durante import, valida que todos os parents existem; orphans operacionais sao pulados, historicos viram evento/auditoria sem FK forte.
+6. **IDs V2 sao novos**: o schema V2 usa autoincrement; a correspondencia V1->V2 fica em `metadata_json`, `raw_json`, notas de migracao ou payload/evento legado.
 
 ## Tabelas mapeadas
 
@@ -24,7 +31,7 @@ INSERT INTO users (id, email, password_hash, role, display_name, created_at)
 VALUES (1, '<owner-email>', '<bcrypt-hash-from-env>', 'admin', 'Gabriel', CURRENT_TIMESTAMP);
 ```
 
-Email vem de prompt interativo durante migração. Password hash vem de prompt interativo + Argon2id.
+Na implementacao V2.15, o import reutiliza `V215_TARGET_USER_ID` se existir. Se o usuario alvo nao existir, cria um admin placeholder local para permitir import em clone; producao deve ter admin criado previamente.
 
 ### `contacts`
 
@@ -32,7 +39,7 @@ V1 → V2: 1:1, com adição de `user_id=1`.
 
 | V1 (campo) | V2 (campo) | Notas |
 |---|---|---|
-| `id` | `id` | preserva |
+| `id` | metadata/raw source id | V2 gera novo id; source id preservado em nota/metadado. |
 | — | `user_id` | injeta `1` |
 | `phone` | `phone` | nullable; contato pode existir só por Instagram. UNIQUE deve ignorar NULL por `user_id`. |
 | `name` | `name` | |
@@ -50,7 +57,7 @@ Orphans esperados: nenhum (contacts é raiz).
 
 | V1 | V2 | Notas |
 |---|---|---|
-| `id` | `id` | preserva |
+| `id` | metadata/raw source id | V2 gera novo id; source id preservado em raw/metadado. |
 | — | `user_id` | injeta `1` |
 | `wa_chat_id` | `external_thread_id` | unifica nomenclatura WA+IG |
 | `channel` | `channel` | enum |
@@ -66,7 +73,7 @@ Orphans possíveis: conversations com `contact_id` apontando pra contact que nã
 
 | V1 | V2 | Notas |
 |---|---|---|
-| `id` | `id` | preserva |
+| `id` | metadata/raw source id | V2 gera novo id; source id preservado em `raw_json`. |
 | `conversation_id` | `conversation_id` | FK |
 | `external_id` | `external_id` | **canônico** no V2 (UNIQUE composto com conversation_id) |
 | `direction` | `direction` | enum |
@@ -100,19 +107,19 @@ Orphans possíveis: messages com `conversation_id` órfão → reporta. Mensagen
 | `created_at` | `created_at` | |
 | `updated_at` | `updated_at` | |
 
-**Decisão**: importar só jobs com status `pending` ou `processing` (são os "vivos"). Jobs `done`/`failed` ficam no V1 como histórico (V1 vira read-only após cutover).
+**Decisao**: importar so jobs vivos (`pending`, `processing`, `queued`, `running`). Jobs `done`/`failed` ficam no V1 como historico (V1 vira read-only apos cutover).
 
 ### `campaigns` + `campaign_recipients` + `campaign_executions`
 
 V1 tem tanto `campaign_recipients` (novo) quanto `campaign_executions` (legado). V2 unifica em `campaign_recipients` com `step_index`.
 
-Decisão pendente: como reconciliar quando o mesmo phone aparece nas duas tabelas? Spike 4 vai trazer isso à tona.
+Implementacao: `campaign_steps` e embutido em `campaigns.steps_json`; `campaign_recipients` vira tabela V2; `campaign_executions` legado vira `system_events` com `type='v215.legacy.campaign_execution'`.
 
 ### `automations` + `automation_runs` + `automation_contact_state`
 
-1:1. `user_id` injetado.
+`automations` vira tabela V2 com `trigger_json`, `condition_json`, `actions_json` e metadado de origem.
 
-`automation_actions` (se existir como tabela separada) preserva integralmente.
+`automation_actions` e embutido em `automations.actions_json`. `automation_runs` e `automation_contact_state` viram `system_events` legados para preservar historico sem criar tabelas novas.
 
 ### `tags` + `contact_tags`
 
@@ -126,23 +133,23 @@ Decisão pendente: como reconciliar quando o mesmo phone aparece nas duas tabela
 
 ### `attendants`
 
-1:1.
+1:1 por email/nome, com novo id V2.
 
 ### `chatbots` + `chatbot_rules`
 
-1:1. `user_id` em `chatbots`.
+`chatbots` e `chatbot_rules` migram para tabelas V2 com novo id e metadado de origem.
 
 ### `media_assets`
 
-1:1. `user_id` injetado. Files físicos em `storage/uploads/` precisam ser **copiados** pra `data/uploads/` do V2 (ou volume Docker compartilhado durante migração).
+1:1 por SHA256. Files fisicos em `storage/uploads/` sao copiados para `V215_MEDIA_TARGET_ROOT` quando existem; ausentes geram warning no relatorio e mantem o `storage_path` original.
 
 ### `audit_logs`
 
-Preserva integralmente. `actor_user_id` = 1 (todas as ações antigas viraram do admin).
+Preserva como `audit_logs` V2 com `actor_user_id=V215_TARGET_USER_ID`; referencias orfas ficam em JSON de origem.
 
 ### `system_events`
 
-Preserva integralmente. Adiciona `migrated_from_v1=true` flag.
+`system_logs` e `system_events` antigos viram `system_events` V2 com payload contendo `{ v1: { sourceTable, sourceId } }`.
 
 ### `worker_state`
 
@@ -150,7 +157,7 @@ NÃO migra. V2 começa com worker_state limpo.
 
 ### `reminders`
 
-1:1. `user_id` injetado.
+1:1 com novo id V2. A origem fica nas notas de migracao para idempotencia.
 
 ## Tabelas IGNORADAS
 

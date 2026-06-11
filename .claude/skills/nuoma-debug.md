@@ -4,6 +4,9 @@ description: Debug operational issues with the Nuoma system (worker, scheduler, 
 user_invocable: true
 ---
 
+> [!CAUTION]
+> LEGACY V1: este skill usa nomes PM2 antigos (`web-app`, `wa-worker`, `scheduler`). Para a stack canonica V2, confirme `nuoma-api`, `nuoma-web`, `nuoma-worker` em `ecosystem.canonical.config.cjs`.
+
 # /nuoma-debug — Operational Debugging
 
 You are debugging an operational issue in Nuoma WPP.

@@ -4,6 +4,9 @@ description: Run Spike 3 — port V1 voice recording (Web Audio API + ffprobe + 
 user_invocable: true
 ---
 
+> [!CAUTION]
+> LEGACY V1: este skill referencia a stack antiga (`apps/web-app`, `packages/core`, `apps/wa-worker`, `apps/scheduler`). Use apenas como referencia historica/cutover; antes de executar comandos ou editar codigo, confirme o equivalente V2 ativo.
+
 # /wa-voice-regression — Audio (IC-1) port validation
 
 You are running **Spike 3** from [`docs/architecture/V2_SPIKES.md`](../../docs/architecture/V2_SPIKES.md). Goal: prove the V1 voice recording implementation works literally in a V2-like environment, delivering native WhatsApp voice messages with exact duration and byte-equivalent payload.

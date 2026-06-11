@@ -4,6 +4,9 @@ description: Operational runbook for Chromium WhatsApp session lifecycle — QR 
 user_invocable: true
 ---
 
+> [!CAUTION]
+> LEGACY V1: este skill referencia a stack antiga (`apps/web-app`, `packages/core`, `apps/wa-worker`, `apps/scheduler`). Use apenas como referencia historica/cutover; antes de executar comandos ou editar codigo, confirme o equivalente V2 ativo.
+
 # /wa-session-runbook — WhatsApp Session Operations
 
 You are managing the Chromium WhatsApp session lifecycle. Common scenarios: QR rescan, profile dir corruption, memory OOM kill, V1+V2 number coordination, session migration.

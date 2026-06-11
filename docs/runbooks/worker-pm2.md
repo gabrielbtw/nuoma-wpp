@@ -1,5 +1,11 @@
 # Runbook Operacional - worker e PM2
 
+> LEGACY V1: este runbook opera `web-app`, `wa-worker` e `scheduler` da stack
+> `legacy-maintenance`. Na Fase 1, a configuracao PM2 canonica fica em
+> `ecosystem.canonical.config.cjs` com `nuoma-api`, `nuoma-web` e
+> `nuoma-worker`. Nao executar reload/start real de PM2 nesta fase sem aprovacao
+> explicita de plataforma + runtime.
+
 ## Quando usar
 
 Use este runbook quando o `wa-worker` parar de sincronizar, entrar em estado degradado, perder autenticacao ou reiniciar em loop.
@@ -35,9 +41,9 @@ Verificar endpoints e sinais do painel:
 
 Verificar artefatos locais:
 
-- logs em [`storage/logs`](/Users/gabrielbraga/Projetos/nuoma-wpp/storage/logs)
-- screenshots em [`storage/screenshots`](/Users/gabrielbraga/Projetos/nuoma-wpp/storage/screenshots)
-- perfil persistente em [`storage/chromium-profile/whatsapp`](/Users/gabrielbraga/Projetos/nuoma-wpp/storage/chromium-profile/whatsapp)
+- logs em `storage/logs`
+- screenshots em `storage/screenshots`
+- perfil persistente em `storage/chromium-profile/whatsapp`
 
 ## Recuperacao segura
 

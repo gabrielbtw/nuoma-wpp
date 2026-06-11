@@ -4,6 +4,9 @@ description: Create or modify API routes (Fastify) with proper repository/servic
 user_invocable: true
 ---
 
+> [!CAUTION]
+> LEGACY V1: este skill referencia a stack antiga (`apps/web-app`, `packages/core`, `apps/wa-worker`, `apps/scheduler`). Use apenas como referencia historica/cutover; antes de executar comandos ou editar codigo, confirme o equivalente V2 ativo.
+
 # /nuoma-api — API Route Work
 
 You are creating or modifying API routes in Nuoma WPP.
