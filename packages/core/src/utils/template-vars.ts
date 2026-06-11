@@ -55,8 +55,9 @@ export function extractTemplateVars(text: string): string[] {
   const vars: string[] = [];
   let match;
   while ((match = VAR_PATTERN.exec(text)) !== null) {
-    if (!vars.includes(match[1])) {
-      vars.push(match[1]);
+    const varName = match[1];
+    if (varName && !vars.includes(varName)) {
+      vars.push(varName);
     }
   }
   return vars;

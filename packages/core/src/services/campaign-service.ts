@@ -459,7 +459,7 @@ export function handleCampaignJobFailure(recipientId: string, error: string) {
 export function activateCampaign(campaignId: string) {
   const issues = getCampaignActivationIssues(campaignId);
   if (issues.length > 0) {
-    throw new InputError(issues[0]);
+    throw new InputError(issues[0] ?? "Campanha possui pendencias de ativacao");
   }
 
   return setCampaignStatus(campaignId, "active");

@@ -2694,6 +2694,11 @@ describe("worker job loop", () => {
       externalThreadId: "ig:gabriell_braga",
       title: "@gabriell_braga",
     });
+    await seedInstagramInbound(repos, {
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: contact.id,
+    });
     const imagePath = path.join(tempDir, "ig-campaign.jpg");
     await fs.writeFile(imagePath, Buffer.from([0xff, 0xd8, 0xff, 0xd9]));
     const mediaAsset = await repos.mediaAssets.create({
@@ -2787,6 +2792,11 @@ describe("worker job loop", () => {
       channel: "instagram",
       externalThreadId: "ig:gabriell_braga",
       title: "@gabriell_braga",
+    });
+    await seedInstagramInbound(repos, {
+      userId: user.id,
+      conversationId: conversation.id,
+      contactId: null,
     });
     const campaign = await repos.campaigns.create({
       userId: user.id,
@@ -2929,12 +2939,12 @@ describe("worker job loop", () => {
       ...repos,
       jobs: {
         ...repos.jobs,
-        markCompleted: async (jobId: number) => {
+        markCompleted: async (jobId: number, workerId?: string) => {
           if (failMarkCompletedOnce) {
             failMarkCompletedOnce = false;
             throw new Error("simulated crash after send before markCompleted");
           }
-          await repos.jobs.markCompleted(jobId);
+          return repos.jobs.markCompleted(jobId, workerId);
         },
       },
     };

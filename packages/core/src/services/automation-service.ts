@@ -364,8 +364,12 @@ export function processAutomationTick() {
         if (action.type === "send-image") {
           const imagePaths: string[] = [];
           let i = Number(run.action_index);
-          while (i < automation.actions.length && automation.actions[i].type === "send-image") {
-            const imgPath = automation.actions[i].mediaPath;
+          while (i < automation.actions.length) {
+            const imageAction = automation.actions[i];
+            if (!imageAction || imageAction.type !== "send-image") {
+              break;
+            }
+            const imgPath = imageAction.mediaPath;
             if (imgPath) imagePaths.push(imgPath);
             i++;
           }

@@ -74,7 +74,7 @@ function StepNode({
   hasCondition: boolean;
 }) {
   const Icon = stepIconMap[step.type] ?? MessageSquareText;
-  const colors = stepColorMap[step.type] ?? stepColorMap.text;
+  const colors = stepColorMap[step.type] ?? stepColorMap.text ?? { bg: "bg-slate-500/10", border: "border-slate-500/30", icon: "text-slate-400" };
   const label = stepLabelMap[step.type] ?? step.type;
 
   const successRate = stats && stats.total > 0

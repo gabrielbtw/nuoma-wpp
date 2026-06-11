@@ -114,7 +114,7 @@ export function AppShell() {
 
         {/* Desktop Header */}
         <header className="hidden items-center justify-between border-b border-n-border/40 bg-n-bg px-6 py-2 lg:flex">
-          <span className="text-caption text-n-text-dim">{currentSection.label}</span>
+          <span className="text-caption text-n-text-dim">{currentSection?.label ?? "Nuoma"}</span>
           <div className={cn("hidden xl:flex items-center gap-2", !showHeaderSessionStrip && "xl:hidden")}>
             <ChannelSessionStrip compact />
           </div>

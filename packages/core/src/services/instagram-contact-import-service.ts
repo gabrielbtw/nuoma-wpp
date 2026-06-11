@@ -1192,7 +1192,11 @@ function inferOwnAliases(threads: ThreadGroup[]) {
 
   for (const thread of threads) {
     try {
-      const file = readInstagramMessageFile(thread.filePaths[0]);
+      const firstFilePath = thread.filePaths[0];
+      if (!firstFilePath) {
+        continue;
+      }
+      const file = readInstagramMessageFile(firstFilePath);
       const participants = new Set((file.participants ?? []).map((participant) => collapseWhitespace(participant.name)).filter(Boolean));
 
       for (const participantName of participants) {
@@ -1273,7 +1277,7 @@ function looksLikePersonName(input: string, instagram?: string | null) {
   }
 
   if (words.length === 1) {
-    return /^[\p{Lu}][\p{L}'`-]{1,29}$/u.test(words[0]);
+    return /^[\p{Lu}][\p{L}'`-]{1,29}$/u.test(words[0] ?? "");
   }
 
   const titleCaseWords = words.filter((word) => /^[\p{Lu}]/u.test(word)).length;
@@ -1389,7 +1393,11 @@ function participantFrequencyMap(threads: ThreadGroup[]) {
 
   for (const thread of threads) {
     try {
-      const parsed = readInstagramMessageFile(thread.filePaths[0]);
+      const firstFilePath = thread.filePaths[0];
+      if (!firstFilePath) {
+        continue;
+      }
+      const parsed = readInstagramMessageFile(firstFilePath);
       const participantKeys = new Set((parsed.participants ?? []).map((participant) => nameKey(participant.name)).filter(Boolean));
 
       for (const key of participantKeys) {

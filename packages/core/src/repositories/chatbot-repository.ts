@@ -125,6 +125,9 @@ function replaceRules(chatbotId: string, rules: ChatbotInput["rules"]) {
 
   for (let i = 0; i < rules.length; i++) {
     const r = rules[i];
+    if (!r) {
+      continue;
+    }
     insert.run(
       r.id?.trim() || randomUUID(), chatbotId, r.priority ?? i, r.matchType, r.keywordPattern,
       r.responseType, r.responseBody, r.responseMediaPath ?? null,

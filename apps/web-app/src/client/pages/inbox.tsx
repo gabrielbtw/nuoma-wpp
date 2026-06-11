@@ -479,7 +479,10 @@ export function InboxPage() {
   useEffect(() => {
     if (!entries.length) { if (selectedContactId) setSelectedContactId(null); return; }
     if (!selectedContactId || !entries.some((e) => e.contactId === selectedContactId)) {
-      setSelectedContactId(entries[0].contactId);
+      const firstEntry = entries[0];
+      if (firstEntry) {
+        setSelectedContactId(firstEntry.contactId);
+      }
     }
   }, [entries, selectedContactId]);
 

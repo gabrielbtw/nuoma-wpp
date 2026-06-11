@@ -82,7 +82,7 @@ function ChannelIcon({ channel }: { channel: string }) {
 function groupByDate(messages: TimelineMessage[]): Array<{ date: string; messages: TimelineMessage[] }> {
   const groups: Record<string, TimelineMessage[]> = {};
   for (const msg of messages) {
-    const date = (msg.sentAt || msg.createdAt).split("T")[0];
+    const date = (msg.sentAt || msg.createdAt).split("T")[0] ?? "Sem data";
     if (!groups[date]) groups[date] = [];
     groups[date].push(msg);
   }

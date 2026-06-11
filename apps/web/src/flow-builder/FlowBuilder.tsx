@@ -2357,7 +2357,7 @@ function AutomationFlowCanvasBoard({
   );
 }
 
-type AutomationCanvasIconType = AutomationTrigger["type"] | BuilderActionType | "condition" | "end";
+type AutomationCanvasIconType = AutomationTrigger["type"] | BuilderActionType | "condition" | "end" | "instagram";
 
 type AutomationCanvasNodeData = {
   label: string;
@@ -2447,7 +2447,7 @@ function buildAutomationFlowGraph(inputGraph: {
         label: automationTriggerLabel(inputGraph.triggerType),
         meta: `Trigger\n${inputGraph.triggerChannel}`,
         summary: `Entrada ${inputGraph.triggerType} em ${inputGraph.triggerChannel}.`,
-        iconType: inputGraph.triggerType,
+        iconType: inputGraph.triggerChannel === "instagram" ? "instagram" : inputGraph.triggerType,
         tone: inputGraph.triggerChannel === "instagram" ? "ig" : "wa",
         kind: "trigger",
       },
@@ -2489,7 +2489,7 @@ function buildAutomationFlowGraph(inputGraph: {
         summary: previewAction
           ? automationActionSummary(previewAction)
           : automationActionDraftCanvasSummary(action),
-        iconType: action.type,
+        iconType: action.type === "send_step" && inputGraph.triggerChannel === "instagram" ? "instagram" : action.type,
         tone: automationActionTone(action.type, inputGraph.triggerChannel),
         kind: isBranch ? "branch" : "action",
         actionType: action.type,
@@ -2634,6 +2634,7 @@ function automationActionTone(type: BuilderActionType, channel: ChannelType): Ca
 
 function automationCanvasIcon(iconType: AutomationCanvasIconType) {
   if (iconType === "message_received") return PlayCircle;
+  if (iconType === "instagram") return Instagram;
   if (iconType === "campaign_completed") return Flag;
   if (iconType === "tag_applied") return BadgeCheck;
   if (iconType === "tag_removed") return Trash2;
@@ -2648,91 +2649,6 @@ function automationCanvasIcon(iconType: AutomationCanvasIconType) {
   if (iconType === "create_reminder") return Bell;
   if (iconType === "notify_attendant") return Bell;
   return Route;
-}
-
-function AutomationStudioInspector({
-  checks,
-  triggerType,
-  triggerChannel,
-  actionCount,
-  segmentCount,
-  requireWithin24hWindow,
-  previewError,
-  createPending,
-  onCreateDraft,
-}: {
-  checks: Array<{ label: string; ok: boolean }>;
-  triggerType: AutomationTrigger["type"];
-  triggerChannel: ChannelType;
-  actionCount: number;
-  segmentCount: number;
-  requireWithin24hWindow: boolean;
-  previewError: string | null;
-  createPending: boolean;
-  onCreateDraft: () => void;
-}) {
-  const readyCount = checks.filter((check) => check.ok).length;
-  return (
-    <aside className="nuoma-flow-studio-inspector">
-      <div>
-        <p className="botforge-kicker">Inspector</p>
-        <h3 className="mt-1 text-base font-semibold text-fg-primary">Saída segura</h3>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <CampaignPreviewMetric
-          label="checks"
-          value={`${readyCount}/${checks.length}`}
-          tone="success"
-        />
-        <CampaignPreviewMetric label="ações" value={actionCount} />
-        <CampaignPreviewMetric label="condições" value={segmentCount} />
-        <CampaignPreviewMetric label="janela" value={requireWithin24hWindow ? "24h" : "off"} />
-      </div>
-
-      <div className="rounded-lg bg-bg-base p-3 shadow-flat">
-        <div className="mb-2 font-mono text-[0.62rem] uppercase tracking-widest text-fg-dim">
-          Gates
-        </div>
-        <div className="grid gap-2">
-          {checks.map((check) => (
-            <div key={check.label} className="flex items-center justify-between gap-3 text-xs">
-              <span className="text-fg-muted">{check.label}</span>
-              <Badge variant={check.ok ? "success" : "warning"}>
-                {check.ok ? "ok" : "revisar"}
-              </Badge>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="rounded-lg bg-bg-base p-3 shadow-flat">
-        <div className="mb-2 font-mono text-[0.62rem] uppercase tracking-widest text-fg-dim">
-          Sinais
-        </div>
-        <div className="grid gap-2 text-xs text-fg-muted">
-          <div className="flex justify-between gap-3">
-            <span>Trigger</span>
-            <span className="font-mono text-fg-primary">{triggerType}</span>
-          </div>
-          <div className="flex justify-between gap-3">
-            <span>Canal</span>
-            <span className="font-mono text-fg-primary">{triggerChannel}</span>
-          </div>
-        </div>
-      </div>
-
-      {previewError ? (
-        <div className="rounded-lg border border-semantic-danger/35 bg-semantic-danger/10 p-3 text-xs leading-relaxed text-semantic-danger">
-          {previewError}
-        </div>
-      ) : null}
-
-      <Button variant="accent" className="w-full" loading={createPending} onClick={onCreateDraft}>
-        Criar rascunho
-      </Button>
-    </aside>
-  );
 }
 
 function AutomationStudioInspector({

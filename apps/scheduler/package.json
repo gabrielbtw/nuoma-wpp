@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@nuoma/core": "*"
+    "@nuoma/core": "*",
+    "pm2": "^7.0.1"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",

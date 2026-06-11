@@ -45,6 +45,9 @@ while (true) {
   }
 
   const nextFile = pendingFiles[0];
+  if (!nextFile) {
+    break;
+  }
   const summary = importInstagramContacts(nextFile, {
     whatsappLookup
   });

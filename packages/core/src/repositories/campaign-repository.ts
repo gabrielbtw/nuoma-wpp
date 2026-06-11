@@ -450,10 +450,7 @@ export function getCampaignStepStats(campaignId: string) {
 
   const stats: Record<number, { pending: number; processing: number; sent: number; failed: number; skipped: number; total: number }> = {};
   for (const row of rows) {
-    if (!stats[row.step_index]) {
-      stats[row.step_index] = { pending: 0, processing: 0, sent: 0, failed: 0, skipped: 0, total: 0 };
-    }
-    const s = stats[row.step_index];
+    const s = stats[row.step_index] ??= { pending: 0, processing: 0, sent: 0, failed: 0, skipped: 0, total: 0 };
     if (row.status === "pending") s.pending += row.count;
     else if (row.status === "processing") s.processing += row.count;
     else if (row.status === "sent") s.sent += row.count;

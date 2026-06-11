@@ -11,6 +11,7 @@
       "@nuoma/api/app": ["apps/api/src/app.ts"],
       "@nuoma/config": ["packages/config/src/index.ts"],
       "@nuoma/contracts": ["packages/contracts/src/index.ts"],
+      "@nuoma/core": ["packages/core/src/index.ts"],
       "@nuoma/db": ["packages/db/src/index.ts"],
       "@nuoma/db/schema": ["packages/db/src/schema.ts"],
       "@nuoma/ui": ["packages/ui/src/index.ts"],

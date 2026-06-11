@@ -792,22 +792,6 @@ function normalizeInstagramHandleForAudit(value: string | null): string | null {
   return /^[a-z0-9._]{1,128}$/.test(handle) ? handle : null;
 }
 
-function normalizedJsonInstagramHandleSql(tableAlias: string): string {
-  const raw = `lower(trim(coalesce(json_extract(${tableAlias}.payload_json, '$.instagramHandle'), json_extract(${tableAlias}.payload_json, '$.username'), json_extract(${tableAlias}.payload_json, '$.recipientNormalizedValue'), '')))`;
-  const withoutPrefix = `replace(replace(${raw}, '@', ''), 'ig:', '')`;
-  return `(CASE WHEN length(${withoutPrefix}) BETWEEN 1 AND 30 THEN ${withoutPrefix} ELSE '' END)`;
-}
-
-function normalizedJsonSerialTargetSql(tableAlias: string): string {
-  const phone = normalizedJsonPhoneSql(tableAlias);
-  const instagramHandle = normalizedJsonInstagramHandleSql(tableAlias);
-  return `(CASE
-    WHEN ${phone} != '' THEN 'wa:' || ${phone}
-    WHEN ${instagramHandle} != '' THEN 'ig:' || ${instagramHandle}
-    ELSE ''
-  END)`;
-}
-
 function expectRow<T>(row: T | undefined, context: string): T {
   if (!row) {
     throw new Error(`${context} did not return a row`);

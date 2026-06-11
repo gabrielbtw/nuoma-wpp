@@ -1614,7 +1614,7 @@ export class WhatsAppWorker {
       try {
         const { stdout } = await execFileAsync("afinfo", [audioPath]);
         const match = stdout.match(/estimated duration:\s*([\d.]+)/i);
-        if (match) {
+        if (match?.[1]) {
           const parsed = parseFloat(match[1]);
           if (!isNaN(parsed) && parsed > 0) durationSecs = parsed;
         }
@@ -2149,10 +2149,12 @@ export class WhatsAppWorker {
         while (parts.length > 1 && (/^\d+\s+mensage/i.test(parts[0] ?? "") || /^\d+\s+unread/i.test(parts[0] ?? ""))) {
           parts = parts.slice(1);
         }
-        if (parts[0] === title) return row;
+        const firstPart = parts[0];
+        if (!firstPart) continue;
+        if (firstPart === title) return row;
         // Phone-number titles (e.g. "557194133275") may appear formatted in DOM
         // as "+55 71 9413 3275". Normalize both sides before comparing.
-        if (/^\d{7,}$/.test(title) && parts[0].replace(/\D/g, "") === title) return row;
+        if (/^\d{7,}$/.test(title) && firstPart.replace(/\D/g, "") === title) return row;
       }
       // Scroll down a bit and search again
       if (isCancelled?.()) return null;
@@ -2520,12 +2522,14 @@ export class WhatsAppWorker {
         const tsMatch = r.preText.match(/\[(\d{1,2}):(\d{2}),\s*(\d{1,2})\/(\d{1,2})\/(\d{2,4})\]/);
         if (tsMatch) {
           const [, hh, mm, dd, mo, yyOrYyyy] = tsMatch;
-          const yyyy = yyOrYyyy.length === 2 ? `20${yyOrYyyy}` : yyOrYyyy;
-          const pad = (n: string) => n.padStart(2, "0");
-          // Build ISO-8601 local-time (no Z) so V8 parses in system local
-          // timezone — matches what WA Web shows on screen. Prevents off-by-one
-          // day errors around midnight when converting BRT → UTC.
-          sentAt = new Date(`${yyyy}-${pad(mo)}-${pad(dd)}T${pad(hh)}:${pad(mm)}:00`).toISOString();
+          if (hh && mm && dd && mo && yyOrYyyy) {
+            const yyyy = yyOrYyyy.length === 2 ? `20${yyOrYyyy}` : yyOrYyyy;
+            const pad = (n: string) => n.padStart(2, "0");
+            // Build ISO-8601 local-time (no Z) so V8 parses in system local
+            // timezone — matches what WA Web shows on screen. Prevents off-by-one
+            // day errors around midnight when converting BRT → UTC.
+            sentAt = new Date(`${yyyy}-${pad(mo)}-${pad(dd)}T${pad(hh)}:${pad(mm)}:00`).toISOString();
+          }
         }
       }
       const contentType: "text" | "audio" | "image" | "video" | "file" =
@@ -2909,6 +2913,9 @@ export class WhatsAppWorker {
       let idx = 0;
       for (; idx < backfillTargets.length; idx++) {
         const target = backfillTargets[idx];
+        if (!target) {
+          continue;
+        }
         if (isCancelled()) { backfillStopReason = "cancelled"; break; }
         if (backfillBudgetExceeded()) { backfillStopReason = "budget"; break; }
         try {

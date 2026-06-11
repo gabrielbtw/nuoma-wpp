@@ -267,8 +267,9 @@ export function CampaignsPage() {
       return;
     }
 
-    if (!selectedCampaignId || !filteredCampaigns.some((campaign) => campaign.id === selectedCampaignId)) {
-      setSelectedCampaignId(filteredCampaigns[0].id);
+    const firstCampaign = filteredCampaigns[0];
+    if (firstCampaign && (!selectedCampaignId || !filteredCampaigns.some((campaign) => campaign.id === selectedCampaignId))) {
+      setSelectedCampaignId(firstCampaign.id);
     }
   }, [filteredCampaigns, selectedCampaignId]);
 
@@ -376,8 +377,9 @@ export function CampaignsPage() {
       return;
     }
 
-    if (!selectedRecipientId || !recipients.some((recipient) => recipient.id === selectedRecipientId)) {
-      setSelectedRecipientId(recipients[0].id);
+    const firstRecipient = recipients[0];
+    if (firstRecipient && (!selectedRecipientId || !recipients.some((recipient) => recipient.id === selectedRecipientId))) {
+      setSelectedRecipientId(firstRecipient.id);
     }
   }, [pagedRecipients, selectedRecipientId]);
 

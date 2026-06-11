@@ -202,6 +202,9 @@ export function AutomationEditor({
 
   function duplicateStep(index: number) {
     const step = flowSteps[index];
+    if (!step) {
+      return;
+    }
     const clone = { ...step, id: undefined };
     updateActions([...flowSteps.slice(0, index + 1), clone, ...flowSteps.slice(index + 1)]);
   }
