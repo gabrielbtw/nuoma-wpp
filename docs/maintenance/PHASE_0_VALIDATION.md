@@ -84,3 +84,23 @@ Status de aceite da Fase 0:
 - A estrutura de workspace esta coerente para `@nuoma/migration`.
 - O gate de formato ainda nao esta verde por divida preexistente.
 - Nenhum smoke real ou execucao com custo externo foi executado.
+
+## Retomada Rebrand 2026-06-11
+
+A retomada do plano Carvao & Cobre executou gates focados adicionais sem envio
+real:
+
+| Comando | Resultado |
+| --- | --- |
+| `npm run typecheck --workspace @nuoma/ui` | passou |
+| `npm run typecheck --workspace @nuoma/web` | passou |
+| `npm run typecheck --workspace @nuoma/worker` | passou |
+| `npm run test --workspace @nuoma/web -- --run` | passou |
+| `npm run test --workspace @nuoma/worker` | passou |
+| `npm run build --workspace @nuoma/web` | passou |
+| `npm run test:v211-overlay-unit` | passou |
+| `npm run test:v211-overlay-fab` | passou |
+
+Esta retomada nao substitui o gate repo-wide acima: `format:check` continua
+registrado como divida preexistente. O status detalhado esta em
+`docs/maintenance/REBRAND_PHASE_0_STATUS.md`.
