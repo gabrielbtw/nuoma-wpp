@@ -1,8 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  ActivitySquare, Bot, BriefcaseBusiness, ContactRound, FileArchive,
-  LayoutDashboard, LineChart, Logs, Menu, MessageCircle, MessageSquareMore,
-  Mic, Settings, X, Zap
+  ActivitySquare,
+  Bot,
+  BriefcaseBusiness,
+  ContactRound,
+  FileArchive,
+  LayoutDashboard,
+  LineChart,
+  Logs,
+  Menu,
+  MessageCircle,
+  MessageSquareMore,
+  Mic,
+  Settings,
+  X,
+  Zap,
 } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { ChannelSessionStrip } from "@/components/shared/channel-session-strip";
@@ -20,7 +32,7 @@ const navItems = [
   { to: "/imports", label: "Importacoes", icon: FileArchive, color: "text-n-text-dim" },
   { to: "/health", label: "Saude", icon: ActivitySquare, color: "text-n-red" },
   { to: "/logs", label: "Logs", icon: Logs, color: "text-n-text-dim" },
-  { to: "/settings", label: "Config", icon: Settings, color: "text-n-text-dim" }
+  { to: "/settings", label: "Config", icon: Settings, color: "text-n-text-dim" },
 ];
 
 function NavItems({ onNavigate }: { onNavigate?: () => void }) {
@@ -39,7 +51,7 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
                 "group relative flex items-center gap-2.5 rounded-xl px-3 py-[7px] text-body font-medium transition-all duration-200",
                 isActive
                   ? "bg-n-surface-2 text-n-text shadow-sm ring-1 ring-white/[0.04]"
-                  : "text-n-text-muted hover:bg-n-surface-2/40 hover:text-n-text"
+                  : "text-n-text-muted hover:bg-n-surface-2/40 hover:text-n-text",
               )
             }
           >
@@ -48,7 +60,12 @@ function NavItems({ onNavigate }: { onNavigate?: () => void }) {
                 {isActive && (
                   <div className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-n-blue" />
                 )}
-                <Icon className={cn("h-[15px] w-[15px] shrink-0 transition-colors duration-200", isActive ? item.color : "text-n-text-dim group-hover:text-n-text-muted")} />
+                <Icon
+                  className={cn(
+                    "h-[15px] w-[15px] shrink-0 transition-colors duration-200",
+                    isActive ? item.color : "text-n-text-dim group-hover:text-n-text-muted",
+                  )}
+                />
                 <span className="truncate">{item.label}</span>
               </>
             )}
@@ -69,11 +86,13 @@ export function AppShell() {
         if (item.to === "/") return location.pathname === "/";
         return location.pathname.startsWith(item.to);
       }) ?? navItems[0],
-    [location.pathname]
+    [location.pathname],
   );
   const showHeaderSessionStrip = location.pathname !== "/campaigns";
 
-  useEffect(() => { setMobileNavOpen(false); }, [location.pathname]);
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
 
   return (
     <div className="relative flex h-dvh w-full overflow-hidden bg-n-bg font-body text-n-text">
@@ -96,7 +115,9 @@ export function AppShell() {
         <div className="border-t border-n-border/40 px-4 py-3">
           <div className="flex items-center gap-2">
             <span className="signal-dot active" />
-            <span className="text-micro uppercase tracking-wider text-n-text-dim">Ambiente local</span>
+            <span className="text-micro uppercase tracking-wider text-n-text-dim">
+              Ambiente local
+            </span>
           </div>
         </div>
       </aside>
@@ -105,7 +126,11 @@ export function AppShell() {
       <main className="relative flex flex-1 flex-col overflow-hidden">
         {/* Mobile Top Bar */}
         <div className="flex items-center justify-between border-b border-n-border bg-n-surface px-4 py-2.5 lg:hidden">
-          <button type="button" onClick={() => setMobileNavOpen(true)} className="rounded-md p-1.5 text-n-text-muted hover:bg-n-surface-2">
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen(true)}
+            className="rounded-md p-1.5 text-n-text-muted hover:bg-n-surface-2"
+          >
             <Menu className="h-5 w-5" />
           </button>
           <span className="text-h4 text-n-text">Nuoma</span>
@@ -115,7 +140,12 @@ export function AppShell() {
         {/* Desktop Header */}
         <header className="hidden items-center justify-between border-b border-n-border/40 bg-n-bg px-6 py-2 lg:flex">
           <span className="text-caption text-n-text-dim">{currentSection?.label ?? "Nuoma"}</span>
-          <div className={cn("hidden xl:flex items-center gap-2", !showHeaderSessionStrip && "xl:hidden")}>
+          <div
+            className={cn(
+              "hidden xl:flex items-center gap-2",
+              !showHeaderSessionStrip && "xl:hidden",
+            )}
+          >
             <ChannelSessionStrip compact />
           </div>
         </header>

@@ -49,7 +49,10 @@ async function main() {
     assert(health.json<{ ok: boolean; service: string }>().ok === true, "health ok=false");
 
     const unauthorizedMe = await trpcCall(app, "GET", "auth.me", undefined);
-    assert(unauthorizedMe.statusCode === 401, `unauthorized me status ${unauthorizedMe.statusCode}`);
+    assert(
+      unauthorizedMe.statusCode === 401,
+      `unauthorized me status ${unauthorizedMe.statusCode}`,
+    );
 
     const login = await trpcCall<{ user: { email: string; role: string }; csrfToken: string }>(
       app,

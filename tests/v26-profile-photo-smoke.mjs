@@ -48,9 +48,7 @@ async function main() {
     await profileStatus.getByText(`sha ${smokeSha.slice(0, 12)}`).waitFor({ state: "visible" });
 
     await page.screenshot({ path: screenshotPath, fullPage: true });
-    const result = await new AxeBuilder({ page })
-      .withTags(["wcag2a", "wcag2aa"])
-      .analyze();
+    const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
     const blocking = result.violations.filter(
       (violation) => violation.impact === "critical" || violation.impact === "serious",
     );
@@ -75,7 +73,13 @@ async function seedProfilePhotoEvidence() {
   try {
     db.pragma("foreign_keys = ON");
     const now = new Date().toISOString();
-    const storageRoot = path.resolve(path.dirname(databaseUrl), "media-assets", "1", "profile-photos", smokePhone);
+    const storageRoot = path.resolve(
+      path.dirname(databaseUrl),
+      "media-assets",
+      "1",
+      "profile-photos",
+      smokePhone,
+    );
     await fs.mkdir(storageRoot, { recursive: true });
     const storagePath = path.join(storageRoot, `${smokeSha}.jpg`);
     await fs.writeFile(storagePath, Buffer.from("nuoma-v26-profile-photo-smoke"));
@@ -135,7 +139,13 @@ async function seedProfilePhotoEvidence() {
             @now, @mediaAssetId, @sha, @now, NULL, @now, @now
           )
         `,
-      ).run({ title: smokeTitle, phone: smokePhone, mediaAssetId: mediaAsset.id, sha: smokeSha, now });
+      ).run({
+        title: smokeTitle,
+        phone: smokePhone,
+        mediaAssetId: mediaAsset.id,
+        sha: smokeSha,
+        now,
+      });
     }
 
     const contact = findSmokeWhatsappContact(db, { userId: 1, phone: smokePhone });

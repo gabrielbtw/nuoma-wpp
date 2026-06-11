@@ -52,8 +52,7 @@ const RATE_LIMIT_MS = 1_000;
 // Phone regex: matches Brazilian numbers in various formats
 //   +55 11 99999-8888 | (11) 99999-8888 | 11999998888 | 55 11 999998888 etc.
 // ---------------------------------------------------------------------------
-const PHONE_REGEX =
-  /(?:\+?55\s*)?(?:\(?\d{2}\)?[\s.-]*)(?:9[\s.-]?\d{4}[\s.-]?\d{4})/g;
+const PHONE_REGEX = /(?:\+?55\s*)?(?:\(?\d{2}\)?[\s.-]*)(?:9[\s.-]?\d{4}[\s.-]?\d{4})/g;
 
 function normalizePhone(raw: string): string {
   const digits = raw.replace(/\D/g, "");
@@ -101,10 +100,7 @@ interface IgThreadDetailResponse {
   };
 }
 
-async function fetchIgApi<T>(
-  page: import("playwright").Page,
-  path: string
-): Promise<T> {
+async function fetchIgApi<T>(page: import("playwright").Page, path: string): Promise<T> {
   const result = await page.evaluate(async (apiPath: string) => {
     // Get CSRF token from cookies
     const csrfMatch = document.cookie.match(/csrftoken=([^;]+)/);
@@ -162,16 +158,12 @@ async function searchContact(username: string): Promise<NuomaContact | null> {
 
   // Find exact match on instagram field
   const match = result.items.find(
-    (c) =>
-      c.instagram?.replace(/^@/, "").toLowerCase() === username.toLowerCase()
+    (c) => c.instagram?.replace(/^@/, "").toLowerCase() === username.toLowerCase(),
   );
   return match ?? result.items[0];
 }
 
-async function updateContactPhone(
-  contactId: string,
-  phone: string
-): Promise<boolean> {
+async function updateContactPhone(contactId: string, phone: string): Promise<boolean> {
   const url = `${NUOMA_BASE}/contacts/${contactId}`;
   const resp = await fetch(url, {
     method: "PATCH",
@@ -181,9 +173,11 @@ async function updateContactPhone(
   if (!resp.ok) {
     let detail = "";
     try {
-      const body = await resp.json() as { message?: string };
+      const body = (await resp.json()) as { message?: string };
       detail = body.message ?? "";
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     console.error(`  [NUOMA] Failed to update contact ${contactId}: ${resp.status} ${detail}`);
     return false;
   }
@@ -241,7 +235,9 @@ async function main() {
       allThreads.push(...threads);
       hasOlder = resp.inbox.has_older ?? false;
       cursor = resp.inbox.oldest_cursor ?? null;
-      console.log(`  Fetched ${threads.length} threads (total: ${allThreads.length}, has_older: ${hasOlder})`);
+      console.log(
+        `  Fetched ${threads.length} threads (total: ${allThreads.length}, has_older: ${hasOlder})`,
+      );
     } catch (err) {
       console.error(`  [!] Error fetching inbox: ${err}`);
       hasOlder = false;
@@ -265,10 +261,9 @@ async function main() {
 
   for (let i = 0; i < allThreads.length; i++) {
     const thread = allThreads[i];
-    const username =
-      thread.users?.[0]?.username ?? thread.thread_title ?? "unknown";
+    const username = thread.users?.[0]?.username ?? thread.thread_title ?? "unknown";
     console.log(
-      `\n[${i + 1}/${allThreads.length}] Processing thread: @${username} (${thread.thread_id})`
+      `\n[${i + 1}/${allThreads.length}] Processing thread: @${username} (${thread.thread_id})`,
     );
 
     // Fetch messages
@@ -329,16 +324,14 @@ async function main() {
     // If contact already has a phone, skip unless it is empty
     if (contact.phone && contact.phone.trim().length > 0) {
       console.log(
-        `  Contact "${contact.name}" (${contact.id}) already has phone: ${contact.phone}. Skipping.`
+        `  Contact "${contact.name}" (${contact.id}) already has phone: ${contact.phone}. Skipping.`,
       );
       continue;
     }
 
     // Use the first phone found
     const phoneToSet = phones[0];
-    console.log(
-      `  Updating contact "${contact.name}" (${contact.id}) with phone: ${phoneToSet}`
-    );
+    console.log(`  Updating contact "${contact.name}" (${contact.id}) with phone: ${phoneToSet}`);
     const ok = await updateContactPhone(contact.id, phoneToSet);
     if (ok) {
       contactsUpdated++;

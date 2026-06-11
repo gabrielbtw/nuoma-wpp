@@ -875,7 +875,9 @@ function canonicalExternalThreadId(thread: SyncThreadRef): string | null {
   if (externalPhone) {
     return externalPhone;
   }
-  return normalizeWaJid(thread.waJid) ?? normalizeWaJid(thread.phone) ?? normalizePhone(thread.phone);
+  return (
+    normalizeWaJid(thread.waJid) ?? normalizeWaJid(thread.phone) ?? normalizePhone(thread.phone)
+  );
 }
 
 function isUnidentifiedWhatsAppThread(thread: SyncThreadRef): boolean {

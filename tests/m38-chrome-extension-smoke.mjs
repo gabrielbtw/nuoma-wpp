@@ -155,7 +155,7 @@ try {
                   automationRunLastResult: { jobsCreated: 1, actionsApplied: 0, plannedActions: 1 },
                 },
               }
-          : snapshot;
+            : snapshot;
       window.postMessage(
         {
           source: "nuoma-wpp-extension-content",

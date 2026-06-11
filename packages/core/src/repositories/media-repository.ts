@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { getDb } from "../db/connection.js";
-import type { AttachmentCandidateContentType, AttachmentCandidateRecord, ChannelType } from "../types/domain.js";
+import type {
+  AttachmentCandidateContentType,
+  AttachmentCandidateRecord,
+  ChannelType,
+} from "../types/domain.js";
 
 function nowIso() {
   return new Date().toISOString();
@@ -39,18 +43,22 @@ function mapAttachmentCandidate(row: Record<string, unknown>): AttachmentCandida
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
     conversationTitle: (row.conversation_title as string | null) ?? null,
-    messageBody: (row.message_body as string | null) ?? null
+    messageBody: (row.message_body as string | null) ?? null,
   };
 }
 
 export function getMediaAssetByHash(sha256: string) {
   const db = getDb();
-  return db.prepare("SELECT * FROM media_assets WHERE sha256 = ?").get(sha256) as Record<string, unknown> | undefined;
+  return db.prepare("SELECT * FROM media_assets WHERE sha256 = ?").get(sha256) as
+    | Record<string, unknown>
+    | undefined;
 }
 
 export function getMediaAssetById(mediaAssetId: string) {
   const db = getDb();
-  return db.prepare("SELECT * FROM media_assets WHERE id = ?").get(mediaAssetId) as Record<string, unknown> | undefined;
+  return db.prepare("SELECT * FROM media_assets WHERE id = ?").get(mediaAssetId) as
+    | Record<string, unknown>
+    | undefined;
 }
 
 export function createOrReuseMediaAsset(input: {
@@ -76,7 +84,7 @@ export function createOrReuseMediaAsset(input: {
       INSERT INTO media_assets (
         id, sha256, original_name, safe_name, mime_type, size_bytes, category, linked_campaign_id, linked_automation_id, storage_path, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `
+    `,
   ).run(
     id,
     input.sha256,
@@ -88,7 +96,7 @@ export function createOrReuseMediaAsset(input: {
     input.linkedCampaignId ?? null,
     input.linkedAutomationId ?? null,
     input.storagePath,
-    nowIso()
+    nowIso(),
   );
 
   return getMediaAssetById(id);
@@ -96,7 +104,9 @@ export function createOrReuseMediaAsset(input: {
 
 export function listTemporaryMediaAssets() {
   const db = getDb();
-  return db.prepare("SELECT * FROM media_assets WHERE category = 'temp'").all() as Array<Record<string, unknown>>;
+  return db.prepare("SELECT * FROM media_assets WHERE category = 'temp'").all() as Array<
+    Record<string, unknown>
+  >;
 }
 
 export function createAttachmentCandidate(input: {
@@ -128,7 +138,7 @@ export function createAttachmentCandidate(input: {
     mimeType: input.mimeType,
     sizeBytes: Math.max(0, Number(input.sizeBytes ?? 0)),
     category: "sync-candidate",
-    storagePath: input.storagePath
+    storagePath: input.storagePath,
   });
   if (!media) {
     throw new Error("media_asset_create_failed");
@@ -147,9 +157,11 @@ export function createAttachmentCandidate(input: {
           AND ac.media_asset_id = ?
           AND COALESCE(ac.message_id, '') = COALESCE(?, '')
         LIMIT 1
-      `
+      `,
     )
-    .get(input.conversationId, mediaAssetId, input.messageId ?? null) as Record<string, unknown> | undefined;
+    .get(input.conversationId, mediaAssetId, input.messageId ?? null) as
+    | Record<string, unknown>
+    | undefined;
 
   if (existing) {
     return mapAttachmentCandidate(existing);
@@ -167,7 +179,7 @@ export function createAttachmentCandidate(input: {
         id, conversation_id, contact_id, message_id, media_asset_id, channel, content_type, original_name,
         mime_type, size_bytes, source_url, caption, observed_at, metadata_json, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `
+    `,
   ).run(
     id,
     input.conversationId,
@@ -184,7 +196,7 @@ export function createAttachmentCandidate(input: {
     observedAt,
     JSON.stringify(input.metadata ?? {}),
     timestamp,
-    timestamp
+    timestamp,
   );
 
   const inserted = getAttachmentCandidateById(id);
@@ -204,7 +216,7 @@ export function createAttachmentCandidate(input: {
           AND ac.media_asset_id = ?
         ORDER BY datetime(ac.created_at) DESC
         LIMIT 1
-      `
+      `,
     )
     .get(input.conversationId, mediaAssetId) as Record<string, unknown> | undefined;
 
@@ -222,7 +234,7 @@ export function getAttachmentCandidateById(candidateId: string) {
         LEFT JOIN conversations conv ON conv.id = ac.conversation_id
         LEFT JOIN messages m ON m.id = ac.message_id
         WHERE ac.id = ?
-      `
+      `,
     )
     .get(candidateId) as Record<string, unknown> | undefined;
 
@@ -246,13 +258,13 @@ export function listAttachmentCandidatesByConversation(conversationId: string, l
         WHERE ac.conversation_id = ?
         ORDER BY datetime(ac.observed_at) DESC, datetime(ac.created_at) DESC
         LIMIT ?
-      `
+      `,
     )
     .all(conversationId, Math.max(1, Math.min(200, limit))) as Array<Record<string, unknown>>;
 
   return {
     total: Number(totalRow?.total ?? 0),
-    items: rows.map(mapAttachmentCandidate)
+    items: rows.map(mapAttachmentCandidate),
   };
 }
 
@@ -265,7 +277,7 @@ export function listAttachmentCandidatesByContact(contactId: string, limit = 50)
         FROM attachment_candidates ac
         LEFT JOIN conversations conv ON conv.id = ac.conversation_id
         WHERE COALESCE(ac.contact_id, conv.contact_id) = ?
-      `
+      `,
     )
     .get(contactId) as { total: number } | undefined;
 
@@ -280,12 +292,12 @@ export function listAttachmentCandidatesByContact(contactId: string, limit = 50)
         WHERE COALESCE(ac.contact_id, conv.contact_id) = ?
         ORDER BY datetime(ac.observed_at) DESC, datetime(ac.created_at) DESC
         LIMIT ?
-      `
+      `,
     )
     .all(contactId, Math.max(1, Math.min(200, limit))) as Array<Record<string, unknown>>;
 
   return {
     total: Number(totalRow?.total ?? 0),
-    items: rows.map(mapAttachmentCandidate)
+    items: rows.map(mapAttachmentCandidate),
   };
 }

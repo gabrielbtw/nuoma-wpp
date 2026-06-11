@@ -132,7 +132,7 @@ export function AutomationsPage() {
               <div className="nuoma-ops-panel-head">
                 <div>
                   <h2>Teste manual seguro</h2>
-                  <p>Dry-run, sem job e sem envio.</p>
+                  <p>Simulação, sem Job e sem envio.</p>
                 </div>
                 <span className="nuoma-automation-icon">
                   <FlaskConical className="h-4 w-4" />
@@ -206,12 +206,12 @@ export function AutomationsPage() {
               <div className="nuoma-ops-panel-head">
                 <div>
                   <h2>Guardrails</h2>
-                  <p>O disparo manual continua bloqueado por allowlist.</p>
+                  <p>O disparo manual continua bloqueado por lista permitida.</p>
                 </div>
               </div>
               <div className="nuoma-automation-gates">
                 <span>
-                  <ShieldCheck className="h-4 w-4" /> Dry-run <b>on</b>
+                  <ShieldCheck className="h-4 w-4" /> Simulação <b>ativa</b>
                 </span>
                 <span>
                   <Radio className="h-4 w-4" /> Canal <b>WA</b>
@@ -257,7 +257,7 @@ export function AutomationsPage() {
                           overlay {isOverlayEnabled(a.metadata) ? "sim" : "não"}
                         </Badge>
                         <Badge variant={a.status === "active" ? "success" : "neutral"}>
-                          {a.status}
+                          {automationStatusLabel(a.status)}
                         </Badge>
                         <Button
                           variant={isOverlayEnabled(a.metadata) ? "soft" : "accent"}
@@ -282,6 +282,14 @@ export function AutomationsPage() {
       </Animate>
     </div>
   );
+}
+
+function automationStatusLabel(status: string): string {
+  if (status === "active") return "ativa";
+  if (status === "paused") return "pausada";
+  if (status === "draft") return "rascunho";
+  if (status === "inactive") return "inativa";
+  return status;
 }
 
 function usePageIntent() {

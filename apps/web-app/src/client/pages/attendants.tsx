@@ -26,7 +26,7 @@ function fileBaseName(filePath: string) {
 
 function AttendantDialog({
   attendant,
-  onClose
+  onClose,
 }: {
   attendant?: AttendantRecord;
   onClose: () => void;
@@ -47,27 +47,30 @@ function AttendantDialog({
       setAttendantId(data.id);
       qc.invalidateQueries({ queryKey: ["attendants"] });
     },
-    onError: () => toast("error", "Erro ao criar atendente.")
+    onError: () => toast("error", "Erro ao criar atendente."),
   });
 
   const updateNameMutation = useMutation({
     mutationFn: (n: string) =>
-      apiFetch<AttendantRecord>(`/attendants/${attendantId}`, { method: "PATCH", body: toJsonBody({ name: n }) }),
+      apiFetch<AttendantRecord>(`/attendants/${attendantId}`, {
+        method: "PATCH",
+        body: toJsonBody({ name: n }),
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["attendants"] }),
-    onError: () => toast("error", "Erro ao salvar nome.")
+    onError: () => toast("error", "Erro ao salvar nome."),
   });
 
   const removeSampleMutation = useMutation({
     mutationFn: (samplePath: string) =>
       apiFetch<AttendantRecord>(`/attendants/${attendantId}/samples`, {
         method: "DELETE",
-        body: toJsonBody({ samplePath })
+        body: toJsonBody({ samplePath }),
       }),
     onSuccess: (data) => {
       setSamples(data.voiceSamples);
       qc.invalidateQueries({ queryKey: ["attendants"] });
     },
-    onError: () => toast("error", "Erro ao remover amostra.")
+    onError: () => toast("error", "Erro ao remover amostra."),
   });
 
   const deleteMutation = useMutation({
@@ -76,7 +79,7 @@ function AttendantDialog({
       qc.invalidateQueries({ queryKey: ["attendants"] });
       onClose();
     },
-    onError: () => toast("error", "Erro ao excluir atendente.")
+    onError: () => toast("error", "Erro ao excluir atendente."),
   });
 
   async function saveName() {
@@ -112,7 +115,7 @@ function AttendantDialog({
     try {
       const updated = await apiFetch<AttendantRecord>(`/attendants/${id}/samples`, {
         method: "POST",
-        body: formData
+        body: formData,
       });
       setSamples(updated.voiceSamples);
       setAttendantId(id);
@@ -137,14 +140,20 @@ function AttendantDialog({
               {isEdit ? "Editar Atendente" : "Novo Atendente"}
             </span>
           </div>
-          <button type="button" onClick={onClose} className="text-n-text-muted hover:text-n-text transition-all duration-200">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-n-text-muted hover:text-n-text transition-all duration-200"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <p className="text-micro font-semibold uppercase tracking-wider text-n-text-dim">Nome</p>
+            <p className="text-micro font-semibold uppercase tracking-wider text-n-text-dim">
+              Nome
+            </p>
             <div className="flex gap-2">
               <Input
                 className="h-10 flex-1 rounded-xl border-n-border bg-n-surface-2 text-sm"
@@ -169,7 +178,8 @@ function AttendantDialog({
               Amostras de voz ({samples.length})
             </p>
             <p className="text-micro text-n-text-dim">
-              Envie arquivos de audio com a voz que deseja clonar. Quanto mais amostras, melhor a qualidade.
+              Envie arquivos de audio com a voz que deseja clonar. Quanto mais amostras, melhor a
+              qualidade.
             </p>
 
             <div className="space-y-1.5">
@@ -180,7 +190,9 @@ function AttendantDialog({
                 >
                   <div className="flex items-center gap-2">
                     <Mic className="h-3.5 w-3.5 text-cmm-purple" />
-                    <span className="max-w-[280px] truncate text-xs text-n-text-muted">{fileBaseName(s)}</span>
+                    <span className="max-w-[280px] truncate text-xs text-n-text-muted">
+                      {fileBaseName(s)}
+                    </span>
                   </div>
                   <button
                     type="button"
@@ -210,7 +222,7 @@ function AttendantDialog({
               disabled={uploading}
               className={cn(
                 "flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-n-border/60 py-3 text-caption font-semibold text-n-text-dim transition-all duration-200",
-                uploading ? "opacity-50" : "hover:border-cmm-purple/40 hover:text-cmm-purple"
+                uploading ? "opacity-50" : "hover:border-cmm-purple/40 hover:text-cmm-purple",
               )}
             >
               <Upload className="h-3.5 w-3.5" />
@@ -243,7 +255,7 @@ export function AttendantsPage() {
 
   const { data: attendants = [], isLoading } = useQuery({
     queryKey: ["attendants"],
-    queryFn: () => apiFetch<AttendantRecord[]>("/attendants")
+    queryFn: () => apiFetch<AttendantRecord[]>("/attendants"),
   });
 
   function openCreate() {
@@ -272,7 +284,10 @@ export function AttendantsPage() {
       {isLoading ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 2 }).map((_, i) => (
-            <div key={i} className="h-28 animate-pulse rounded-2xl border border-n-border bg-n-surface-2" />
+            <div
+              key={i}
+              className="h-28 animate-pulse rounded-2xl border border-n-border bg-n-surface-2"
+            />
           ))}
         </div>
       ) : attendants.length === 0 ? (

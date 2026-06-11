@@ -103,7 +103,11 @@ export async function resolveCrmReadableFile(
     throw new Error("CRM S3 storage bucket mismatch");
   }
 
-  const localPath = path.join(crmCacheRoot(input.env), parsed.bucket, safeObjectKey(parsed.objectKey));
+  const localPath = path.join(
+    crmCacheRoot(input.env),
+    parsed.bucket,
+    safeObjectKey(parsed.objectKey),
+  );
   try {
     await fs.access(localPath);
     return {
@@ -201,7 +205,9 @@ async function putS3Object(input: {
   const accessKeyId = input.env.API_CRM_STORAGE_S3_ACCESS_KEY_ID;
   const secretAccessKey = input.env.API_CRM_STORAGE_S3_SECRET_ACCESS_KEY;
   if (!accessKeyId || !secretAccessKey) {
-    throw new Error("CRM S3 storage requires API_CRM_STORAGE_S3_ACCESS_KEY_ID and SECRET_ACCESS_KEY");
+    throw new Error(
+      "CRM S3 storage requires API_CRM_STORAGE_S3_ACCESS_KEY_ID and SECRET_ACCESS_KEY",
+    );
   }
 
   const region = input.env.API_CRM_STORAGE_S3_REGION;
@@ -243,7 +249,9 @@ async function getS3Object(input: {
   const accessKeyId = input.env.API_CRM_STORAGE_S3_ACCESS_KEY_ID;
   const secretAccessKey = input.env.API_CRM_STORAGE_S3_SECRET_ACCESS_KEY;
   if (!accessKeyId || !secretAccessKey) {
-    throw new Error("CRM S3 storage requires API_CRM_STORAGE_S3_ACCESS_KEY_ID and SECRET_ACCESS_KEY");
+    throw new Error(
+      "CRM S3 storage requires API_CRM_STORAGE_S3_ACCESS_KEY_ID and SECRET_ACCESS_KEY",
+    );
   }
 
   const region = input.env.API_CRM_STORAGE_S3_REGION;
@@ -403,7 +411,12 @@ function safeObjectKey(objectKey: string): string {
   return path.join(...parts);
 }
 
-function getSignatureKey(secretAccessKey: string, dateStamp: string, region: string, service: string) {
+function getSignatureKey(
+  secretAccessKey: string,
+  dateStamp: string,
+  region: string,
+  service: string,
+) {
   const dateKey = createHmac("sha256", `AWS4${secretAccessKey}`).update(dateStamp).digest();
   const regionKey = createHmac("sha256", dateKey).update(region).digest();
   const serviceKey = createHmac("sha256", regionKey).update(service).digest();

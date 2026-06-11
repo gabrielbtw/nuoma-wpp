@@ -47,13 +47,13 @@ Prints salvos fora do repo:
 
 ## Validacoes
 
-| Comando | Status |
-| --- | --- |
-| `npm run typecheck --workspace @nuoma/ui` | passou |
-| `npm run typecheck --workspace @nuoma/web` | passou |
-| `npm run build --workspace @nuoma/web` | passou |
+| Comando                                        | Status |
+| ---------------------------------------------- | ------ |
+| `npm run typecheck --workspace @nuoma/ui`      | passou |
+| `npm run typecheck --workspace @nuoma/web`     | passou |
+| `npm run build --workspace @nuoma/web`         | passou |
 | `npm run test --workspace @nuoma/web -- --run` | passou |
-| `npm run test:design-system-v3` | passou |
+| `npm run test:design-system-v3`                | passou |
 
 ## Residuos Controlados
 
@@ -63,4 +63,3 @@ Prints salvos fora do repo:
   `packages/ui/src/tailwind/preset.ts`, alem de pagina DEV/evidencia.
 - Literais de cor seguem permitidos nos arquivos de token e no CSS legado ate o
   split final por dominio.
-

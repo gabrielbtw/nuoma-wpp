@@ -1,16 +1,9 @@
 import type { Automation } from "@nuoma/contracts";
 import type { Repositories } from "@nuoma/db";
 
-import {
-  triggerAutomationForPhone,
-  type TriggerAutomationResult,
-} from "./automation-trigger.js";
+import { triggerAutomationForPhone, type TriggerAutomationResult } from "./automation-trigger.js";
 import { isOverlayEnabled } from "./overlay-eligibility.js";
-import {
-  evaluateApiRealSendTarget,
-  normalizePhone,
-  type ApiSendPolicy,
-} from "./send-policy.js";
+import { evaluateApiRealSendTarget, normalizePhone, type ApiSendPolicy } from "./send-policy.js";
 
 export interface OverlayAutomationOption {
   id: number;
@@ -90,8 +83,7 @@ export async function listOverlayAutomationOptions(input: {
           status: automation.status,
           triggerChannel: automation.trigger.channel ?? null,
           actionsCount: automation.actions.length,
-          sendStepsCount: automation.actions.filter((action) => action.type === "send_step")
-            .length,
+          sendStepsCount: automation.actions.filter((action) => action.type === "send_step").length,
           overlayEnabled: true,
           eligible,
           reasons,
@@ -262,9 +254,7 @@ function replayOverlayRun(
     plannedActions: numberFromUnknown(previousResult.plannedActions) ?? 0,
     skippedActions: [],
     wouldEnqueueJobs: booleanFromUnknown(previousResult.wouldEnqueueJobs) ?? false,
-    rejected: eligible
-      ? []
-      : reasons.map((reason) => ({ source: "phone", value: phone, reason })),
+    rejected: eligible ? [] : reasons.map((reason) => ({ source: "phone", value: phone, reason })),
   };
 }
 
@@ -308,5 +298,7 @@ function booleanFromUnknown(value: unknown): boolean | null {
 }
 
 function stringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }

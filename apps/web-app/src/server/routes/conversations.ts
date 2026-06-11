@@ -12,17 +12,17 @@ import {
   listUnifiedInbox,
   rememberInstagramThreadForContact,
   sendJobPayloadSchema,
-  updateConversationInternalStatus
+  updateConversationInternalStatus,
 } from "@nuoma/core";
 import { z } from "zod";
 import { getInstagramAssistedService } from "../lib/instagram-assisted.js";
 
 const manualMessageSchema = z.object({
-  text: z.string().trim().min(1, "Mensagem obrigatoria")
+  text: z.string().trim().min(1, "Mensagem obrigatoria"),
 });
 
 const patchConversationSchema = z.object({
-  internalStatus: z.enum(["open", "waiting", "closed"])
+  internalStatus: z.enum(["open", "waiting", "closed"]),
 });
 
 export async function registerConversationRoutes(app: FastifyInstance) {
@@ -31,18 +31,24 @@ export async function registerConversationRoutes(app: FastifyInstance) {
     return listConversations({
       channel: query.channel,
       status: query.status,
-      query: query.q
+      query: query.q,
     });
   });
 
   app.get("/inbox/unified", async (request) => {
-    const query = request.query as { channel?: string; status?: string; q?: string; page?: string; pageSize?: string };
+    const query = request.query as {
+      channel?: string;
+      status?: string;
+      q?: string;
+      page?: string;
+      pageSize?: string;
+    };
     return listUnifiedInbox({
       channel: query.channel,
       status: query.status,
       query: query.q,
       page: query.page ? Number(query.page) : undefined,
-      pageSize: query.pageSize ? Number(query.pageSize) : undefined
+      pageSize: query.pageSize ? Number(query.pageSize) : undefined,
     });
   });
 
@@ -97,7 +103,13 @@ export async function registerConversationRoutes(app: FastifyInstance) {
 
   // Send message to a contact via unified inbox (picks the right conversation/channel)
   app.post("/conversations/send-to-contact", async (request, reply) => {
-    const body = request.body as { contactId: string; text: string; channel: string; mediaPath?: string; contentType?: string };
+    const body = request.body as {
+      contactId: string;
+      text: string;
+      channel: string;
+      mediaPath?: string;
+      contentType?: string;
+    };
     if (!body?.contactId || (!body?.text?.trim() && !body?.mediaPath)) {
       reply.code(400);
       return { message: "contactId e (text ou mediaPath) sao obrigatorios" };
@@ -109,7 +121,9 @@ export async function registerConversationRoutes(app: FastifyInstance) {
       return { message: "Contato nao encontrado" };
     }
 
-    const channel = (body.channel === "instagram" ? "instagram" : "whatsapp") as "whatsapp" | "instagram";
+    const channel = (body.channel === "instagram" ? "instagram" : "whatsapp") as
+      | "whatsapp"
+      | "instagram";
     const contentType = body.contentType || "text";
 
     // Find existing conversation for this contact+channel
@@ -122,17 +136,23 @@ export async function registerConversationRoutes(app: FastifyInstance) {
       }
 
       // Store message immediately with 'pending' status so it shows in UI
-      const pendingMessageId = conversation ? addMessage({
-        conversationId: conversation.id,
-        contactId: contact.id,
-        direction: "outgoing",
-        contentType: (contentType === "document" ? "file" : contentType === "link" ? "text" : contentType) as "text" | "audio" | "image" | "video" | "file" | "summary",
-        body: body.text ?? "",
-        status: "pending",
-        sentAt: null,
-        mediaPath: body.mediaPath ?? null,
-        meta: { source: "inbox-manual-send" }
-      }) : null;
+      const pendingMessageId = conversation
+        ? addMessage({
+            conversationId: conversation.id,
+            contactId: contact.id,
+            direction: "outgoing",
+            contentType: (contentType === "document"
+              ? "file"
+              : contentType === "link"
+                ? "text"
+                : contentType) as "text" | "audio" | "image" | "video" | "file" | "summary",
+            body: body.text ?? "",
+            status: "pending",
+            sentAt: null,
+            mediaPath: body.mediaPath ?? null,
+            meta: { source: "inbox-manual-send" },
+          })
+        : null;
 
       enqueueJob({
         type: "send-message",
@@ -150,8 +170,8 @@ export async function registerConversationRoutes(app: FastifyInstance) {
           text: body.text,
           mediaPath: body.mediaPath ?? null,
           caption: body.text,
-          pendingMessageId
-        })
+          pendingMessageId,
+        }),
       });
       reply.code(202);
       return { queued: true, channel: "whatsapp" };
@@ -168,7 +188,7 @@ export async function registerConversationRoutes(app: FastifyInstance) {
         text: body.text,
         mediaPath: body.mediaPath ?? null,
         contentType: contentType as "text" | "audio" | "image" | "video",
-        caption: body.text
+        caption: body.text,
       });
 
       if (conversation) {
@@ -180,7 +200,7 @@ export async function registerConversationRoutes(app: FastifyInstance) {
           body: body.text,
           externalId: sent.externalId,
           sentAt: sent.sentAt,
-          meta: { source: "inbox-manual-send" }
+          meta: { source: "inbox-manual-send" },
         });
       }
 
@@ -211,7 +231,7 @@ export async function registerConversationRoutes(app: FastifyInstance) {
         body: body.text,
         status: "pending",
         sentAt: null,
-        meta: { source: "inbox-manual-send" }
+        meta: { source: "inbox-manual-send" },
       });
 
       enqueueJob({
@@ -229,8 +249,8 @@ export async function registerConversationRoutes(app: FastifyInstance) {
           contactId: conversation.contactId,
           contentType: "text",
           text: body.text,
-          pendingMessageId
-        })
+          pendingMessageId,
+        }),
       });
 
       reply.code(202);
@@ -241,7 +261,7 @@ export async function registerConversationRoutes(app: FastifyInstance) {
       const instagramService = getInstagramAssistedService();
       const sent = await instagramService.sendMessageToThread({
         threadId: conversation.externalThreadId,
-        text: body.text
+        text: body.text,
       });
 
       addMessage({
@@ -253,28 +273,30 @@ export async function registerConversationRoutes(app: FastifyInstance) {
         externalId: sent.externalId,
         sentAt: sent.sentAt,
         meta: {
-          source: "instagram-assisted-send"
-        }
+          source: "instagram-assisted-send",
+        },
       });
 
       if (conversation.contactId) {
         rememberInstagramThreadForContact({
           contactId: conversation.contactId,
           instagram:
-            (typeof conversation.metadata?.username === "string" ? conversation.metadata.username : null) ??
+            (typeof conversation.metadata?.username === "string"
+              ? conversation.metadata.username
+              : null) ??
             conversation.contactInstagram ??
             null,
           threadId: conversation.externalThreadId,
           threadTitle: conversation.title,
           observedAt: sent.sentAt,
-          source: "instagram-assisted-manual-send"
+          source: "instagram-assisted-manual-send",
         });
       }
 
       reply.code(202);
       return {
         queued: false,
-        sent: true
+        sent: true,
       };
     }
 

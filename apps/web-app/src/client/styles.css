@@ -30,7 +30,9 @@
   --radius: 0.75rem;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
 }
 
@@ -54,24 +56,50 @@ body {
 }
 
 /* Scrollbar - Minimal & premium */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.06); border-radius: 99px; transition: background 0.2s; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.14); }
-.custom-scrollbar::-webkit-scrollbar { width: 4px; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.04); }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.10); }
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 99px;
+  transition: background 0.2s;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.04);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
 
 /* Surface utilities */
-.surface { background: #111114; border: 1px solid #232328; }
-.surface-2 { background: #18181c; border: 1px solid #232328; }
-.surface-inset { background: #0d0d10; border: 1px solid #1c1c21; }
+.surface {
+  background: #111114;
+  border: 1px solid #232328;
+}
+.surface-2 {
+  background: #18181c;
+  border: 1px solid #232328;
+}
+.surface-inset {
+  background: #0d0d10;
+  border: 1px solid #1c1c21;
+}
 
 /* Micro-grid background */
 .grid-bg {
   background-image:
-    linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 
@@ -82,10 +110,21 @@ body {
   border-radius: 50%;
   display: inline-block;
 }
-.signal-dot.active { background: #22c55e; box-shadow: 0 0 8px rgba(34, 197, 94, 0.4); }
-.signal-dot.warning { background: #f59e0b; box-shadow: 0 0 8px rgba(245, 158, 11, 0.4); }
-.signal-dot.error { background: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.4); }
-.signal-dot.idle { background: #52525b; }
+.signal-dot.active {
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+}
+.signal-dot.warning {
+  background: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+}
+.signal-dot.error {
+  background: #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+.signal-dot.idle {
+  background: #52525b;
+}
 
 /* Contour line decorative border */
 .contour-border {
@@ -93,10 +132,10 @@ body {
   position: relative;
 }
 .contour-border::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: 3px;
-  border: 1px solid rgba(255,255,255,0.02);
+  border: 1px solid rgba(255, 255, 255, 0.02);
   border-radius: inherit;
   pointer-events: none;
 }
@@ -108,8 +147,12 @@ body {
 }
 
 /* Transition defaults */
-.transition-fast { transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1); }
-.transition-smooth { transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+.transition-fast {
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.transition-smooth {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
 
 /* Focus ring */
 :focus-visible {

@@ -22,6 +22,8 @@
     "test": "turbo run test",
     "test:canonical": "turbo run test --filter=@nuoma/api --filter=@nuoma/web --filter=@nuoma/worker --filter=@nuoma/db --filter=@nuoma/contracts --filter=@nuoma/ui --filter=@nuoma/config",
     "test:phase1-guards": "tsx tests/phase1-guards-smoke.ts",
+    "test:phase2-debt-closure": "node tests/phase2-debt-closure-smoke.mjs",
+    "phase2:validate": "npm run format:check && npm run test:phase2-debt-closure && npm run lint && npm run typecheck && npm run build && npm test && npm run lint:canonical && npm run typecheck:canonical && npm run build:canonical && npm run test:canonical && npm run legacy:typecheck && npm run test:artifact-retention && npm run test:product-confidence",
     "test:v21-foundations": "node tests/v21-foundations-smoke.mjs",
     "test:v24-api-auth": "tsx tests/v24-api-auth-smoke.ts",
     "test:v25-sender-runtime": "tsx tests/v25-sender-runtime-smoke.ts",

@@ -1,16 +1,33 @@
 import type { FastifyInstance } from "fastify";
-import { contactInputSchema, contactPatchSchema, createContact, deleteContact, getContactById, listAttachmentCandidatesByContact, listContactHistory, listContactsPage, queryContactsBySegment, updateContact } from "@nuoma/core";
+import {
+  contactInputSchema,
+  contactPatchSchema,
+  createContact,
+  deleteContact,
+  getContactById,
+  listAttachmentCandidatesByContact,
+  listContactHistory,
+  listContactsPage,
+  queryContactsBySegment,
+  updateContact,
+} from "@nuoma/core";
 import type { SegmentQuery } from "@nuoma/core";
 
 export async function registerContactRoutes(app: FastifyInstance) {
   app.get("/contacts", async (request) => {
-    const query = request.query as { q?: string; tag?: string; status?: string; page?: string; pageSize?: string };
+    const query = request.query as {
+      q?: string;
+      tag?: string;
+      status?: string;
+      page?: string;
+      pageSize?: string;
+    };
     return listContactsPage({
       query: query.q,
       tag: query.tag,
       status: query.status,
       page: Number(query.page ?? 1),
-      pageSize: Number(query.pageSize ?? 20)
+      pageSize: Number(query.pageSize ?? 20),
     });
   });
 
@@ -71,12 +88,14 @@ export async function registerContactRoutes(app: FastifyInstance) {
     const rawPayload = (request.body ?? {}) as Record<string, unknown>;
     const payload = contactPatchSchema.parse(rawPayload);
     const mergedOverrides = Object.fromEntries(
-      Object.entries(payload).filter(([key]) => Object.prototype.hasOwnProperty.call(rawPayload, key))
+      Object.entries(payload).filter(([key]) =>
+        Object.prototype.hasOwnProperty.call(rawPayload, key),
+      ),
     );
     const mergedPayload = contactInputSchema.parse({
       ...existing,
       ...mergedOverrides,
-      tags: Object.prototype.hasOwnProperty.call(rawPayload, "tags") ? payload.tags : existing.tags
+      tags: Object.prototype.hasOwnProperty.call(rawPayload, "tags") ? payload.tags : existing.tags,
     });
     const updated = updateContact(params.id, mergedPayload);
     return updated;

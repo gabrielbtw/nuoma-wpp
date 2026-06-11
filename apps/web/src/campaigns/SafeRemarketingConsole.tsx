@@ -91,8 +91,7 @@ export function SafeRemarketingConsole({
   const canConfirmBatch = Boolean(
     batchReady?.canDispatch && batchConfirmation === batchReady.confirmText,
   );
-  const selected =
-    campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? null;
+  const selected = campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? null;
   const batchChannel = selected?.channel === "instagram" ? "instagram" : "whatsapp";
   const batchPlaceholder = batchChannel === "instagram" ? "@perfil_teste" : "5511999999999";
   const batchAllowlistValue =
@@ -584,7 +583,7 @@ function issueVariant(severity: CampaignBlockIssue["severity"]) {
 function issueResolution(issue: CampaignBlockIssue) {
   switch (issue.code) {
     case "campaign_status_not_runnable":
-      return "Retome a campanha ou altere o status para running/scheduled antes de disparar.";
+      return "Retome a campanha ou altere o status para em execução/agendada antes de disparar.";
     case "channel_not_supported":
       return "Use uma campanha WhatsApp ou Instagram para este fluxo seguro.";
     case "campaign_without_steps":
@@ -606,9 +605,9 @@ function issueResolution(issue: CampaignBlockIssue) {
     case "recipient_already_waiting":
       return "Aguarde os Jobs anteriores finalizarem antes de criar novos envios.";
     case "send_policy_blocks_recipients":
-      return "Ajuste a allowlist ou retire os telefones fora da política atual.";
+      return "Ajuste a lista permitida ou retire os telefones fora da política atual.";
     case "production_without_canary_allowlist":
-      return "Defina uma allowlist canária explícita antes do envio real.";
+      return "Defina uma lista permitida canária explícita antes do envio real.";
     case "dry_run_without_jobs":
       return "Confira status, Steps, esperas e destinatários: a simulação não encontrou Job pronto.";
     case "scheduler_preview_error":
@@ -680,7 +679,7 @@ function rejectedReasonLabel(reason: string) {
     case "duplicate_candidate":
       return "Alvo duplicado no lote";
     case "duplicate_recipient":
-      return "Já existe recipient para este alvo";
+      return "Já existe destinatário para este alvo";
     case "not_allowlisted_for_test_execution":
       return "Fora da lista permitida de teste";
     case "not_in_production_canary_allowlist":

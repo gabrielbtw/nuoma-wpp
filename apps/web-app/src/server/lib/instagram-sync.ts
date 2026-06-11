@@ -10,13 +10,21 @@ import {
   resolveInstagramContactFromLastMessage,
   triggerIncomingAutomationRuns,
   type InstagramAssistedThreadSnapshot,
-  upsertConversation
+  upsertConversation,
 } from "@nuoma/core";
 import { getInstagramAssistedService } from "./instagram-assisted.js";
 
-function stableMessageExternalId(thread: InstagramAssistedThreadSnapshot, messageIndex: number, message: InstagramAssistedThreadSnapshot["messages"][number]) {
+function stableMessageExternalId(
+  thread: InstagramAssistedThreadSnapshot,
+  messageIndex: number,
+  message: InstagramAssistedThreadSnapshot["messages"][number],
+) {
   // Only trust externalIds that are NOT positional ig-browser-* IDs (those are unstable across syncs)
-  if (message.externalId && !message.externalId.startsWith("ig-browser-") && !message.externalId.startsWith("ig-fixture-")) {
+  if (
+    message.externalId &&
+    !message.externalId.startsWith("ig-browser-") &&
+    !message.externalId.startsWith("ig-fixture-")
+  ) {
     return message.externalId;
   }
 
@@ -35,10 +43,12 @@ export async function syncInstagramInboxToDatabase(options?: {
 }) {
   const instagramService = getInstagramAssistedService();
   const synced = await instagramService.syncInbox(options);
-  const threads = synced.threads.slice(0, options?.threadLimit ?? synced.threads.length).map((thread) => ({
-    ...thread,
-    messages: thread.messages.slice(-(options?.messagesLimit ?? thread.messages.length))
-  }));
+  const threads = synced.threads
+    .slice(0, options?.threadLimit ?? synced.threads.length)
+    .map((thread) => ({
+      ...thread,
+      messages: thread.messages.slice(-(options?.messagesLimit ?? thread.messages.length)),
+    }));
   const channelAccounts = ensureDefaultChannelAccounts();
 
   let createdContacts = 0;
@@ -59,7 +69,7 @@ export async function syncInstagramInboxToDatabase(options?: {
       instagramUsername: normalizedUsername,
       threadTitle: thread.title,
       lastMessageText: lastMessage?.body ?? thread.lastMessagePreview,
-      lastMessageAt: lastMessage?.sentAt ?? thread.lastMessageAt ?? null
+      lastMessageAt: lastMessage?.sentAt ?? thread.lastMessageAt ?? null,
     });
 
     if (matched.created) {
@@ -86,8 +96,8 @@ export async function syncInstagramInboxToDatabase(options?: {
         username: normalizedUsername,
         automaticTagsApplied: matched.automaticTagsApplied,
         matchLinkedBy: matched.linkedBy,
-        detectedPhone: matched.detectedPhoneNormalized
-      }
+        detectedPhone: matched.detectedPhoneNormalized,
+      },
     });
 
     if (!conversation) {
@@ -95,14 +105,17 @@ export async function syncInstagramInboxToDatabase(options?: {
     }
 
     const instagramChannelValue =
-      matched.contact.channels.find((channel) => channel.type === "instagram" && channel.isActive)?.displayValue ?? matched.contact.instagram ?? null;
+      matched.contact.channels.find((channel) => channel.type === "instagram" && channel.isActive)
+        ?.displayValue ??
+      matched.contact.instagram ??
+      null;
     rememberInstagramThreadForContact({
       contactId: matched.contact.id,
       instagram: instagramChannelValue,
       threadId: thread.threadId,
       threadTitle: thread.title,
       observedAt: lastMessage?.sentAt ?? thread.lastMessageAt ?? null,
-      source: "instagram-assisted-sync"
+      source: "instagram-assisted-sync",
     });
 
     let threadHasNewIncomingMessage = false;
@@ -122,8 +135,8 @@ export async function syncInstagramInboxToDatabase(options?: {
         sentAt: message.sentAt,
         meta: {
           source: "instagram-assisted-sync",
-          instagramUsername: normalizedUsername
-        }
+          instagramUsername: normalizedUsername,
+        },
       });
 
       if (!existingMessage) {
@@ -141,7 +154,7 @@ export async function syncInstagramInboxToDatabase(options?: {
         channel: "instagram",
         contactId: matched.contact.id,
         conversationId: conversation.id,
-        receivedAt: latestIncomingAt
+        receivedAt: latestIncomingAt,
       });
       automationsQueued += automationResult.queued;
 
@@ -164,10 +177,10 @@ export async function syncInstagramInboxToDatabase(options?: {
                 recipientDisplayValue: normalizedUsername,
                 recipientNormalizedValue: normalizedUsername,
                 text: rule.responseBody,
-                contentType: rule.responseType !== "text" ? rule.responseType : "text" as const,
+                contentType: rule.responseType !== "text" ? rule.responseType : ("text" as const),
                 mediaPath: rule.responseMediaPath ?? null,
-                ruleId: rule.id
-              }
+                ruleId: rule.id,
+              },
             });
             break; // First matching chatbot wins
           }
@@ -183,6 +196,6 @@ export async function syncInstagramInboxToDatabase(options?: {
     linkedContacts,
     importedMessages,
     automationsQueued,
-    skippedThreads
+    skippedThreads,
   };
 }

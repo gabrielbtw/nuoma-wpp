@@ -2,14 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import {
-  Dialog,
-  DialogContent,
-  Input,
-  KeyboardShortcut,
-  VisuallyHidden,
-  cn,
-} from "@nuoma/ui";
+import { Dialog, DialogContent, Input, KeyboardShortcut, VisuallyHidden, cn } from "@nuoma/ui";
 
 import { getShellShortcutItems } from "./nav-registry.js";
 

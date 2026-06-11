@@ -3,11 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
 import { CONSTANTS, type WorkerEnv } from "@nuoma/config";
-import type {
-  MessageContentType,
-  MessageDirection,
-  TimestampPrecision,
-} from "@nuoma/contracts";
+import type { MessageContentType, MessageDirection, TimestampPrecision } from "@nuoma/contracts";
 import type { Repositories } from "@nuoma/db";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import type { Logger } from "pino";
@@ -1082,7 +1078,9 @@ export function shouldSkipInstagramSyncedDuplicate(input: {
     ) {
       continue;
     }
-    const existingBody = String(existing.body ?? "").replace(/\s+/g, " ").trim();
+    const existingBody = String(existing.body ?? "")
+      .replace(/\s+/g, " ")
+      .trim();
     if (
       existing.direction === expectedDirection &&
       existing.contentType === input.message.contentType &&
@@ -1116,7 +1114,9 @@ export function parseInstagramDisplayedTimestamp(
   if (!Number.isFinite(observedMs)) {
     return null;
   }
-  const raw = String(value ?? "").replace(/\s+/g, " ").trim();
+  const raw = String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
   if (!raw) {
     return null;
   }

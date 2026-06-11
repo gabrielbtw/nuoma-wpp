@@ -15,7 +15,7 @@ function mapTemplate(row: Record<string, unknown>): TemplateRecord {
     mediaPath: (row.media_path as string) ?? null,
     category: row.category as string,
     createdAt: row.created_at as string,
-    updatedAt: row.updated_at as string
+    updatedAt: row.updated_at as string,
   };
 }
 
@@ -27,17 +27,17 @@ export function listTemplates(category?: string): TemplateRecord[] {
       .all(category) as Array<Record<string, unknown>>;
     return rows.map(mapTemplate);
   }
-  const rows = db
-    .prepare("SELECT * FROM message_templates ORDER BY name ASC")
-    .all() as Array<Record<string, unknown>>;
+  const rows = db.prepare("SELECT * FROM message_templates ORDER BY name ASC").all() as Array<
+    Record<string, unknown>
+  >;
   return rows.map(mapTemplate);
 }
 
 export function getTemplate(templateId: string): TemplateRecord | null {
   const db = getDb();
-  const row = db
-    .prepare("SELECT * FROM message_templates WHERE id = ?")
-    .get(templateId) as Record<string, unknown> | undefined;
+  const row = db.prepare("SELECT * FROM message_templates WHERE id = ?").get(templateId) as
+    | Record<string, unknown>
+    | undefined;
   return row ? mapTemplate(row) : null;
 }
 
@@ -47,12 +47,24 @@ export function createTemplate(input: TemplateInput): TemplateRecord {
   const now = nowIso();
   db.prepare(
     `INSERT INTO message_templates (id, name, content_type, body, media_path, category, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, input.name, input.contentType, input.body, input.mediaPath ?? null, input.category, now, now);
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    id,
+    input.name,
+    input.contentType,
+    input.body,
+    input.mediaPath ?? null,
+    input.category,
+    now,
+    now,
+  );
   return getTemplate(id)!;
 }
 
-export function updateTemplate(templateId: string, input: Partial<TemplateInput>): TemplateRecord | null {
+export function updateTemplate(
+  templateId: string,
+  input: Partial<TemplateInput>,
+): TemplateRecord | null {
   const db = getDb();
   const existing = getTemplate(templateId);
   if (!existing) return null;
@@ -60,11 +72,26 @@ export function updateTemplate(templateId: string, input: Partial<TemplateInput>
   const fields: string[] = [];
   const values: unknown[] = [];
 
-  if (input.name !== undefined) { fields.push("name = ?"); values.push(input.name); }
-  if (input.contentType !== undefined) { fields.push("content_type = ?"); values.push(input.contentType); }
-  if (input.body !== undefined) { fields.push("body = ?"); values.push(input.body); }
-  if (input.mediaPath !== undefined) { fields.push("media_path = ?"); values.push(input.mediaPath); }
-  if (input.category !== undefined) { fields.push("category = ?"); values.push(input.category); }
+  if (input.name !== undefined) {
+    fields.push("name = ?");
+    values.push(input.name);
+  }
+  if (input.contentType !== undefined) {
+    fields.push("content_type = ?");
+    values.push(input.contentType);
+  }
+  if (input.body !== undefined) {
+    fields.push("body = ?");
+    values.push(input.body);
+  }
+  if (input.mediaPath !== undefined) {
+    fields.push("media_path = ?");
+    values.push(input.mediaPath);
+  }
+  if (input.category !== undefined) {
+    fields.push("category = ?");
+    values.push(input.category);
+  }
 
   if (fields.length === 0) return existing;
 

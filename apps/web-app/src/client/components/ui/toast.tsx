@@ -14,14 +14,14 @@ const icons: Record<ToastType, typeof CheckCircle2> = {
   success: CheckCircle2,
   error: AlertCircle,
   warning: AlertCircle,
-  info: Info
+  info: Info,
 };
 
 const styles: Record<ToastType, string> = {
   success: "border-cmm-emerald/30 bg-cmm-emerald/10 text-cmm-emerald",
   error: "border-red-500/30 bg-red-500/10 text-red-400",
   warning: "border-cmm-orange/30 bg-cmm-orange/10 text-cmm-orange",
-  info: "border-cmm-blue/30 bg-cmm-blue/10 text-cmm-blue"
+  info: "border-cmm-blue/30 bg-cmm-blue/10 text-cmm-blue",
 };
 
 let globalAddToast: ((type: ToastType, message: string) => void) | null = null;
@@ -43,7 +43,9 @@ export function ToastContainer() {
 
   useEffect(() => {
     globalAddToast = addToast;
-    return () => { globalAddToast = null; };
+    return () => {
+      globalAddToast = null;
+    };
   }, [addToast]);
 
   if (toasts.length === 0) return null;
@@ -57,12 +59,15 @@ export function ToastContainer() {
             key={t.id}
             className={cn(
               "flex items-center gap-3 rounded-xl border px-4 py-3 shadow-2xl backdrop-blur-xl animate-in slide-in-from-right-4 duration-300",
-              styles[t.type]
+              styles[t.type],
             )}
           >
             <Icon className="h-4 w-4 shrink-0" />
             <span className="text-sm font-medium flex-1">{t.message}</span>
-            <button onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))} className="shrink-0 opacity-50 hover:opacity-100">
+            <button
+              onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}
+              className="shrink-0 opacity-50 hover:opacity-100"
+            >
               <X className="h-3.5 w-3.5" />
             </button>
           </div>

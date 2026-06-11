@@ -11,16 +11,18 @@ export const contactStatusLabelMap: Record<string, string> = {
   em_atendimento: "Em atendimento",
   cliente: "Cliente",
   sem_retorno: "Sem retorno",
-  perdido: "Perdido"
+  perdido: "Perdido",
 };
 
 export const contactProcedureLabelMap: Record<ContactProcedureStatus, string> = {
   yes: "Sim",
   no: "Não",
-  unknown: "Não definido"
+  unknown: "Não definido",
 };
 
-export function contactStatusTone(status: string): "success" | "warning" | "danger" | "info" | "default" {
+export function contactStatusTone(
+  status: string,
+): "success" | "warning" | "danger" | "info" | "default" {
   switch (status) {
     case "cliente":
       return "success";

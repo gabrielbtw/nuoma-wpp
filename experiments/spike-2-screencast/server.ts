@@ -24,7 +24,14 @@ type Options = {
 };
 
 type InputPayload =
-  | { type: "mouse"; eventType: "mousePressed" | "mouseReleased" | "mouseMoved"; x: number; y: number; button: "left" | "right"; clickCount: number }
+  | {
+      type: "mouse";
+      eventType: "mousePressed" | "mouseReleased" | "mouseMoved";
+      x: number;
+      y: number;
+      button: "left" | "right";
+      clickCount: number;
+    }
   | { type: "wheel"; x: number; y: number; deltaX: number; deltaY: number }
   | { type: "key"; eventType: "keyDown" | "keyUp"; key: string; code: string; text?: string };
 
@@ -44,7 +51,10 @@ function parseOptions(argv: string[]): Options {
   let cdpHost = process.env.CHROMIUM_CDP_HOST ?? "127.0.0.1";
   let cdpPort = Number(process.env.SPIKE2_CDP_PORT ?? process.env.CHROMIUM_CDP_PORT ?? "9234");
   let launch = false;
-  let profileDir = resolveRepoPath(process.env.CHROMIUM_PROFILE_DIR, "storage/chromium-profile/whatsapp");
+  let profileDir = resolveRepoPath(
+    process.env.CHROMIUM_PROFILE_DIR,
+    "storage/chromium-profile/whatsapp",
+  );
   let channel = process.env.SPIKE2_CHROMIUM_CHANNEL ?? process.env.CHROMIUM_CHANNEL ?? "chrome";
   let headless = parseBoolean(process.env.CHROMIUM_HEADLESS, false);
   let waUrl = process.env.WA_URL ?? "https://web.whatsapp.com";
@@ -57,20 +67,32 @@ function parseOptions(argv: string[]): Options {
     else if (arg.startsWith("--port=")) port = Number(arg.slice("--port=".length));
     else if (arg.startsWith("--cdp-host=")) cdpHost = arg.slice("--cdp-host=".length);
     else if (arg.startsWith("--cdp-port=")) cdpPort = Number(arg.slice("--cdp-port=".length));
-    else if (arg.startsWith("--profile-dir=")) profileDir = resolveRepoPath(arg.slice("--profile-dir=".length), "storage/chromium-profile/whatsapp");
+    else if (arg.startsWith("--profile-dir="))
+      profileDir = resolveRepoPath(
+        arg.slice("--profile-dir=".length),
+        "storage/chromium-profile/whatsapp",
+      );
     else if (arg.startsWith("--channel=")) channel = arg.slice("--channel=".length);
     else if (arg.startsWith("--wa-url=")) waUrl = arg.slice("--wa-url=".length);
     else throw new Error(`Unknown argument: ${arg}`);
   }
 
-  if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error(`Invalid HTTP port: ${port}`);
-  if (!Number.isInteger(cdpPort) || cdpPort < 1 || cdpPort > 65_535) throw new Error(`Invalid CDP port: ${cdpPort}`);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535)
+    throw new Error(`Invalid HTTP port: ${port}`);
+  if (!Number.isInteger(cdpPort) || cdpPort < 1 || cdpPort > 65_535)
+    throw new Error(`Invalid CDP port: ${cdpPort}`);
 
   return { host, port, cdpHost, cdpPort, launch, profileDir, channel, headless, waUrl };
 }
 
 async function appendMetric(event: Record<string, unknown>) {
-  await fs.appendFile(METRICS_PATH, `${JSON.stringify({ createdAt: new Date().toISOString(), ...event })}\n`, "utf8").catch(() => null);
+  await fs
+    .appendFile(
+      METRICS_PATH,
+      `${JSON.stringify({ createdAt: new Date().toISOString(), ...event })}\n`,
+      "utf8",
+    )
+    .catch(() => null);
 }
 
 async function launchChromium(options: Options) {
@@ -86,8 +108,8 @@ async function launchChromium(options: Options) {
       "--window-size=1512,920",
       "--force-device-scale-factor=1",
       `--remote-debugging-address=${options.cdpHost}`,
-      `--remote-debugging-port=${options.cdpPort}`
-    ]
+      `--remote-debugging-port=${options.cdpPort}`,
+    ],
   });
 
   const page = context.pages()[0] ?? (await context.newPage());
@@ -97,7 +119,9 @@ async function launchChromium(options: Options) {
 
 async function selectPageTarget(options: Options) {
   const targets = await CDP.List({ host: options.cdpHost, port: options.cdpPort });
-  const pageTarget = targets.find((target) => target.type === "page" && !target.url.startsWith("devtools://"));
+  const pageTarget = targets.find(
+    (target) => target.type === "page" && !target.url.startsWith("devtools://"),
+  );
   if (pageTarget) return pageTarget;
   return CDP.New({ host: options.cdpHost, port: options.cdpPort, url: options.waUrl });
 }
@@ -117,7 +141,7 @@ async function dispatchInput(client: any, payload: InputPayload) {
       x: payload.x,
       y: payload.y,
       button: payload.button,
-      clickCount: payload.clickCount
+      clickCount: payload.clickCount,
     });
     return;
   }
@@ -128,7 +152,7 @@ async function dispatchInput(client: any, payload: InputPayload) {
       x: payload.x,
       y: payload.y,
       deltaX: payload.deltaX,
-      deltaY: payload.deltaY
+      deltaY: payload.deltaY,
     });
     return;
   }
@@ -137,7 +161,7 @@ async function dispatchInput(client: any, payload: InputPayload) {
     type: payload.eventType,
     key: payload.key,
     code: payload.code,
-    text: payload.eventType === "keyDown" ? payload.text : undefined
+    text: payload.eventType === "keyDown" ? payload.text : undefined,
   });
 }
 
@@ -153,21 +177,23 @@ async function startRelay(ws: WebSocket, options: Options) {
   await client.Page.bringToFront().catch(() => null);
   await client.Input.setIgnoreInputEvents({ ignore: false }).catch(() => null);
 
-  client.Page.screencastFrame(async (event: { data: string; metadata: Record<string, unknown>; sessionId: number }) => {
-    frames += 1;
-    bytes += Math.ceil((event.data.length * 3) / 4);
-    client.Page.screencastFrameAck({ sessionId: event.sessionId }).catch(() => null);
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(
-        JSON.stringify({
-          type: "frame",
-          data: event.data,
-          metadata: event.metadata,
-          sentAt: Date.now()
-        })
-      );
-    }
-  });
+  client.Page.screencastFrame(
+    async (event: { data: string; metadata: Record<string, unknown>; sessionId: number }) => {
+      frames += 1;
+      bytes += Math.ceil((event.data.length * 3) / 4);
+      client.Page.screencastFrameAck({ sessionId: event.sessionId }).catch(() => null);
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(
+          JSON.stringify({
+            type: "frame",
+            data: event.data,
+            metadata: event.metadata,
+            sentAt: Date.now(),
+          }),
+        );
+      }
+    },
+  );
 
   ws.on("message", (raw) => {
     const payload = parseJsonMessage(raw);
@@ -190,13 +216,13 @@ async function startRelay(ws: WebSocket, options: Options) {
     quality: 80,
     maxWidth: 1280,
     maxHeight: 720,
-    everyNthFrame: 1
+    everyNthFrame: 1,
   });
 
   await appendMetric({
     type: "relay-started",
     targetId: target.id,
-    targetUrl: target.url
+    targetUrl: target.url,
   });
 }
 
@@ -223,7 +249,9 @@ async function main() {
 
     if (pathname === "/health") {
       response.writeHead(200, { "content-type": "application/json" });
-      response.end(JSON.stringify({ ok: true, cdpHost: options.cdpHost, cdpPort: options.cdpPort }));
+      response.end(
+        JSON.stringify({ ok: true, cdpHost: options.cdpHost, cdpPort: options.cdpPort }),
+      );
       return;
     }
 

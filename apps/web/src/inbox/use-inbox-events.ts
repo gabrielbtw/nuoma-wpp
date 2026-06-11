@@ -97,13 +97,21 @@ export function useInboxEvents(selectedConversationId: number | null): InboxReal
 
     events.addEventListener("stream-error", () => {
       if (closed) return;
-      setState((current) => ({ ...current, status: "error", lastEventAt: new Date().toISOString() }));
+      setState((current) => ({
+        ...current,
+        status: "error",
+        lastEventAt: new Date().toISOString(),
+      }));
       void utils.conversations.list.invalidate();
     });
 
     events.onerror = () => {
       if (closed) return;
-      setState((current) => ({ ...current, status: "error", lastEventAt: new Date().toISOString() }));
+      setState((current) => ({
+        ...current,
+        status: "error",
+        lastEventAt: new Date().toISOString(),
+      }));
     };
 
     return () => {

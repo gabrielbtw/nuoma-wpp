@@ -83,16 +83,43 @@ async function main() {
     });
     assert(applyAgain.includes("status=applied"), applyAgain);
     const afterSecondApply = readV2Counts(v2DbPath);
-    assert(afterSecondApply.contacts === 2, `contacts not idempotent ${JSON.stringify(afterSecondApply)}`);
-    assert(afterSecondApply.conversations === 2, `conversations not idempotent ${JSON.stringify(afterSecondApply)}`);
-    assert(afterSecondApply.messages === 2, `messages not idempotent ${JSON.stringify(afterSecondApply)}`);
-    assert(afterSecondApply.campaigns === 1, `campaigns not idempotent ${JSON.stringify(afterSecondApply)}`);
-    assert(afterSecondApply.recipients === 1, `recipients not idempotent ${JSON.stringify(afterSecondApply)}`);
-    assert(afterSecondApply.automations === 1, `automations not idempotent ${JSON.stringify(afterSecondApply)}`);
-    assert(afterSecondApply.chatbots === 1, `chatbots not idempotent ${JSON.stringify(afterSecondApply)}`);
-    assert(afterSecondApply.chatbotRules === 1, `chatbotRules not idempotent ${JSON.stringify(afterSecondApply)}`);
+    assert(
+      afterSecondApply.contacts === 2,
+      `contacts not idempotent ${JSON.stringify(afterSecondApply)}`,
+    );
+    assert(
+      afterSecondApply.conversations === 2,
+      `conversations not idempotent ${JSON.stringify(afterSecondApply)}`,
+    );
+    assert(
+      afterSecondApply.messages === 2,
+      `messages not idempotent ${JSON.stringify(afterSecondApply)}`,
+    );
+    assert(
+      afterSecondApply.campaigns === 1,
+      `campaigns not idempotent ${JSON.stringify(afterSecondApply)}`,
+    );
+    assert(
+      afterSecondApply.recipients === 1,
+      `recipients not idempotent ${JSON.stringify(afterSecondApply)}`,
+    );
+    assert(
+      afterSecondApply.automations === 1,
+      `automations not idempotent ${JSON.stringify(afterSecondApply)}`,
+    );
+    assert(
+      afterSecondApply.chatbots === 1,
+      `chatbots not idempotent ${JSON.stringify(afterSecondApply)}`,
+    );
+    assert(
+      afterSecondApply.chatbotRules === 1,
+      `chatbotRules not idempotent ${JSON.stringify(afterSecondApply)}`,
+    );
     assert(afterSecondApply.jobs === 1, `jobs not idempotent ${JSON.stringify(afterSecondApply)}`);
-    assert(afterSecondApply.reminders === 1, `reminders not idempotent ${JSON.stringify(afterSecondApply)}`);
+    assert(
+      afterSecondApply.reminders === 1,
+      `reminders not idempotent ${JSON.stringify(afterSecondApply)}`,
+    );
     assertWhatsappIdentity(readWhatsappIdentity(v2DbPath), "second apply");
 
     console.log("v215-cutover-apply-smoke|dryRun=ok|apply=ok|idempotent=ok|status=closed");
@@ -116,11 +143,11 @@ function runScript(input: {
     env: {
       ...process.env,
       V215_V1_DB_PATH: input.v1DbPath,
-        V215_V2_DB_PATH: input.v2DbPath,
-        V215_BACKUP_DIR: input.backupDir,
-        V215_V1_STORAGE_ROOT: input.v1StorageRoot,
-        V215_MEDIA_TARGET_ROOT: input.mediaTargetRoot,
-        V215_TARGET_USER_ID: "1",
+      V215_V2_DB_PATH: input.v2DbPath,
+      V215_BACKUP_DIR: input.backupDir,
+      V215_V1_STORAGE_ROOT: input.v1StorageRoot,
+      V215_MEDIA_TARGET_ROOT: input.mediaTargetRoot,
+      V215_TARGET_USER_ID: "1",
       ...(input.confirm ? { V215_CONFIRM_CUTOVER: "SIM" } : {}),
     },
   }).trim();
@@ -323,12 +350,34 @@ function createV1Fixture(dbPath: string) {
       `INSERT INTO conversations
        (id, contact_id, wa_chat_id, title, unread_count, last_message_preview, last_message_at, created_at, updated_at, channel, external_thread_id)
        VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
-    ).run("conv1", "c1", "5531982066263", "Gabriel", "Oi", now, now, now, "whatsapp", "5531982066263");
+    ).run(
+      "conv1",
+      "c1",
+      "5531982066263",
+      "Gabriel",
+      "Oi",
+      now,
+      now,
+      now,
+      "whatsapp",
+      "5531982066263",
+    );
     db.prepare(
       `INSERT INTO conversations
        (id, contact_id, wa_chat_id, title, unread_count, last_message_preview, last_message_at, created_at, updated_at, channel, external_thread_id)
        VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
-    ).run("conv2", "c2", "instagram:nuoma", "Instagram Lead", "DM", now, now, now, "instagram", "nuoma");
+    ).run(
+      "conv2",
+      "c2",
+      "instagram:nuoma",
+      "Instagram Lead",
+      "DM",
+      now,
+      now,
+      now,
+      "instagram",
+      "nuoma",
+    );
     db.prepare(
       `INSERT INTO messages
        (id, conversation_id, contact_id, media_asset_id, direction, content_type, body, external_id, status, sent_at, created_at)
@@ -339,8 +388,12 @@ function createV1Fixture(dbPath: string) {
        (id, conversation_id, contact_id, media_asset_id, direction, content_type, body, external_id, status, sent_at, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run("m2", "conv1", "c1", "media1", "outgoing", "file", "PDF", "wa-2", "sent", now, now);
-    db.prepare("INSERT INTO campaigns (id, name, status) VALUES ('camp1', 'Smoke V1', 'completed')").run();
-    db.prepare("INSERT INTO campaign_steps (id, campaign_id, type, label) VALUES ('step1', 'camp1', 'text', 'Intro')").run();
+    db.prepare(
+      "INSERT INTO campaigns (id, name, status) VALUES ('camp1', 'Smoke V1', 'completed')",
+    ).run();
+    db.prepare(
+      "INSERT INTO campaign_steps (id, campaign_id, type, label) VALUES ('step1', 'camp1', 'text', 'Intro')",
+    ).run();
     db.prepare(
       "INSERT INTO campaign_recipients (id, campaign_id, contact_id, phone, status) VALUES ('rec1', 'camp1', 'c1', '5531982066263', 'sent')",
     ).run();
@@ -369,14 +422,20 @@ function createV1Fixture(dbPath: string) {
     ).run(now);
     db.prepare(
       "INSERT INTO chatbot_rules (id, chatbot_id, name, priority, match_json, actions_json, is_active, created_at) VALUES ('rule1', 'bot1', 'Oi', 10, ?, ?, 1, ?)",
-    ).run(JSON.stringify({ type: "keyword", keywords: ["oi"] }), JSON.stringify([{ type: "send_message", body: "Olá" }]), now);
+    ).run(
+      JSON.stringify({ type: "keyword", keywords: ["oi"] }),
+      JSON.stringify([{ type: "send_message", body: "Olá" }]),
+      now,
+    );
     db.prepare(
       "INSERT INTO reminders (id, contact_id, conversation_id, title, notes, due_at, status, completed_at, created_at) VALUES ('rem1', 'c1', 'conv1', 'Retornar', 'Nota', ?, 'open', NULL, ?)",
     ).run(now, now);
     db.prepare(
       "INSERT INTO audit_logs (id, action, target_table, target_id, before_json, after_json, created_at) VALUES ('audit1', 'create', 'contacts', 'c1', '{}', '{}', ?)",
     ).run(now);
-    db.prepare("INSERT INTO system_logs (id, level, message, created_at) VALUES ('log1', 'info', 'ok', ?)").run(now);
+    db.prepare(
+      "INSERT INTO system_logs (id, level, message, created_at) VALUES ('log1', 'info', 'ok', ?)",
+    ).run(now);
     db.prepare("INSERT INTO data_lake_sources (id, name) VALUES ('dl1', 'ignored')").run();
   } finally {
     db.close();
@@ -431,7 +490,9 @@ function readWhatsappIdentity(dbPath: string) {
          FROM contacts
          WHERE user_id = 1 AND name = 'Gabriel'`,
       )
-      .get() as { phone: string | null; phoneE164: string | null; waJid: string | null } | undefined;
+      .get() as
+      | { phone: string | null; phoneE164: string | null; waJid: string | null }
+      | undefined;
     const conversation = db
       .prepare(
         `SELECT external_thread_id AS externalThreadId, wa_jid AS waJid
@@ -460,7 +521,10 @@ function readMigratedMedia(dbPath: string) {
   }
 }
 
-function assertMediaCopied(media: ReturnType<typeof readMigratedMedia>, mediaTargetRoot: string): void {
+function assertMediaCopied(
+  media: ReturnType<typeof readMigratedMedia>,
+  mediaTargetRoot: string,
+): void {
   assert(media?.storagePath, `media storage path missing ${JSON.stringify(media)}`);
   const absolutePath = path.resolve(repoRoot, media.storagePath);
   assert(absolutePath.startsWith(mediaTargetRoot), `media copied to wrong root ${absolutePath}`);

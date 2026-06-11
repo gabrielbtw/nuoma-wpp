@@ -1,7 +1,11 @@
 import { getDb } from "../db/connection.js";
 import { InputError } from "../errors/app-error.js";
 import { listInactiveContactChannelValues } from "../repositories/contact-channel-repository.js";
-import { looksLikeValidWhatsAppCandidate, normalizeBrazilianPhone, normalizeInstagramHandle } from "../utils/phone.js";
+import {
+  looksLikeValidWhatsAppCandidate,
+  normalizeBrazilianPhone,
+  normalizeInstagramHandle,
+} from "../utils/phone.js";
 
 type CampaignImportContactMatch = {
   contactId: string;
@@ -99,10 +103,12 @@ function buildContactIndexes() {
         SELECT DISTINCT contact_id
         FROM contact_channels
         WHERE type = 'instagram'
-      `
+      `,
     )
     .all() as Array<{ contact_id: string }>;
-  const contactsWithInstagramChannel = new Set(instagramChannelRows.map((row) => String(row.contact_id)));
+  const contactsWithInstagramChannel = new Set(
+    instagramChannelRows.map((row) => String(row.contact_id)),
+  );
   const contactRows = db
     .prepare(
       `
@@ -119,7 +125,7 @@ function buildContactIndexes() {
          AND cc.is_active = 1
         WHERE c.deleted_at IS NULL
         ORDER BY cc.is_primary DESC, cc.updated_at DESC, c.updated_at DESC
-      `
+      `,
     )
     .all() as Array<Record<string, unknown>>;
 
@@ -148,7 +154,11 @@ function buildContactIndexes() {
       phone: normalizeBrazilianPhone(String(row.phone ?? "")),
       instagram:
         activeInstagram ??
-        (!contactsWithInstagramChannel.has(contactId) && legacyInstagram && !inactiveInstagramValues.has(legacyInstagram) ? legacyInstagram : null)
+        (!contactsWithInstagramChannel.has(contactId) &&
+        legacyInstagram &&
+        !inactiveInstagramValues.has(legacyInstagram)
+          ? legacyInstagram
+          : null),
     };
 
     const channelType = String(row.type ?? "");
@@ -174,7 +184,7 @@ function buildContactIndexes() {
   return {
     phoneIndex,
     instagramIndex,
-    inactiveInstagramValues
+    inactiveInstagramValues,
   };
 }
 
@@ -187,8 +197,11 @@ function resolvePreferredChannel(input: {
 }) {
   const prefersPhone = Boolean(input.rawPhone.trim());
   const prefersInstagram = Boolean(input.rawInstagram.trim());
-  const canUseWhatsApp = input.eligibleChannels.includes("whatsapp") && Boolean(input.resolvedPhone && looksLikeValidWhatsAppCandidate(input.resolvedPhone));
-  const canUseInstagram = input.eligibleChannels.includes("instagram") && Boolean(input.resolvedInstagram);
+  const canUseWhatsApp =
+    input.eligibleChannels.includes("whatsapp") &&
+    Boolean(input.resolvedPhone && looksLikeValidWhatsAppCandidate(input.resolvedPhone));
+  const canUseInstagram =
+    input.eligibleChannels.includes("instagram") && Boolean(input.resolvedInstagram);
 
   if (prefersPhone && canUseWhatsApp) {
     return "whatsapp" as const;
@@ -224,13 +237,21 @@ function resolveRowStatus(input: {
   const tags = parseTagsCell(normalizeCell(input.row, input.mapping.tags));
   const normalizedPhone = normalizeBrazilianPhone(rawPhone);
   const normalizedInstagram = normalizeInstagramHandle(rawInstagram);
-  const inactiveInstagram = normalizedInstagram ? input.inactiveInstagramValues.has(normalizedInstagram) : false;
+  const inactiveInstagram = normalizedInstagram
+    ? input.inactiveInstagramValues.has(normalizedInstagram)
+    : false;
   const availableInstagram = inactiveInstagram ? null : normalizedInstagram;
 
-  const matchedByPhone = normalizedPhone ? input.phoneIndex.get(normalizedPhone) ?? null : null;
-  const matchedByInstagram = availableInstagram ? input.instagramIndex.get(availableInstagram) ?? null : null;
+  const matchedByPhone = normalizedPhone ? (input.phoneIndex.get(normalizedPhone) ?? null) : null;
+  const matchedByInstagram = availableInstagram
+    ? (input.instagramIndex.get(availableInstagram) ?? null)
+    : null;
 
-  if (matchedByPhone && matchedByInstagram && matchedByPhone.contactId !== matchedByInstagram.contactId) {
+  if (
+    matchedByPhone &&
+    matchedByInstagram &&
+    matchedByPhone.contactId !== matchedByInstagram.contactId
+  ) {
     return {
       ...input.row,
       _normalizedPhone: normalizedPhone ?? "",
@@ -245,7 +266,7 @@ function resolveRowStatus(input: {
       _exists: "needs_review",
       _reason: "Telefone e Instagram apontam para contatos diferentes. Revise antes de importar.",
       _contactId: "",
-      _tags: tags
+      _tags: tags,
     };
   }
 
@@ -257,7 +278,7 @@ function resolveRowStatus(input: {
     rawPhone,
     rawInstagram,
     resolvedPhone,
-    resolvedInstagram
+    resolvedInstagram,
   });
 
   if (!resolvedChannel) {
@@ -273,20 +294,37 @@ function resolveRowStatus(input: {
       _resolvedTargetDisplay: "",
       _resolvedTargetNormalized: "",
       _resolvedName: rawName || matchedContact?.name || "",
-      _matchType: matchedByPhone && matchedByInstagram ? "phone+instagram" : matchedByPhone ? "phone" : matchedByInstagram ? "instagram" : "",
-      _exists: blockedByInactiveInstagram ? "invalid" : hasAnyIdentifier ? "insufficient_link" : "invalid",
+      _matchType:
+        matchedByPhone && matchedByInstagram
+          ? "phone+instagram"
+          : matchedByPhone
+            ? "phone"
+            : matchedByInstagram
+              ? "instagram"
+              : "",
+      _exists: blockedByInactiveInstagram
+        ? "invalid"
+        : hasAnyIdentifier
+          ? "insufficient_link"
+          : "invalid",
       _reason: blockedByInactiveInstagram
         ? `Instagram @${normalizedInstagram} marcado como inativo por perfil indisponivel.`
         : hasAnyIdentifier
           ? "Nao foi possivel resolver um canal elegivel com os dados informados para esta campanha."
-        : "Linha sem telefone ou Instagram valido.",
+          : "Linha sem telefone ou Instagram valido.",
       _contactId: matchedContact?.contactId ?? "",
-      _tags: tags
+      _tags: tags,
     };
   }
 
-  const resolvedTargetNormalized = resolvedChannel === "whatsapp" ? resolvedPhone ?? "" : resolvedInstagram ?? "";
-  const resolvedTargetDisplay = resolvedChannel === "whatsapp" ? resolvedPhone ?? "" : resolvedInstagram ? `@${resolvedInstagram}` : "";
+  const resolvedTargetNormalized =
+    resolvedChannel === "whatsapp" ? (resolvedPhone ?? "") : (resolvedInstagram ?? "");
+  const resolvedTargetDisplay =
+    resolvedChannel === "whatsapp"
+      ? (resolvedPhone ?? "")
+      : resolvedInstagram
+        ? `@${resolvedInstagram}`
+        : "";
   const targetKey = `${resolvedChannel}:${resolvedTargetNormalized}`;
 
   if (!resolvedTargetNormalized) {
@@ -300,11 +338,18 @@ function resolveRowStatus(input: {
       _resolvedTargetDisplay: "",
       _resolvedTargetNormalized: "",
       _resolvedName: rawName || matchedContact?.name || "",
-      _matchType: matchedByPhone && matchedByInstagram ? "phone+instagram" : matchedByPhone ? "phone" : matchedByInstagram ? "instagram" : "",
+      _matchType:
+        matchedByPhone && matchedByInstagram
+          ? "phone+instagram"
+          : matchedByPhone
+            ? "phone"
+            : matchedByInstagram
+              ? "instagram"
+              : "",
       _exists: "insufficient_link",
       _reason: "O canal elegivel foi identificado, mas o destino final nao ficou consistente.",
       _contactId: matchedContact?.contactId ?? "",
-      _tags: tags
+      _tags: tags,
     };
   }
 
@@ -319,11 +364,18 @@ function resolveRowStatus(input: {
       _resolvedTargetDisplay: resolvedTargetDisplay,
       _resolvedTargetNormalized: resolvedTargetNormalized,
       _resolvedName: rawName || matchedContact?.name || "",
-      _matchType: matchedByPhone && matchedByInstagram ? "phone+instagram" : matchedByPhone ? "phone" : matchedByInstagram ? "instagram" : "",
+      _matchType:
+        matchedByPhone && matchedByInstagram
+          ? "phone+instagram"
+          : matchedByPhone
+            ? "phone"
+            : matchedByInstagram
+              ? "instagram"
+              : "",
       _exists: "invalid",
       _reason: "Destino duplicado no CSV para o mesmo canal.",
       _contactId: matchedContact?.contactId ?? "",
-      _tags: tags
+      _tags: tags,
     };
   }
 
@@ -333,7 +385,11 @@ function resolveRowStatus(input: {
     (resolvedChannel === "whatsapp" && Boolean(normalizedPhone && matchedByPhone)) ||
     (resolvedChannel === "instagram" && Boolean(normalizedInstagram && matchedByInstagram));
 
-  const exists: CampaignImportStatus = matchedContact ? (directMatch ? "existing" : "eligible") : "new_contact";
+  const exists: CampaignImportStatus = matchedContact
+    ? directMatch
+      ? "existing"
+      : "eligible"
+    : "new_contact";
   const reason =
     exists === "existing"
       ? "Contato ja existente com vinculo direto no canal resolvido."
@@ -351,25 +407,36 @@ function resolveRowStatus(input: {
     _resolvedTargetDisplay: resolvedTargetDisplay,
     _resolvedTargetNormalized: resolvedTargetNormalized,
     _resolvedName: rawName || matchedContact?.name || resolvedTargetDisplay,
-    _matchType: matchedByPhone && matchedByInstagram ? "phone+instagram" : matchedByPhone ? "phone" : matchedByInstagram ? "instagram" : "",
+    _matchType:
+      matchedByPhone && matchedByInstagram
+        ? "phone+instagram"
+        : matchedByPhone
+          ? "phone"
+          : matchedByInstagram
+            ? "instagram"
+            : "",
     _exists: exists,
     _reason: reason,
     _contactId: matchedContact?.contactId ?? "",
-    _tags: tags
+    _tags: tags,
   };
 }
 
 export function buildCampaignImportPreview(
   rows: Array<Record<string, string>>,
   mapping: CampaignImportMapping,
-  options?: { eligibleChannels?: Array<"whatsapp" | "instagram"> }
+  options?: { eligibleChannels?: Array<"whatsapp" | "instagram"> },
 ): CampaignImportPreview {
   if (!mapping.phone && !mapping.instagram) {
-    throw new InputError("Selecione ao menos uma coluna de telefone ou Instagram para a pré-validação.");
+    throw new InputError(
+      "Selecione ao menos uma coluna de telefone ou Instagram para a pré-validação.",
+    );
   }
 
   const fallbackChannels: Array<"whatsapp" | "instagram"> = ["whatsapp"];
-  const eligibleChannels = options?.eligibleChannels?.length ? options.eligibleChannels : fallbackChannels;
+  const eligibleChannels = options?.eligibleChannels?.length
+    ? options.eligibleChannels
+    : fallbackChannels;
   const { phoneIndex, instagramIndex, inactiveInstagramValues } = buildContactIndexes();
   const seenTargets = new Set<string>();
 
@@ -381,8 +448,8 @@ export function buildCampaignImportPreview(
       phoneIndex,
       instagramIndex,
       inactiveInstagramValues,
-      seenTargets
-    })
+      seenTargets,
+    }),
   );
 
   const summary = preview.reduce(
@@ -398,12 +465,15 @@ export function buildCampaignImportPreview(
       new_contact: 0,
       needs_review: 0,
       insufficient_link: 0,
-      invalid: 0
-    }
+      invalid: 0,
+    },
   );
 
   const recipients = preview
-    .filter((row) => ["existing", "eligible", "new_contact"].includes(row._exists) && row._resolvedChannel)
+    .filter(
+      (row) =>
+        ["existing", "eligible", "new_contact"].includes(row._exists) && row._resolvedChannel,
+    )
     .map((row) => ({
       channel: row._resolvedChannel,
       phone: row._resolvedPhone || null,
@@ -414,13 +484,13 @@ export function buildCampaignImportPreview(
       tags: row._tags,
       extra: {
         ...row,
-        _tags: row._tags.join(", ")
-      }
+        _tags: row._tags.join(", "),
+      },
     })) as ImportedCampaignRecipient[];
 
   return {
     preview,
     summary,
-    recipients
+    recipients,
   };
 }

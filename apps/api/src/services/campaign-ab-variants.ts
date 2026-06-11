@@ -44,14 +44,15 @@ export function resolveCampaignAbVariant(input: {
   }
 
   const existingId = stringFromUnknown(input.recipient.metadata.abVariantId);
-  const existing = existingId
-    ? config.variants.find((variant) => variant.id === existingId)
-    : null;
+  const existing = existingId ? config.variants.find((variant) => variant.id === existingId) : null;
   if (existing) {
     return existing;
   }
 
-  return selectCampaignAbVariant(config, `${input.campaign.id}:${input.recipient.id}:${input.recipient.phone ?? ""}`);
+  return selectCampaignAbVariant(
+    config,
+    `${input.campaign.id}:${input.recipient.id}:${input.recipient.phone ?? ""}`,
+  );
 }
 
 export function applyCampaignAbVariantToStep(
@@ -95,7 +96,9 @@ export function applyCampaignAbVariantToStep(
       text: nonEmptyString(override.text) ?? step.text,
       url: validUrl(override.url) ?? step.url,
       previewEnabled:
-        typeof override.previewEnabled === "boolean" ? override.previewEnabled : step.previewEnabled,
+        typeof override.previewEnabled === "boolean"
+          ? override.previewEnabled
+          : step.previewEnabled,
     };
   }
 
@@ -112,7 +115,8 @@ export function applyCampaignAbVariantToStep(
 
   if (step.type === "image") {
     const mediaAssetIds = positiveIntegerArray(override.mediaAssetIds);
-    const mediaAssetId = positiveInteger(override.mediaAssetId) ?? mediaAssetIds?.[0] ?? step.mediaAssetId;
+    const mediaAssetId =
+      positiveInteger(override.mediaAssetId) ?? mediaAssetIds?.[0] ?? step.mediaAssetId;
     return {
       ...step,
       label,
@@ -167,10 +171,7 @@ function readCampaignAbVariant(value: unknown, index: number): CampaignAbVariant
   };
 }
 
-function selectCampaignAbVariant(
-  config: CampaignAbConfig,
-  stableKey: string,
-): CampaignAbVariant {
+function selectCampaignAbVariant(config: CampaignAbConfig, stableKey: string): CampaignAbVariant {
   const totalWeight = config.variants.reduce((total, variant) => total + variant.weight, 0);
   const bucket = stableHash(stableKey) % Math.max(1, totalWeight);
   let cursor = 0;
@@ -222,7 +223,9 @@ function positiveIntegerArray(value: unknown): number[] | null {
   if (!Array.isArray(value)) {
     return null;
   }
-  const ids = Array.from(new Set(value.map(positiveInteger).filter((id): id is number => id !== null)));
+  const ids = Array.from(
+    new Set(value.map(positiveInteger).filter((id): id is number => id !== null)),
+  );
   return ids.length > 0 ? ids.slice(0, 10) : null;
 }
 

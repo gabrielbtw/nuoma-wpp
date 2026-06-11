@@ -24,8 +24,10 @@ function sleepSync(ms: number) {
 }
 
 export function isSqliteBusyError(error: unknown) {
-  const code = typeof error === "object" && error && "code" in error ? String(error.code ?? "") : "";
-  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  const code =
+    typeof error === "object" && error && "code" in error ? String(error.code ?? "") : "";
+  const message =
+    error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return SQLITE_BUSY_CODES.has(code) || message.includes("database is locked");
 }
 
@@ -35,7 +37,7 @@ export function withSqliteBusyRetry<T>(
     maxAttempts?: number;
     initialDelayMs?: number;
     maxDelayMs?: number;
-  }
+  },
 ) {
   const maxAttempts = Math.max(1, options?.maxAttempts ?? 5);
   const initialDelayMs = Math.max(1, options?.initialDelayMs ?? 25);
@@ -58,7 +60,9 @@ export function withSqliteBusyRetry<T>(
 }
 
 function runMigrations(db: Database.Database) {
-  db.exec("CREATE TABLE IF NOT EXISTS _migrations (id TEXT PRIMARY KEY, applied_at TEXT NOT NULL);");
+  db.exec(
+    "CREATE TABLE IF NOT EXISTS _migrations (id TEXT PRIMARY KEY, applied_at TEXT NOT NULL);",
+  );
   const applied = db.prepare("SELECT id FROM _migrations").all() as Array<{ id: string }>;
   const appliedIds = new Set(applied.map((entry) => entry.id));
   const markApplied = db.prepare("INSERT INTO _migrations (id, applied_at) VALUES (?, ?)");
@@ -112,7 +116,7 @@ export function assertNoV2Schema(db: Database.Database, databasePath: string): v
   const v2Signals = [
     hasDrizzleMigrations ? "__drizzle_migrations table" : null,
     contactIdColumn?.type.toUpperCase().includes("INT") ? "contacts.id INTEGER" : null,
-    hasUserId ? "contacts.user_id present" : null
+    hasUserId ? "contacts.user_id present" : null,
   ].filter(Boolean);
 
   if (v2Signals.length === 0) {
@@ -121,8 +125,8 @@ export function assertNoV2Schema(db: Database.Database, databasePath: string): v
 
   throw new Error(
     `NUOMA_DB_STACK_MISMATCH: DATABASE_PATH points to the runtime-v2-active-candidate SQLite schema (${v2Signals.join(
-      ", "
-    )}). Use the legacy-maintenance database for @nuoma/core or run the approved V2.15 migration/cutover path. DATABASE_PATH=${databasePath}`
+      ", ",
+    )}). Use the legacy-maintenance database for @nuoma/core or run the approved V2.15 migration/cutover path. DATABASE_PATH=${databasePath}`,
   );
 }
 

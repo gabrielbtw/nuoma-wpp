@@ -11,23 +11,19 @@ export const attendantsRouter = router({
     return { attendants };
   }),
 
-  create: adminCsrfProcedure
-    .input(createAttendantBodySchema)
-    .mutation(async ({ ctx, input }) => {
-      const attendant = await ctx.repos.attendants.create({
-        ...input,
-        userId: ctx.user.id,
-      });
-      return { attendant };
-    }),
+  create: adminCsrfProcedure.input(createAttendantBodySchema).mutation(async ({ ctx, input }) => {
+    const attendant = await ctx.repos.attendants.create({
+      ...input,
+      userId: ctx.user.id,
+    });
+    return { attendant };
+  }),
 
-  update: adminCsrfProcedure
-    .input(updateAttendantBodySchema)
-    .mutation(async ({ ctx, input }) => {
-      const attendant = await ctx.repos.attendants.update({
-        ...input,
-        userId: ctx.user.id,
-      });
-      return { attendant };
-    }),
+  update: adminCsrfProcedure.input(updateAttendantBodySchema).mutation(async ({ ctx, input }) => {
+    const attendant = await ctx.repos.attendants.update({
+      ...input,
+      userId: ctx.user.id,
+    });
+    return { attendant };
+  }),
 });

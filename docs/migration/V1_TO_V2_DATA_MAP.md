@@ -37,75 +37,75 @@ Na implementacao V2.15, o import reutiliza `V215_TARGET_USER_ID` se existir. Se 
 
 V1 → V2: 1:1, com adição de `user_id=1`.
 
-| V1 (campo) | V2 (campo) | Notas |
-|---|---|---|
-| `id` | metadata/raw source id | V2 gera novo id; source id preservado em nota/metadado. |
-| — | `user_id` | injeta `1` |
-| `phone` | `phone` | nullable; contato pode existir só por Instagram. UNIQUE deve ignorar NULL por `user_id`. |
-| `name` | `name` | |
-| `email` | `email` | |
-| `cpf` | `cpf` | |
-| `instagram` | `instagram` | |
-| `status` | `status` | enum mantido |
-| `notes` | `notes` | |
-| `created_at` | `created_at` | |
-| `updated_at` | `updated_at` | |
+| V1 (campo)   | V2 (campo)             | Notas                                                                                    |
+| ------------ | ---------------------- | ---------------------------------------------------------------------------------------- |
+| `id`         | metadata/raw source id | V2 gera novo id; source id preservado em nota/metadado.                                  |
+| —            | `user_id`              | injeta `1`                                                                               |
+| `phone`      | `phone`                | nullable; contato pode existir só por Instagram. UNIQUE deve ignorar NULL por `user_id`. |
+| `name`       | `name`                 |                                                                                          |
+| `email`      | `email`                |                                                                                          |
+| `cpf`        | `cpf`                  |                                                                                          |
+| `instagram`  | `instagram`            |                                                                                          |
+| `status`     | `status`               | enum mantido                                                                             |
+| `notes`      | `notes`                |                                                                                          |
+| `created_at` | `created_at`           |                                                                                          |
+| `updated_at` | `updated_at`           |                                                                                          |
 
 Orphans esperados: nenhum (contacts é raiz).
 
 ### `conversations`
 
-| V1 | V2 | Notas |
-|---|---|---|
-| `id` | metadata/raw source id | V2 gera novo id; source id preservado em raw/metadado. |
-| — | `user_id` | injeta `1` |
-| `wa_chat_id` | `external_thread_id` | unifica nomenclatura WA+IG |
-| `channel` | `channel` | enum |
-| `external_thread_id` | `external_thread_id` | se existe e ≠ `wa_chat_id`, mantém este valor |
-| `contact_id` | `contact_id` | FK |
-| `internal_status` | `internal_status` | |
-| `last_message_at` | `last_message_at` | |
-| `unread_count` | `unread_count` | reset > 100 (já tratado no commit 6a090d8) |
+| V1                   | V2                     | Notas                                                  |
+| -------------------- | ---------------------- | ------------------------------------------------------ |
+| `id`                 | metadata/raw source id | V2 gera novo id; source id preservado em raw/metadado. |
+| —                    | `user_id`              | injeta `1`                                             |
+| `wa_chat_id`         | `external_thread_id`   | unifica nomenclatura WA+IG                             |
+| `channel`            | `channel`              | enum                                                   |
+| `external_thread_id` | `external_thread_id`   | se existe e ≠ `wa_chat_id`, mantém este valor          |
+| `contact_id`         | `contact_id`           | FK                                                     |
+| `internal_status`    | `internal_status`      |                                                        |
+| `last_message_at`    | `last_message_at`      |                                                        |
+| `unread_count`       | `unread_count`         | reset > 100 (já tratado no commit 6a090d8)             |
 
 Orphans possíveis: conversations com `contact_id` apontando pra contact que não existe → importar conversa com `contact_id=NULL` quando houver identificador externo; não criar contato fantasma.
 
 ### `messages`
 
-| V1 | V2 | Notas |
-|---|---|---|
-| `id` | metadata/raw source id | V2 gera novo id; source id preservado em `raw_json`. |
-| `conversation_id` | `conversation_id` | FK |
-| `external_id` | `external_id` | **canônico** no V2 (UNIQUE composto com conversation_id) |
-| `direction` | `direction` | enum |
-| `content_type` | `content_type` | enum |
-| `body` | `body` | |
-| `media_path` | `media_path` | path relativo a uploads |
-| `status` | `status` | enum |
-| `created_at` | `created_at` | |
+| V1                | V2                     | Notas                                                    |
+| ----------------- | ---------------------- | -------------------------------------------------------- |
+| `id`              | metadata/raw source id | V2 gera novo id; source id preservado em `raw_json`.     |
+| `conversation_id` | `conversation_id`      | FK                                                       |
+| `external_id`     | `external_id`          | **canônico** no V2 (UNIQUE composto com conversation_id) |
+| `direction`       | `direction`            | enum                                                     |
+| `content_type`    | `content_type`         | enum                                                     |
+| `body`            | `body`                 |                                                          |
+| `media_path`      | `media_path`           | path relativo a uploads                                  |
+| `status`          | `status`               | enum                                                     |
+| `created_at`      | `created_at`           |                                                          |
 
 Orphans possíveis: messages com `conversation_id` órfão → reporta. Mensagens sem `external_id` (V1 antigos): preserva como NULL no V2; nova UNIQUE constraint permite NULL múltiplos.
 
 ### `jobs`
 
-| V1 | V2 | Notas |
-|---|---|---|
-| `id` | `id` | preserva |
-| — | `user_id` | injeta `1` |
-| `type` | `type` | enum (alguns tipos podem renomear na transição — ex.: `send-assisted-message` vira `send-instagram-message`) |
-| `status` | `status` | enum |
-| `payload_json` | `payload_json` | mantém JSON |
-| `dedupe_key` | `dedupe_key` | preserva |
-| — | `dedupe_expires_at` | injeta `+24h` se status='pending'/'processing'; NULL se 'done'/'failed' |
-| `attempts` | `attempts` | |
-| `max_attempts` | `max_attempts` | |
-| `scheduled_at` | `scheduled_at` | |
-| `locked_at` | `locked_at` | |
-| `locked_by` | `locked_by` | |
-| `error_message` | `error_message` | mantém |
-| — | `error_json` | NULL (V1 não tem stack estruturada) |
-| `finished_at` | `finished_at` | |
-| `created_at` | `created_at` | |
-| `updated_at` | `updated_at` | |
+| V1              | V2                  | Notas                                                                                                        |
+| --------------- | ------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `id`            | `id`                | preserva                                                                                                     |
+| —               | `user_id`           | injeta `1`                                                                                                   |
+| `type`          | `type`              | enum (alguns tipos podem renomear na transição — ex.: `send-assisted-message` vira `send-instagram-message`) |
+| `status`        | `status`            | enum                                                                                                         |
+| `payload_json`  | `payload_json`      | mantém JSON                                                                                                  |
+| `dedupe_key`    | `dedupe_key`        | preserva                                                                                                     |
+| —               | `dedupe_expires_at` | injeta `+24h` se status='pending'/'processing'; NULL se 'done'/'failed'                                      |
+| `attempts`      | `attempts`          |                                                                                                              |
+| `max_attempts`  | `max_attempts`      |                                                                                                              |
+| `scheduled_at`  | `scheduled_at`      |                                                                                                              |
+| `locked_at`     | `locked_at`         |                                                                                                              |
+| `locked_by`     | `locked_by`         |                                                                                                              |
+| `error_message` | `error_message`     | mantém                                                                                                       |
+| —               | `error_json`        | NULL (V1 não tem stack estruturada)                                                                          |
+| `finished_at`   | `finished_at`       |                                                                                                              |
+| `created_at`    | `created_at`        |                                                                                                              |
+| `updated_at`    | `updated_at`        |                                                                                                              |
 
 **Decisao**: importar so jobs vivos (`pending`, `processing`, `queued`, `running`). Jobs `done`/`failed` ficam no V1 como historico (V1 vira read-only apos cutover).
 

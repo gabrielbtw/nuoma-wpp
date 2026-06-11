@@ -10,11 +10,11 @@ export default defineConfig({
   root: path.resolve(__dirname),
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "src/client")
-    }
+      "@": path.resolve(__dirname, "src/client"),
+    },
   },
   build: {
     outDir: path.resolve(__dirname, "dist/client"),
-    emptyOutDir: true
-  }
+    emptyOutDir: true,
+  },
 });

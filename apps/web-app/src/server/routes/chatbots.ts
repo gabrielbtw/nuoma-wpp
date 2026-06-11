@@ -1,7 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import {
-  listChatbots, getChatbot, createChatbot, updateChatbot, deleteChatbot,
-  chatbotInputSchema
+  listChatbots,
+  getChatbot,
+  createChatbot,
+  updateChatbot,
+  deleteChatbot,
+  chatbotInputSchema,
 } from "@nuoma/core";
 
 export async function registerChatbotRoutes(app: FastifyInstance) {

@@ -49,10 +49,7 @@ export const AccordionContent = forwardRef<
 >(({ className, children, ...props }, ref) => (
   <RadixAccordion.Content
     ref={ref}
-    className={cn(
-      "overflow-hidden text-sm text-ink",
-      className,
-    )}
+    className={cn("overflow-hidden text-sm text-ink", className)}
     {...props}
   >
     <div className="px-4 pb-3">{children}</div>

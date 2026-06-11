@@ -193,8 +193,8 @@ export function DevComponentsPage() {
           </h1>
           <p className="max-w-2xl text-sm leading-relaxed text-fg-muted">
             Tokens, materiais, componentes e padrões de produto para o CRM omnichannel local-first.
-            Estética Editorial · Indigo — canvas quase-preto, hairlines, acento índigo único,
-            Inter na interface e Geist Mono nos dados.
+            Estética Editorial · Indigo — canvas quase-preto, hairlines, acento índigo único, Inter
+            na interface e Geist Mono nos dados.
           </p>
           <div className="flex flex-wrap gap-8 pt-2">
             <Stat num="62" label="tokens" />

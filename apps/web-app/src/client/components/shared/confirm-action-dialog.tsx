@@ -9,7 +9,7 @@ export function ConfirmActionDialog({
   confirmVariant = "default",
   pending = false,
   onCancel,
-  onConfirm
+  onConfirm,
 }: {
   open: boolean;
   title: string;
@@ -26,7 +26,9 @@ export function ConfirmActionDialog({
         <div className="space-y-5">
           <div>
             <DialogTitle className="font-display text-2xl text-white">{title}</DialogTitle>
-            <DialogDescription className="mt-2 text-sm text-slate-400">{description}</DialogDescription>
+            <DialogDescription className="mt-2 text-sm text-slate-400">
+              {description}
+            </DialogDescription>
           </div>
           <div className="flex justify-end gap-3">
             <Button variant="secondary" onClick={onCancel}>

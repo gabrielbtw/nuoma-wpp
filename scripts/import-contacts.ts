@@ -91,7 +91,10 @@ function looksLikePhoneNumber(name: string): boolean {
  */
 function preNormalizePhones(raw: string): string[] {
   // Split by ::: or /
-  const parts = raw.split(/\s*(?::::|\/)\s*/).map((p) => p.trim()).filter(Boolean);
+  const parts = raw
+    .split(/\s*(?::::|\/)\s*/)
+    .map((p) => p.trim())
+    .filter(Boolean);
 
   return parts.map((part) => {
     let cleaned = part;
@@ -121,9 +124,7 @@ function preNormalizePhones(raw: string): string[] {
 }
 
 function titleCase(input: string): string {
-  return input
-    .toLowerCase()
-    .replace(/(?:^|\s)\S/g, (char) => char.toUpperCase());
+  return input.toLowerCase().replace(/(?:^|\s)\S/g, (char) => char.toUpperCase());
 }
 
 // ---------------------------------------------------------------------------
@@ -135,11 +136,7 @@ function parseGoogleContacts(filePath: string): RawContact[] {
   const contacts: RawContact[] = [];
 
   for (const row of rows) {
-    const nameParts = [
-      row["First Name"] ?? "",
-      row["Middle Name"] ?? "",
-      row["Last Name"] ?? "",
-    ]
+    const nameParts = [row["First Name"] ?? "", row["Middle Name"] ?? "", row["Last Name"] ?? ""]
       .map((p) => p.trim())
       .filter(Boolean);
 
@@ -149,11 +146,9 @@ function parseGoogleContacts(filePath: string): RawContact[] {
     if (!name || looksLikePhoneNumber(name)) continue;
 
     // Collect all phone columns
-    const phones = [
-      row["Phone 1 - Value"],
-      row["Phone 2 - Value"],
-      row["Phone 3 - Value"],
-    ].filter(Boolean);
+    const phones = [row["Phone 1 - Value"], row["Phone 2 - Value"], row["Phone 3 - Value"]].filter(
+      Boolean,
+    );
 
     for (const phone of phones) {
       if (phone) {

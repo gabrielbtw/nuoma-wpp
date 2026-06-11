@@ -1401,8 +1401,7 @@ export function createRepositories(handle: DbHandle) {
                 unreadCount: input.unreadCount ?? existingByWaJid.unreadCount,
                 profilePhotoMediaAssetId:
                   input.profilePhotoMediaAssetId ?? existingByWaJid.profilePhotoMediaAssetId,
-                profilePhotoSha256:
-                  input.profilePhotoSha256 ?? existingByWaJid.profilePhotoSha256,
+                profilePhotoSha256: input.profilePhotoSha256 ?? existingByWaJid.profilePhotoSha256,
                 profilePhotoUpdatedAt:
                   profilePhotoUpdatedAt ?? existingByWaJid.profilePhotoUpdatedAt,
                 updatedAt,
@@ -3370,7 +3369,11 @@ export function createRepositories(handle: DbHandle) {
         };
       },
 
-      async moveToDead(input: { jobId: number; error: string; workerId?: string }): Promise<boolean> {
+      async moveToDead(input: {
+        jobId: number;
+        error: string;
+        workerId?: string;
+      }): Promise<boolean> {
         const job = await db
           .select()
           .from(jobs)

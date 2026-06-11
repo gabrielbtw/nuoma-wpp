@@ -107,7 +107,11 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
 
   let exitCode = 0;
   try {
-    const closeResults = await Promise.allSettled([browser.close(), sync.close(), instagram.close()]);
+    const closeResults = await Promise.allSettled([
+      browser.close(),
+      sync.close(),
+      instagram.close(),
+    ]);
     for (const [index, result] of closeResults.entries()) {
       if (result.status === "rejected") {
         exitCode = 1;

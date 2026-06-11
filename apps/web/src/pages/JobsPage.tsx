@@ -46,9 +46,13 @@ export function JobsPage() {
   const jobs = all.data?.jobs ?? [];
   const deadJobs = dead.data?.jobs ?? [];
   const queuedCount = jobs.filter((job) => job.status === "queued").length;
-  const runningCount = jobs.filter((job) => job.status === "running" || job.status === "claimed").length;
+  const runningCount = jobs.filter(
+    (job) => job.status === "running" || job.status === "claimed",
+  ).length;
   const completedCount = jobs.filter((job) => job.status === "completed").length;
-  const failedCount = jobs.filter((job) => job.status === "failed" || job.status === "cancelled").length;
+  const failedCount = jobs.filter(
+    (job) => job.status === "failed" || job.status === "cancelled",
+  ).length;
 
   const retry = trpc.jobs.retryDead.useMutation({
     onSuccess() {
@@ -64,14 +68,14 @@ export function JobsPage() {
     onSuccess(data) {
       setCleanupConfirm("");
       toast.push({
-        title: "Cleanup OK",
+        title: "Limpeza concluída",
         description: `${data.deleted} jobs concluídos removidos`,
         variant: "success",
       });
       void utils.jobs.list.invalidate();
     },
     onError(err) {
-      toast.push({ title: "Falha cleanup", description: err.message, variant: "danger" });
+      toast.push({ title: "Falha na limpeza", description: err.message, variant: "danger" });
     },
   });
 
@@ -84,9 +88,7 @@ export function JobsPage() {
       <Animate preset="rise-in">
         <header className="nuoma-workspace-header flex items-end justify-between gap-6">
           <div>
-            <p className="nuoma-compat-kicker">
-              Processador
-            </p>
+            <p className="nuoma-compat-kicker">Processador</p>
             <h1 className="nuoma-compat-display mt-2 text-3xl md:text-4xl">
               Jobs <span className="nuoma-gradient-text">em fila</span>.
             </h1>
@@ -110,10 +112,34 @@ export function JobsPage() {
       <Animate preset="rise-in" delaySeconds={0.1}>
         <section className="nuoma-jobs-board">
           <div className="nuoma-jobs-stats">
-            <JobSignalCard icon={<Database className="h-4 w-4" />} label="Fila" value={jobs.length} detail={`${queuedCount} na fila`} tone="cyan" />
-            <JobSignalCard icon={<Clock3 className="h-4 w-4" />} label="Em execução" value={runningCount} detail="em execução" tone="green" />
-            <JobSignalCard icon={<CheckCircle2 className="h-4 w-4" />} label="Concluídos" value={completedCount} detail="janela atual" tone="green" />
-            <JobSignalCard icon={<AlertTriangle className="h-4 w-4" />} label="Falhas" value={failedCount + deadJobs.length} detail={`${deadJobs.length} DLQ`} tone={failedCount + deadJobs.length > 0 ? "amber" : "green"} />
+            <JobSignalCard
+              icon={<Database className="h-4 w-4" />}
+              label="Fila"
+              value={jobs.length}
+              detail={`${queuedCount} na fila`}
+              tone="cyan"
+            />
+            <JobSignalCard
+              icon={<Clock3 className="h-4 w-4" />}
+              label="Em execução"
+              value={runningCount}
+              detail="em execução"
+              tone="green"
+            />
+            <JobSignalCard
+              icon={<CheckCircle2 className="h-4 w-4" />}
+              label="Concluídos"
+              value={completedCount}
+              detail="janela atual"
+              tone="green"
+            />
+            <JobSignalCard
+              icon={<AlertTriangle className="h-4 w-4" />}
+              label="Falhas"
+              value={failedCount + deadJobs.length}
+              detail={`${deadJobs.length} DLQ`}
+              tone={failedCount + deadJobs.length > 0 ? "amber" : "green"}
+            />
           </div>
 
           <div className="nuoma-jobs-layout">
@@ -156,10 +182,18 @@ export function JobsPage() {
                           <div key={job.id} className="nuoma-jobs-row">
                             <span className="font-mono text-fg-dim">#{job.id}</span>
                             <span className="truncate">{job.type}</span>
-                            <span><Badge variant={statusVariant(job.status)}>{job.status}</Badge></span>
-                            <span><TimeAgo date={job.createdAt} /></span>
+                            <span>
+                              <Badge variant={statusVariant(job.status)}>
+                                {jobStatusLabel(job.status)}
+                              </Badge>
+                            </span>
+                            <span>
+                              <TimeAgo date={job.createdAt} />
+                            </span>
                             <span className="nuoma-jobs-row-action">
-                              {job.status === "failed" || job.status === "cancelled" ? "Revisar" : "Monitorar"}
+                              {job.status === "failed" || job.status === "cancelled"
+                                ? "Revisar"
+                                : "Monitorar"}
                             </span>
                           </div>
                         ))}
@@ -198,7 +232,9 @@ export function JobsPage() {
                             <span className="font-mono text-fg-dim">#{job.id}</span>
                             <span className="truncate">{job.type}</span>
                             <span className="truncate text-fg-dim">{job.lastError}</span>
-                            <span><TimeAgo date={job.createdAt} /></span>
+                            <span>
+                              <TimeAgo date={job.createdAt} />
+                            </span>
                             <span>
                               <Button
                                 size="xs"
@@ -222,9 +258,15 @@ export function JobsPage() {
               <section>
                 <h2>Prontidão da fila</h2>
                 <div className="nuoma-jobs-gates">
-                  <span><ShieldCheck className="h-4 w-4" /> Agendador <b>OK</b></span>
-                  <span><Clock3 className="h-4 w-4" /> Backlog <b>{queuedCount}</b></span>
-                  <span><AlertTriangle className="h-4 w-4" /> DLQ <b>{deadJobs.length}</b></span>
+                  <span>
+                    <ShieldCheck className="h-4 w-4" /> Agendador <b>OK</b>
+                  </span>
+                  <span>
+                    <Clock3 className="h-4 w-4" /> Backlog <b>{queuedCount}</b>
+                  </span>
+                  <span>
+                    <AlertTriangle className="h-4 w-4" /> DLQ <b>{deadJobs.length}</b>
+                  </span>
                 </div>
               </section>
               <section>
@@ -252,7 +294,7 @@ export function JobsPage() {
                 <h2>Linha operacional</h2>
                 <div className="nuoma-jobs-timeline">
                   <span className="is-done">Recebido</span>
-                  <span className={runningCount > 0 ? "is-done" : undefined}>Claim</span>
+                  <span className={runningCount > 0 ? "is-done" : undefined}>Reserva</span>
                   <span className={completedCount > 0 ? "is-done" : undefined}>Execução</span>
                   <span className={deadJobs.length === 0 ? "is-done" : "is-alert"}>DLQ</span>
                 </div>
@@ -288,11 +330,19 @@ function JobSignalCard({
   );
 }
 
-function statusVariant(
-  status: string,
-): "neutral" | "info" | "success" | "warning" | "danger" {
+function statusVariant(status: string): "neutral" | "info" | "success" | "warning" | "danger" {
   if (status === "completed") return "success";
   if (status === "failed" || status === "cancelled") return "danger";
   if (status === "claimed" || status === "running") return "info";
   return "neutral";
+}
+
+function jobStatusLabel(status: string): string {
+  if (status === "queued") return "na fila";
+  if (status === "claimed") return "reservado";
+  if (status === "running") return "em execução";
+  if (status === "completed") return "concluído";
+  if (status === "failed") return "com falha";
+  if (status === "cancelled") return "cancelado";
+  return status;
 }

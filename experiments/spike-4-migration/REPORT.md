@@ -26,31 +26,31 @@ Executado em 2026-04-30T17:33:22.993Z. Duração: 2562ms.
 
 ## Tabelas
 
-| tabela | existe | scanned | importavel | skipped | orphans |
-|---|---:|---:|---:|---:|---:|
-| `contacts` | sim | 12.958 | 12.958 | 0 | 0 |
-| `conversations` | sim | 1.803 | 1.803 | 0 | 0 |
-| `messages` | sim | 3.826 | 3.826 | 0 | 0 |
-| `jobs` | sim | 3.809 | 0 | 3.809 | 0 |
-| `campaigns` | sim | 10 | 10 | 0 | 0 |
-| `campaign_steps` | sim | 65 | 65 | 0 | 0 |
-| `campaign_recipients` | sim | 10 | 10 | 0 | 10 |
-| `campaign_executions` | sim | 0 | 0 | 0 | 0 |
-| `automations` | sim | 3 | 3 | 0 | 0 |
-| `automation_actions` | sim | 16 | 16 | 0 | 0 |
-| `automation_contact_state` | sim | 159 | 155 | 4 | 4 |
-| `automation_runs` | sim | 243 | 231 | 12 | 13 |
-| `tags` | sim | 12 | 12 | 0 | 0 |
-| `contact_tags` | sim | 33.489 | 13.108 | 20.381 | 20.381 |
-| `contact_channels` | sim | 33.330 | 12.952 | 20.378 | 20.378 |
-| `contact_history` | sim | 38.190 | 17.226 | 20.964 | 20.964 |
-| `attendants` | sim | 1 | 1 | 0 | 0 |
-| `chatbots` | sim | 2 | 2 | 0 | 0 |
-| `chatbot_rules` | sim | 5 | 5 | 0 | 0 |
-| `media_assets` | sim | 1 | 1 | 0 | 0 |
-| `audit_logs` | sim | 280.103 | 280.103 | 0 | 272.408 |
-| `system_logs` | sim | 80.476 | 80.476 | 0 | 0 |
-| `reminders` | sim | 0 | 0 | 0 | 0 |
+| tabela                     | existe | scanned | importavel | skipped | orphans |
+| -------------------------- | -----: | ------: | ---------: | ------: | ------: |
+| `contacts`                 |    sim |  12.958 |     12.958 |       0 |       0 |
+| `conversations`            |    sim |   1.803 |      1.803 |       0 |       0 |
+| `messages`                 |    sim |   3.826 |      3.826 |       0 |       0 |
+| `jobs`                     |    sim |   3.809 |          0 |   3.809 |       0 |
+| `campaigns`                |    sim |      10 |         10 |       0 |       0 |
+| `campaign_steps`           |    sim |      65 |         65 |       0 |       0 |
+| `campaign_recipients`      |    sim |      10 |         10 |       0 |      10 |
+| `campaign_executions`      |    sim |       0 |          0 |       0 |       0 |
+| `automations`              |    sim |       3 |          3 |       0 |       0 |
+| `automation_actions`       |    sim |      16 |         16 |       0 |       0 |
+| `automation_contact_state` |    sim |     159 |        155 |       4 |       4 |
+| `automation_runs`          |    sim |     243 |        231 |      12 |      13 |
+| `tags`                     |    sim |      12 |         12 |       0 |       0 |
+| `contact_tags`             |    sim |  33.489 |     13.108 |  20.381 |  20.381 |
+| `contact_channels`         |    sim |  33.330 |     12.952 |  20.378 |  20.378 |
+| `contact_history`          |    sim |  38.190 |     17.226 |  20.964 |  20.964 |
+| `attendants`               |    sim |       1 |          1 |       0 |       0 |
+| `chatbots`                 |    sim |       2 |          2 |       0 |       0 |
+| `chatbot_rules`            |    sim |       5 |          5 |       0 |       0 |
+| `media_assets`             |    sim |       1 |          1 |       0 |       0 |
+| `audit_logs`               |    sim | 280.103 |    280.103 |       0 | 272.408 |
+| `system_logs`              |    sim |  80.476 |     80.476 |       0 |       0 |
+| `reminders`                |    sim |       0 |          0 |       0 |       0 |
 
 ## Orphans
 
@@ -66,18 +66,18 @@ Executado em 2026-04-30T17:33:22.993Z. Duração: 2562ms.
 
 ## Política Simulada
 
-| tabela | skipped | warnings/set-null |
-|---|---|---|
-| `contacts` | - | contacts-without-phone: 63 |
-| `messages` | - | messages-without-external-id: 3.687 |
-| `jobs` | job-failed-history: 581; job-done-history: 3.225; job-cancelled-history: 3 | - |
-| `campaign_recipients` | - | set-null-orphan-contact-id: 10 |
-| `automation_contact_state` | orphan-contact-id: 4 | - |
-| `automation_runs` | orphan-contact-id: 12 | - |
-| `contact_tags` | orphan-contact-id: 20.381 | - |
-| `contact_channels` | orphan-contact-id: 20.378 | - |
-| `contact_history` | orphan-contact-id: 20.964 | - |
-| `audit_logs` | - | drop-orphan-contact-reference: 195.295; drop-orphan-conversation-reference: 77.113 |
+| tabela                     | skipped                                                                    | warnings/set-null                                                                  |
+| -------------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `contacts`                 | -                                                                          | contacts-without-phone: 63                                                         |
+| `messages`                 | -                                                                          | messages-without-external-id: 3.687                                                |
+| `jobs`                     | job-failed-history: 581; job-done-history: 3.225; job-cancelled-history: 3 | -                                                                                  |
+| `campaign_recipients`      | -                                                                          | set-null-orphan-contact-id: 10                                                     |
+| `automation_contact_state` | orphan-contact-id: 4                                                       | -                                                                                  |
+| `automation_runs`          | orphan-contact-id: 12                                                      | -                                                                                  |
+| `contact_tags`             | orphan-contact-id: 20.381                                                  | -                                                                                  |
+| `contact_channels`         | orphan-contact-id: 20.378                                                  | -                                                                                  |
+| `contact_history`          | orphan-contact-id: 20.964                                                  | -                                                                                  |
+| `audit_logs`               | -                                                                          | drop-orphan-contact-reference: 195.295; drop-orphan-conversation-reference: 77.113 |
 
 ## Politica Aceita
 

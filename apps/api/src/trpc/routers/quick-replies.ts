@@ -59,10 +59,8 @@ export const quickRepliesRouter = router({
         userId: ctx.user.id,
         title: input.title?.trim(),
         body: input.body?.trim(),
-        shortcut:
-          input.shortcut === undefined ? undefined : normalizeOptionalText(input.shortcut),
-        category:
-          input.category === undefined ? undefined : normalizeOptionalText(input.category),
+        shortcut: input.shortcut === undefined ? undefined : normalizeOptionalText(input.shortcut),
+        category: input.category === undefined ? undefined : normalizeOptionalText(input.category),
       });
 
       if (!quickReply) {

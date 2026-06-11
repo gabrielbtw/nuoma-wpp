@@ -9,13 +9,7 @@ import {
   type AuthSession,
 } from "@nuoma/contracts";
 
-import {
-  addSeconds,
-  hashToken,
-  issueSession,
-  publicUser,
-  randomToken,
-} from "../auth.js";
+import { addSeconds, hashToken, issueSession, publicUser, randomToken } from "../auth.js";
 import { REFRESH_COOKIE, clearAuthCookies, readCookie } from "../cookies.js";
 import {
   csrfProcedure,
@@ -30,11 +24,7 @@ export const authRouter = router({
     .input(loginInputSchema)
     .mutation(async ({ ctx, input }): Promise<AuthSession> => {
       const user = await ctx.repos.users.findByEmail(input.email);
-      if (
-        !user ||
-        !user.isActive ||
-        !(await argon2.verify(user.passwordHash, input.password))
-      ) {
+      if (!user || !user.isActive || !(await argon2.verify(user.passwordHash, input.password))) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "Invalid email or password",

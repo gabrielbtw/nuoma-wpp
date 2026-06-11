@@ -72,10 +72,7 @@ export function idempotencyKey(input: IdempotencyKeyInput): string {
  * `legacy:job:<id>` value so pre-IF-01 jobs in flight at deploy time still
  * pass through the dispatch guard without skipping legitimate sends.
  */
-export function extractIdempotencyKeyFromJobPayload(
-  payload: unknown,
-  jobId: number,
-): string {
+export function extractIdempotencyKeyFromJobPayload(payload: unknown, jobId: number): string {
   if (payload && typeof payload === "object" && "idempotencyKey" in payload) {
     const value = (payload as { idempotencyKey?: unknown }).idempotencyKey;
     if (typeof value === "string" && value.length > 0) {

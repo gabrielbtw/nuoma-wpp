@@ -9,19 +9,32 @@ import {
   getOpenAutomationRunForContact,
   listActiveAutomations,
   listDueAutomationRuns,
-  recordAutomationContactState
+  recordAutomationContactState,
 } from "../repositories/automation-repository.js";
 import { getDb } from "../db/connection.js";
-import { getContactById, listContactsForAutomationEvaluation, applyTagToContact, removeTagFromContact } from "../repositories/contact-repository.js";
+import {
+  getContactById,
+  listContactsForAutomationEvaluation,
+  applyTagToContact,
+  removeTagFromContact,
+} from "../repositories/contact-repository.js";
 import { getInstagramThreadIdForContact } from "../repositories/contact-channel-repository.js";
-import { getConversationById, getLatestConversationForContactChannel } from "../repositories/conversation-repository.js";
+import {
+  getConversationById,
+  getLatestConversationForContactChannel,
+} from "../repositories/conversation-repository.js";
 import { enqueueJob } from "../repositories/job-repository.js";
 import { createReminder } from "../repositories/reminder-repository.js";
 import { normalizeTagName } from "../repositories/tag-repository.js";
 import { getWorkerState, recordSystemEvent } from "../repositories/system-repository.js";
 import { loadEnv } from "../config/env.js";
 import { resolveTemplateVars } from "../utils/template-vars.js";
-import { addSeconds, isWithinTimeWindow, nextWindowStartIso, randomBetween } from "../utils/time.js";
+import {
+  addSeconds,
+  isWithinTimeWindow,
+  nextWindowStartIso,
+  randomBetween,
+} from "../utils/time.js";
 import type { AutomationRuleRecord, ChannelType } from "../types/domain.js";
 
 function hoursSince(timestamp: string | null | undefined) {
@@ -49,8 +62,11 @@ function isInstagramIncomingAutomation(automation: Pick<AutomationRuleRecord, "c
 }
 
 function contactMatchesCommonFilters(
-  automation: Pick<AutomationRuleRecord, "triggerTags" | "excludeTags" | "requiredStatus" | "procedureOnly">,
-  contact: ReturnType<typeof listContactsForAutomationEvaluation>[number]
+  automation: Pick<
+    AutomationRuleRecord,
+    "triggerTags" | "excludeTags" | "requiredStatus" | "procedureOnly"
+  >,
+  contact: ReturnType<typeof listContactsForAutomationEvaluation>[number],
 ) {
   const contactTags = new Set(contact.tags.map((tag) => normalizeTagName(tag)));
 
@@ -73,14 +89,20 @@ function contactMatchesCommonFilters(
   return true;
 }
 
-function isAutomationCoolingDown(automationId: string, contactId: string, minimumIntervalHours: number) {
+function isAutomationCoolingDown(
+  automationId: string,
+  contactId: string,
+  minimumIntervalHours: number,
+) {
   const state = getAutomationContactState(automationId, contactId);
-  return Boolean(state?.last_sent_at && hoursSince(state.last_sent_at as string) < minimumIntervalHours);
+  return Boolean(
+    state?.last_sent_at && hoursSince(state.last_sent_at as string) < minimumIntervalHours,
+  );
 }
 
 function evaluateScheduledAutomationEligibility(
   automation: AutomationRuleRecord,
-  contact: ReturnType<typeof listContactsForAutomationEvaluation>[number]
+  contact: ReturnType<typeof listContactsForAutomationEvaluation>[number],
 ) {
   if (isInstagramIncomingAutomation(automation)) {
     return false;
@@ -116,7 +138,10 @@ function evaluateScheduledAutomationEligibility(
     if (hoursSince(contact.lastOutgoingAt) < automation.timeWindowHours) {
       return false;
     }
-  } else if (contact.lastInteractionAt && hoursSince(contact.lastInteractionAt) < automation.timeWindowHours) {
+  } else if (
+    contact.lastInteractionAt &&
+    hoursSince(contact.lastInteractionAt) < automation.timeWindowHours
+  ) {
     return false;
   }
 
@@ -129,7 +154,7 @@ function evaluateScheduledAutomationEligibility(
 
 function evaluateInstagramIncomingEligibility(
   automation: AutomationRuleRecord,
-  contact: ReturnType<typeof listContactsForAutomationEvaluation>[number]
+  contact: ReturnType<typeof listContactsForAutomationEvaluation>[number],
 ) {
   if (!isInstagramIncomingAutomation(automation)) {
     return false;
@@ -153,12 +178,16 @@ function evaluateInstagramIncomingEligibility(
 function getChannelAvailability(channel: ChannelType) {
   if (channel === "instagram") {
     const state = getWorkerState("instagram-assisted");
-    const payload = state?.value && typeof state.value === "object" ? (state.value as Record<string, unknown>) : {};
+    const payload =
+      state?.value && typeof state.value === "object"
+        ? (state.value as Record<string, unknown>)
+        : {};
     return payload.authenticated === true || payload.status === "connected";
   }
 
   const state = getWorkerState("wa-worker");
-  const payload = state?.value && typeof state.value === "object" ? (state.value as Record<string, unknown>) : {};
+  const payload =
+    state?.value && typeof state.value === "object" ? (state.value as Record<string, unknown>) : {};
   const status = String(payload.status ?? "");
   return status === "authenticated" || status === "degraded";
 }
@@ -167,7 +196,11 @@ function resolveRunChannel(automation: AutomationRuleRecord): ChannelType {
   return isInstagramIncomingAutomation(automation) ? "instagram" : "whatsapp";
 }
 
-function resolveRunConversation(contactId: string, conversationId: string | null | undefined, channel: ChannelType) {
+function resolveRunConversation(
+  contactId: string,
+  conversationId: string | null | undefined,
+  channel: ChannelType,
+) {
   const explicitConversation = conversationId ? getConversationById(conversationId) : null;
   if (explicitConversation?.channel === channel) {
     return explicitConversation;
@@ -192,14 +225,15 @@ export function triggerIncomingAutomationRuns(input: {
     return { queued: 0, skipped: true, reason: "contact_not_found" };
   }
 
-  const contact =
-    listContactsForAutomationEvaluation().find((candidate) => candidate.id === input.contactId) ?? {
-      ...storedContact,
-      conversationId: input.conversationId,
-      lastOutgoingAt: null,
-      lastIncomingAt: input.receivedAt ?? null,
-      lastAutomationAt: null
-    };
+  const contact = listContactsForAutomationEvaluation().find(
+    (candidate) => candidate.id === input.contactId,
+  ) ?? {
+    ...storedContact,
+    conversationId: input.conversationId,
+    lastOutgoingAt: null,
+    lastIncomingAt: input.receivedAt ?? null,
+    lastAutomationAt: null,
+  };
 
   let queued = 0;
   for (const automation of listActiveAutomations().filter(isInstagramIncomingAutomation)) {
@@ -207,22 +241,30 @@ export function triggerIncomingAutomationRuns(input: {
       continue;
     }
 
-    const nextRunAt = isWithinTimeWindow(automation.sendWindowStart, automation.sendWindowEnd, env.DEFAULT_TIMEZONE)
+    const nextRunAt = isWithinTimeWindow(
+      automation.sendWindowStart,
+      automation.sendWindowEnd,
+      env.DEFAULT_TIMEZONE,
+    )
       ? new Date().toISOString()
-      : nextWindowStartIso(automation.sendWindowStart, automation.sendWindowEnd, env.DEFAULT_TIMEZONE);
+      : nextWindowStartIso(
+          automation.sendWindowStart,
+          automation.sendWindowEnd,
+          env.DEFAULT_TIMEZONE,
+        );
 
     createAutomationRun({
       automationId: automation.id,
       contactId: contact.id,
       conversationId: input.conversationId,
-      nextRunAt
+      nextRunAt,
     });
 
     queued += 1;
     recordSystemEvent("scheduler", "info", "Instagram incoming automation queued", {
       automationId: automation.id,
       contactId: contact.id,
-      conversationId: input.conversationId
+      conversationId: input.conversationId,
     });
   }
 
@@ -254,15 +296,23 @@ export function processAutomationTick() {
         continue;
       }
 
-      const nextRunAt = isWithinTimeWindow(automation.sendWindowStart, automation.sendWindowEnd, env.DEFAULT_TIMEZONE)
+      const nextRunAt = isWithinTimeWindow(
+        automation.sendWindowStart,
+        automation.sendWindowEnd,
+        env.DEFAULT_TIMEZONE,
+      )
         ? new Date().toISOString()
-        : nextWindowStartIso(automation.sendWindowStart, automation.sendWindowEnd, env.DEFAULT_TIMEZONE);
+        : nextWindowStartIso(
+            automation.sendWindowStart,
+            automation.sendWindowEnd,
+            env.DEFAULT_TIMEZONE,
+          );
 
       createAutomationRun({
         automationId: automation.id,
         contactId: contact.id,
         conversationId: contact.conversationId,
-        nextRunAt
+        nextRunAt,
       });
       queued += 1;
     }
@@ -284,7 +334,9 @@ export function processAutomationTick() {
     const channel = resolveRunChannel(automation);
     const contact =
       contactsById.get(String(run.contact_id)) ??
-      listContactsForAutomationEvaluation().find((candidate) => candidate.id === String(run.contact_id));
+      listContactsForAutomationEvaluation().find(
+        (candidate) => candidate.id === String(run.contact_id),
+      );
 
     if (!contact) {
       failAutomationRun(String(run.id), "Contato indisponível para automação.");
@@ -293,21 +345,33 @@ export function processAutomationTick() {
 
     switch (action.type) {
       case "wait": {
-        advanceAutomationRun(String(run.id), Number(run.action_index) + 1, addSeconds(action.waitSeconds ?? 60));
+        advanceAutomationRun(
+          String(run.id),
+          Number(run.action_index) + 1,
+          addSeconds(action.waitSeconds ?? 60),
+        );
         break;
       }
       case "apply-tag": {
         if (action.tagName) {
           applyTagToContact(String(run.contact_id), action.tagName);
         }
-        advanceAutomationRun(String(run.id), Number(run.action_index) + 1, new Date().toISOString());
+        advanceAutomationRun(
+          String(run.id),
+          Number(run.action_index) + 1,
+          new Date().toISOString(),
+        );
         break;
       }
       case "remove-tag": {
         if (action.tagName) {
           removeTagFromContact(String(run.contact_id), action.tagName);
         }
-        advanceAutomationRun(String(run.id), Number(run.action_index) + 1, new Date().toISOString());
+        advanceAutomationRun(
+          String(run.id),
+          Number(run.action_index) + 1,
+          new Date().toISOString(),
+        );
         break;
       }
       case "create-reminder": {
@@ -317,9 +381,13 @@ export function processAutomationTick() {
           automationId: automation.id,
           title: action.reminderText || action.content || "Lembrete criado por automação",
           dueAt: new Date().toISOString(),
-          notes: action.content || null
+          notes: action.content || null,
         });
-        advanceAutomationRun(String(run.id), Number(run.action_index) + 1, new Date().toISOString());
+        advanceAutomationRun(
+          String(run.id),
+          Number(run.action_index) + 1,
+          new Date().toISOString(),
+        );
         break;
       }
       default: {
@@ -328,25 +396,43 @@ export function processAutomationTick() {
           break;
         }
 
-        if (!isWithinTimeWindow(automation.sendWindowStart, automation.sendWindowEnd, env.DEFAULT_TIMEZONE)) {
+        if (
+          !isWithinTimeWindow(
+            automation.sendWindowStart,
+            automation.sendWindowEnd,
+            env.DEFAULT_TIMEZONE,
+          )
+        ) {
           advanceAutomationRun(
             String(run.id),
             Number(run.action_index),
-            nextWindowStartIso(automation.sendWindowStart, automation.sendWindowEnd, env.DEFAULT_TIMEZONE)
+            nextWindowStartIso(
+              automation.sendWindowStart,
+              automation.sendWindowEnd,
+              env.DEFAULT_TIMEZONE,
+            ),
           );
           break;
         }
 
-        const conversation = resolveRunConversation(String(run.contact_id), (run.conversation_id as string | null) ?? null, channel);
+        const conversation = resolveRunConversation(
+          String(run.contact_id),
+          (run.conversation_id as string | null) ?? null,
+          channel,
+        );
         const instagramHandle = String(contact.instagram ?? "").replace(/^@+/, "");
-        const recipientNormalizedValue = channel === "instagram" ? instagramHandle : String(contact.phone ?? "");
+        const recipientNormalizedValue =
+          channel === "instagram" ? instagramHandle : String(contact.phone ?? "");
         const externalThreadId =
           channel === "instagram"
-            ? conversation?.externalThreadId ?? getInstagramThreadIdForContact(contact.id) ?? null
+            ? (conversation?.externalThreadId ?? getInstagramThreadIdForContact(contact.id) ?? null)
             : String(contact.phone ?? "");
 
         if (channel === "instagram" && !externalThreadId && !recipientNormalizedValue) {
-          failAutomationRun(String(run.id), "Contato sem thread ou handle de Instagram para resposta automática.");
+          failAutomationRun(
+            String(run.id),
+            "Contato sem thread ou handle de Instagram para resposta automática.",
+          );
           break;
         }
 
@@ -392,7 +478,7 @@ export function processAutomationTick() {
             automationId: automation.id,
             runId: String(run.id),
             contactId: String(run.contact_id),
-            conversationId: conversation?.id ?? ((run.conversation_id as string | null) ?? null),
+            conversationId: conversation?.id ?? (run.conversation_id as string | null) ?? null,
             phone: channel === "whatsapp" ? recipientNormalizedValue : null,
             externalThreadId,
             recipientDisplayValue: String(contact.name ?? contact.instagram ?? contact.phone ?? ""),
@@ -401,8 +487,8 @@ export function processAutomationTick() {
             text: resolveTemplateVars(action.content, contact),
             mediaPath: jobMediaPath,
             mediaPaths: jobMediaPaths,
-            caption: resolveTemplateVars(action.content, contact)
-          }
+            caption: resolveTemplateVars(action.content, contact),
+          },
         });
 
         advanceAutomationRun(String(run.id), nextActionIndex, addSeconds(20), "active");
@@ -410,7 +496,7 @@ export function processAutomationTick() {
           automationId: automation.id,
           runId: String(run.id),
           channel,
-          jobId
+          jobId,
         });
         break;
       }
@@ -420,7 +506,12 @@ export function processAutomationTick() {
   return { queued, skipped: false };
 }
 
-export function handleAutomationJobSuccess(input: { runId: string; automationId: string; contactId: string; jobId: string }) {
+export function handleAutomationJobSuccess(input: {
+  runId: string;
+  automationId: string;
+  contactId: string;
+  jobId: string;
+}) {
   const run = getAutomationRun(input.runId);
   const automation = getAutomation(input.automationId);
   if (!run || !automation) {
@@ -428,7 +519,10 @@ export function handleAutomationJobSuccess(input: { runId: string; automationId:
   }
 
   const nextActionIndex = Number(run.action_index) + 1;
-  const delaySeconds = automationDelaySeconds(automation.randomDelayMinSeconds, automation.randomDelayMaxSeconds);
+  const delaySeconds = automationDelaySeconds(
+    automation.randomDelayMinSeconds,
+    automation.randomDelayMaxSeconds,
+  );
 
   if (nextActionIndex >= automation.actions.length) {
     completeAutomationRun(input.runId);
@@ -461,7 +555,7 @@ export function processMessageReceivedTriggers() {
 
   // Automations configured for message_received event trigger
   const eventAutomations = listActiveAutomations().filter(
-    (a) => a.triggerType === "event" && a.triggerEvent === "message_received"
+    (a) => a.triggerType === "event" && a.triggerEvent === "message_received",
   );
   if (eventAutomations.length === 0) return { queued: 0 };
 
@@ -473,9 +567,16 @@ export function processMessageReceivedTriggers() {
        JOIN conversations cv ON m.conversation_id = cv.id
        WHERE m.direction = 'incoming'
          AND m.created_at >= datetime('now', '-2 minutes')
-       ORDER BY m.created_at ASC`
+       ORDER BY m.created_at ASC`,
     )
-    .all() as Array<{ id: string; body: string; sent_at: string; conversation_id: string; contact_id: string; channel: string }>;
+    .all() as Array<{
+    id: string;
+    body: string;
+    sent_at: string;
+    conversation_id: string;
+    contact_id: string;
+    channel: string;
+  }>;
 
   if (recentMessages.length === 0) return { queued: 0 };
 
@@ -488,12 +589,14 @@ export function processMessageReceivedTriggers() {
     for (const automation of eventAutomations) {
       // Check keyword conditions (all must match — AND logic)
       const conditions = automation.triggerConditions ?? [];
-      const matches = conditions.length === 0 || conditions.every((cond) => {
-        if (cond.field === "body" && cond.operator === "contains") {
-          return msg.body.toLowerCase().includes(cond.value.toLowerCase());
-        }
-        return false;
-      });
+      const matches =
+        conditions.length === 0 ||
+        conditions.every((cond) => {
+          if (cond.field === "body" && cond.operator === "contains") {
+            return msg.body.toLowerCase().includes(cond.value.toLowerCase());
+          }
+          return false;
+        });
       if (!matches) continue;
 
       // Skip if contact already has an open run for this automation
@@ -501,15 +604,23 @@ export function processMessageReceivedTriggers() {
       if (openRun) continue;
 
       // Respect send window
-      const nextRunAt = isWithinTimeWindow(automation.sendWindowStart, automation.sendWindowEnd, env.DEFAULT_TIMEZONE)
+      const nextRunAt = isWithinTimeWindow(
+        automation.sendWindowStart,
+        automation.sendWindowEnd,
+        env.DEFAULT_TIMEZONE,
+      )
         ? new Date().toISOString()
-        : nextWindowStartIso(automation.sendWindowStart, automation.sendWindowEnd, env.DEFAULT_TIMEZONE);
+        : nextWindowStartIso(
+            automation.sendWindowStart,
+            automation.sendWindowEnd,
+            env.DEFAULT_TIMEZONE,
+          );
 
       createAutomationRun({
         automationId: automation.id,
         contactId: msg.contact_id,
         conversationId: msg.conversation_id,
-        nextRunAt
+        nextRunAt,
       });
       queued += 1;
 
@@ -518,7 +629,7 @@ export function processMessageReceivedTriggers() {
         contactId: msg.contact_id,
         conversationId: msg.conversation_id,
         messageId: msg.id,
-        keyword: conditions.map((c) => c.value).join(", ")
+        keyword: conditions.map((c) => c.value).join(", "),
       });
     }
   }

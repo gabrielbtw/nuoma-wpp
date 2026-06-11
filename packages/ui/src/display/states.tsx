@@ -10,14 +10,7 @@ interface StateProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   action?: ReactNode;
 }
 
-function StateBase({
-  title,
-  description,
-  icon,
-  action,
-  className,
-  ...props
-}: StateProps) {
+function StateBase({ title, description, icon, action, className, ...props }: StateProps) {
   return (
     <div
       className={cn(

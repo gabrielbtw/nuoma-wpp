@@ -20,9 +20,7 @@ export function createOptimisticTextMessage(
   const localId = -(now.getTime() * 1000 + Math.floor(Math.random() * 1000));
   const clientMutationId =
     input.clientMutationId ??
-    `optimistic:${input.conversationId}:${now.getTime()}:${Math.random()
-      .toString(36)
-      .slice(2, 8)}`;
+    `optimistic:${input.conversationId}:${now.getTime()}:${Math.random().toString(36).slice(2, 8)}`;
 
   return {
     clientMutationId,

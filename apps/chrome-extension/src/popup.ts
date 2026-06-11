@@ -43,7 +43,9 @@
     }
     const apiBaseUrl = input.value.trim().replace(/\/+$/, "") || defaultApiBaseUrl;
     const cookie = await chrome.cookies?.get({ url: apiBaseUrl, name: "nuoma_access" });
-    setStatus(cookie?.value ? "Login local detectado. Overlay autorizado." : "Faça login no Nuoma local.");
+    setStatus(
+      cookie?.value ? "Login local detectado. Overlay autorizado." : "Faça login no Nuoma local.",
+    );
   }
 
   function setStatus(value: string): void {

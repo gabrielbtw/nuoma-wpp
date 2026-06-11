@@ -8,11 +8,15 @@ import {
   getContactById,
   getContactByPhone,
   updateContact,
-  updateContactInstagramSignals
+  updateContactInstagramSignals,
 } from "../repositories/contact-repository.js";
 import { findContactIdByChannel } from "../repositories/contact-channel-repository.js";
 import type { ContactInput, ContactRecord } from "../types/domain.js";
-import { looksLikeValidWhatsAppCandidate, normalizeBrazilianPhone, normalizeInstagramHandle } from "../utils/phone.js";
+import {
+  looksLikeValidWhatsAppCandidate,
+  normalizeBrazilianPhone,
+  normalizeInstagramHandle,
+} from "../utils/phone.js";
 import { normalizeWhatsAppValue } from "../utils/channels.js";
 import { isValidCpf, normalizeCpf } from "../utils/cpf.js";
 
@@ -238,12 +242,15 @@ const PERSON_NAME_KEYWORDS_BLOCKLIST = [
   "studio",
   "transportes",
   "turismo",
-  "variedades"
+  "variedades",
 ] as const;
 
-const MESSAGE_ENTRY_PATH_PATTERN = /(?:^|\/)(?:your_instagram_activity\/)?messages\/inbox\/.+\/message_\d+\.json$/i;
-const FOLLOWERS_ENTRY_PATH_PATTERN = /(?:^|\/)(?:connections\/)?followers_and_following\/followers_\d+\.json$/i;
-const FOLLOWING_ENTRY_PATH_PATTERN = /(?:^|\/)(?:connections\/)?followers_and_following\/following\.json$/i;
+const MESSAGE_ENTRY_PATH_PATTERN =
+  /(?:^|\/)(?:your_instagram_activity\/)?messages\/inbox\/.+\/message_\d+\.json$/i;
+const FOLLOWERS_ENTRY_PATH_PATTERN =
+  /(?:^|\/)(?:connections\/)?followers_and_following\/followers_\d+\.json$/i;
+const FOLLOWING_ENTRY_PATH_PATTERN =
+  /(?:^|\/)(?:connections\/)?followers_and_following\/following\.json$/i;
 const MESSAGE_FILE_NAME_PATTERN = /^message_\d+\.json$/i;
 
 function collapseWhitespace(input?: string | null) {
@@ -380,13 +387,15 @@ function extractNameCandidatesFromText(text: string, instagram?: string | null) 
     return [];
   }
 
-  const hasExplicitCue = /\b(?:nome(?:\s+completo)?|me chamo|meu nome|sou|pode me chamar)\b/i.test(normalizedText);
+  const hasExplicitCue = /\b(?:nome(?:\s+completo)?|me chamo|meu nome|sou|pode me chamar)\b/i.test(
+    normalizedText,
+  );
   const patterns = [
     /(?:nome(?:\s+completo)?\s*[:\-]\s*)([\p{L}'`-]+(?:\s+[\p{L}'`-]+){0,4})/iu,
     /(?:meu nome(?:\s+completo)?\s+[ée]\s+)([\p{L}'`-]+(?:\s+[\p{L}'`-]+){0,4})/iu,
     /(?:me chamo\s+)([\p{L}'`-]+(?:\s+[\p{L}'`-]+){0,4})/iu,
     /(?:sou\s+)([\p{L}'`-]+(?:\s+[\p{L}'`-]+){0,4})/iu,
-    /(?:pode me chamar de\s+)([\p{L}'`-]+(?:\s+[\p{L}'`-]+){0,4})/iu
+    /(?:pode me chamar de\s+)([\p{L}'`-]+(?:\s+[\p{L}'`-]+){0,4})/iu,
   ];
 
   const candidates = new Set<string>();
@@ -423,16 +432,16 @@ function listWhatsAppConversationCandidates() {
         FROM conversations conv
         LEFT JOIN contacts c ON c.id = conv.contact_id
         WHERE conv.channel = 'whatsapp'
-      `
+      `,
     )
     .all() as Array<{
-      title: string | null;
-      external_thread_id: string | null;
-      wa_chat_id: string | null;
-      last_message_at: string | null;
-      updated_at: string | null;
-      contact_phone: string | null;
-    }>;
+    title: string | null;
+    external_thread_id: string | null;
+    wa_chat_id: string | null;
+    last_message_at: string | null;
+    updated_at: string | null;
+    contact_phone: string | null;
+  }>;
 
   const candidates = new Map<string, WhatsAppConversationCandidate>();
 
@@ -457,7 +466,7 @@ function listWhatsAppConversationCandidates() {
       candidates.set(phone, {
         phone,
         name,
-        timestamp
+        timestamp,
       });
     }
   }
@@ -465,7 +474,12 @@ function listWhatsAppConversationCandidates() {
   return candidates;
 }
 
-function upsertRankedTextCandidate(target: Map<string, RankedTextCandidate>, value: string, score: number, timestampMs: number) {
+function upsertRankedTextCandidate(
+  target: Map<string, RankedTextCandidate>,
+  value: string,
+  score: number,
+  timestampMs: number,
+) {
   const current = target.get(value);
   if (current) {
     current.score = Math.max(current.score, score);
@@ -478,7 +492,7 @@ function upsertRankedTextCandidate(target: Map<string, RankedTextCandidate>, val
     value,
     score,
     occurrences: 1,
-    latestTimestampMs: timestampMs
+    latestTimestampMs: timestampMs,
   });
 }
 
@@ -486,7 +500,9 @@ function pickBestRankedTextCandidate(target: Map<string, RankedTextCandidate>) {
   return (
     [...target.values()].sort(
       (left, right) =>
-        right.score - left.score || right.occurrences - left.occurrences || right.latestTimestampMs - left.latestTimestampMs
+        right.score - left.score ||
+        right.occurrences - left.occurrences ||
+        right.latestTimestampMs - left.latestTimestampMs,
     )[0] ?? null
   );
 }
@@ -497,7 +513,7 @@ function resolveUpdatedMessageDerivedName(
     instagram?: string | null;
     candidateName: string;
     confidenceScore: number;
-  }
+  },
 ) {
   const candidateName = normalizePersonName(input.candidateName, input.instagram);
   if (!candidateName) {
@@ -537,10 +553,10 @@ function parseCsvRow(rawRow: string) {
   for (let index = 0; index < rawRow.length; index += 1) {
     const char = rawRow[index];
 
-    if (char === "\"") {
+    if (char === '"') {
       const next = rawRow[index + 1];
-      if (inQuotes && next === "\"") {
-        current += "\"";
+      if (inQuotes && next === '"') {
+        current += '"';
         index += 1;
         continue;
       }
@@ -571,9 +587,9 @@ function parseCsvRecords(raw: string) {
     const char = raw[index];
     const next = raw[index + 1];
 
-    if (char === "\"") {
-      if (inQuotes && next === "\"") {
-        current += "\"";
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
         index += 1;
         continue;
       }
@@ -612,8 +628,12 @@ function parseCsvRecords(raw: string) {
   return dataRows
     .map((row) => parseCsvRow(row))
     .filter((row) => row.some((cell) => cell.length > 0))
-    .map((cells) =>
-      Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""])) as Record<string, string>
+    .map(
+      (cells) =>
+        Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ""])) as Record<
+          string,
+          string
+        >,
     );
 }
 
@@ -627,7 +647,7 @@ function chooseWhatsAppCsvName(record: Record<string, string>, normalizedPhone: 
     return {
       savedName,
       publicName,
-      preferredName: normalizedSavedName
+      preferredName: normalizedSavedName,
     };
   }
 
@@ -635,14 +655,14 @@ function chooseWhatsAppCsvName(record: Record<string, string>, normalizedPhone: 
     return {
       savedName,
       publicName,
-      preferredName: normalizedPublicName
+      preferredName: normalizedPublicName,
     };
   }
 
   return {
     savedName,
     publicName,
-    preferredName: normalizedPhone
+    preferredName: normalizedPhone,
   };
 }
 
@@ -669,7 +689,11 @@ export function loadWhatsAppCsvLookup(csvPath?: string | null): WhatsAppCsvLooku
 
     const chosenName = chooseWhatsAppCsvName(row, normalizedPhone);
     const current = contactsByPhone.get(normalizedPhone);
-    if (current && current.preferredName !== normalizedPhone && chosenName.preferredName === normalizedPhone) {
+    if (
+      current &&
+      current.preferredName !== normalizedPhone &&
+      chosenName.preferredName === normalizedPhone
+    ) {
       continue;
     }
 
@@ -678,14 +702,14 @@ export function loadWhatsAppCsvLookup(csvPath?: string | null): WhatsAppCsvLooku
       savedName: chosenName.savedName,
       publicName: chosenName.publicName,
       preferredName: chosenName.preferredName,
-      isBusiness: /true/i.test(normalizeCsvCell(row.is_business))
+      isBusiness: /true/i.test(normalizeCsvCell(row.is_business)),
     });
   }
 
   return {
     csvPath: resolvedPath,
     totalRows: rows.length,
-    contactsByPhone
+    contactsByPhone,
   };
 }
 
@@ -699,7 +723,7 @@ function chooseWhatsAppPreferredName(input: {
   if (conversationName) {
     return {
       source: "whatsapp" as const,
-      value: conversationName
+      value: conversationName,
     };
   }
 
@@ -707,17 +731,20 @@ function chooseWhatsAppPreferredName(input: {
   if (csvName) {
     return {
       source: "whatsapp" as const,
-      value: csvName
+      value: csvName,
     };
   }
 
   return {
     source: "phone" as const,
-    value: input.phone
+    value: input.phone,
   };
 }
 
-function resolveUpdatedWhatsAppName(existing: ContactRecord, input: { phone: string; preferredName: { source: "whatsapp" | "phone"; value: string } }) {
+function resolveUpdatedWhatsAppName(
+  existing: ContactRecord,
+  input: { phone: string; preferredName: { source: "whatsapp" | "phone"; value: string } },
+) {
   const currentName = collapseWhitespace(existing.name);
   if (!currentName) {
     return input.preferredName.value;
@@ -747,7 +774,9 @@ function resolveUpdatedWhatsAppName(existing: ContactRecord, input: { phone: str
   return input.preferredName.value;
 }
 
-export function importWhatsAppCsvContacts(lookup: WhatsAppCsvLookup | null): WhatsAppCsvImportSummary | null {
+export function importWhatsAppCsvContacts(
+  lookup: WhatsAppCsvLookup | null,
+): WhatsAppCsvImportSummary | null {
   if (!lookup) {
     return null;
   }
@@ -784,7 +813,7 @@ export function importWhatsAppCsvContacts(lookup: WhatsAppCsvLookup | null): Wha
     matchedWhatsAppConversations: 0,
     whatsappConversationNamesApplied: 0,
     csvNamesApplied: 0,
-    phoneNamesApplied: 0
+    phoneNamesApplied: 0,
   };
 
   const transaction = db.transaction(() => {
@@ -803,7 +832,7 @@ export function importWhatsAppCsvContacts(lookup: WhatsAppCsvLookup | null): Wha
         phone,
         csvName: csvContact.preferredName,
         conversationName: conversationCandidate?.name ?? null,
-        instagram: existing?.instagram ?? null
+        instagram: existing?.instagram ?? null,
       });
 
       if (!existing) {
@@ -820,9 +849,9 @@ export function importWhatsAppCsvContacts(lookup: WhatsAppCsvLookup | null): Wha
             status: "novo",
             tags: [],
             lastInteractionAt: null,
-            lastProcedureAt: null
+            lastProcedureAt: null,
           },
-          "whatsapp-csv-import"
+          "whatsapp-csv-import",
         );
 
         if (!created) {
@@ -845,7 +874,7 @@ export function importWhatsAppCsvContacts(lookup: WhatsAppCsvLookup | null): Wha
 
       const nextName = resolveUpdatedWhatsAppName(existing, {
         phone,
-        preferredName
+        preferredName,
       });
 
       if (nextName === existing.name) {
@@ -858,9 +887,9 @@ export function importWhatsAppCsvContacts(lookup: WhatsAppCsvLookup | null): Wha
         {
           ...existing,
           name: nextName,
-          tags: existing.tags
+          tags: existing.tags,
         },
-        "whatsapp-csv-import"
+        "whatsapp-csv-import",
       );
 
       if (!updated) {
@@ -902,11 +931,11 @@ export function enrichContactsFromWhatsAppConversations() {
       phone,
       conversationName: candidate.name,
       csvName: null,
-      instagram: contact.instagram
+      instagram: contact.instagram,
     });
     const nextName = resolveUpdatedWhatsAppName(contact, {
       phone,
-      preferredName
+      preferredName,
     });
 
     if (nextName === contact.name) {
@@ -918,9 +947,9 @@ export function enrichContactsFromWhatsAppConversations() {
       {
         ...contact,
         name: nextName,
-        tags: contact.tags
+        tags: contact.tags,
       },
-      "whatsapp-conversation-enrichment"
+      "whatsapp-conversation-enrichment",
     );
 
     if (!updated) {
@@ -936,7 +965,7 @@ export function enrichContactsFromWhatsAppConversations() {
   return {
     matchedContacts,
     updatedContacts,
-    phoneFallbacks
+    phoneFallbacks,
   };
 }
 
@@ -958,14 +987,14 @@ export function enrichContactsFromWhatsAppMessageBodies(): WhatsAppMessageEnrich
           AND trim(IFNULL(m.body, '')) <> ''
           AND COALESCE(m.contact_id, conv.contact_id) IS NOT NULL
           AND c.deleted_at IS NULL
-      `
+      `,
     )
     .all() as Array<{
-      resolved_contact_id: string;
-      instagram: string | null;
-      body: string;
-      timestamp: string | null;
-    }>;
+    resolved_contact_id: string;
+    instagram: string | null;
+    body: string;
+    timestamp: string | null;
+  }>;
 
   const summary: WhatsAppMessageEnrichmentSummary = {
     scannedMessages: 0,
@@ -975,7 +1004,7 @@ export function enrichContactsFromWhatsAppMessageBodies(): WhatsAppMessageEnrich
     namesApplied: 0,
     highConfidenceNamesApplied: 0,
     cpfsApplied: 0,
-    emailsApplied: 0
+    emailsApplied: 0,
   };
 
   const candidatesByContact = new Map<
@@ -996,16 +1025,15 @@ export function enrichContactsFromWhatsAppMessageBodies(): WhatsAppMessageEnrich
 
     summary.scannedMessages += 1;
     const timestampMs = Date.parse(row.timestamp ?? "") || 0;
-    const candidateGroup =
-      candidatesByContact.get(row.resolved_contact_id) ??
-      {
-        instagram: row.instagram,
-        names: new Map<string, RankedTextCandidate>(),
-        cpfs: new Map<string, RankedTextCandidate>(),
-        emails: new Map<string, RankedTextCandidate>()
-      };
+    const candidateGroup = candidatesByContact.get(row.resolved_contact_id) ?? {
+      instagram: row.instagram,
+      names: new Map<string, RankedTextCandidate>(),
+      cpfs: new Map<string, RankedTextCandidate>(),
+      emails: new Map<string, RankedTextCandidate>(),
+    };
 
-    const hasExplicitNameCue = /\b(?:nome(?:\s+completo)?|me chamo|meu nome|sou|pode me chamar)\b/i.test(content);
+    const hasExplicitNameCue =
+      /\b(?:nome(?:\s+completo)?|me chamo|meu nome|sou|pode me chamar)\b/i.test(content);
     const looksLikeBareName = /^[\p{L}'`-]+(?:\s+[\p{L}'`-]+){1,4}$/u.test(content);
     const nameScoreBase = hasExplicitNameCue ? 6 : looksLikeBareName ? 3 : 1;
     for (const fullName of extractNameCandidatesFromText(content, row.instagram)) {
@@ -1045,13 +1073,13 @@ export function enrichContactsFromWhatsAppMessageBodies(): WhatsAppMessageEnrich
       ? resolveUpdatedMessageDerivedName(contact, {
           instagram: contact.instagram ?? candidateGroup.instagram,
           candidateName: bestName.value,
-          confidenceScore: bestName.score
+          confidenceScore: bestName.score,
         })
       : contact.name;
     const currentCpf = normalizeCpf(contact.cpf) ?? null;
-    const nextCpf = currentCpf ?? (bestCpf?.value ?? null);
+    const nextCpf = currentCpf ?? bestCpf?.value ?? null;
     const currentEmail = normalizeEmailValue(contact.email) ?? null;
-    const nextEmail = currentEmail ?? (bestEmail?.value ?? null);
+    const nextEmail = currentEmail ?? bestEmail?.value ?? null;
 
     const nameChanged = nextName !== contact.name;
     const cpfChanged = currentCpf !== nextCpf;
@@ -1067,9 +1095,9 @@ export function enrichContactsFromWhatsAppMessageBodies(): WhatsAppMessageEnrich
         name: nextName,
         cpf: nextCpf,
         email: nextEmail,
-        tags: contact.tags
+        tags: contact.tags,
       },
-      "whatsapp-message-enrichment"
+      "whatsapp-message-enrichment",
     );
 
     if (!updated) {
@@ -1108,7 +1136,7 @@ function listZipEntries(zipPath: string) {
   const output = execFileSync("unzip", ["-Z1", zipPath], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
-    maxBuffer: 512 * 1024 * 1024
+    maxBuffer: 512 * 1024 * 1024,
   });
 
   return output
@@ -1122,7 +1150,7 @@ function isReadableZipArchive(filePath: string) {
     const output = execFileSync("file", ["-b", filePath], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
-      maxBuffer: 1024 * 1024
+      maxBuffer: 1024 * 1024,
     });
     return /zip archive data/i.test(output);
   } catch {
@@ -1137,23 +1165,30 @@ function extractInstagramJsons(zipPath: string): ExtractedInstagramExport {
 
   const extractionDir = mkdtempSync(path.join(tmpdir(), "nuoma-ig-import-"));
   const selectedEntries = listZipEntries(zipPath).filter(
-    (entry) => MESSAGE_ENTRY_PATH_PATTERN.test(entry) || FOLLOWERS_ENTRY_PATH_PATTERN.test(entry) || FOLLOWING_ENTRY_PATH_PATTERN.test(entry)
+    (entry) =>
+      MESSAGE_ENTRY_PATH_PATTERN.test(entry) ||
+      FOLLOWERS_ENTRY_PATH_PATTERN.test(entry) ||
+      FOLLOWING_ENTRY_PATH_PATTERN.test(entry),
   );
 
   if (selectedEntries.length > 0) {
     execFileSync("unzip", ["-oq", zipPath, ...selectedEntries, "-d", extractionDir], {
-      stdio: "pipe"
+      stdio: "pipe",
     });
   }
 
-  const extractedFiles = selectedEntries.map((entry) => path.join(extractionDir, entry)).filter((filePath) => existsSync(filePath));
+  const extractedFiles = selectedEntries
+    .map((entry) => path.join(extractionDir, entry))
+    .filter((filePath) => existsSync(filePath));
 
   return {
     extractionDir,
     extractedFiles,
     messageFiles: extractedFiles.filter((filePath) => MESSAGE_ENTRY_PATH_PATTERN.test(filePath)),
     followerFiles: extractedFiles.filter((filePath) => FOLLOWERS_ENTRY_PATH_PATTERN.test(filePath)),
-    followingFiles: extractedFiles.filter((filePath) => FOLLOWING_ENTRY_PATH_PATTERN.test(filePath))
+    followingFiles: extractedFiles.filter((filePath) =>
+      FOLLOWING_ENTRY_PATH_PATTERN.test(filePath),
+    ),
   };
 }
 
@@ -1180,7 +1215,7 @@ function groupThreadFiles(messageFiles: string[]) {
     grouped.set(threadKey, {
       threadKey,
       threadDirName: path.basename(path.dirname(filePath)),
-      filePaths: [filePath]
+      filePaths: [filePath],
     });
   }
 
@@ -1197,7 +1232,11 @@ function inferOwnAliases(threads: ThreadGroup[]) {
         continue;
       }
       const file = readInstagramMessageFile(firstFilePath);
-      const participants = new Set((file.participants ?? []).map((participant) => collapseWhitespace(participant.name)).filter(Boolean));
+      const participants = new Set(
+        (file.participants ?? [])
+          .map((participant) => collapseWhitespace(participant.name))
+          .filter(Boolean),
+      );
 
       for (const participantName of participants) {
         const key = nameKey(participantName);
@@ -1209,7 +1248,7 @@ function inferOwnAliases(threads: ThreadGroup[]) {
 
         counts.set(key, {
           name: participantName,
-          count: 1
+          count: 1,
         });
       }
     } catch {
@@ -1291,8 +1330,12 @@ function chooseImportedName(input: {
   ownAliasKeys: Set<string>;
   messageFullName?: string | null;
 }) {
-  const participantCandidates = input.participants.filter((participant) => !input.ownAliasKeys.has(nameKey(participant)));
-  const candidates = [input.messageFullName ?? "", input.title, ...participantCandidates].map(collapseWhitespace).filter(Boolean);
+  const participantCandidates = input.participants.filter(
+    (participant) => !input.ownAliasKeys.has(nameKey(participant)),
+  );
+  const candidates = [input.messageFullName ?? "", input.title, ...participantCandidates]
+    .map(collapseWhitespace)
+    .filter(Boolean);
 
   for (const candidate of candidates) {
     const normalized = normalizePersonName(candidate, input.instagram);
@@ -1325,7 +1368,7 @@ function resolvePreferredContactName(input: {
   if (whatsappName) {
     return {
       source: "whatsapp",
-      value: whatsappName
+      value: whatsappName,
     };
   }
 
@@ -1333,7 +1376,7 @@ function resolvePreferredContactName(input: {
   if (importedName) {
     return {
       source: "imported",
-      value: importedName
+      value: importedName,
     };
   }
 
@@ -1341,13 +1384,13 @@ function resolvePreferredContactName(input: {
   if (normalizedPhone) {
     return {
       source: "phone",
-      value: normalizedPhone
+      value: normalizedPhone,
     };
   }
 
   return {
     source: "blank",
-    value: ""
+    value: "",
   };
 }
 
@@ -1380,7 +1423,7 @@ function extractPhoneCandidatesFromText(text: string) {
     if (!current || current.score < score) {
       unique.set(normalizedPhone, {
         raw: match,
-        score
+        score,
       });
     }
   }
@@ -1398,7 +1441,9 @@ function participantFrequencyMap(threads: ThreadGroup[]) {
         continue;
       }
       const parsed = readInstagramMessageFile(firstFilePath);
-      const participantKeys = new Set((parsed.participants ?? []).map((participant) => nameKey(participant.name)).filter(Boolean));
+      const participantKeys = new Set(
+        (parsed.participants ?? []).map((participant) => nameKey(participant.name)).filter(Boolean),
+      );
 
       for (const key of participantKeys) {
         frequencies.set(key, (frequencies.get(key) ?? 0) + 1);
@@ -1411,9 +1456,16 @@ function participantFrequencyMap(threads: ThreadGroup[]) {
   return frequencies;
 }
 
-function analyzeThread(thread: ThreadGroup, ownAliasKeys: Set<string>, participantFrequency: Map<string, number>): ThreadAnalysis {
+function analyzeThread(
+  thread: ThreadGroup,
+  ownAliasKeys: Set<string>,
+  participantFrequency: Map<string, number>,
+): ThreadAnalysis {
   let latestTimestampMs: number | null = null;
-  const candidates = new Map<string, { score: number; occurrences: number; latestTimestampMs: number }>();
+  const candidates = new Map<
+    string,
+    { score: number; occurrences: number; latestTimestampMs: number }
+  >();
   const cpfCandidates = new Map<string, { score: number; latestTimestampMs: number }>();
   const emailCandidates = new Map<string, { score: number; latestTimestampMs: number }>();
   const fullNameCandidates = new Map<string, { score: number; latestTimestampMs: number }>();
@@ -1425,7 +1477,9 @@ function analyzeThread(thread: ThreadGroup, ownAliasKeys: Set<string>, participa
   for (const filePath of thread.filePaths) {
     const parsed = readInstagramMessageFile(filePath);
     threadTitle = collapseWhitespace(parsed.title);
-    participantNames = (parsed.participants ?? []).map((participant) => collapseWhitespace(participant.name)).filter(Boolean);
+    participantNames = (parsed.participants ?? [])
+      .map((participant) => collapseWhitespace(participant.name))
+      .filter(Boolean);
 
     const titleKey = nameKey(threadTitle);
     const contactParticipants = participantNames.filter((name) => !ownAliasKeys.has(nameKey(name)));
@@ -1455,7 +1509,8 @@ function analyzeThread(thread: ThreadGroup, ownAliasKeys: Set<string>, participa
     for (const message of parsed.messages ?? []) {
       const timestampMs = Number(message.timestamp_ms ?? 0);
       if (timestampMs > 0) {
-        latestTimestampMs = latestTimestampMs == null ? timestampMs : Math.max(latestTimestampMs, timestampMs);
+        latestTimestampMs =
+          latestTimestampMs == null ? timestampMs : Math.max(latestTimestampMs, timestampMs);
       }
 
       const senderKey = nameKey(message.sender_name);
@@ -1471,7 +1526,7 @@ function analyzeThread(thread: ThreadGroup, ownAliasKeys: Set<string>, participa
           if (!current || current.score < cpfScoreBase || current.latestTimestampMs < timestampMs) {
             cpfCandidates.set(cpf, {
               score: cpfScoreBase,
-              latestTimestampMs: timestampMs
+              latestTimestampMs: timestampMs,
             });
           }
         }
@@ -1479,21 +1534,31 @@ function analyzeThread(thread: ThreadGroup, ownAliasKeys: Set<string>, participa
         const emailScoreBase = /\b(?:email|e-mail)\b/i.test(content) ? 5 : 2;
         for (const email of extractEmailCandidatesFromText(content)) {
           const current = emailCandidates.get(email);
-          if (!current || current.score < emailScoreBase || current.latestTimestampMs < timestampMs) {
+          if (
+            !current ||
+            current.score < emailScoreBase ||
+            current.latestTimestampMs < timestampMs
+          ) {
             emailCandidates.set(email, {
               score: emailScoreBase,
-              latestTimestampMs: timestampMs
+              latestTimestampMs: timestampMs,
             });
           }
         }
 
-        const nameScoreBase = /\b(?:nome|nome completo|me chamo|meu nome|sou)\b/i.test(content) ? 5 : 2;
+        const nameScoreBase = /\b(?:nome|nome completo|me chamo|meu nome|sou)\b/i.test(content)
+          ? 5
+          : 2;
         for (const fullName of extractNameCandidatesFromText(content, threadTitle)) {
           const current = fullNameCandidates.get(fullName);
-          if (!current || current.score < nameScoreBase || current.latestTimestampMs < timestampMs) {
+          if (
+            !current ||
+            current.score < nameScoreBase ||
+            current.latestTimestampMs < timestampMs
+          ) {
             fullNameCandidates.set(fullName, {
               score: nameScoreBase,
-              latestTimestampMs: timestampMs
+              latestTimestampMs: timestampMs,
             });
           }
         }
@@ -1520,37 +1585,50 @@ function analyzeThread(thread: ThreadGroup, ownAliasKeys: Set<string>, participa
         candidates.set(phone, {
           score: candidate.score,
           occurrences: 1,
-          latestTimestampMs: timestampMs
+          latestTimestampMs: timestampMs,
         });
       }
     }
   }
 
-  const bestPhone = [...candidates.entries()]
-    .sort((left, right) => {
-      const leftCandidate = left[1];
-      const rightCandidate = right[1];
+  const bestPhone =
+    [...candidates.entries()]
+      .sort((left, right) => {
+        const leftCandidate = left[1];
+        const rightCandidate = right[1];
 
-      if (leftCandidate.score !== rightCandidate.score) {
-        return rightCandidate.score - leftCandidate.score;
-      }
+        if (leftCandidate.score !== rightCandidate.score) {
+          return rightCandidate.score - leftCandidate.score;
+        }
 
-      if (leftCandidate.occurrences !== rightCandidate.occurrences) {
-        return rightCandidate.occurrences - leftCandidate.occurrences;
-      }
+        if (leftCandidate.occurrences !== rightCandidate.occurrences) {
+          return rightCandidate.occurrences - leftCandidate.occurrences;
+        }
 
-      return rightCandidate.latestTimestampMs - leftCandidate.latestTimestampMs;
-    })
-    .map(([phone]) => phone)[0] ?? null;
-  const bestCpf = [...cpfCandidates.entries()]
-    .sort((left, right) => right[1].score - left[1].score || right[1].latestTimestampMs - left[1].latestTimestampMs)
-    .map(([cpf]) => cpf)[0] ?? null;
-  const bestEmail = [...emailCandidates.entries()]
-    .sort((left, right) => right[1].score - left[1].score || right[1].latestTimestampMs - left[1].latestTimestampMs)
-    .map(([email]) => email)[0] ?? null;
-  const bestFullName = [...fullNameCandidates.entries()]
-    .sort((left, right) => right[1].score - left[1].score || right[1].latestTimestampMs - left[1].latestTimestampMs)
-    .map(([fullName]) => fullName)[0] ?? null;
+        return rightCandidate.latestTimestampMs - leftCandidate.latestTimestampMs;
+      })
+      .map(([phone]) => phone)[0] ?? null;
+  const bestCpf =
+    [...cpfCandidates.entries()]
+      .sort(
+        (left, right) =>
+          right[1].score - left[1].score || right[1].latestTimestampMs - left[1].latestTimestampMs,
+      )
+      .map(([cpf]) => cpf)[0] ?? null;
+  const bestEmail =
+    [...emailCandidates.entries()]
+      .sort(
+        (left, right) =>
+          right[1].score - left[1].score || right[1].latestTimestampMs - left[1].latestTimestampMs,
+      )
+      .map(([email]) => email)[0] ?? null;
+  const bestFullName =
+    [...fullNameCandidates.entries()]
+      .sort(
+        (left, right) =>
+          right[1].score - left[1].score || right[1].latestTimestampMs - left[1].latestTimestampMs,
+      )
+      .map(([fullName]) => fullName)[0] ?? null;
 
   return {
     latestInteractionAt: latestTimestampMs ? new Date(latestTimestampMs).toISOString() : null,
@@ -1560,7 +1638,7 @@ function analyzeThread(thread: ThreadGroup, ownAliasKeys: Set<string>, participa
     incomingMessagesCount,
     cpf: bestCpf,
     email: bestEmail,
-    fullName: bestFullName
+    fullName: bestFullName,
   };
 }
 
@@ -1581,7 +1659,7 @@ function mergeLastInteractionAt(existingValue?: string | null, importedValue?: s
 
 function resolveUpdatedContactName(
   existing: ContactRecord,
-  input: { instagram: string; preferredName: ResolvedContactName; ownAliasKeys: Set<string> }
+  input: { instagram: string; preferredName: ResolvedContactName; ownAliasKeys: Set<string> },
 ) {
   const currentName = collapseWhitespace(existing.name);
   const preferredName = input.preferredName;
@@ -1596,7 +1674,10 @@ function resolveUpdatedContactName(
   }
 
   if (normalizedCurrentPersonName) {
-    if (preferredName.source !== "blank" && nameKey(normalizedCurrentPersonName) === nameKey(preferredName.value)) {
+    if (
+      preferredName.source !== "blank" &&
+      nameKey(normalizedCurrentPersonName) === nameKey(preferredName.value)
+    ) {
       return preferredName.value;
     }
 
@@ -1607,7 +1688,11 @@ function resolveUpdatedContactName(
     return preferredName.value;
   }
 
-  if (input.ownAliasKeys.has(nameKey(currentName)) || isInstagramHandleLabel(currentName, input.instagram) || looksLikePhoneLabel(currentName)) {
+  if (
+    input.ownAliasKeys.has(nameKey(currentName)) ||
+    isInstagramHandleLabel(currentName, input.instagram) ||
+    looksLikePhoneLabel(currentName)
+  ) {
     return currentName;
   }
 
@@ -1624,7 +1709,7 @@ function buildUpdatedContactInput(
     lastInteractionAt: string | null;
     ownAliasKeys: Set<string>;
     preferredName: ResolvedContactName;
-  }
+  },
 ): ContactInput {
   const nextPhone = existing.phone || input.importedPhone || "";
   const nextName = resolveUpdatedContactName(existing, input);
@@ -1639,7 +1724,7 @@ function buildUpdatedContactInput(
     email: nextEmail,
     instagram: existing.instagram || input.instagram,
     tags: existing.tags,
-    lastInteractionAt: mergeLastInteractionAt(existing.lastInteractionAt, input.lastInteractionAt)
+    lastInteractionAt: mergeLastInteractionAt(existing.lastInteractionAt, input.lastInteractionAt),
   };
 }
 
@@ -1663,7 +1748,7 @@ function createImportedContactInput(input: {
     status: "novo",
     tags: [],
     lastInteractionAt: input.lastInteractionAt,
-    lastProcedureAt: null
+    lastProcedureAt: null,
   };
 }
 
@@ -1680,7 +1765,7 @@ function repairImportedMojibakeNames() {
           AND trim(instagram) <> ''
           AND name IS NOT NULL
           AND trim(name) <> ''
-      `
+      `,
     )
     .all() as Array<{ id: string }>;
 
@@ -1700,9 +1785,9 @@ function repairImportedMojibakeNames() {
       {
         ...contact,
         name: repairedName,
-        tags: contact.tags
+        tags: contact.tags,
       },
-      "instagram-import"
+      "instagram-import",
     );
 
     if (updated) {
@@ -1719,7 +1804,7 @@ function resolveExistingContact(instagram: string, phone: string | null) {
 
   return {
     instagramContactId,
-    phoneContactId: phoneContact?.id ?? null
+    phoneContactId: phoneContact?.id ?? null,
   };
 }
 
@@ -1739,22 +1824,26 @@ function upsertImportedProfile(input: {
     instagram: input.instagram,
     importedName: input.importedName,
     whatsappImportedName: input.whatsappImportedName,
-    phone: input.importedPhone
+    phone: input.importedPhone,
   });
   const whatsappCsvMatched = Boolean(input.whatsappImportedName);
 
-  if (existing.instagramContactId && existing.phoneContactId && existing.instagramContactId !== existing.phoneContactId) {
+  if (
+    existing.instagramContactId &&
+    existing.phoneContactId &&
+    existing.instagramContactId !== existing.phoneContactId
+  ) {
     input.conflicts.push({
       instagram: input.instagram,
       phone: input.importedPhone ?? "",
       instagramContactId: existing.instagramContactId,
-      phoneContactId: existing.phoneContactId
+      phoneContactId: existing.phoneContactId,
     });
     return {
       result: "conflict",
       whatsappCsvMatched,
       appliedNameSource: null,
-      nameChanged: false
+      nameChanged: false,
     };
   }
 
@@ -1767,16 +1856,16 @@ function upsertImportedProfile(input: {
         importedCpf: input.importedCpf,
         importedEmail: input.importedEmail,
         lastInteractionAt: input.lastInteractionAt,
-        preferredName
+        preferredName,
       }),
-      "instagram-import"
+      "instagram-import",
     );
 
     return {
       result: created ? "created" : "skipped",
       whatsappCsvMatched,
       appliedNameSource: created && preferredName.source !== "blank" ? preferredName.source : null,
-      nameChanged: Boolean(created && preferredName.value.length > 0)
+      nameChanged: Boolean(created && preferredName.value.length > 0),
     };
   }
 
@@ -1786,7 +1875,7 @@ function upsertImportedProfile(input: {
       result: "skipped",
       whatsappCsvMatched,
       appliedNameSource: null,
-      nameChanged: false
+      nameChanged: false,
     };
   }
 
@@ -1797,7 +1886,7 @@ function upsertImportedProfile(input: {
     importedEmail: input.importedEmail,
     lastInteractionAt: input.lastInteractionAt,
     ownAliasKeys: input.ownAliasKeys,
-    preferredName
+    preferredName,
   });
   const nextName = nextInput.name;
   const nextPhone = collapseWhitespace(nextInput.phone);
@@ -1820,7 +1909,7 @@ function upsertImportedProfile(input: {
       result: "unchanged",
       whatsappCsvMatched,
       appliedNameSource: null,
-      nameChanged: false
+      nameChanged: false,
     };
   }
 
@@ -1828,8 +1917,9 @@ function upsertImportedProfile(input: {
   return {
     result: updated ? "updated" : "skipped",
     whatsappCsvMatched,
-    appliedNameSource: updated && nameChanged && preferredName.source !== "blank" ? preferredName.source : null,
-    nameChanged: Boolean(updated && nameChanged)
+    appliedNameSource:
+      updated && nameChanged && preferredName.source !== "blank" ? preferredName.source : null,
+    nameChanged: Boolean(updated && nameChanged),
   };
 }
 
@@ -1857,7 +1947,11 @@ function resolveFollowerEntryHandle(entry: FollowerFileEntry) {
   return handle ? `@${handle}` : null;
 }
 
-function mergeRelationshipTimestamp(target: Map<string, number>, instagram: string, timestamp?: number | null) {
+function mergeRelationshipTimestamp(
+  target: Map<string, number>,
+  instagram: string,
+  timestamp?: number | null,
+) {
   const normalized = normalizeInstagramHandle(instagram);
   if (!normalized) {
     return;
@@ -1888,7 +1982,9 @@ function loadRelationshipSnapshot(extraction: ExtractedInstagramExport): Relatio
 
   for (const filePath of extraction.followingFiles) {
     const parsed = readJsonFile<FollowingFile>(filePath);
-    const entries = Array.isArray(parsed.relationships_following) ? parsed.relationships_following : [];
+    const entries = Array.isArray(parsed.relationships_following)
+      ? parsed.relationships_following
+      : [];
 
     for (const entry of entries) {
       const instagram = resolveFollowerEntryHandle(entry);
@@ -1902,7 +1998,7 @@ function loadRelationshipSnapshot(extraction: ExtractedInstagramExport): Relatio
 
   return {
     followers,
-    following
+    following,
   };
 }
 
@@ -1916,7 +2012,7 @@ function listInstagramContacts() {
         WHERE deleted_at IS NULL
           AND instagram IS NOT NULL
           AND trim(instagram) <> ''
-      `
+      `,
     )
     .all() as Array<{ id: string }>;
 
@@ -1934,7 +2030,7 @@ function listContactIdsByNormalizedPhone() {
           AND phone IS NOT NULL
           AND trim(phone) <> ''
         ORDER BY datetime(updated_at) DESC, id ASC
-      `
+      `,
     )
     .all() as Array<{ id: string; phone: string | null }>;
 
@@ -1968,14 +2064,14 @@ function listStoredInstagramIncomingMessageCounts() {
           AND c.instagram IS NOT NULL
           AND trim(c.instagram) <> ''
         GROUP BY lower(ltrim(trim(c.instagram), '@'))
-      `
+      `,
     )
     .all() as Array<{ instagram_key: string | null; incoming_count: number }>;
 
   return new Map(
     rows
       .filter((row) => row.instagram_key)
-      .map((row) => [String(row.instagram_key), Number(row.incoming_count ?? 0)])
+      .map((row) => [String(row.instagram_key), Number(row.incoming_count ?? 0)]),
   );
 }
 
@@ -1997,27 +2093,31 @@ function refreshInstagramSignals(input: {
     const nextIncomingMessagesCount = Math.max(
       contact.instagramIncomingMessagesCount,
       input.importedIncomingMessageCounts.get(normalizedInstagram) ?? 0,
-      storedIncomingCounts.get(normalizedInstagram) ?? 0
+      storedIncomingCounts.get(normalizedInstagram) ?? 0,
     );
 
     const beforeRelationship = {
       followsMe: contact.instagramFollowsMe,
-      followedByMe: contact.instagramFollowedByMe
+      followedByMe: contact.instagramFollowedByMe,
     };
     const beforeMessages = {
       incomingCount: contact.instagramIncomingMessagesCount,
-      sentMoreThanThreeMessages: contact.instagramSentMoreThanThreeMessages
+      sentMoreThanThreeMessages: contact.instagramSentMoreThanThreeMessages,
     };
 
     const updated = updateContactInstagramSignals(
       contact.id,
       {
-        instagramFollowsMe: input.hasRelationshipSnapshot ? input.relationshipSnapshot.followers.has(normalizedInstagram) : undefined,
-        instagramFollowedByMe: input.hasRelationshipSnapshot ? input.relationshipSnapshot.following.has(normalizedInstagram) : undefined,
+        instagramFollowsMe: input.hasRelationshipSnapshot
+          ? input.relationshipSnapshot.followers.has(normalizedInstagram)
+          : undefined,
+        instagramFollowedByMe: input.hasRelationshipSnapshot
+          ? input.relationshipSnapshot.following.has(normalizedInstagram)
+          : undefined,
         instagramIncomingMessagesCount: nextIncomingMessagesCount,
-        instagramSentMoreThanThreeMessages: nextIncomingMessagesCount > 3
+        instagramSentMoreThanThreeMessages: nextIncomingMessagesCount > 3,
       },
-      "instagram-import"
+      "instagram-import",
     );
 
     if (!updated) {
@@ -2041,11 +2141,14 @@ function refreshInstagramSignals(input: {
 
   return {
     relationshipSignalsUpdated,
-    messageSignalsUpdated
+    messageSignalsUpdated,
   };
 }
 
-function trackUpsertResult(summary: InstagramContactImportSummary, result: UpsertImportedProfileResult) {
+function trackUpsertResult(
+  summary: InstagramContactImportSummary,
+  result: UpsertImportedProfileResult,
+) {
   if (result.whatsappCsvMatched) {
     summary.whatsappCsvMatches += 1;
   }
@@ -2110,14 +2213,20 @@ export function reconcileInstagramContactNamesWithWhatsAppCsv(lookup: WhatsAppCs
     for (const contact of listInstagramContacts()) {
       const normalizedInstagram = normalizeInstagramDisplayValue(contact.instagram);
       const normalizedPhone = normalizeWhatsAppValue(contact.phone);
-      const csvMatch = normalizedPhone ? lookup?.contactsByPhone.get(normalizedPhone) ?? null : null;
+      const csvMatch = normalizedPhone
+        ? (lookup?.contactsByPhone.get(normalizedPhone) ?? null)
+        : null;
       const phoneContact =
         normalizedPhone && phoneContactIds.get(normalizedPhone) !== contact.id
           ? resolvePhoneContact(phoneContactIds.get(normalizedPhone) ?? null)
           : null;
-      const normalizedPhoneContactName = phoneContact ? normalizePersonName(phoneContact.name, normalizedInstagram) : "";
-      const phoneContactCpf = phoneContact ? normalizeCpf(phoneContact.cpf) ?? null : null;
-      const phoneContactEmail = phoneContact ? normalizeEmailValue(phoneContact.email) ?? null : null;
+      const normalizedPhoneContactName = phoneContact
+        ? normalizePersonName(phoneContact.name, normalizedInstagram)
+        : "";
+      const phoneContactCpf = phoneContact ? (normalizeCpf(phoneContact.cpf) ?? null) : null;
+      const phoneContactEmail = phoneContact
+        ? (normalizeEmailValue(phoneContact.email) ?? null)
+        : null;
       if (csvMatch || normalizedPhoneContactName || phoneContactCpf || phoneContactEmail) {
         matchedContacts += 1;
       }
@@ -2125,19 +2234,19 @@ export function reconcileInstagramContactNamesWithWhatsAppCsv(lookup: WhatsAppCs
       const preferredName = normalizedPhoneContactName
         ? {
             source: "whatsapp" as const,
-            value: normalizedPhoneContactName
+            value: normalizedPhoneContactName,
           }
         : resolvePreferredContactName({
             instagram: normalizedInstagram,
             importedName: null,
             whatsappImportedName: csvMatch?.preferredName ?? null,
-            phone: normalizedPhone
+            phone: normalizedPhone,
           });
 
       const nextName = resolveUpdatedContactName(contact, {
         instagram: normalizedInstagram ?? contact.instagram ?? "",
         preferredName,
-        ownAliasKeys: new Set<string>()
+        ownAliasKeys: new Set<string>(),
       });
       const currentCpf = normalizeCpf(contact.cpf) ?? null;
       const nextCpf = currentCpf ?? phoneContactCpf ?? null;
@@ -2155,9 +2264,9 @@ export function reconcileInstagramContactNamesWithWhatsAppCsv(lookup: WhatsAppCs
           name: nextName,
           cpf: nextCpf,
           email: nextEmail,
-          tags: contact.tags
+          tags: contact.tags,
         },
-        "instagram-import"
+        "instagram-import",
       );
 
       if (!updated) {
@@ -2191,7 +2300,7 @@ export function reconcileInstagramContactNamesWithWhatsAppCsv(lookup: WhatsAppCs
     whatsappContactNamesApplied,
     namesFromPhones,
     cpfsApplied,
-    emailsApplied
+    emailsApplied,
   };
 }
 
@@ -2199,7 +2308,7 @@ export function importInstagramContacts(
   zipPath: string,
   options?: {
     whatsappLookup?: WhatsAppCsvLookup | null;
-  }
+  },
 ): InstagramContactImportSummary {
   const resolvedZipPath = path.resolve(zipPath);
   const extraction = extractInstagramJsons(resolvedZipPath);
@@ -2208,7 +2317,8 @@ export function importInstagramContacts(
   try {
     const threadGroups = groupThreadFiles(extraction.messageFiles);
     const relationshipSnapshot = loadRelationshipSnapshot(extraction);
-    const hasRelationshipSnapshot = relationshipSnapshot.followers.size > 0 || relationshipSnapshot.following.size > 0;
+    const hasRelationshipSnapshot =
+      relationshipSnapshot.followers.size > 0 || relationshipSnapshot.following.size > 0;
     const ownAliases = inferOwnAliases(threadGroups);
     const ownAliasKeys = new Set(ownAliases.map((alias) => nameKey(alias)));
     const participantFrequency = participantFrequencyMap(threadGroups);
@@ -2241,7 +2351,7 @@ export function importInstagramContacts(
       whatsappCsvNamesApplied: 0,
       namesFromPhones: 0,
       ownAliases,
-      conflictSamples: []
+      conflictSamples: [],
     };
 
     if (!summary.hasMessageSnapshot && !summary.hasRelationshipSnapshot) {
@@ -2269,9 +2379,11 @@ export function importInstagramContacts(
         title: threadAnalysis.threadTitle,
         participants: threadAnalysis.participants,
         instagram,
-        ownAliasKeys
+        ownAliasKeys,
       });
-      const whatsappMatch = threadAnalysis.phone ? whatsappLookup?.contactsByPhone.get(threadAnalysis.phone) ?? null : null;
+      const whatsappMatch = threadAnalysis.phone
+        ? (whatsappLookup?.contactsByPhone.get(threadAnalysis.phone) ?? null)
+        : null;
 
       const result = upsertImportedProfile({
         instagram,
@@ -2282,14 +2394,17 @@ export function importInstagramContacts(
         importedEmail: threadAnalysis.email,
         lastInteractionAt: threadAnalysis.latestInteractionAt,
         ownAliasKeys,
-        conflicts: summary.conflictSamples
+        conflicts: summary.conflictSamples,
       });
 
       const normalizedInstagram = normalizeInstagramHandle(instagram);
       if (normalizedInstagram) {
         importedIncomingMessageCounts.set(
           normalizedInstagram,
-          Math.max(importedIncomingMessageCounts.get(normalizedInstagram) ?? 0, threadAnalysis.incomingMessagesCount)
+          Math.max(
+            importedIncomingMessageCounts.get(normalizedInstagram) ?? 0,
+            threadAnalysis.incomingMessagesCount,
+          ),
         );
       }
 
@@ -2316,7 +2431,7 @@ export function importInstagramContacts(
         importedEmail: null,
         lastInteractionAt: null,
         ownAliasKeys,
-        conflicts: summary.conflictSamples
+        conflicts: summary.conflictSamples,
       });
 
       summary.processedFollowers += 1;
@@ -2339,7 +2454,7 @@ export function importInstagramContacts(
         importedEmail: null,
         lastInteractionAt: null,
         ownAliasKeys,
-        conflicts: summary.conflictSamples
+        conflicts: summary.conflictSamples,
       });
 
       summary.processedFollowing += 1;
@@ -2349,7 +2464,7 @@ export function importInstagramContacts(
     const signalSummary = refreshInstagramSignals({
       relationshipSnapshot,
       hasRelationshipSnapshot,
-      importedIncomingMessageCounts
+      importedIncomingMessageCounts,
     });
 
     summary.relationshipSignalsUpdated = signalSummary.relationshipSignalsUpdated;
@@ -2363,7 +2478,9 @@ export function importInstagramContacts(
   }
 }
 
-export function extractInstagramConversationSnapshots(zipPath: string): InstagramConversationArchiveSnapshot {
+export function extractInstagramConversationSnapshots(
+  zipPath: string,
+): InstagramConversationArchiveSnapshot {
   const resolvedZipPath = path.resolve(zipPath);
   const extraction = extractInstagramJsons(resolvedZipPath);
 
@@ -2381,7 +2498,9 @@ export function extractInstagramConversationSnapshots(zipPath: string): Instagra
         for (const filePath of thread.filePaths) {
           const parsed = readInstagramMessageFile(filePath);
           title = collapseWhitespace(parsed.title) || title;
-          participants = (parsed.participants ?? []).map((participant) => collapseWhitespace(participant.name)).filter(Boolean);
+          participants = (parsed.participants ?? [])
+            .map((participant) => collapseWhitespace(participant.name))
+            .filter(Boolean);
 
           for (const message of parsed.messages ?? []) {
             const content = collapseWhitespace(message.content);
@@ -2392,9 +2511,10 @@ export function extractInstagramConversationSnapshots(zipPath: string): Instagra
             const senderName = collapseWhitespace(message.sender_name);
             messages.push({
               senderName,
-              timestampMs: Number(message.timestamp_ms ?? 0) > 0 ? Number(message.timestamp_ms) : null,
+              timestampMs:
+                Number(message.timestamp_ms ?? 0) > 0 ? Number(message.timestamp_ms) : null,
               content,
-              direction: ownAliasKeys.has(nameKey(senderName)) ? "outgoing" : "incoming"
+              direction: ownAliasKeys.has(nameKey(senderName)) ? "outgoing" : "incoming",
             });
           }
         }
@@ -2411,7 +2531,7 @@ export function extractInstagramConversationSnapshots(zipPath: string): Instagra
           instagramHandle: deriveThreadHandle(thread.threadDirName),
           title,
           participants,
-          messages
+          messages,
         };
       })
       .filter((thread) => thread.messages.length > 0);
@@ -2419,7 +2539,7 @@ export function extractInstagramConversationSnapshots(zipPath: string): Instagra
     return {
       zipPath: resolvedZipPath,
       ownAliases,
-      threads
+      threads,
     };
   } finally {
     rmSync(extraction.extractionDir, { recursive: true, force: true });
@@ -2447,7 +2567,7 @@ export function listInstagramExportFiles(inputPath: string) {
 
   const files = execFileSync("find", [resolvedPath, "-type", "f"], {
     encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"]
+    stdio: ["ignore", "pipe", "pipe"],
   })
     .split(/\r?\n/g)
     .map((entry) => entry.trim())
@@ -2484,7 +2604,7 @@ export function listPendingIncompleteInstagramDownloads(inputPath: string) {
 
   return execFileSync("find", [resolvedPath, "-type", "f", "-name", "*.crdownload"], {
     encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"]
+    stdio: ["ignore", "pipe", "pipe"],
   })
     .split(/\r?\n/g)
     .map((entry) => entry.trim())

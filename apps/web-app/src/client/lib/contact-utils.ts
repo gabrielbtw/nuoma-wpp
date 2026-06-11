@@ -89,7 +89,10 @@ export function formatPhoneForInput(input?: string | null) {
     return "";
   }
 
-  if (!startsWithBrazilPrefix(raw) && !(digitsOnly(raw).startsWith("55") && digitsOnly(raw).length >= 12)) {
+  if (
+    !startsWithBrazilPrefix(raw) &&
+    !(digitsOnly(raw).startsWith("55") && digitsOnly(raw).length >= 12)
+  ) {
     return raw;
   }
 

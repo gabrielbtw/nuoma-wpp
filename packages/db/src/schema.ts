@@ -608,10 +608,7 @@ export const sendAuditEvents = sqliteTable(
     metadata: text("metadata_json").notNull().default("{}"),
   },
   (t) => ({
-    campaignOccurredIdx: index("idx_send_audit_campaign_occurred").on(
-      t.campaignId,
-      t.occurredAt,
-    ),
+    campaignOccurredIdx: index("idx_send_audit_campaign_occurred").on(t.campaignId, t.occurredAt),
     contactOccurredIdx: index("idx_send_audit_contact_occurred").on(t.contactId, t.occurredAt),
     userPhaseOccurredIdx: index("idx_send_audit_user_phase_occurred").on(
       t.userId,

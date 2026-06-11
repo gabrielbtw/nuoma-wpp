@@ -8,7 +8,9 @@ export interface CampaignSearchState {
   intent: string | null;
 }
 
-export function parseCampaignSearch(search: string | URLSearchParams | null | undefined): CampaignSearchState {
+export function parseCampaignSearch(
+  search: string | URLSearchParams | null | undefined,
+): CampaignSearchState {
   const params =
     search instanceof URLSearchParams
       ? search

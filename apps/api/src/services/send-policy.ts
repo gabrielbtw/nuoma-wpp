@@ -3,8 +3,6 @@ import { normalizePhone } from "@nuoma/contracts";
 
 export { normalizePhone } from "@nuoma/contracts";
 
-const CLIENT_ALLOWED_PHONE_OVERRIDE = "5531982066263";
-
 export interface ApiSendPolicy {
   mode: ApiEnv["API_SEND_POLICY_MODE"];
   allowedPhones: string[];
@@ -20,10 +18,7 @@ export function resolveApiSendPolicy(
   );
   return {
     mode: env.API_SEND_POLICY_MODE,
-    allowedPhones:
-      env.API_SEND_POLICY_MODE === "test" && allowedPhones.length === 0
-        ? ["5531982066263"]
-        : allowedPhones,
+    allowedPhones,
   };
 }
 
@@ -70,7 +65,5 @@ export function parsePhoneList(
 export function normalizeClientAllowedPhoneOverride(
   phone: string | null | undefined,
 ): string | undefined {
-  return normalizePhone(phone) === CLIENT_ALLOWED_PHONE_OVERRIDE
-    ? CLIENT_ALLOWED_PHONE_OVERRIDE
-    : undefined;
+  return normalizePhone(phone) ?? undefined;
 }

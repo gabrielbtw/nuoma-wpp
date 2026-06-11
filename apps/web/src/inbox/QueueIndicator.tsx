@@ -83,9 +83,9 @@ export function QueueIndicator({
       </span>
       {hasJobs ? (
         <span className="hidden items-center gap-1.5 text-[0.65rem] text-fg-muted md:inline-flex">
-          <QueuePart label="Q" value={summary.queued} />
-          <QueuePart label="C" value={summary.claimed} />
-          <QueuePart label="R" value={summary.running} />
+          <QueuePart label="fila" value={summary.queued} />
+          <QueuePart label="reserv." value={summary.claimed} />
+          <QueuePart label="exec." value={summary.running} />
         </span>
       ) : null}
       {hasJobs ? <Activity className="h-3 w-3 shrink-0 opacity-75" /> : null}
@@ -111,7 +111,7 @@ function queueTitle(summary: ConversationQueueSummary, error?: string | null): s
         second: "2-digit",
       })}`
     : "";
-  return `Fila com ${summary.total} jobs: ${summary.queued} queued, ${summary.claimed} claimed, ${summary.running} running${next}`;
+  return `Fila com ${summary.total} jobs: ${summary.queued} na fila, ${summary.claimed} reservados, ${summary.running} em execução${next}`;
 }
 
 function emptyQueueSummary(): ConversationQueueSummary {

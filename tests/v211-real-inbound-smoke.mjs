@@ -10,7 +10,12 @@ const dataDir = path.join(rootDir, "data");
 const dbPath = process.env.DATABASE_URL ?? path.join(dataDir, "nuoma-v2.db");
 const cdpUrl = process.env.CDP_URL ?? "http://127.0.0.1:9223";
 const phone = process.env.SMOKE_PHONE ?? "5531982066263";
-const token = process.env.SMOKE_INBOUND_TOKEN ?? `INB-${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(2, 14)}`;
+const token =
+  process.env.SMOKE_INBOUND_TOKEN ??
+  `INB-${new Date()
+    .toISOString()
+    .replace(/[-:.TZ]/g, "")
+    .slice(2, 14)}`;
 const timeoutMs = Number(process.env.SMOKE_TIMEOUT_MS ?? 300_000);
 const screenshot = path.join(dataDir, "v211-real-inbound-wpp.png");
 
@@ -80,31 +85,44 @@ async function waitDbInbound(syncJobId) {
     if (row) return row;
     const job = syncJobRow(syncJobId);
     if (job?.status === "dead" || job?.status === "failed") {
-      throw new Error(`inbound sync job ${syncJobId} failed before persistence: ${job.last_error ?? "unknown"}`);
+      throw new Error(
+        `inbound sync job ${syncJobId} failed before persistence: ${job.last_error ?? "unknown"}`,
+      );
     }
     if (job?.status === "completed") {
       completedWithoutRowAt ??= Date.now();
       if (Date.now() - completedWithoutRowAt > 10_000) {
-        throw new Error(`inbound sync job ${syncJobId} completed but token was not persisted: ${token}`);
+        throw new Error(
+          `inbound sync job ${syncJobId} completed but token was not persisted: ${token}`,
+        );
       }
     }
     await sleep(1_000);
   }
-  throw new Error(`inbound token reached WhatsApp visual proof but was not persisted in messages table: ${token}`);
+  throw new Error(
+    `inbound token reached WhatsApp visual proof but was not persisted in messages table: ${token}`,
+  );
 }
 
 async function main() {
-  console.log(`v211-real-inbound|waiting|phone=${phone}|token=${token}|instruction=envie este token do celular para o WhatsApp Business`);
+  console.log(
+    `v211-real-inbound|waiting|phone=${phone}|token=${token}|instruction=envie este token do celular para o WhatsApp Business`,
+  );
 
   const browser = await chromium.connectOverCDP(cdpUrl);
   try {
     const context = browser.contexts()[0] ?? (await browser.newContext());
-    const page = context.pages().find((item) => item.url().startsWith("https://web.whatsapp.com")) ?? (await context.newPage());
+    const page =
+      context.pages().find((item) => item.url().startsWith("https://web.whatsapp.com")) ??
+      (await context.newPage());
     const onTargetChat = await page
       .evaluate((expectedPhone) => {
         const normalized = String(expectedPhone || "").replace(/\D/g, "");
-        const hrefPhone = new URL(location.href).searchParams.get("phone")?.replace(/\D/g, "") ?? "";
-        const text = String(document.querySelector("#main header")?.textContent || document.body?.innerText || "");
+        const hrefPhone =
+          new URL(location.href).searchParams.get("phone")?.replace(/\D/g, "") ?? "";
+        const text = String(
+          document.querySelector("#main header")?.textContent || document.body?.innerText || "",
+        );
         return hrefPhone === normalized || text.replace(/\D/g, "").includes(normalized.slice(-8));
       }, phone)
       .catch(() => false);
@@ -114,14 +132,23 @@ async function main() {
         timeout: 60_000,
       });
     }
-    await page.waitForFunction(() => Boolean(document.body?.innerText?.trim()), { timeout: 90_000 });
+    await page.waitForFunction(() => Boolean(document.body?.innerText?.trim()), {
+      timeout: 90_000,
+    });
     await page.keyboard.press("End").catch(() => null);
     await page.waitForFunction(
       (expectedToken) => {
         function isVisible(node) {
           if (!node) return false;
           const rect = node.getBoundingClientRect();
-          return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.right > 0 && rect.top < window.innerHeight && rect.left < window.innerWidth;
+          return (
+            rect.width > 0 &&
+            rect.height > 0 &&
+            rect.bottom > 0 &&
+            rect.right > 0 &&
+            rect.top < window.innerHeight &&
+            rect.left < window.innerWidth
+          );
         }
         return Array.from(document.querySelectorAll("#main .message-in")).some(
           (node) => isVisible(node) && String(node.textContent || "").includes(expectedToken),
@@ -163,6 +190,8 @@ main()
   })
   .catch((error) => {
     db.close();
-    console.error(`v211-real-inbound|failed|phone=${phone}|token=${token}|ig=nao_aplicavel|error=${error.message}`);
+    console.error(
+      `v211-real-inbound|failed|phone=${phone}|token=${token}|ig=nao_aplicavel|error=${error.message}`,
+    );
     process.exit(1);
   });

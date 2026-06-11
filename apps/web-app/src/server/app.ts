@@ -6,7 +6,13 @@ import middie from "@fastify/middie";
 import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
 import { ZodError } from "zod";
-import { createLogger, ensureRuntimeDirectories, isInputError, loadEnv, recordSystemEvent } from "@nuoma/core";
+import {
+  createLogger,
+  ensureRuntimeDirectories,
+  isInputError,
+  loadEnv,
+  recordSystemEvent,
+} from "@nuoma/core";
 import { registerRoutes } from "./routes/index.js";
 
 export async function createApp() {
@@ -15,7 +21,7 @@ export async function createApp() {
   const logger = createLogger("web-app");
   const app = Fastify({
     logger: false,
-    bodyLimit: env.MAX_UPLOAD_MB * 1024 * 1024
+    bodyLimit: env.MAX_UPLOAD_MB * 1024 * 1024,
   });
 
   await app.register(cors, { origin: true });
@@ -23,8 +29,8 @@ export async function createApp() {
   await app.register(multipart, {
     limits: {
       fileSize: env.MAX_UPLOAD_MB * 1024 * 1024,
-      files: 2
-    }
+      files: 2,
+    },
   });
 
   app.setErrorHandler((error, _request, reply) => {
@@ -37,10 +43,10 @@ export async function createApp() {
         : "Erro interno";
     logger.error({ err: error }, "Request error");
     recordSystemEvent("web-app", "error", message, {
-      stack: error instanceof Error ? error.stack : undefined
+      stack: error instanceof Error ? error.stack : undefined,
     });
     reply.code(isValidationError || isInputValidationError ? 400 : 500).send({
-      message
+      message,
     });
   });
 
@@ -51,9 +57,9 @@ export async function createApp() {
     const vite = await createServer({
       configFile: path.join(env.PROJECT_ROOT, "apps/web-app/vite.config.ts"),
       server: {
-        middlewareMode: true
+        middlewareMode: true,
       },
-      appType: "custom"
+      appType: "custom",
     });
     app.use(vite.middlewares as any);
     app.get("/", async (_request, reply) => {
@@ -64,7 +70,7 @@ export async function createApp() {
   } else {
     const clientRoot = path.join(env.PROJECT_ROOT, "apps/web-app/dist/client");
     await app.register(fastifyStatic, {
-      root: clientRoot
+      root: clientRoot,
     });
     app.get("/", async (_request, reply) => {
       const html = await readFile(path.join(clientRoot, "index.html"), "utf8");
@@ -76,7 +82,7 @@ export async function createApp() {
   await app.register(fastifyStatic, {
     root: env.MEDIA_DIR,
     prefix: "/uploads/media/",
-    decorateReply: false
+    decorateReply: false,
   });
 
   return app;

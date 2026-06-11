@@ -7,7 +7,7 @@ import { syncInstagramInboxToDatabase } from "../lib/instagram-sync.js";
 const syncRequestSchema = z
   .object({
     threadLimit: z.coerce.number().int().min(1).max(50).optional(),
-    messagesLimit: z.coerce.number().int().min(1).max(100).optional()
+    messagesLimit: z.coerce.number().int().min(1).max(100).optional(),
   })
   .partial()
   .default({});
@@ -27,7 +27,7 @@ export async function registerInstagramRoutes(app: FastifyInstance) {
     const body = syncRequestSchema.parse(request.body ?? {});
     return syncInstagramInboxToDatabase({
       threadLimit: body.threadLimit,
-      messagesLimit: body.messagesLimit
+      messagesLimit: body.messagesLimit,
     });
   });
 
@@ -35,7 +35,7 @@ export async function registerInstagramRoutes(app: FastifyInstance) {
     const query = request.query as { channel?: "whatsapp" | "instagram" | "all"; limit?: string };
     return listReplySuggestions({
       channel: query.channel ?? "all",
-      limit: Number(query.limit ?? 8)
+      limit: Number(query.limit ?? 8),
     });
   });
 }

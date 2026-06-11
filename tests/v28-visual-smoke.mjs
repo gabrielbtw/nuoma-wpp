@@ -26,7 +26,11 @@ async function main() {
 
     await desktop.goto(`${webUrl}/settings`, { waitUntil: "networkidle" });
     await desktop.getByRole("tab", { name: "Notificações" }).click();
-    await screenshotAndAxe(desktop, "settings-notifications", "data/v28-smoke-settings-notifications.png");
+    await screenshotAndAxe(
+      desktop,
+      "settings-notifications",
+      "data/v28-smoke-settings-notifications.png",
+    );
     await desktopContext.close();
 
     const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -53,13 +57,13 @@ async function assertHttp(url, label) {
 
 async function screenshotAndAxe(page, label, path) {
   await page.screenshot({ path, fullPage: true });
-  const result = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa"])
-    .analyze();
+  const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
   const blocking = result.violations.filter(
     (violation) => violation.impact === "critical" || violation.impact === "serious",
   );
-  console.log(`${label}|violations=${result.violations.length}|blocking=${blocking.length}|${path}`);
+  console.log(
+    `${label}|violations=${result.violations.length}|blocking=${blocking.length}|${path}`,
+  );
   if (blocking.length > 0) {
     throw new Error(
       `${label} has blocking a11y violations: ${blocking

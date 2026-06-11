@@ -64,10 +64,7 @@ try {
   assert.equal(approvedOpenAiStatus.audioProvider, "openai");
   assert.equal(approvedOpenAiStatus.imageProvider, "openai");
 
-  const soraScript = readFileSync(
-    path.resolve("scripts/sora/nuoma-explainer-ptbr.sh"),
-    "utf8",
-  );
+  const soraScript = readFileSync(path.resolve("scripts/sora/nuoma-explainer-ptbr.sh"), "utf8");
   assert.match(soraScript, /require_env_equals SORA_BUDGET_APPROVED SIM/);
 
   console.log("phase1-guards-smoke|status=ok");

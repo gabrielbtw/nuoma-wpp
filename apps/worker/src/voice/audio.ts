@@ -53,9 +53,15 @@ export async function prepareVoiceAudio(input: {
   };
 }
 
-async function ensureOggOpus16kMono(input: { sourcePath: string; tempDir: string }): Promise<string> {
+async function ensureOggOpus16kMono(input: {
+  sourcePath: string;
+  tempDir: string;
+}): Promise<string> {
   await fs.mkdir(input.tempDir, { recursive: true });
-  const pttPath = path.join(input.tempDir, `voice-${Date.now()}-${Math.random().toString(16).slice(2)}.ogg`);
+  const pttPath = path.join(
+    input.tempDir,
+    `voice-${Date.now()}-${Math.random().toString(16).slice(2)}.ogg`,
+  );
   const ffmpegCandidates = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg", "ffmpeg"];
   for (const ffmpegBin of ffmpegCandidates) {
     try {

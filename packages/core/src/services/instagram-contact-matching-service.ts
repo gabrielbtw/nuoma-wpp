@@ -6,7 +6,7 @@ import {
   getContactById,
   getContactByInstagram,
   getContactByPhone,
-  updateAssistedContact
+  updateAssistedContact,
 } from "../repositories/contact-repository.js";
 import { ensureTag } from "../repositories/tag-repository.js";
 import { normalizeBrazilianPhone, normalizeInstagramHandle } from "../utils/phone.js";
@@ -43,13 +43,15 @@ function extractPhoneCandidatesFromText(text: string) {
   return matches
     .map((raw) => ({
       raw: collapseWhitespace(raw),
-      digits: raw.replace(/\D/g, "")
+      digits: raw.replace(/\D/g, ""),
     }))
     .filter((candidate) => candidate.digits.length >= 8);
 }
 
 function stripLeadingCountryCode(phoneDigits: string) {
-  return phoneDigits.startsWith("55") && phoneDigits.length > 11 ? phoneDigits.slice(2) : phoneDigits;
+  return phoneDigits.startsWith("55") && phoneDigits.length > 11
+    ? phoneDigits.slice(2)
+    : phoneDigits;
 }
 
 function isMissingDdd(phoneDigits: string) {
@@ -93,12 +95,15 @@ function buildNextContactInput(
     missingDdd: boolean;
     lastInteractionAt: string | null;
     allowInstagramUpdate: boolean;
-  }
+  },
 ): ContactInput & { syncWhatsAppChannel?: boolean } {
   const hasExistingPhone = collapseWhitespace(contact.phone).length > 0;
   const nextPhone = !hasExistingPhone && input.detectedPhone ? input.detectedPhone : contact.phone;
-  const nextName = collapseWhitespace(contact.name) || !input.importedName ? contact.name : input.importedName;
-  const nextInstagram = input.allowInstagramUpdate ? contact.instagram || input.instagramDisplay : contact.instagram;
+  const nextName =
+    collapseWhitespace(contact.name) || !input.importedName ? contact.name : input.importedName;
+  const nextInstagram = input.allowInstagramUpdate
+    ? contact.instagram || input.instagramDisplay
+    : contact.instagram;
 
   return {
     ...contact,
@@ -107,7 +112,7 @@ function buildNextContactInput(
     instagram: nextInstagram,
     tags: contact.tags,
     lastInteractionAt: mergeLastInteractionAt(contact.lastInteractionAt, input.lastInteractionAt),
-    syncWhatsAppChannel: Boolean(nextPhone) && !input.missingDdd
+    syncWhatsAppChannel: Boolean(nextPhone) && !input.missingDdd,
   };
 }
 
@@ -139,24 +144,28 @@ export function resolveInstagramContactFromLastMessage(input: {
   ensureTag(ANALYZE_TAG, { type: "sistema", active: true, color: "#f59e0b" });
   ensureTag(NEW_IG_TAG, { type: "sistema", active: true, color: "#f97316" });
 
-  const instagramDisplay = normalizeInstagramDisplayValue(normalizedInstagram) ?? `@${normalizedInstagram}`;
+  const instagramDisplay =
+    normalizeInstagramDisplayValue(normalizedInstagram) ?? `@${normalizedInstagram}`;
   const importedName = chooseContactName({
     threadTitle: input.threadTitle,
-    instagram: instagramDisplay
+    instagram: instagramDisplay,
   });
   const phoneCandidates = extractPhoneCandidatesFromText(collapseWhitespace(input.lastMessageText));
   const primaryPhoneCandidate = phoneCandidates[phoneCandidates.length - 1] ?? null;
   const detectedPhoneRaw = primaryPhoneCandidate?.raw ?? null;
   const detectedPhoneDigits = primaryPhoneCandidate?.digits ?? null;
   const missingDdd = detectedPhoneDigits ? isMissingDdd(detectedPhoneDigits) : false;
-  const detectedPhoneNormalized = detectedPhoneDigits ? normalizeDetectedPhone(detectedPhoneDigits) : null;
-  const existingByPhone = detectedPhoneNormalized && !missingDdd ? getContactByPhone(detectedPhoneNormalized) : null;
+  const detectedPhoneNormalized = detectedPhoneDigits
+    ? normalizeDetectedPhone(detectedPhoneDigits)
+    : null;
+  const existingByPhone =
+    detectedPhoneNormalized && !missingDdd ? getContactByPhone(detectedPhoneNormalized) : null;
   const existingByInstagram = getContactByInstagram(normalizedInstagram);
   const conflict =
     existingByPhone && existingByInstagram && existingByPhone.id !== existingByInstagram.id
       ? {
           instagramContactId: existingByInstagram.id,
-          phoneContactId: existingByPhone.id
+          phoneContactId: existingByPhone.id,
         }
       : null;
   const automaticTagsApplied: string[] = [];
@@ -164,7 +173,11 @@ export function resolveInstagramContactFromLastMessage(input: {
 
   let contact = existingByPhone ?? existingByInstagram;
   let created = false;
-  let linkedBy: InstagramContactMatchResult["linkedBy"] = existingByPhone ? "phone" : existingByInstagram ? "instagram" : "new";
+  let linkedBy: InstagramContactMatchResult["linkedBy"] = existingByPhone
+    ? "phone"
+    : existingByInstagram
+      ? "instagram"
+      : "new";
 
   if (!contact) {
     const tags = [NEW_IG_TAG];
@@ -188,9 +201,9 @@ export function resolveInstagramContactFromLastMessage(input: {
         tags,
         lastInteractionAt: input.lastMessageAt ?? null,
         lastProcedureAt: null,
-        syncWhatsAppChannel: Boolean(detectedPhoneNormalized) && !missingDdd
+        syncWhatsAppChannel: Boolean(detectedPhoneNormalized) && !missingDdd,
       },
-      "instagram-assisted"
+      "instagram-assisted",
     );
     created = true;
   } else {
@@ -200,7 +213,7 @@ export function resolveInstagramContactFromLastMessage(input: {
       detectedPhone: detectedPhoneNormalized,
       missingDdd,
       lastInteractionAt: input.lastMessageAt ?? null,
-      allowInstagramUpdate: !conflict || conflict.instagramContactId === contact.id
+      allowInstagramUpdate: !conflict || conflict.instagramContactId === contact.id,
     });
 
     const shouldUpdate =
@@ -211,11 +224,14 @@ export function resolveInstagramContactFromLastMessage(input: {
 
     if (shouldUpdate) {
       contact =
-        updateAssistedContact(contact.id, nextContactInput, "instagram-assisted") ??
-        contact;
+        updateAssistedContact(contact.id, nextContactInput, "instagram-assisted") ?? contact;
     }
 
-    if (missingDdd && detectedPhoneNormalized && !contact.tags.some((tag) => tag.toLowerCase() === ANALYZE_TAG.toLowerCase())) {
+    if (
+      missingDdd &&
+      detectedPhoneNormalized &&
+      !contact.tags.some((tag) => tag.toLowerCase() === ANALYZE_TAG.toLowerCase())
+    ) {
       applyTagToContact(contact.id, ANALYZE_TAG, "instagram-assisted");
       automaticTagsApplied.push(ANALYZE_TAG);
       contact = getContactById(contact.id) ?? contact;
@@ -237,9 +253,9 @@ export function resolveInstagramContactFromLastMessage(input: {
       rawPhone: detectedPhoneRaw,
       normalizedPhone: detectedPhoneNormalized,
       missingDdd,
-      lastMessageAt: timestamp
+      lastMessageAt: timestamp,
     },
-    createdAt: timestamp
+    createdAt: timestamp,
   });
 
   if (!existingByInstagram && (!conflict || conflict.phoneContactId === contact.id)) {
@@ -252,9 +268,9 @@ export function resolveInstagramContactFromLastMessage(input: {
       metadata: {
         type: "instagram",
         instagram: instagramDisplay,
-        linkedBy
+        linkedBy,
       },
-      createdAt: timestamp
+      createdAt: timestamp,
     });
   }
 
@@ -266,7 +282,7 @@ export function resolveInstagramContactFromLastMessage(input: {
       channel: "instagram",
       contactId: contact.id,
       metadata: conflict,
-      createdAt: timestamp
+      createdAt: timestamp,
     });
   }
 
@@ -280,9 +296,9 @@ export function resolveInstagramContactFromLastMessage(input: {
       instagram: instagramDisplay,
       linkedBy,
       automaticTagsApplied,
-      missingDdd
+      missingDdd,
     },
-    createdAt: timestamp
+    createdAt: timestamp,
   });
 
   return {
@@ -293,6 +309,6 @@ export function resolveInstagramContactFromLastMessage(input: {
     detectedPhoneNormalized,
     missingDdd,
     automaticTagsApplied,
-    conflict
+    conflict,
   } satisfies InstagramContactMatchResult;
 }

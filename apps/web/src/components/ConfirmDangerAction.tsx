@@ -1,13 +1,6 @@
 import { useState } from "react";
 
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-  Input,
-} from "@nuoma/ui";
+import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, Input } from "@nuoma/ui";
 
 type ConfirmDangerActionProps = {
   buttonLabel: string;
@@ -37,7 +30,13 @@ export function ConfirmDangerAction({
   return (
     <div className="grid min-w-[10rem] gap-1.5" data-testid={testId}>
       <Dialog open={open} onOpenChange={setOpen}>
-        <Button variant="danger" size="sm" loading={loading} disabled={disabled} onClick={() => setOpen(true)}>
+        <Button
+          variant="danger"
+          size="sm"
+          loading={loading}
+          disabled={disabled}
+          onClick={() => setOpen(true)}
+        >
           {buttonLabel}
         </Button>
         <DialogContent
@@ -62,6 +61,7 @@ export function ConfirmDangerAction({
             </label>
             <Input
               id={`${testId ?? "danger-action"}-confirm`}
+              autoFocus
               monospace
               value={value}
               placeholder={confirmText}

@@ -26,11 +26,7 @@ import {
   TooltipTrigger,
 } from "@nuoma/ui";
 
-import {
-  getShellNavSections,
-  type ShellNavSection,
-  type ShellRouteEntry,
-} from "./nav-registry.js";
+import { getShellNavSections, type ShellNavSection, type ShellRouteEntry } from "./nav-registry.js";
 
 const NAV_ICONS: Record<string, typeof LayoutDashboard> = {
   "/": LayoutDashboard,
@@ -64,12 +60,7 @@ export interface ShellRuntimeStatus {
   error?: boolean;
 }
 
-export function Sidebar({
-  mode = "desktop",
-  onNavigate,
-  runtimeStatus,
-  isAdmin,
-}: SidebarProps) {
+export function Sidebar({ mode = "desktop", onNavigate, runtimeStatus, isAdmin }: SidebarProps) {
   const router = useRouterState();
   const currentPath = router.location.pathname;
   const workspaceStatus = workspaceStatusFor(runtimeStatus);
@@ -210,7 +201,7 @@ function workspaceStatusFor(input: ShellRuntimeStatus | undefined): {
     return { label: "erro", detail: "métrica", variant: "danger" };
   }
   if (input.workersTotal === 0) {
-    return { label: "sem worker", detail: "0/0", variant: "warning" };
+    return { label: "sem processador", detail: "0/0", variant: "warning" };
   }
   if (input.hasErrors) {
     return {
@@ -255,7 +246,9 @@ function NavLink({
             className={cn(
               "nw-shell-nav-item group relative inline-flex h-10 w-10 items-center justify-center rounded-md",
               "transition-colors duration-fast ease-out",
-              mode === "mobile" ? "w-full justify-start gap-3 px-3" : "xl:w-full xl:justify-start xl:gap-3 xl:px-3",
+              mode === "mobile"
+                ? "w-full justify-start gap-3 px-3"
+                : "xl:w-full xl:justify-start xl:gap-3 xl:px-3",
               active
                 ? "bg-surface-2 text-ink-strong"
                 : "text-ink-soft hover:bg-surface-1 hover:text-ink-strong",

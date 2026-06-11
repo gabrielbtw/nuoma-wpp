@@ -12,6 +12,13 @@ Use before touching voice/audio send code or when proving IC-1.
 
 Owner-approved behavior must not regress: WhatsApp receives native voice messages, not file attachments, with accurate duration.
 
+## Boundary
+
+Use this skill to validate IC-1 in the canonical runtime (`apps/worker`). Treat
+`apps/wa-worker` as legacy reference only. Session, CDP and PM2 changes must go
+through `/nuoma-debug` plus the current `worker-runtime`/`platform-workspace`
+ownership.
+
 ## Rules
 
 - Do not refactor the voice pipeline casually.

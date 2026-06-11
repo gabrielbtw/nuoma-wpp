@@ -35,13 +35,13 @@ Na prática, o sistema combina quatro frentes centrais:
 
 O escopo atual já cobre a espinha dorsal da operação:
 
-| Frente | O que a solução entrega |
-| --- | --- |
-| Contatos | base consolidada, tags, status e leitura de histórico |
-| Conversas | inbox com visão central das interações |
-| Campanhas | fluxos com etapas e importação de destinatários |
-| Automações | execução de regras para cenários recorrentes |
-| Operação | leitura de saúde, eventos, logs e configurações |
+| Frente     | O que a solução entrega                               |
+| ---------- | ----------------------------------------------------- |
+| Contatos   | base consolidada, tags, status e leitura de histórico |
+| Conversas  | inbox com visão central das interações                |
+| Campanhas  | fluxos com etapas e importação de destinatários       |
+| Automações | execução de regras para cenários recorrentes          |
+| Operação   | leitura de saúde, eventos, logs e configurações       |
 
 ## Jornada Operacional
 
@@ -166,11 +166,11 @@ Ela existe para concentrar os pontos de ajuste em um lugar previsível, facilita
 
 A solução já expõe sinais visuais de estado. A leitura recomendada para um cliente não técnico pode ser resumida assim:
 
-| Status visual | Significado prático | Leitura recomendada |
-| --- | --- | --- |
-| `Connected` / `Authenticated` / `Online` | o componente está em condição normal | seguir operação |
-| `Warning` / `Starting` / `Paused` | existe alguma atenção ou transição em curso | acompanhar de perto |
-| `Disconnected` / `Offline` / `Error` | há interrupção operacional naquele ponto | revisar antes de continuar |
+| Status visual                            | Significado prático                         | Leitura recomendada        |
+| ---------------------------------------- | ------------------------------------------- | -------------------------- |
+| `Connected` / `Authenticated` / `Online` | o componente está em condição normal        | seguir operação            |
+| `Warning` / `Starting` / `Paused`        | existe alguma atenção ou transição em curso | acompanhar de perto        |
+| `Disconnected` / `Offline` / `Error`     | há interrupção operacional naquele ponto    | revisar antes de continuar |
 
 Essa camada de leitura é importante porque transforma um ambiente técnico em um painel mais compreensível para a rotina do time.
 

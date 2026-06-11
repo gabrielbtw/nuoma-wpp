@@ -20,8 +20,18 @@ export function createReminder(input: {
     `
       INSERT INTO reminders (id, contact_id, conversation_id, automation_id, title, due_at, status, notes, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)
-    `
-  ).run(id, input.contactId ?? null, input.conversationId ?? null, input.automationId ?? null, input.title, input.dueAt, input.notes ?? null, timestamp, timestamp);
+    `,
+  ).run(
+    id,
+    input.contactId ?? null,
+    input.conversationId ?? null,
+    input.automationId ?? null,
+    input.title,
+    input.dueAt,
+    input.notes ?? null,
+    timestamp,
+    timestamp,
+  );
 
   return id;
 }

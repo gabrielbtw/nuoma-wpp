@@ -10,7 +10,7 @@ const dataLakeRunSchema = z
     mediaRoots: z.array(z.string().trim().min(1)).optional(),
     maxMediaFiles: z.coerce.number().int().min(1).max(5000).optional(),
     maxEnrichmentItems: z.coerce.number().int().min(1).max(200).optional(),
-    sourceScope: z.string().trim().min(1).max(64).optional()
+    sourceScope: z.string().trim().min(1).max(64).optional(),
   })
   .partial()
   .default({});
@@ -21,7 +21,7 @@ export async function registerDataLakeRoutes(app: FastifyInstance) {
     return {
       providerConfigured: provider.audioProvider !== "none" || provider.imageProvider !== "none",
       provider,
-      ...getDataLakeOverview()
+      ...getDataLakeOverview(),
     };
   });
 
@@ -32,7 +32,7 @@ export async function registerDataLakeRoutes(app: FastifyInstance) {
     return {
       providerConfigured: provider.audioProvider !== "none" || provider.imageProvider !== "none",
       provider,
-      ...result
+      ...result,
     };
   });
 }

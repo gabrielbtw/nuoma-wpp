@@ -3,6 +3,7 @@
 ## 2026-04-04 - Omnichannel Evolution (Phases 1-12)
 
 ### Phase 1: Campaign Builder Robusto
+
 - Migration 0008: message_templates, campaign step conditions, evergreen fields
 - Template system with variable substitution ({{nome}}, {{telefone}}, etc.)
 - New step types: document (PDF), link (URL)
@@ -11,39 +12,47 @@
 - Campaign stats badges (duration, step count, conditions)
 
 ### Phase 2: Builder Unificado
+
 - FlowStepCard shared component (used by campaigns + automations)
 - Automation editor refactored with drag-and-drop, conditions, media upload
 
 ### Phase 3: Inbox Unificada
+
 - listUnifiedInbox: conversations grouped by contact across WA+IG
 - listMessagesForContact: mixed chronological timeline
 - Inbox UI rewrite: contact list, channel indicators, manual channel selector in composer
 
 ### Phase 4: Contact Narrative Ledger
+
 - contact-detail.tsx redesigned as timeline with date separators
 - Messages from all channels grouped by date with channel icons
 
 ### Phase 5: Advanced Segmentation
+
 - queryContactsBySegment: dynamic AND/OR SQL query builder (10 filter criteria)
 - SegmentBuilder component: reusable across contacts, campaigns, automations
 - POST /contacts/query endpoint
 
 ### Phase 6: Event-based Automations
+
 - Migration 0009: trigger_type, trigger_event, trigger_conditions_json, custom_category
 - AutomationRuleRecord extended with event trigger fields
 - Support for: message_received, campaign_completed, tag changes, conversation events
 
 ### Phase 7: Chatbot Entity
+
 - chatbots + chatbot_rules tables
 - ChatbotRepository: CRUD, keyword matching (contains, exact, starts_with, regex)
 - Chatbot routes: GET/POST/PATCH/DELETE /chatbots
 - ChatbotPage: split panel UI with rule editor + conversation preview/test
 
 ### Phase 8: Dashboard Error Badge
+
 - Dashboard summary includes failure data (failed jobs, failed recipients)
 - Error badge with red alert panel, job details, timestamps
 
 ### Phase 9-10: Design System Foundation
+
 - Skeleton component (Skeleton, SkeletonCard, SkeletonList)
 - EmptyState component (icon + title + description + CTA)
 - Toast system (success, error, warning, info) with global toast() function
@@ -51,12 +60,14 @@
 - ToastContainer added to app root
 
 ### Phase 11: Project Analysis
+
 - 24 tech debt items documented (9 HIGH, 13 MEDIUM, 2 LOW)
 - 25 frontend design findings (3 CRITICAL, 9 MAJOR, 12 MINOR)
 - 18 architecture risks (6 HIGH, 10 MEDIUM, 2 LOW)
 - Impact vs Cost matrix with sprint recommendations
 
 ### Phase 12: Architecture Fixes + Performance
+
 - Job lock auto-release (releaseStaleJobLocks in scheduler watchdog)
 - Atomic deduplication (transaction-wrapped check+insert)
 - Campaign pre-fetch cache (Map of campaigns to avoid N+1)
@@ -65,6 +76,7 @@
 - Chatbot navigation added to sidebar
 
 ### Files Created (18)
+
 - packages/core/src/repositories/template-repository.ts
 - packages/core/src/repositories/chatbot-repository.ts
 - packages/core/src/utils/template-vars.ts
@@ -85,6 +97,7 @@
 - .claude/settings.json
 
 ### Files Modified (20+)
+
 - packages/core/src/db/migrations.ts (migrations 0008, 0009)
 - packages/core/src/types/domain.ts (templates, conditions, chatbot, events)
 - packages/core/src/repositories/campaign-repository.ts (evergreen, conditions, manual recipients, step stats)

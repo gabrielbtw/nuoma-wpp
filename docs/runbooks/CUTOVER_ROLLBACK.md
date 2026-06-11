@@ -17,12 +17,12 @@ Nao executar rollback por warnings menores de UI ou por dados historicos nao cri
 
 ## Decisao por fase
 
-| Fase | Estado | Acao |
-|---|---|---|
-| Antes do apply | V2 sem dados migrados | Corrigir e repetir preflight/dry-run. |
-| Depois do apply, antes do QR V2 | V1 ainda dono da sessao | Restaurar backup V2 se necessario; V1 continua ativo/read-only ou volta a ativo. |
-| Depois do QR V2, antes de envio real | Sessao mudou | Desvincular V2, reativar V1 e validar QR/sessao. |
-| Depois de envio real | V2 tocou producao | Rollback apenas com causa critica, registrar RCA obrigatoria. |
+| Fase                                 | Estado                  | Acao                                                                             |
+| ------------------------------------ | ----------------------- | -------------------------------------------------------------------------------- |
+| Antes do apply                       | V2 sem dados migrados   | Corrigir e repetir preflight/dry-run.                                            |
+| Depois do apply, antes do QR V2      | V1 ainda dono da sessao | Restaurar backup V2 se necessario; V1 continua ativo/read-only ou volta a ativo. |
+| Depois do QR V2, antes de envio real | Sessao mudou            | Desvincular V2, reativar V1 e validar QR/sessao.                                 |
+| Depois de envio real                 | V2 tocou producao       | Rollback apenas com causa critica, registrar RCA obrigatoria.                    |
 
 ## Passos
 

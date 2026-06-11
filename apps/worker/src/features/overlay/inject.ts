@@ -144,7 +144,7 @@ const overlayTokens = {
   contourMuted: "var(--nwo-line-soft)",
   shadow: "0 0 0 1px var(--nwo-line), 0 18px 48px #00000070",
   activeShadow: "0 0 0 1px var(--nwo-accent), 0 12px 24px #00000052",
-  fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+  fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
 } as const;
 
 function createNuomaOverlayCss(): string {

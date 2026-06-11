@@ -138,9 +138,13 @@ function createProfileBackup(profileDir, backupDir, prefix) {
   }
   fs.mkdirSync(backupDir, { recursive: true });
   const targetPath = path.join(backupDir, `${prefix}-chromium-profile-${timestamp()}.tar.gz`);
-  const result = spawnSync("tar", ["-czf", targetPath, "-C", path.dirname(profileDir), path.basename(profileDir)], {
-    encoding: "utf8",
-  });
+  const result = spawnSync(
+    "tar",
+    ["-czf", targetPath, "-C", path.dirname(profileDir), path.basename(profileDir)],
+    {
+      encoding: "utf8",
+    },
+  );
   if (result.status !== 0) {
     throw new Error(`Profile backup failed: ${result.stderr || result.stdout}`);
   }
@@ -200,16 +204,18 @@ function resolveRestoreSource(backupDir) {
 
 function findLatestDbBackup(backupDir) {
   if (!fs.existsSync(backupDir)) return null;
-  return fs
-    .readdirSync(backupDir, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".db"))
-    .map((entry) => {
-      const fullPath = path.join(backupDir, entry.name);
-      const stat = fs.statSync(fullPath);
-      return { path: fullPath, mtimeMs: stat.mtimeMs, sizeBytes: stat.size };
-    })
-    .filter((entry) => entry.sizeBytes > 0)
-    .sort((a, b) => b.mtimeMs - a.mtimeMs)[0] ?? null;
+  return (
+    fs
+      .readdirSync(backupDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".db"))
+      .map((entry) => {
+        const fullPath = path.join(backupDir, entry.name);
+        const stat = fs.statSync(fullPath);
+        return { path: fullPath, mtimeMs: stat.mtimeMs, sizeBytes: stat.size };
+      })
+      .filter((entry) => entry.sizeBytes > 0)
+      .sort((a, b) => b.mtimeMs - a.mtimeMs)[0] ?? null
+  );
 }
 
 function printSummary(input) {

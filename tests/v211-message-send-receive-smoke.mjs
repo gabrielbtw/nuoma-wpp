@@ -72,7 +72,14 @@ function seedConversation() {
          (user_id, name, phone, email, primary_channel, instagram_handle, status, notes, last_message_at, deleted_at, created_at, updated_at)
          VALUES (?, ?, ?, NULL, 'whatsapp', NULL, 'active', ?, NULL, NULL, ?, ?)`,
       )
-      .run(userId, `Smoke Canary ${phone}`, phone, "Contato canario para smoke real de envio/recepcao.", now, now);
+      .run(
+        userId,
+        `Smoke Canary ${phone}`,
+        phone,
+        "Contato canario para smoke real de envio/recepcao.",
+        now,
+        now,
+      );
     contact = { id: Number(result.lastInsertRowid), phone };
   }
 
@@ -278,16 +285,16 @@ async function captureWhatsAppToken(token, filePath, timeoutMs) {
   const browser = await chromium.connectOverCDP(cdpUrl);
   try {
     const context = browser.contexts()[0] ?? (await browser.newContext());
-    const page = context.pages().find((item) => item.url().startsWith("https://web.whatsapp.com")) ?? (await context.newPage());
+    const page =
+      context.pages().find((item) => item.url().startsWith("https://web.whatsapp.com")) ??
+      (await context.newPage());
     await page.goto(`https://web.whatsapp.com/send?phone=${phone}&app_absent=0`, {
       waitUntil: "domcontentloaded",
       timeout: 60_000,
     });
-    await page.waitForFunction(
-      (expected) => document.body?.innerText?.includes(expected),
-      token,
-      { timeout: timeoutMs },
-    );
+    await page.waitForFunction((expected) => document.body?.innerText?.includes(expected), token, {
+      timeout: timeoutMs,
+    });
     await page.screenshot({ path: filePath, fullPage: true });
   } finally {
     // Do not close the browser attached through CDP; the worker owns that session.
@@ -309,7 +316,9 @@ async function captureApp(filePath) {
     }
     await page.goto(`${webUrl}/inbox`, { waitUntil: "domcontentloaded", timeout: 60_000 });
     await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => null);
-    const search = page.locator('input[type="search"], input[placeholder*="Buscar"], input[placeholder*="busca" i]').first();
+    const search = page
+      .locator('input[type="search"], input[placeholder*="Buscar"], input[placeholder*="busca" i]')
+      .first();
     if ((await search.count()) > 0) {
       await search.fill(phone);
       await page.waitForTimeout(1_000);
@@ -332,14 +341,22 @@ async function main() {
   let outboundMessage = findMessageToken("outbound", sendToken);
   if (!skipSend) {
     const sendResult = await trpcCall(session, "messages.send", { conversationId, body: sendBody });
-    sendJobId = Number(sendResult?.job?.id ?? sendResult?.jobId ?? sendResult?.id ?? findLatestSendJobId());
+    sendJobId = Number(
+      sendResult?.job?.id ?? sendResult?.jobId ?? sendResult?.id ?? findLatestSendJobId(),
+    );
     if (!sendJobId) {
       throw new Error(`messages.send did not expose a send job: ${compact(sendResult)}`);
     }
 
     await waitJobCompleted(sendJobId, outboundTimeoutMs, "send_message");
     await requestForceSync(session, conversationId);
-    outboundMessage = await waitForMessage(session, "outbound", sendToken, outboundTimeoutMs, conversationId);
+    outboundMessage = await waitForMessage(
+      session,
+      "outbound",
+      sendToken,
+      outboundTimeoutMs,
+      conversationId,
+    );
     if (!outboundMessage) {
       throw new Error(`outbound message with token ${sendToken} was not persisted`);
     }
@@ -389,9 +406,17 @@ async function main() {
     );
   }
 
-  const inboundMessage = await waitForMessage(session, "inbound", replyToken, inboundTimeoutMs, conversationId);
+  const inboundMessage = await waitForMessage(
+    session,
+    "inbound",
+    replyToken,
+    inboundTimeoutMs,
+    conversationId,
+  );
   if (!inboundMessage && requireInbound) {
-    throw new Error(`inbound reply with token ${replyToken} was not received within ${inboundTimeoutMs}ms`);
+    throw new Error(
+      `inbound reply with token ${replyToken} was not received within ${inboundTimeoutMs}ms`,
+    );
   }
   if (inboundMessage) {
     await captureWhatsAppToken(replyToken, screenshots.wppInbound, 90_000);
@@ -428,6 +453,8 @@ main()
   })
   .catch((error) => {
     db.close();
-    console.error(`v211-message-send-receive|failed|sendToken=${sendToken}|replyToken=${replyToken}|ig=nao_aplicavel|error=${error.message}`);
+    console.error(
+      `v211-message-send-receive|failed|sendToken=${sendToken}|replyToken=${replyToken}|ig=nao_aplicavel|error=${error.message}`,
+    );
     process.exit(1);
   });

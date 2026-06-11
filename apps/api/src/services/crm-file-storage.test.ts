@@ -161,9 +161,7 @@ describe("CRM file storage", () => {
       API_CRM_STORAGE_NAMESPACE: "../Nuoma Files//CRM",
     });
 
-    expect(crmNamespace(env, "../../Contato Acido")).toBe(
-      "/nuoma-files/crm/contato-acido/",
-    );
+    expect(crmNamespace(env, "../../Contato Acido")).toBe("/nuoma-files/crm/contato-acido/");
     expect(normalizeCrmOwnerKey("instagram:user/name")).toBe("instagram-user-name");
   });
 });

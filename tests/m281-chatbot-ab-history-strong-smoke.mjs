@@ -44,7 +44,9 @@ async function main() {
     );
     await panel.waitFor({ state: "visible", timeout: 10_000 });
 
-    const control = panel.locator('[data-testid="chatbot-ab-variant-stats"][data-variant-id="controle"]');
+    const control = panel.locator(
+      '[data-testid="chatbot-ab-variant-stats"][data-variant-id="controle"]',
+    );
     const alternative = panel.locator(
       '[data-testid="chatbot-ab-variant-stats"][data-variant-id="alternativa"]',
     );
@@ -146,7 +148,9 @@ function seedChatbotHistoryFixture() {
       );
       db.prepare("DELETE FROM chatbot_rules WHERE user_id = 1 AND chatbot_id = ?").run(chatbot.id);
     }
-    db.prepare("DELETE FROM chatbots WHERE user_id = 1 AND name = 'M28.1 Strong A/B History'").run();
+    db.prepare(
+      "DELETE FROM chatbots WHERE user_id = 1 AND name = 'M28.1 Strong A/B History'",
+    ).run();
 
     const chatbotId = Number(
       db

@@ -4,11 +4,19 @@ import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import type { MultipartFile } from "@fastify/multipart";
 import { parse as parseCsv } from "csv-parse/sync";
-import { InputError, createOrReuseMediaAsset, ensureRuntimeDirectories, loadEnv, looksLikeValidWhatsAppCandidate, normalizeBrazilianPhone } from "@nuoma/core";
+import {
+  InputError,
+  createOrReuseMediaAsset,
+  ensureRuntimeDirectories,
+  loadEnv,
+  looksLikeValidWhatsAppCandidate,
+  normalizeBrazilianPhone,
+} from "@nuoma/core";
 
 const MEDIA_MIME_PREFIXES = ["audio/", "image/", "video/"];
 const CSV_MIME_TYPES = ["text/csv", "application/vnd.ms-excel", "text/plain"];
-const CSV_UPLOAD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const CSV_UPLOAD_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function safeFileName(input: string) {
   return input.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/_+/g, "_");
@@ -52,7 +60,11 @@ async function hashFile(filePath: string) {
 
 export async function saveMediaUpload(
   file: MultipartFile,
-  options?: { scope?: "campaign" | "automation" | "temp"; campaignId?: string; automationId?: string }
+  options?: {
+    scope?: "campaign" | "automation" | "temp";
+    campaignId?: string;
+    automationId?: string;
+  },
 ) {
   const env = loadEnv();
   ensureRuntimeDirectories();
@@ -63,7 +75,13 @@ export async function saveMediaUpload(
 
   const bucket = mimeBucket(file.mimetype);
   const scope = options?.scope ?? "temp";
-  const baseDir = path.join(env.UPLOADS_DIR, "media", scope, bucket, options?.campaignId ?? options?.automationId ?? "shared");
+  const baseDir = path.join(
+    env.UPLOADS_DIR,
+    "media",
+    scope,
+    bucket,
+    options?.campaignId ?? options?.automationId ?? "shared",
+  );
   await fs.mkdir(baseDir, { recursive: true });
 
   const tempPath = path.join(env.TEMP_DIR, `${Date.now()}-${safeFileName(file.filename)}`);
@@ -84,7 +102,7 @@ export async function saveMediaUpload(
     category: scope,
     storagePath: finalPath,
     linkedCampaignId: options?.campaignId ?? null,
-    linkedAutomationId: options?.automationId ?? null
+    linkedAutomationId: options?.automationId ?? null,
   });
 
   if (existing && existing.storage_path && existing.storage_path !== finalPath) {
@@ -102,7 +120,7 @@ export async function saveMediaUpload(
     category: scope,
     storagePath: finalPath,
     linkedCampaignId: options?.campaignId ?? null,
-    linkedAutomationId: options?.automationId ?? null
+    linkedAutomationId: options?.automationId ?? null,
   });
 }
 
@@ -151,7 +169,7 @@ export async function saveCsvUpload(file: MultipartFile) {
     bom: true,
     columns: true,
     skip_empty_lines: true,
-    trim: true
+    trim: true,
   }) as Array<Record<string, string>>;
 
   const headers = Object.keys(records[0] ?? {});
@@ -159,16 +177,22 @@ export async function saveCsvUpload(file: MultipartFile) {
     uploadId,
     headers,
     preview: records.slice(0, 20).map((row) => {
-      const phoneKey = Object.keys(row).find((key) => ["phone", "telefone", "celular", "whatsapp", "numero", "número"].includes(key.toLowerCase()));
+      const phoneKey = Object.keys(row).find((key) =>
+        ["phone", "telefone", "celular", "whatsapp", "numero", "número"].includes(
+          key.toLowerCase(),
+        ),
+      );
       const originalPhone = phoneKey ? row[phoneKey] : "";
       const normalizedPhone = originalPhone ? normalizeBrazilianPhone(originalPhone) : null;
       return {
         ...row,
         _normalizedPhone: normalizedPhone,
-        _phoneLooksValid: normalizedPhone ? looksLikeValidWhatsAppCandidate(normalizedPhone) : false
+        _phoneLooksValid: normalizedPhone
+          ? looksLikeValidWhatsAppCandidate(normalizedPhone)
+          : false,
       };
     }),
-    totalRows: records.length
+    totalRows: records.length,
   };
 }
 
@@ -196,6 +220,6 @@ export async function parseCsvFile(filePath: string) {
     bom: true,
     columns: true,
     skip_empty_lines: true,
-    trim: true
+    trim: true,
   }) as Array<Record<string, string>>;
 }

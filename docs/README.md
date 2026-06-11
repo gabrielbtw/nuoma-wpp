@@ -21,9 +21,9 @@ Registrar a base do projeto com duas leituras complementares:
 - [Estrutura visual para Figma](./executive/figma-presentation.md)
 - [ADR 0001](./adr/0001-estabilidade-primeiro.md)
 - [ADR 0013 - Stack canonica](./adr/0013-canonical-runtime-stack.md)
-- [Runbook do worker e PM2](./runbooks/worker-pm2.md)
-- [Diagrama de arquitetura](./diagrams/architecture.md)
-- [Fluxo operacional](./diagrams/runtime-flow.md)
+- [LEGACY - Runbook do worker e PM2](./runbooks/worker-pm2.md)
+- [HISTORICO - Diagrama de arquitetura](./diagrams/architecture.md)
+- [HISTORICO - Fluxo operacional](./diagrams/runtime-flow.md)
 - [Entidades principais](./diagrams/entities.md)
 - [Visao simplificada para cliente](./diagrams/client-overview.md)
 

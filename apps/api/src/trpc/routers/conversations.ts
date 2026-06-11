@@ -45,14 +45,9 @@ type UnifiedConversation = Conversation & {
 
 export const conversationsRouter = router({
   list: adminProcedure
-    .input(
-      z.object({ limit: z.number().int().min(1).max(500).optional() }).optional(),
-    )
+    .input(z.object({ limit: z.number().int().min(1).max(500).optional() }).optional())
     .query(async ({ ctx, input }) => {
-      const conversations = await ctx.repos.conversations.list(
-        ctx.user.id,
-        input?.limit ?? 100,
-      );
+      const conversations = await ctx.repos.conversations.list(ctx.user.id, input?.limit ?? 100);
       return { conversations };
     }),
 
@@ -76,7 +71,9 @@ export const conversationsRouter = router({
       .filter((conversation) => channel === "all" || conversation.channel === channel)
       .map<UnifiedConversation>((conversation) => {
         const contact =
-          conversation.contactId == null ? null : contactsById.get(conversation.contactId) ?? null;
+          conversation.contactId == null
+            ? null
+            : (contactsById.get(conversation.contactId) ?? null);
         return {
           ...conversation,
           contact: contact

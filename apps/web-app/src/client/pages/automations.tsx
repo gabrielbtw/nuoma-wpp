@@ -6,18 +6,27 @@ import { ErrorPanel } from "@/components/shared/error-panel";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { apiFetch, toJsonBody } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-function buildAutomationTemplate(category: AutomationDraft["category"] = "follow-up"): AutomationDraft {
+function buildAutomationTemplate(
+  category: AutomationDraft["category"] = "follow-up",
+): AutomationDraft {
   if (category === "instagram-incoming") {
     return {
       name: "Resposta automatica Instagram",
       category,
       enabled: true,
-      description: "Responde no Direct quando entra uma nova mensagem no Instagram, usando o thread ja sincronizado.",
+      description:
+        "Responde no Direct quando entra uma nova mensagem no Instagram, usando o thread ja sincronizado.",
       triggerTags: [],
       excludeTags: ["nao_insistir"],
       requiredStatus: null,
@@ -39,9 +48,9 @@ function buildAutomationTemplate(category: AutomationDraft["category"] = "follow
           waitSeconds: null,
           tagName: null,
           reminderText: null,
-          metadata: {}
-        }
-      ]
+          metadata: {},
+        },
+      ],
     };
   }
 
@@ -71,9 +80,9 @@ function buildAutomationTemplate(category: AutomationDraft["category"] = "follow
         waitSeconds: null,
         tagName: null,
         reminderText: null,
-        metadata: {}
-      }
-    ]
+        metadata: {},
+      },
+    ],
   };
 }
 
@@ -87,30 +96,30 @@ export function AutomationsPage() {
 
   const automationsQuery = useQuery({
     queryKey: ["automations"],
-    queryFn: () => apiFetch<AutomationRecord[]>("/automations")
+    queryFn: () => apiFetch<AutomationRecord[]>("/automations"),
   });
 
   const saveMutation = useMutation({
     mutationFn: (payload: typeof emptyAutomation) =>
       apiFetch(draft.id ? `/automations/${draft.id}` : "/automations", {
         method: draft.id ? "PATCH" : "POST",
-        body: toJsonBody(payload)
+        body: toJsonBody(payload),
       }),
     onSuccess: async () => {
       setDraft(emptyAutomation);
       setDialogOpen(false);
       await queryClient.invalidateQueries({ queryKey: ["automations"] });
-    }
+    },
   });
 
   const toggleMutation = useMutation({
     mutationFn: (id: string) =>
       apiFetch(`/automations/${id}/toggle`, {
-        method: "POST"
+        method: "POST",
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["automations"] });
-    }
+    },
   });
 
   const automations = automationsQuery.data ?? [];
@@ -152,7 +161,8 @@ export function AutomationsPage() {
                     {draft.id ? "Editar automacao" : "Nova automacao"}
                   </DialogTitle>
                   <DialogDescription className="text-caption text-n-text-muted">
-                    Defina quando a regra dispara, quais bloqueios se aplicam e o que deve acontecer em seguida.
+                    Defina quando a regra dispara, quais bloqueios se aplicam e o que deve acontecer
+                    em seguida.
                   </DialogDescription>
                 </div>
 
@@ -178,7 +188,11 @@ export function AutomationsPage() {
                       onClick={() => saveMutation.mutate(draft)}
                       disabled={saveMutation.isPending}
                     >
-                      {saveMutation.isPending ? "Processando..." : draft.id ? "Salvar" : "Ativar Regra"}
+                      {saveMutation.isPending
+                        ? "Processando..."
+                        : draft.id
+                          ? "Salvar"
+                          : "Ativar Regra"}
                     </Button>
                   </div>
                 </div>
@@ -188,7 +202,9 @@ export function AutomationsPage() {
         }
       />
 
-      {automationsQuery.error ? <ErrorPanel message={(automationsQuery.error as Error).message} /> : null}
+      {automationsQuery.error ? (
+        <ErrorPanel message={(automationsQuery.error as Error).message} />
+      ) : null}
 
       {automations.length === 0 && !automationsQuery.isLoading ? (
         <EmptyState
@@ -273,7 +289,7 @@ export function AutomationsPage() {
                     "flex-1 rounded-lg py-1.5 text-label transition-fast",
                     automation.enabled
                       ? "border border-n-border bg-n-surface-2 text-n-text-dim hover:text-n-amber"
-                      : "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                      : "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20",
                   )}
                   onClick={() => toggleMutation.mutate(automation.id)}
                 >

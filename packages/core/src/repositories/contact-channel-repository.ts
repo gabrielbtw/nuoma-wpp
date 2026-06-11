@@ -30,7 +30,7 @@ function mapContactChannel(row: Record<string, unknown>): ContactChannelRecord {
     isActive: Boolean(row.is_active ?? 1),
     metadata: parseJsonObject(row.metadata_json as string | null),
     createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at)
+    updatedAt: String(row.updated_at),
   };
 }
 
@@ -56,7 +56,9 @@ function normalizeMetadataText(value?: string | null) {
 export function listContactChannels(contactId: string) {
   const db = getDb();
   const rows = db
-    .prepare("SELECT * FROM contact_channels WHERE contact_id = ? ORDER BY is_primary DESC, type ASC, created_at ASC")
+    .prepare(
+      "SELECT * FROM contact_channels WHERE contact_id = ? ORDER BY is_primary DESC, type ASC, created_at ASC",
+    )
     .all(contactId) as Array<Record<string, unknown>>;
 
   return rows.map(mapContactChannel);
@@ -76,7 +78,7 @@ export function listContactChannelsForContacts(contactIds: string[]) {
         FROM contact_channels
         WHERE contact_id IN (${placeholders})
         ORDER BY is_primary DESC, type ASC, created_at ASC
-      `
+      `,
     )
     .all(...contactIds) as Array<Record<string, unknown>>;
 
@@ -108,7 +110,7 @@ export function findContactIdByChannel(type: ChannelType, value?: string | null)
           AND is_active = 1
         ORDER BY is_primary DESC, updated_at DESC
         LIMIT 1
-      `
+      `,
     )
     .get(type, normalized) as { contact_id: string } | undefined;
 
@@ -142,7 +144,7 @@ export function upsertContactChannel(input: {
         is_active = excluded.is_active,
         metadata_json = excluded.metadata_json,
         updated_at = excluded.updated_at
-    `
+    `,
   ).run(
     id,
     input.contactId,
@@ -154,7 +156,7 @@ export function upsertContactChannel(input: {
     input.isActive === false ? 0 : 1,
     JSON.stringify(input.metadata ?? {}),
     timestamp,
-    timestamp
+    timestamp,
   );
 
   return id;
@@ -171,7 +173,7 @@ export function listInactiveContactChannelValues(type: ChannelType) {
           AND is_active = 0
           AND normalized_value IS NOT NULL
           AND trim(normalized_value) <> ''
-      `
+      `,
     )
     .all(type) as Array<{ normalized_value: string | null }>;
 
@@ -196,7 +198,7 @@ export function isContactChannelValueInactive(type: ChannelType, value?: string 
           AND normalized_value = ?
           AND is_active = 0
         LIMIT 1
-      `
+      `,
     )
     .get(type, normalizedValue) as { 1: number } | undefined;
 
@@ -236,7 +238,7 @@ export function deactivateContactChannel(input: {
   const metadata: Record<string, unknown> = {
     ...previousMetadata,
     inactiveAt: observedAt,
-    inactiveSource: source
+    inactiveSource: source,
   };
 
   if (reason) {
@@ -251,7 +253,7 @@ export function deactivateContactChannel(input: {
     externalId: input.externalId ?? existing?.externalId ?? normalizedValue,
     isPrimary: existing?.isPrimary ?? true,
     isActive: false,
-    metadata
+    metadata,
   });
 
   return getContactChannel(input.contactId, input.type);
@@ -259,7 +261,8 @@ export function deactivateContactChannel(input: {
 
 export function getInstagramThreadIdForContact(contactId: string) {
   const channel = getContactChannel(contactId, "instagram");
-  const threadId = typeof channel?.metadata?.threadId === "string" ? channel.metadata.threadId.trim() : "";
+  const threadId =
+    typeof channel?.metadata?.threadId === "string" ? channel.metadata.threadId.trim() : "";
   return threadId || null;
 }
 
@@ -288,17 +291,23 @@ export function rememberInstagramThreadForContact(input: {
     ...previousMetadata,
     threadId,
     threadObservedAt: observedAt,
-    threadSource: source
+    threadSource: source,
   };
 
   if (threadTitle) {
     metadata.threadTitle = threadTitle;
   }
 
-  const currentThreadId = typeof previousMetadata.threadId === "string" ? previousMetadata.threadId.trim() : "";
-  const currentThreadTitle = typeof previousMetadata.threadTitle === "string" ? previousMetadata.threadTitle.trim() : "";
-  const currentObservedAt = typeof previousMetadata.threadObservedAt === "string" ? previousMetadata.threadObservedAt.trim() : "";
-  const currentSource = typeof previousMetadata.threadSource === "string" ? previousMetadata.threadSource.trim() : "";
+  const currentThreadId =
+    typeof previousMetadata.threadId === "string" ? previousMetadata.threadId.trim() : "";
+  const currentThreadTitle =
+    typeof previousMetadata.threadTitle === "string" ? previousMetadata.threadTitle.trim() : "";
+  const currentObservedAt =
+    typeof previousMetadata.threadObservedAt === "string"
+      ? previousMetadata.threadObservedAt.trim()
+      : "";
+  const currentSource =
+    typeof previousMetadata.threadSource === "string" ? previousMetadata.threadSource.trim() : "";
 
   if (
     existing &&
@@ -320,7 +329,7 @@ export function rememberInstagramThreadForContact(input: {
     externalId: normalizedValue,
     isPrimary: existing?.isPrimary ?? true,
     isActive: existing?.isActive ?? true,
-    metadata
+    metadata,
   });
 
   return getContactChannel(input.contactId, "instagram");
@@ -331,18 +340,19 @@ export function syncPrimaryContactChannels(
   input: {
     whatsapp?: string | null;
     instagram?: string | null;
-  }
+  },
 ) {
   const db = getDb();
   const timestamp = nowIso();
-  const channels: Array<{ type: ChannelType; value?: string | null; externalId?: string | null }> = [
-    { type: "whatsapp", value: input.whatsapp ?? null, externalId: null },
-    {
-      type: "instagram",
-      value: input.instagram ?? null,
-      externalId: normalizeChannelValue("instagram", input.instagram)
-    }
-  ];
+  const channels: Array<{ type: ChannelType; value?: string | null; externalId?: string | null }> =
+    [
+      { type: "whatsapp", value: input.whatsapp ?? null, externalId: null },
+      {
+        type: "instagram",
+        value: input.instagram ?? null,
+        externalId: normalizeChannelValue("instagram", input.instagram),
+      },
+    ];
 
   const transaction = db.transaction(() => {
     for (const channel of channels) {
@@ -350,7 +360,9 @@ export function syncPrimaryContactChannels(
       const normalizedValue = normalizeChannelValue(channel.type, channel.value);
 
       if (!displayValue || !normalizedValue) {
-        db.prepare("DELETE FROM contact_channels WHERE contact_id = ? AND type = ? AND is_primary = 1").run(contactId, channel.type);
+        db.prepare(
+          "DELETE FROM contact_channels WHERE contact_id = ? AND type = ? AND is_primary = 1",
+        ).run(contactId, channel.type);
         continue;
       }
 
@@ -365,8 +377,17 @@ export function syncPrimaryContactChannels(
             normalized_value = excluded.normalized_value,
             is_active = 1,
             updated_at = excluded.updated_at
-        `
-      ).run(contactChannelId(contactId, channel.type), contactId, channel.type, channel.externalId ?? null, displayValue, normalizedValue, timestamp, timestamp);
+        `,
+      ).run(
+        contactChannelId(contactId, channel.type),
+        contactId,
+        channel.type,
+        channel.externalId ?? null,
+        displayValue,
+        normalizedValue,
+        timestamp,
+        timestamp,
+      );
     }
   });
 

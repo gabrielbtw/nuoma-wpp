@@ -148,7 +148,9 @@ async function main() {
   } finally {
     db.close();
     if (objectKey) {
-      await execFileAsync("aws", ["s3", "rm", `s3://${bucket}/${objectKey}`]).catch(() => undefined);
+      await execFileAsync("aws", ["s3", "rm", `s3://${bucket}/${objectKey}`]).catch(
+        () => undefined,
+      );
     }
     await fs.rm(tempDir, { recursive: true, force: true });
   }
@@ -162,7 +164,12 @@ async function loadAwsCredentials(): Promise<ExportedAwsCredentials> {
       SessionToken: process.env.AWS_SESSION_TOKEN,
     };
   }
-  const { stdout } = await execFileAsync("aws", ["configure", "export-credentials", "--format", "process"]);
+  const { stdout } = await execFileAsync("aws", [
+    "configure",
+    "export-credentials",
+    "--format",
+    "process",
+  ]);
   const parsed = JSON.parse(stdout) as Partial<ExportedAwsCredentials>;
   if (!parsed.AccessKeyId || !parsed.SecretAccessKey) {
     throw new Error("AWS credentials are not available");
@@ -190,7 +197,11 @@ async function resolveBucketRegion(bucketName: string): Promise<string> {
   return parsed.LocationConstraint ?? "us-east-1";
 }
 
-async function trpcCall<T>(baseUrl: string, procedure: string, input: unknown): Promise<TrpcResult<T>> {
+async function trpcCall<T>(
+  baseUrl: string,
+  procedure: string,
+  input: unknown,
+): Promise<TrpcResult<T>> {
   const response = await fetch(`${baseUrl}/trpc/${procedure}`, {
     method: "POST",
     headers: { "content-type": "application/json" },

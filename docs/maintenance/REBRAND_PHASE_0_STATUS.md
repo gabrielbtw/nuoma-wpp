@@ -31,17 +31,17 @@ flowchart TD
 
 ## Validacoes Executadas
 
-| Comando | Resultado |
-| --- | --- |
-| `npm run typecheck --workspace @nuoma/ui` | passou |
-| `npm run typecheck --workspace @nuoma/web` | passou |
-| `npm run typecheck --workspace @nuoma/worker` | passou |
-| `npm run test --workspace @nuoma/web -- --run` | passou, 8 arquivos / 27 testes |
-| `npm run test --workspace @nuoma/worker` | passou, 11 arquivos / 125 testes |
-| `npm run build --workspace @nuoma/web` | passou |
-| `npm run test:v211-overlay-unit` | passou, 35 testes |
-| `npm run test:v211-overlay-fab` | passou |
-| `npm run test:v211-overlay-panel` | falhou no smoke CDP com `setData is not a function`; unitarios indicam que o helper existe, provavel sessao/CDP sem reinjecao atual |
+| Comando                                        | Resultado                                                                                                                           |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run typecheck --workspace @nuoma/ui`      | passou                                                                                                                              |
+| `npm run typecheck --workspace @nuoma/web`     | passou                                                                                                                              |
+| `npm run typecheck --workspace @nuoma/worker`  | passou                                                                                                                              |
+| `npm run test --workspace @nuoma/web -- --run` | passou, 8 arquivos / 27 testes                                                                                                      |
+| `npm run test --workspace @nuoma/worker`       | passou, 11 arquivos / 125 testes                                                                                                    |
+| `npm run build --workspace @nuoma/web`         | passou                                                                                                                              |
+| `npm run test:v211-overlay-unit`               | passou, 35 testes                                                                                                                   |
+| `npm run test:v211-overlay-fab`                | passou                                                                                                                              |
+| `npm run test:v211-overlay-panel`              | falhou no smoke CDP com `setData is not a function`; unitarios indicam que o helper existe, provavel sessao/CDP sem reinjecao atual |
 
 ## Evidencia Visual
 

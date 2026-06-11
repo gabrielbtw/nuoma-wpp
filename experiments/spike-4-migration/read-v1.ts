@@ -52,7 +52,11 @@ export type TableSummary = {
   columns: ColumnInfo[];
   sample: Array<Record<string, unknown>>;
   sampleTypeErrors: Array<{ column: string; declaredType: string; observedType: string }>;
-  jsonValidation: Array<{ column: string; invalidCount: number; sampleInvalidValue: string | null }>;
+  jsonValidation: Array<{
+    column: string;
+    invalidCount: number;
+    sampleInvalidValue: string | null;
+  }>;
   foreignKeys: ForeignKeySummary[];
   notes?: string;
 };
@@ -72,7 +76,12 @@ export const OPERATIONAL_TABLES: TablePlan[] = [
   { name: "contacts", required: true, migrationMode: "inject-user" },
   { name: "conversations", required: true, migrationMode: "inject-user" },
   { name: "messages", required: true, migrationMode: "mirror" },
-  { name: "jobs", required: true, migrationMode: "live-only", notes: "Importar pending/processing; done/failed ficam no V1 histórico." },
+  {
+    name: "jobs",
+    required: true,
+    migrationMode: "live-only",
+    notes: "Importar pending/processing; done/failed ficam no V1 histórico.",
+  },
   { name: "campaigns", required: true, migrationMode: "inject-user" },
   { name: "campaign_steps", required: false, migrationMode: "mirror" },
   { name: "campaign_recipients", required: false, migrationMode: "mirror" },
@@ -91,7 +100,7 @@ export const OPERATIONAL_TABLES: TablePlan[] = [
   { name: "media_assets", required: true, migrationMode: "inject-user" },
   { name: "audit_logs", required: true, migrationMode: "mirror" },
   { name: "system_logs", required: false, migrationMode: "mirror" },
-  { name: "reminders", required: false, migrationMode: "inject-user" }
+  { name: "reminders", required: false, migrationMode: "inject-user" },
 ];
 
 const REDACT_COLUMNS = new Set([
@@ -111,7 +120,7 @@ const REDACT_COLUMNS = new Set([
   "extra_json",
   "before_json",
   "after_json",
-  "value_json"
+  "value_json",
 ]);
 
 function q(identifier: string) {
@@ -142,7 +151,7 @@ function parseCli(argv: string[]) {
   return {
     dbPath: resolvePath(dbPath, defaultDbPath()),
     snapshotPath: resolvePath(snapshotPath, path.join(SNAPSHOTS_DIR, "v1-snapshot.db")),
-    noSnapshot
+    noSnapshot,
   };
 }
 
@@ -175,7 +184,7 @@ export async function createSnapshot(sourceDbPath: string, snapshotPath: string)
     const source = new Database(sourceDbPath, {
       readonly: true,
       fileMustExist: true,
-      timeout: 10_000
+      timeout: 10_000,
     });
     source.pragma("busy_timeout = 10000");
     await source.backup(snapshotPath);
@@ -196,7 +205,7 @@ export function openReadOnly(dbPath: string) {
   const db = new Database(dbPath, {
     readonly: true,
     fileMustExist: true,
-    timeout: 10_000
+    timeout: 10_000,
   });
   db.pragma("query_only = ON");
   db.pragma("foreign_keys = ON");
@@ -207,7 +216,7 @@ export function openReadOnly(dbPath: string) {
 function getTableNames(db: Database.Database) {
   return db
     .prepare(
-      `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`
+      `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`,
     )
     .all()
     .map((row) => (row as { name: string }).name);
@@ -222,7 +231,9 @@ function getForeignKeys(db: Database.Database, tableName: string) {
 }
 
 function countRows(db: Database.Database, tableName: string) {
-  return Number((db.prepare(`SELECT COUNT(*) AS count FROM ${q(tableName)}`).get() as { count: number }).count);
+  return Number(
+    (db.prepare(`SELECT COUNT(*) AS count FROM ${q(tableName)}`).get() as { count: number }).count,
+  );
 }
 
 function valueType(value: unknown) {
@@ -252,17 +263,19 @@ function redactValue(column: string, value: unknown) {
 }
 
 function sampleRows(db: Database.Database, tableName: string) {
-  const rows = db.prepare(`SELECT * FROM ${q(tableName)} LIMIT 5`).all() as Array<Record<string, unknown>>;
+  const rows = db.prepare(`SELECT * FROM ${q(tableName)} LIMIT 5`).all() as Array<
+    Record<string, unknown>
+  >;
   return rows.map((row) =>
     Object.fromEntries(
       Object.entries(row).map(([column, value]) => [
         column,
         {
           type: valueType(value),
-          value: redactValue(column, value)
-        }
-      ])
-    )
+          value: redactValue(column, value),
+        },
+      ]),
+    ),
   );
 }
 
@@ -290,15 +303,22 @@ function sampleTypeErrors(columns: ColumnInfo[], sample: Array<Record<string, un
 function jsonColumns(columns: ColumnInfo[]) {
   return columns
     .map((column) => column.name)
-    .filter((name) => name.endsWith("_json") || ["payload_json", "meta_json", "value_json", "config_json"].includes(name));
+    .filter(
+      (name) =>
+        name.endsWith("_json") ||
+        ["payload_json", "meta_json", "value_json", "config_json"].includes(name),
+    );
 }
 
 function validateJsonColumns(db: Database.Database, tableName: string, columns: ColumnInfo[]) {
-  const result: Array<{ column: string; invalidCount: number; sampleInvalidValue: string | null }> = [];
+  const result: Array<{ column: string; invalidCount: number; sampleInvalidValue: string | null }> =
+    [];
   for (const column of jsonColumns(columns)) {
     let invalidCount = 0;
     let sampleInvalidValue: string | null = null;
-    const iterator = db.prepare(`SELECT ${q(column)} AS value FROM ${q(tableName)} WHERE ${q(column)} IS NOT NULL`).iterate();
+    const iterator = db
+      .prepare(`SELECT ${q(column)} AS value FROM ${q(tableName)} WHERE ${q(column)} IS NOT NULL`)
+      .iterate();
     for (const row of iterator as Iterable<{ value: unknown }>) {
       if (typeof row.value !== "string" || row.value.trim() === "") continue;
       try {
@@ -330,7 +350,11 @@ function groupForeignKeys(rows: ForeignKeyInfo[]) {
   return [...groups.values()].map((group) => group.sort((left, right) => left.seq - right.seq));
 }
 
-function summarizeForeignKeys(db: Database.Database, tableName: string, allTables: Set<string>): ForeignKeySummary[] {
+function summarizeForeignKeys(
+  db: Database.Database,
+  tableName: string,
+  allTables: Set<string>,
+): ForeignKeySummary[] {
   const summaries: ForeignKeySummary[] = [];
   for (const group of groupForeignKeys(getForeignKeys(db, tableName))) {
     const first = group[0];
@@ -340,18 +364,26 @@ function summarizeForeignKeys(db: Database.Database, tableName: string, allTable
     const parentPk = allTables.has(parentTable) ? primaryKeyColumns(db, parentTable) : [];
     const columns = group.map((item, index) => ({
       from: item.from,
-      to: item.to || parentPk[index] || "id"
+      to: item.to || parentPk[index] || "id",
     }));
 
     const childAlias = "c";
     const parentAlias = "p";
-    const childNotNull = columns.map((column) => `${childAlias}.${q(column.from)} IS NOT NULL`).join(" AND ");
+    const childNotNull = columns
+      .map((column) => `${childAlias}.${q(column.from)} IS NOT NULL`)
+      .join(" AND ");
 
     let orphanCount = 0;
     let sample: Array<Record<string, unknown>> = [];
     if (!allTables.has(parentTable)) {
       orphanCount = Number(
-        (db.prepare(`SELECT COUNT(*) AS count FROM ${q(tableName)} ${childAlias} WHERE ${childNotNull}`).get() as { count: number }).count
+        (
+          db
+            .prepare(
+              `SELECT COUNT(*) AS count FROM ${q(tableName)} ${childAlias} WHERE ${childNotNull}`,
+            )
+            .get() as { count: number }
+        ).count,
       );
     } else {
       const joinCondition = columns
@@ -364,17 +396,19 @@ function summarizeForeignKeys(db: Database.Database, tableName: string, allTable
         (
           db
             .prepare(
-              `SELECT COUNT(*) AS count FROM ${q(tableName)} ${childAlias} LEFT JOIN ${q(parentTable)} ${parentAlias} ON ${joinCondition} WHERE ${whereClause}`
+              `SELECT COUNT(*) AS count FROM ${q(tableName)} ${childAlias} LEFT JOIN ${q(parentTable)} ${parentAlias} ON ${joinCondition} WHERE ${whereClause}`,
             )
             .get() as { count: number }
-        ).count
+        ).count,
       );
 
       if (orphanCount > 0) {
-        const projectedColumns = columns.map((column) => `${childAlias}.${q(column.from)} AS ${q(column.from)}`).join(", ");
+        const projectedColumns = columns
+          .map((column) => `${childAlias}.${q(column.from)} AS ${q(column.from)}`)
+          .join(", ");
         sample = db
           .prepare(
-            `SELECT ${childAlias}.rowid AS rowid, ${projectedColumns} FROM ${q(tableName)} ${childAlias} LEFT JOIN ${q(parentTable)} ${parentAlias} ON ${joinCondition} WHERE ${whereClause} LIMIT 5`
+            `SELECT ${childAlias}.rowid AS rowid, ${projectedColumns} FROM ${q(tableName)} ${childAlias} LEFT JOIN ${q(parentTable)} ${parentAlias} ON ${joinCondition} WHERE ${whereClause} LIMIT 5`,
           )
           .all() as Array<Record<string, unknown>>;
       }
@@ -385,16 +419,27 @@ function summarizeForeignKeys(db: Database.Database, tableName: string, allTable
       parentTable,
       columns,
       orphanCount,
-      sample: sample.map((row) => Object.fromEntries(Object.entries(row).map(([column, value]) => [column, redactValue(column, value)])))
+      sample: sample.map((row) =>
+        Object.fromEntries(
+          Object.entries(row).map(([column, value]) => [column, redactValue(column, value)]),
+        ),
+      ),
     });
   }
 
   return summaries;
 }
 
-export async function inspectV1(options?: { dbPath?: string; snapshotPath?: string; noSnapshot?: boolean }): Promise<ReadSummary> {
+export async function inspectV1(options?: {
+  dbPath?: string;
+  snapshotPath?: string;
+  noSnapshot?: boolean;
+}): Promise<ReadSummary> {
   const sourceDbPath = resolvePath(options?.dbPath, defaultDbPath());
-  const requestedSnapshotPath = resolvePath(options?.snapshotPath, path.join(SNAPSHOTS_DIR, "v1-snapshot.db"));
+  const requestedSnapshotPath = resolvePath(
+    options?.snapshotPath,
+    path.join(SNAPSHOTS_DIR, "v1-snapshot.db"),
+  );
   const snapshot = options?.noSnapshot
     ? { snapshotPath: sourceDbPath, method: "read-source-directly" }
     : await createSnapshot(sourceDbPath, requestedSnapshotPath);
@@ -416,7 +461,7 @@ export async function inspectV1(options?: { dbPath?: string; snapshotPath?: stri
         sampleTypeErrors: [],
         jsonValidation: [],
         foreignKeys: [],
-        notes: plan.notes
+        notes: plan.notes,
       };
     }
 
@@ -433,7 +478,7 @@ export async function inspectV1(options?: { dbPath?: string; snapshotPath?: stri
       sampleTypeErrors: sampleTypeErrors(columns, sample),
       jsonValidation: validateJsonColumns(db, plan.name, columns),
       foreignKeys: summarizeForeignKeys(db, plan.name, tableSet),
-      notes: plan.notes
+      notes: plan.notes,
     };
   });
 
@@ -447,7 +492,7 @@ export async function inspectV1(options?: { dbPath?: string; snapshotPath?: stri
     dbSizeBytes: await fileSize(sourceDbPath),
     walSizeBytes: await fileSize(`${sourceDbPath}-wal`),
     tableNames,
-    tables
+    tables,
   };
 }
 
@@ -462,7 +507,9 @@ async function main() {
   console.log(`snapshotMethod=${summary.snapshotMethod}`);
   for (const table of summary.tables) {
     const orphanCount = table.foreignKeys.reduce((total, fk) => total + fk.orphanCount, 0);
-    console.log(`${table.name} exists=${table.exists} rows=${table.rowCount} orphans=${orphanCount}`);
+    console.log(
+      `${table.name} exists=${table.exists} rows=${table.rowCount} orphans=${orphanCount}`,
+    );
   }
   console.log(`report=${reportPath}`);
 }

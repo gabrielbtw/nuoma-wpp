@@ -86,7 +86,8 @@ export function ContactsPage() {
       return;
     }
     const selectedIsVisible =
-      selectedContactId != null && filteredContacts.some((contact) => contact.id === selectedContactId);
+      selectedContactId != null &&
+      filteredContacts.some((contact) => contact.id === selectedContactId);
     if (selectedContactId == null || !selectedIsVisible) {
       setSelectedContactId(filteredContacts[0]!.id);
     }
@@ -295,42 +296,38 @@ export function ContactsPage() {
             ) : filteredContacts.length === 0 ? (
               <EmptyState description="Nenhum contato corresponde aos filtros atuais." />
             ) : (
-              <ul
-                className="nuoma-contact-list"
-                role="listbox"
-                aria-label="Lista de contatos"
-              >
+              <ul className="nuoma-contact-list" role="listbox" aria-label="Lista de contatos">
                 {visibleContacts.map((contact) => {
                   const active = contact.id === selectedContact?.id;
                   return (
-                  <li
-                    key={contact.id}
-                    className={active ? "is-active" : undefined}
-                    role="option"
-                    aria-selected={active}
-                    tabIndex={0}
-                    onClick={() => selectContact(contact.id)}
-                    onKeyDown={(event) => handleContactKeyDown(event, contact.id)}
-                  >
-                    <span className="nuoma-contact-avatar">
-                      {contact.name.slice(0, 2).toUpperCase()}
-                    </span>
-                    <span className="min-w-0">
-                      <strong>{contact.name}</strong>
-                      <em>{contact.phone ?? contact.instagramHandle ?? contact.status}</em>
-                      <span>
-                        <Badge
-                          variant={contact.primaryChannel === "instagram" ? "warning" : "cyan"}
-                        >
-                          {contact.primaryChannel === "instagram" ? "IG" : "WA"}
-                        </Badge>
-                        <Badge variant={contact.status === "lead" ? "success" : "neutral"}>
-                          {contact.status}
-                        </Badge>
+                    <li
+                      key={contact.id}
+                      className={active ? "is-active" : undefined}
+                      role="option"
+                      aria-selected={active}
+                      tabIndex={0}
+                      onClick={() => selectContact(contact.id)}
+                      onKeyDown={(event) => handleContactKeyDown(event, contact.id)}
+                    >
+                      <span className="nuoma-contact-avatar">
+                        {contact.name.slice(0, 2).toUpperCase()}
                       </span>
-                    </span>
-                    {contact.lastMessageAt ? <TimeAgo date={contact.lastMessageAt} /> : null}
-                  </li>
+                      <span className="min-w-0">
+                        <strong>{contact.name}</strong>
+                        <em>{contact.phone ?? contact.instagramHandle ?? contact.status}</em>
+                        <span>
+                          <Badge
+                            variant={contact.primaryChannel === "instagram" ? "warning" : "cyan"}
+                          >
+                            {contact.primaryChannel === "instagram" ? "IG" : "WA"}
+                          </Badge>
+                          <Badge variant={contact.status === "lead" ? "success" : "neutral"}>
+                            {contact.status}
+                          </Badge>
+                        </span>
+                      </span>
+                      {contact.lastMessageAt ? <TimeAgo date={contact.lastMessageAt} /> : null}
+                    </li>
                   );
                 })}
               </ul>
@@ -422,7 +419,11 @@ export function ContactsPage() {
                 <Badge variant="cyan">Catálogo</Badge>
               </div>
               <div className="nuoma-contact-action-grid">
-                <button type="button" onClick={openSelectedConversation} disabled={!selectedContact}>
+                <button
+                  type="button"
+                  onClick={openSelectedConversation}
+                  disabled={!selectedContact}
+                >
                   <MessageCircle className="h-4 w-4" />
                   Responder
                 </button>

@@ -98,7 +98,10 @@ function parseOptions(argv: string[]): CliOptions {
   let durations = DEFAULT_DURATIONS;
   let targetPhone = process.env.TARGET_PHONE ?? "";
   let waUrl = process.env.WA_URL ?? "https://web.whatsapp.com";
-  let profileDir = resolveRepoPath(process.env.CHROMIUM_PROFILE_DIR, "storage/chromium-profile/whatsapp");
+  let profileDir = resolveRepoPath(
+    process.env.CHROMIUM_PROFILE_DIR,
+    "storage/chromium-profile/whatsapp",
+  );
   let cdpPort = Number(process.env.SPIKE3_CDP_PORT ?? "9233");
   let channel = process.env.SPIKE3_CHROMIUM_CHANNEL ?? process.env.CHROMIUM_CHANNEL ?? "chrome";
   let headless = parseBoolean(process.env.CHROMIUM_HEADLESS, false);
@@ -122,7 +125,10 @@ function parseOptions(argv: string[]): CliOptions {
     } else if (arg.startsWith("--wa-url=")) {
       waUrl = arg.slice("--wa-url=".length);
     } else if (arg.startsWith("--profile-dir=")) {
-      profileDir = resolveRepoPath(arg.slice("--profile-dir=".length), "storage/chromium-profile/whatsapp");
+      profileDir = resolveRepoPath(
+        arg.slice("--profile-dir=".length),
+        "storage/chromium-profile/whatsapp",
+      );
     } else if (arg.startsWith("--cdp-port=")) {
       cdpPort = Number(arg.slice("--cdp-port=".length));
     } else if (arg.startsWith("--channel=")) {
@@ -148,7 +154,7 @@ function parseOptions(argv: string[]): CliOptions {
     cdpPort,
     channel,
     headless,
-    keepBrowser
+    keepBrowser,
   };
 }
 
@@ -208,18 +214,27 @@ function inspectWav(buffer: Buffer): WavInfo {
     dataTag: buffer.toString("ascii", 36, 40),
     dataSize: buffer.readUInt32LE(40),
     durationSecs: buffer.readUInt32LE(40) / (SAMPLE_RATE * CHANNELS * BYTES_PER_SAMPLE),
-    headerHex: buffer.subarray(0, 44).toString("hex")
+    headerHex: buffer.subarray(0, 44).toString("hex"),
   };
 
-  if (info.riff !== "RIFF" || info.wave !== "WAVE" || info.fmt !== "fmt " || info.dataTag !== "data") {
+  if (
+    info.riff !== "RIFF" ||
+    info.wave !== "WAVE" ||
+    info.fmt !== "fmt " ||
+    info.dataTag !== "data"
+  ) {
     throw new Error(`Invalid WAV container header: ${JSON.stringify(info)}`);
   }
   if (info.audioFormat !== 1) {
     throw new Error(`Expected PCM format 1, got ${info.audioFormat}`);
   }
-  if (info.channels !== CHANNELS || info.sampleRate !== SAMPLE_RATE || info.bitsPerSample !== BIT_DEPTH) {
+  if (
+    info.channels !== CHANNELS ||
+    info.sampleRate !== SAMPLE_RATE ||
+    info.bitsPerSample !== BIT_DEPTH
+  ) {
     throw new Error(
-      `Expected ${SAMPLE_RATE}Hz mono ${BIT_DEPTH}-bit, got ${info.sampleRate}Hz ${info.channels}ch ${info.bitsPerSample}-bit`
+      `Expected ${SAMPLE_RATE}Hz mono ${BIT_DEPTH}-bit, got ${info.sampleRate}Hz ${info.channels}ch ${info.bitsPerSample}-bit`,
     );
   }
 
@@ -233,7 +248,7 @@ async function probeDuration(audioPath: string): Promise<DurationProbe> {
       const { stdout } = await execFileAsync(
         ffprobeBin,
         ["-i", audioPath, "-show_entries", "format=duration", "-v", "quiet", "-of", "csv=p=0"],
-        { timeout: 10_000 }
+        { timeout: 10_000 },
       );
       const parsed = Number.parseFloat(stdout.trim());
       if (Number.isFinite(parsed) && parsed > 0) {
@@ -281,7 +296,9 @@ async function preparePayloads(durations: number[]) {
     const ffprobe = await probeDuration(fixturePath);
     const ffprobeErrorMs = Math.abs(ffprobe.seconds - durationSecs) * 1000;
     if (ffprobeErrorMs > 50) {
-      throw new Error(`${label}: ffprobe duration error ${ffprobeErrorMs.toFixed(3)}ms exceeds 50ms`);
+      throw new Error(
+        `${label}: ffprobe duration error ${ffprobeErrorMs.toFixed(3)}ms exceeds 50ms`,
+      );
     }
 
     const sha256 = createHash("sha256").update(wavBuffer).digest("hex");
@@ -294,7 +311,7 @@ async function preparePayloads(durations: number[]) {
       sha256,
       wavInfo,
       ffprobe,
-      ffprobeErrorMs
+      ffprobeErrorMs,
     };
 
     await writeJson(metadataPath, {
@@ -308,7 +325,7 @@ async function preparePayloads(durations: number[]) {
       sha256,
       ffprobe,
       ffprobeErrorMs,
-      wav: wavInfo
+      wav: wavInfo,
     });
 
     prepared.push(preparedAudio);
@@ -328,8 +345,8 @@ function printPreparedSummary(prepared: PreparedAudio[]) {
         `${item.wavInfo.sampleRate}Hz`,
         `${item.wavInfo.channels}ch`,
         `${item.wavInfo.bitsPerSample}-bit`,
-        `sha256=${item.sha256.slice(0, 12)}`
-      ].join(" | ")
+        `sha256=${item.sha256.slice(0, 12)}`,
+      ].join(" | "),
     );
   }
 }
@@ -379,7 +396,7 @@ async function installVoiceInitScript(page: Page) {
         w.__nuomaVoiceLastInjection = {
           consumedAt: new Date().toISOString(),
           byteLength: bytes.length,
-          sampleRate: audioBuffer.sampleRate
+          sampleRate: audioBuffer.sampleRate,
         };
 
         return dest.stream;
@@ -402,7 +419,11 @@ async function setVoicePayload(page: Page, wavPath: string) {
   }, wavBase64);
 }
 
-async function waitForTruthy<T>(label: string, timeoutMs: number, task: () => Promise<T | null | false>) {
+async function waitForTruthy<T>(
+  label: string,
+  timeoutMs: number,
+  task: () => Promise<T | null | false>,
+) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < timeoutMs) {
     const result = await task();
@@ -428,7 +449,11 @@ async function isLikelyLoginScreen(page: Page) {
 }
 
 async function waitForChatReady(page: Page) {
-  await page.getByText(/iniciando conversa/i).first().waitFor({ state: "hidden", timeout: 20_000 }).catch(() => null);
+  await page
+    .getByText(/iniciando conversa/i)
+    .first()
+    .waitFor({ state: "hidden", timeout: 20_000 })
+    .catch(() => null);
 
   await waitForTruthy("WhatsApp chat composer", 60_000, async () => {
     if (await isLikelyLoginScreen(page)) {
@@ -454,7 +479,13 @@ async function waitForChatReady(page: Page) {
 
 async function firstVisibleLocator(label: string, locators: Locator[]) {
   for (const locator of locators) {
-    if ((await locator.count().catch(() => 0)) > 0 && (await locator.first().isVisible().catch(() => false))) {
+    if (
+      (await locator.count().catch(() => 0)) > 0 &&
+      (await locator
+        .first()
+        .isVisible()
+        .catch(() => false))
+    ) {
       return locator.first();
     }
   }
@@ -463,7 +494,9 @@ async function firstVisibleLocator(label: string, locators: Locator[]) {
 
 async function saveScreenshot(page: Page, label: string) {
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  await page.screenshot({ path: path.join(SCREENSHOTS_DIR, `${timestamp}-${label}.png`) }).catch(() => null);
+  await page
+    .screenshot({ path: path.join(SCREENSHOTS_DIR, `${timestamp}-${label}.png`) })
+    .catch(() => null);
 }
 
 async function launchWhatsAppContext(options: CliOptions) {
@@ -479,7 +512,7 @@ async function launchWhatsAppContext(options: CliOptions) {
     "--use-fake-ui-for-media-stream",
     "--use-fake-device-for-media-stream",
     "--remote-debugging-address=127.0.0.1",
-    `--remote-debugging-port=${options.cdpPort}`
+    `--remote-debugging-port=${options.cdpPort}`,
   ];
 
   const context = await chromium.launchPersistentContext(options.profileDir, {
@@ -487,7 +520,7 @@ async function launchWhatsAppContext(options: CliOptions) {
     headless: options.headless,
     viewport: null,
     permissions: ["microphone"],
-    args: extraArgs
+    args: extraArgs,
   });
 
   await context.grantPermissions(["microphone"], { origin: options.waUrl }).catch(() => null);
@@ -556,9 +589,9 @@ async function inspectLastOutgoingBubble(page: Page) {
             "span[data-icon='ptt']",
             "[aria-label*='voz']",
             "[aria-label*='Voice']",
-            "[aria-label*='voice']"
-          ].join(",")
-        )
+            "[aria-label*='voice']",
+          ].join(","),
+        ),
       );
 
       return { found: true, nativeVoiceEvidence, text };
@@ -576,10 +609,14 @@ function parseDisplayDurationSecs(text: string) {
   return minutes * 60 + seconds;
 }
 
-async function sendVoice(page: Page, options: CliOptions, audio: PreparedAudio): Promise<SendResult> {
+async function sendVoice(
+  page: Page,
+  options: CliOptions,
+  audio: PreparedAudio,
+): Promise<SendResult> {
   await page.goto(`${options.waUrl}/send?phone=${encodeURIComponent(options.targetPhone)}`, {
     waitUntil: "domcontentloaded",
-    timeout: 60_000
+    timeout: 60_000,
   });
   await waitForChatReady(page);
   await setVoicePayload(page, audio.fixturePath);
@@ -587,8 +624,14 @@ async function sendVoice(page: Page, options: CliOptions, audio: PreparedAudio):
   await saveScreenshot(page, `${audio.label}-01-before-mic`);
 
   const micButton = await firstVisibleLocator("mic button", [
-    page.getByRole("button", { name: /mensagem de voz|voice message|record voice|gravar mensagem/i }).last(),
-    page.locator("button[aria-label*='voz'], button[aria-label*='Voice'], button:has(span[data-icon='ptt'])").last()
+    page
+      .getByRole("button", { name: /mensagem de voz|voice message|record voice|gravar mensagem/i })
+      .last(),
+    page
+      .locator(
+        "button[aria-label*='voz'], button[aria-label*='Voice'], button:has(span[data-icon='ptt'])",
+      )
+      .last(),
   ]);
   await micButton.click({ force: true });
 
@@ -599,14 +642,16 @@ async function sendVoice(page: Page, options: CliOptions, audio: PreparedAudio):
 
   const hasRecordingUi = await page
     .locator(
-      "button[aria-label='Pausar'], button[aria-label='Pause'], span[data-icon='audio-cancel'], span[data-icon='delete'], [data-testid='ptt-cancel']"
+      "button[aria-label='Pausar'], button[aria-label='Pause'], span[data-icon='audio-cancel'], span[data-icon='delete'], [data-testid='ptt-cancel']",
     )
     .first()
     .isVisible()
     .catch(() => false);
 
   if (!hasRecordingUi) {
-    console.warn(`${audio.label}: recording UI not detected; continuing because getUserMedia payload was consumed`);
+    console.warn(
+      `${audio.label}: recording UI not detected; continuing because getUserMedia payload was consumed`,
+    );
   }
 
   const targetRecordingMs = Math.round(audio.ffprobe.seconds * 1000) + 250;
@@ -616,7 +661,11 @@ async function sendVoice(page: Page, options: CliOptions, audio: PreparedAudio):
 
   const sendButton = await firstVisibleLocator("send button", [
     page.locator("button[aria-label*='Enviar'], button[aria-label*='Send']").last(),
-    page.locator("span[data-icon='send'], div[role='button'][aria-label*='Enviar'], div[role='button'][aria-label*='Send']").last()
+    page
+      .locator(
+        "span[data-icon='send'], div[role='button'][aria-label*='Enviar'], div[role='button'][aria-label*='Send']",
+      )
+      .last(),
   ]);
   await sendButton.click({ force: true });
 
@@ -624,7 +673,10 @@ async function sendVoice(page: Page, options: CliOptions, audio: PreparedAudio):
   await saveScreenshot(page, `${audio.label}-04-after-send`);
   const bubble = await inspectLastOutgoingBubble(page);
   const displayDurationSecs = parseDisplayDurationSecs(bubble.text);
-  const displayErrorMs = displayDurationSecs == null ? null : Math.abs(displayDurationSecs - audio.requestedDurationSecs) * 1000;
+  const displayErrorMs =
+    displayDurationSecs == null
+      ? null
+      : Math.abs(displayDurationSecs - audio.requestedDurationSecs) * 1000;
 
   return {
     label: audio.label,
@@ -634,7 +686,7 @@ async function sendVoice(page: Page, options: CliOptions, audio: PreparedAudio):
     nativeVoiceEvidence: bubble.nativeVoiceEvidence,
     displayDurationSecs,
     displayErrorMs,
-    bubbleText: bubble.text
+    bubbleText: bubble.text,
   };
 }
 
@@ -645,7 +697,7 @@ function validateSendGuard(options: CliOptions) {
   }
   if (options.targetPhone !== ALLOWED_TARGET_PHONE) {
     throw new Error(
-      `Blocked active WhatsApp send to ${options.targetPhone}. This spike only allows ${ALLOWED_TARGET_PHONE}.`
+      `Blocked active WhatsApp send to ${options.targetPhone}. This spike only allows ${ALLOWED_TARGET_PHONE}.`,
     );
   }
 }
@@ -671,13 +723,13 @@ async function runSend(options: CliOptions, prepared: PreparedAudio[]) {
     await writeJson(path.join(PAYLOADS_DIR, "send-results.json"), {
       createdAt: new Date().toISOString(),
       targetPhone: options.targetPhone,
-      results
+      results,
     });
 
     console.log("send results:");
     for (const result of results) {
       console.log(
-        `${result.label} | delivered=${result.delivered} | status=${result.status} | nativeVoiceEvidence=${result.nativeVoiceEvidence} | displayDurationSecs=${result.displayDurationSecs} | displayErrorMs=${result.displayErrorMs}`
+        `${result.label} | delivered=${result.delivered} | status=${result.status} | nativeVoiceEvidence=${result.nativeVoiceEvidence} | displayDurationSecs=${result.displayDurationSecs} | displayErrorMs=${result.displayErrorMs}`,
       );
     }
   } finally {

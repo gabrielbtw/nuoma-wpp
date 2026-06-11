@@ -81,10 +81,14 @@ if (violations.length > 0) {
       ...violations.map((violation) => {
         const fixes = [];
         if (violation.contactIdentityViolation) {
-          fixes.push("add phone_e164/wa_jid columns or call backfillSmokeWhatsappIdentity after INSERT INTO contacts");
+          fixes.push(
+            "add phone_e164/wa_jid columns or call backfillSmokeWhatsappIdentity after INSERT INTO contacts",
+          );
         }
         if (violation.conversationIdentityViolation) {
-          fixes.push("add wa_jid or call backfillSmokeWhatsappIdentity after INSERT INTO conversations");
+          fixes.push(
+            "add wa_jid or call backfillSmokeWhatsappIdentity after INSERT INTO conversations",
+          );
         }
         return `- ${violation.path}: ${fixes.join("; ")}`;
       }),

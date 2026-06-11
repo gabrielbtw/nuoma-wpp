@@ -45,7 +45,11 @@ const OPERATIONAL_FILTERS: { id: OperationalFilter; label: string }[] = [
   { id: "failed", label: "Falhas" },
 ];
 
-export function ConversationList({ selectedId, onSelect, autoSelect = true }: ConversationListProps) {
+export function ConversationList({
+  selectedId,
+  onSelect,
+  autoSelect = true,
+}: ConversationListProps) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ChannelOrAll>("all");
   const [operationalFilter, setOperationalFilter] = useState<OperationalFilter>("all");
@@ -232,9 +236,7 @@ export function ConversationList({ selectedId, onSelect, autoSelect = true }: Co
                   aria-current={active ? "true" : undefined}
                   className={cn(
                     "absolute left-2 right-2 flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors transition-shadow",
-                    active
-                      ? "bg-accent/10 shadow-flat"
-                      : "hover:bg-bg-base/76 hover:shadow-flat",
+                    active ? "bg-accent/10 shadow-flat" : "hover:bg-bg-base/76 hover:shadow-flat",
                   )}
                   style={{
                     transform: `translateY(${vi.start}px)`,
@@ -295,10 +297,7 @@ export function ConversationList({ selectedId, onSelect, autoSelect = true }: Co
 }
 
 function initialsForTitle(title: string): string {
-  const parts = title
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
+  const parts = title.trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) {
     return `${parts[0]![0] ?? ""}${parts[1]![0] ?? ""}`.toUpperCase();
   }

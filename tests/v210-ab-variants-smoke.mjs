@@ -47,22 +47,27 @@ async function main() {
     await panel.waitFor({ state: "visible", timeout: 10_000 });
     await panel.scrollIntoViewIfNeeded();
 
-    const variants = await panel.locator('[data-testid="campaign-ab-variant-row"]').evaluateAll((rows) =>
-      rows.map((row) => ({
-        id: row.getAttribute("data-variant-id"),
-        assigned: Number(row.getAttribute("data-assigned") ?? "0"),
-        completed: Number(row.getAttribute("data-completed") ?? "0"),
-        failed: Number(row.getAttribute("data-failed") ?? "0"),
-        rate: Number(row.getAttribute("data-completion-rate") ?? "0"),
-        text: row.textContent ?? "",
-      })),
-    );
+    const variants = await panel
+      .locator('[data-testid="campaign-ab-variant-row"]')
+      .evaluateAll((rows) =>
+        rows.map((row) => ({
+          id: row.getAttribute("data-variant-id"),
+          assigned: Number(row.getAttribute("data-assigned") ?? "0"),
+          completed: Number(row.getAttribute("data-completed") ?? "0"),
+          failed: Number(row.getAttribute("data-failed") ?? "0"),
+          rate: Number(row.getAttribute("data-completion-rate") ?? "0"),
+          text: row.textContent ?? "",
+        })),
+      );
     assertVariant(variants, "a", { assigned: 3, completed: 2, failed: 0, rate: 2 / 3 });
     assertVariant(variants, "b", { assigned: 3, completed: 1, failed: 1, rate: 1 / 3 });
     await panel.getByText("67%").waitFor({ state: "visible", timeout: 10_000 });
     await panel.getByText("33%").waitFor({ state: "visible", timeout: 10_000 });
 
-    await page.getByRole("button", { name: /^Prévia$/ }).first().click();
+    await page
+      .getByRole("button", { name: /^Prévia$/ })
+      .first()
+      .click();
     await page.getByText("Último tick").waitFor({ state: "visible", timeout: 10_000 });
     await page.getByText(canaryPhone).first().waitFor({ state: "visible", timeout: 10_000 });
     await page.getByText("A/B Direta").first().waitFor({ state: "visible", timeout: 10_000 });
@@ -108,10 +113,14 @@ function seedAbVariantsFixture() {
       .prepare("SELECT id FROM campaigns WHERE user_id = 1 AND name LIKE 'V2.10.7 Smoke%'")
       .all();
     for (const row of existing) {
-      db.prepare("DELETE FROM campaign_recipients WHERE user_id = 1 AND campaign_id = ?").run(row.id);
+      db.prepare("DELETE FROM campaign_recipients WHERE user_id = 1 AND campaign_id = ?").run(
+        row.id,
+      );
     }
     db.prepare("DELETE FROM campaigns WHERE user_id = 1 AND name LIKE 'V2.10.7 Smoke%'").run();
-    db.prepare("DELETE FROM system_events WHERE user_id = 1 AND payload_json LIKE '%v2.10.7-smoke%'").run();
+    db.prepare(
+      "DELETE FROM system_events WHERE user_id = 1 AND payload_json LIKE '%v2.10.7-smoke%'",
+    ).run();
 
     const steps = [
       {
@@ -226,7 +235,14 @@ function seedAbVariantsFixture() {
       INSERT INTO system_events (user_id, type, severity, payload_json, created_at)
       VALUES (1, @type, @severity, @payload, @createdAt)
     `);
-    const event = (minutesAgo, type, severity, recipientIndex, variantId, includeVariant = true) => {
+    const event = (
+      minutesAgo,
+      type,
+      severity,
+      recipientIndex,
+      variantId,
+      includeVariant = true,
+    ) => {
       const createdAt = new Date(now.getTime() - minutesAgo * 60_000).toISOString();
       insertEvent.run({
         type,
@@ -237,7 +253,9 @@ function seedAbVariantsFixture() {
           recipientId: recipients[recipientIndex],
           stepId: "ab-intro",
           stepType: "text",
-          ...(includeVariant ? { variantId, variantLabel: variantId === "a" ? "Controle" : "Direta" } : {}),
+          ...(includeVariant
+            ? { variantId, variantLabel: variantId === "a" ? "Controle" : "Direta" }
+            : {}),
           navigationMode: recipientIndex % 2 === 0 ? "navigated" : "reused-open-chat",
           jobId: 25_000 + minutesAgo,
           messageId: `m25-${variantId}-${recipientIndex}`,
@@ -291,10 +309,9 @@ function countCampaignStepJobs() {
 function pauseSchedulerCanary(campaignId) {
   const db = new Database(databaseUrl);
   try {
-    db.prepare("UPDATE campaigns SET status = 'paused', updated_at = ? WHERE user_id = 1 AND id = ?").run(
-      new Date().toISOString(),
-      campaignId,
-    );
+    db.prepare(
+      "UPDATE campaigns SET status = 'paused', updated_at = ? WHERE user_id = 1 AND id = ?",
+    ).run(new Date().toISOString(), campaignId);
   } finally {
     db.close();
   }

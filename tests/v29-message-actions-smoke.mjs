@@ -84,7 +84,11 @@ async function main() {
         textareaLength: textarea instanceof HTMLTextAreaElement ? textarea.value.length : 0,
       };
     });
-    if (diagnostics.buttons !== 3 || diagnostics.draftKind !== "forward" || diagnostics.textareaLength === 0) {
+    if (
+      diagnostics.buttons !== 3 ||
+      diagnostics.draftKind !== "forward" ||
+      diagnostics.textareaLength === 0
+    ) {
       throw new Error(`message actions diagnostics failed: ${JSON.stringify(diagnostics)}`);
     }
 

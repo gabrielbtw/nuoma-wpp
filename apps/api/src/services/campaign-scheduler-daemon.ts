@@ -76,7 +76,10 @@ export function createCampaignSchedulerDaemon(
       clearInterval(timer);
       timer = null;
     }
-    options.logger.info({ ownerId: options.ownerId, userId: options.userId }, "campaign scheduler daemon stopped");
+    options.logger.info(
+      { ownerId: options.ownerId, userId: options.userId },
+      "campaign scheduler daemon stopped",
+    );
   }
 
   return { start, stop, tickOnce };

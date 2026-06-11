@@ -59,7 +59,9 @@ function main() {
   const hasMessageSecond = columnExists(db, "captured", "message_second");
   const hasMessagePrecision = columnExists(db, "captured", "message_timestamp_precision");
 
-  const messages = db.prepare(`
+  const messages = db
+    .prepare(
+      `
     SELECT
       data_id,
       direction,
@@ -74,7 +76,9 @@ function main() {
     FROM captured
     WHERE event_type = 'message-added'
     ORDER BY dom_ts ASC
-  `).all() as Array<{
+  `,
+    )
+    .all() as Array<{
     data_id: string;
     direction: string | null;
     body: string | null;
@@ -87,40 +91,88 @@ function main() {
     latency_ms: number;
   }>;
 
-  const snapshots = count(db, `SELECT COUNT(*) AS n FROM captured WHERE event_type='message-snapshot'`);
-  const uniqueSnapshots = count(db, `SELECT COUNT(DISTINCT data_id) AS n FROM captured WHERE event_type='message-snapshot'`);
-  const snapshotUnknownDirection = count(db, `
+  const snapshots = count(
+    db,
+    `SELECT COUNT(*) AS n FROM captured WHERE event_type='message-snapshot'`,
+  );
+  const uniqueSnapshots = count(
+    db,
+    `SELECT COUNT(DISTINCT data_id) AS n FROM captured WHERE event_type='message-snapshot'`,
+  );
+  const snapshotUnknownDirection = count(
+    db,
+    `
     SELECT COUNT(DISTINCT data_id) AS n
     FROM captured
     WHERE event_type='message-snapshot' AND (direction IS NULL OR direction='unknown')
-  `);
-  const snapshotMissingDate = count(db, `
+  `,
+  );
+  const snapshotMissingDate = count(
+    db,
+    `
     SELECT COUNT(DISTINCT data_id) AS n
     FROM captured
     WHERE event_type='message-snapshot' AND message_date IS NULL
-  `);
-  const snapshotMissingTime = count(db, `
+  `,
+  );
+  const snapshotMissingTime = count(
+    db,
+    `
     SELECT COUNT(DISTINCT data_id) AS n
     FROM captured
     WHERE event_type='message-snapshot' AND message_time IS NULL
-  `);
-  const updates = count(db, `SELECT COUNT(*) AS n FROM captured WHERE event_type='message-updated'`);
-  const removed = count(db, `SELECT COUNT(*) AS n FROM captured WHERE event_type='message-removed'`);
-  const deliveryChanges = count(db, `SELECT COUNT(*) AS n FROM captured WHERE event_type='delivery-status-changed'`);
-  const duplicates = count(db, `SELECT COUNT(*) AS n FROM lifecycle_events WHERE type='duplicate-blocked'`);
-  const errors = count(db, `SELECT COUNT(*) AS n FROM lifecycle_events WHERE type IN ('observer-error','observer-failed')`);
-  const snapshotCompletes = count(db, `SELECT COUNT(*) AS n FROM lifecycle_events WHERE type='message-snapshot-complete'`);
-  const backfillRequested = count(db, `SELECT COUNT(*) AS n FROM lifecycle_events WHERE type='backfill-probe-requested'`);
-  const backfillSkipped = count(db, `SELECT COUNT(*) AS n FROM lifecycle_events WHERE type='backfill-probe-skipped'`);
+  `,
+  );
+  const updates = count(
+    db,
+    `SELECT COUNT(*) AS n FROM captured WHERE event_type='message-updated'`,
+  );
+  const removed = count(
+    db,
+    `SELECT COUNT(*) AS n FROM captured WHERE event_type='message-removed'`,
+  );
+  const deliveryChanges = count(
+    db,
+    `SELECT COUNT(*) AS n FROM captured WHERE event_type='delivery-status-changed'`,
+  );
+  const duplicates = count(
+    db,
+    `SELECT COUNT(*) AS n FROM lifecycle_events WHERE type='duplicate-blocked'`,
+  );
+  const errors = count(
+    db,
+    `SELECT COUNT(*) AS n FROM lifecycle_events WHERE type IN ('observer-error','observer-failed')`,
+  );
+  const snapshotCompletes = count(
+    db,
+    `SELECT COUNT(*) AS n FROM lifecycle_events WHERE type='message-snapshot-complete'`,
+  );
+  const backfillRequested = count(
+    db,
+    `SELECT COUNT(*) AS n FROM lifecycle_events WHERE type='backfill-probe-requested'`,
+  );
+  const backfillSkipped = count(
+    db,
+    `SELECT COUNT(*) AS n FROM lifecycle_events WHERE type='backfill-probe-skipped'`,
+  );
 
   const sidebarSnapshots = hasSidebarEvents
-    ? count(db, `SELECT COUNT(*) AS n FROM sidebar_events WHERE event_type='conversation-row-snapshot'`)
+    ? count(
+        db,
+        `SELECT COUNT(*) AS n FROM sidebar_events WHERE event_type='conversation-row-snapshot'`,
+      )
     : 0;
   const sidebarChanges = hasSidebarEvents
-    ? count(db, `SELECT COUNT(*) AS n FROM sidebar_events WHERE event_type='conversation-row-changed'`)
+    ? count(
+        db,
+        `SELECT COUNT(*) AS n FROM sidebar_events WHERE event_type='conversation-row-changed'`,
+      )
     : 0;
   const unreadChanges = hasSidebarEvents
-    ? count(db, `SELECT COUNT(*) AS n FROM sidebar_events WHERE event_type='conversation-unread-changed'`)
+    ? count(
+        db,
+        `SELECT COUNT(*) AS n FROM sidebar_events WHERE event_type='conversation-unread-changed'`,
+      )
     : 0;
   const observerEventTotal = hasObserverEvents
     ? count(db, `SELECT COUNT(*) AS n FROM observer_events`)
@@ -135,23 +187,33 @@ function main() {
     ? count(db, `SELECT COUNT(*) AS n FROM message_detail_probes WHERE ok=1 AND has_seconds=0`)
     : 0;
   const lastDetailProbe = hasDetailProbes
-    ? db.prepare(`
+    ? (db
+        .prepare(
+          `
         SELECT data_id, ok, stage, has_seconds, timestamp_candidates_json, payload_json, probed_at
         FROM message_detail_probes
         ORDER BY id DESC
         LIMIT 1
-      `).get() as {
-        data_id: string | null;
-        ok: number;
-        stage: string;
-        has_seconds: number;
-        timestamp_candidates_json: string | null;
-        payload_json: string | null;
-        probed_at: number;
-      } | undefined
+      `,
+        )
+        .get() as
+        | {
+            data_id: string | null;
+            ok: number;
+            stage: string;
+            has_seconds: number;
+            timestamp_candidates_json: string | null;
+            payload_json: string | null;
+            probed_at: number;
+          }
+        | undefined)
     : undefined;
 
-  const observerReady = db.prepare(`SELECT ts, payload_json FROM lifecycle_events WHERE type='observer-ready' ORDER BY ts ASC LIMIT 1`).get() as { ts: number; payload_json: string } | undefined;
+  const observerReady = db
+    .prepare(
+      `SELECT ts, payload_json FROM lifecycle_events WHERE type='observer-ready' ORDER BY ts ASC LIMIT 1`,
+    )
+    .get() as { ts: number; payload_json: string } | undefined;
 
   const latencies = messages.map((m) => m.latency_ms).filter((n) => Number.isFinite(n) && n >= 0);
   latencies.sort((a, b) => a - b);
@@ -175,42 +237,63 @@ function main() {
   const extractionTolerance = Math.max(1, Math.floor(messages.length * 0.05));
 
   const verdict = (() => {
-    if (latencies.length < expected) return { color: "amarelo", reason: `only ${latencies.length}/${expected} messages captured` };
+    if (latencies.length < expected)
+      return { color: "amarelo", reason: `only ${latencies.length}/${expected} messages captured` };
     if (p95 > 3000) return { color: "vermelho", reason: `p95 ${fmt(p95)} > 3000ms target` };
-    if (p95 > 1500) return { color: "amarelo", reason: `p95 ${fmt(p95)} above 1.5s comfort margin` };
-    if (duplicates > 0) return { color: "amarelo", reason: `${duplicates} duplicates detected (need investigation)` };
+    if (p95 > 1500)
+      return { color: "amarelo", reason: `p95 ${fmt(p95)} above 1.5s comfort margin` };
+    if (duplicates > 0)
+      return { color: "amarelo", reason: `${duplicates} duplicates detected (need investigation)` };
     if (errors > 0) return { color: "amarelo", reason: `${errors} observer errors logged` };
     if (p50 > 1000) return { color: "amarelo", reason: `p50 ${fmt(p50)} > 1000ms target` };
     if (messages.length > 0 && missingDirection === messages.length) {
       return { color: "amarelo", reason: "all captured messages still have unknown direction" };
     }
     if (messages.length > 0 && missingDirection > extractionTolerance) {
-      return { color: "amarelo", reason: `${missingDirection}/${messages.length} messages have unknown direction; harden metadata extraction` };
+      return {
+        color: "amarelo",
+        reason: `${missingDirection}/${messages.length} messages have unknown direction; harden metadata extraction`,
+      };
     }
     if (messages.length > 0 && missingDate > extractionTolerance) {
-      return { color: "amarelo", reason: `${missingDate}/${messages.length} messages missing date; harden timestamp extraction` };
+      return {
+        color: "amarelo",
+        reason: `${missingDate}/${messages.length} messages missing date; harden timestamp extraction`,
+      };
     }
     if (messages.length > 0 && missingTime > extractionTolerance) {
-      return { color: "amarelo", reason: `${missingTime}/${messages.length} messages missing time; harden timestamp extraction` };
+      return {
+        color: "amarelo",
+        reason: `${missingTime}/${messages.length} messages missing time; harden timestamp extraction`,
+      };
     }
     if (messages.length > 0 && missingSecond > 0) {
       if (detailProbeWithSeconds > 0) {
-        return { color: "amarelo", reason: `${missingSecond}/${messages.length} messages missing seconds; implement message details fallback` };
+        return {
+          color: "amarelo",
+          reason: `${missingSecond}/${messages.length} messages missing seconds; implement message details fallback`,
+        };
       }
       if (detailProbeOkWithoutSeconds === 0) {
-        return { color: "amarelo", reason: `${missingSecond}/${messages.length} messages missing seconds; run message details probe before approving` };
+        return {
+          color: "amarelo",
+          reason: `${missingSecond}/${messages.length} messages missing seconds; run message details probe before approving`,
+        };
       }
     }
     return {
       color: "verde",
-      reason: missingSecond > 0
-        ? "latency/dedup targets met; WhatsApp display timestamp is minute-precision, use observed_at_utc per ADR 0012"
-        : "all targets met",
+      reason:
+        missingSecond > 0
+          ? "latency/dedup targets met; WhatsApp display timestamp is minute-precision, use observed_at_utc per ADR 0012"
+          : "all targets met",
     };
   })();
 
   console.log("\n=== Spike 1 — CDP Observer Analysis ===\n");
-  console.log(`Observer ready: ${observerReady ? "yes (" + new Date(observerReady.ts).toISOString() + ")" : "NEVER"}`);
+  console.log(
+    `Observer ready: ${observerReady ? "yes (" + new Date(observerReady.ts).toISOString() + ")" : "NEVER"}`,
+  );
   console.log(`Messages captured: ${messages.length} (expected: ${expected})`);
   console.log(`Visible snapshots captured: ${snapshots} (${uniqueSnapshots} unique data_ids)`);
   console.log(`Snapshot complete events: ${snapshotCompletes}`);
@@ -224,7 +307,9 @@ function main() {
   console.log(`Unread changes: ${unreadChanges}`);
   console.log(`Backfill probes requested/skipped: ${backfillRequested}/${backfillSkipped}`);
   console.log(`Raw observer events: ${observerEventTotal}`);
-  console.log(`Message detail probes: ${detailProbeCount} (${detailProbeWithSeconds} with seconds)`);
+  console.log(
+    `Message detail probes: ${detailProbeCount} (${detailProbeWithSeconds} with seconds)`,
+  );
   if (lastDetailProbe) {
     console.log(`Last detail probe:`, {
       dataId: lastDetailProbe.data_id,
@@ -254,7 +339,9 @@ function main() {
   console.log(`  missing date: ${snapshotMissingDate}/${uniqueSnapshots}`);
   console.log(`  missing time: ${snapshotMissingTime}/${uniqueSnapshots}`);
   if (missingSecond > 0 && detailProbeOkWithoutSeconds > 0 && detailProbeWithSeconds === 0) {
-    console.log(`  details fallback: ${detailProbeOkWithoutSeconds} successful probe(s), 0 exposed seconds; ADR 0012 path active`);
+    console.log(
+      `  details fallback: ${detailProbeOkWithoutSeconds} successful probe(s), 0 exposed seconds; ADR 0012 path active`,
+    );
   }
   console.log("");
   console.log(`VERDICT: ${verdict.color.toUpperCase()} — ${verdict.reason}`);
@@ -264,7 +351,9 @@ function main() {
     if (finalApprovalRun) {
       console.log("→ Approve ADR 0007 (sync hybrid Playwright+CDP). Unblocks V2.6 in roadmap.");
     } else {
-      console.log("→ Diagnostic/probe run passed. Full G.1 approval still requires a 50-message run.");
+      console.log(
+        "→ Diagnostic/probe run passed. Full G.1 approval still requires a 50-message run.",
+      );
     }
   } else if (verdict.color === "amarelo") {
     console.log("→ Investigate the issue above, retest before approving the ADR.");

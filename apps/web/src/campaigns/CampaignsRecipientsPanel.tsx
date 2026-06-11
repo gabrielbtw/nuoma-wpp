@@ -104,7 +104,7 @@ export function CampaignsRecipientsPanel({
                       overlay {isCampaignOverlayEnabled(campaign.metadata) ? "sim" : "não"}
                     </Badge>
                     <Badge variant={campaign.status === "running" ? "success" : "neutral"}>
-                      {campaign.status}
+                      {campaignStatusLabel(campaign.status)}
                     </Badge>
                   </div>
                 </div>
@@ -160,7 +160,9 @@ export function CampaignsRecipientsPanel({
                     onValueChange={(value) => updateConfirm(campaign.id, value)}
                     disabled={!isPausableCampaign(campaign.status)}
                     loading={isEnqueuePending(campaign.id)}
-                    onConfirm={() => onEnqueue(campaign.id, campaign.name, confirmByCampaign[campaign.id] ?? "")}
+                    onConfirm={() =>
+                      onEnqueue(campaign.id, campaign.name, confirmByCampaign[campaign.id] ?? "")
+                    }
                     description={`Criará Jobs reais para ${campaign.name}.`}
                     testId="campaign-enqueue-confirm"
                   />
@@ -217,4 +219,14 @@ function isPausableCampaign(status: string) {
 
 function isResumableCampaign(status: string) {
   return status === "paused" || status === "draft";
+}
+
+function campaignStatusLabel(status: string): string {
+  if (status === "running") return "em execução";
+  if (status === "scheduled") return "agendada";
+  if (status === "paused") return "pausada";
+  if (status === "draft") return "rascunho";
+  if (status === "completed") return "concluída";
+  if (status === "cancelled") return "cancelada";
+  return status;
 }

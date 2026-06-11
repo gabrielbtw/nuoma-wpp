@@ -72,8 +72,8 @@ export function CampaignsOverviewPanel({
         <CardContent className="space-y-4">
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
             <CampaignMetric label="campanhas" value={loading ? "..." : campaigns.length} />
-            <CampaignMetric label="running" value={runningCampaigns} />
-            <CampaignMetric label="recipients ativos" value={activeRecipients} />
+            <CampaignMetric label="em execução" value={runningCampaigns} />
+            <CampaignMetric label="destinatários ativos" value={activeRecipients} />
             <CampaignMetric label="steps ok" value={completedSteps} />
             <CampaignMetric label="falhas" value={failedSteps} />
           </div>
@@ -90,9 +90,9 @@ export function CampaignsOverviewPanel({
               data-created={lastTick.evergreenRecipientsCreated}
             >
               <div>
-                <div className="text-sm font-medium text-fg-primary">Último tick</div>
+                <div className="text-sm font-medium text-fg-primary">Última execução</div>
                 <div className="font-mono text-xs text-fg-dim">
-                  {lastTick.dryRun ? "prévia" : "execução real"} · {lastTick.plannedJobs.length}{" "}
+                  {lastTick.dryRun ? "simulação" : "execução real"} · {lastTick.plannedJobs.length}{" "}
                   planejados
                 </div>
               </div>
@@ -115,17 +115,17 @@ export function CampaignsOverviewPanel({
                     <div className="truncate text-sm text-fg-primary">{campaign.name}</div>
                     <div className="font-mono text-[0.68rem] text-fg-dim">
                       #{campaign.id} · {campaign.steps.length} steps · {campaign.recipients.length}{" "}
-                      recipients
+                      destinatários
                     </div>
                   </div>
                   <Badge variant={campaign.status === "running" ? "cyan" : "neutral"}>
-                    {campaign.status}
+                    {campaignStatusLabel(campaign.status)}
                   </Badge>
                   <span className="font-mono text-xs text-fg-muted">
                     ok {campaign.metrics.completedSteps}
                   </span>
                   <span className="font-mono text-xs text-fg-muted">
-                    fail {campaign.metrics.failedSteps}
+                    falha {campaign.metrics.failedSteps}
                   </span>
                   {campaign.evergreen ? (
                     <div className="md:col-span-4">
@@ -143,4 +143,14 @@ export function CampaignsOverviewPanel({
       </Card>
     </Animate>
   );
+}
+
+function campaignStatusLabel(status: string): string {
+  if (status === "running") return "em execução";
+  if (status === "scheduled") return "agendada";
+  if (status === "paused") return "pausada";
+  if (status === "draft") return "rascunho";
+  if (status === "completed") return "concluída";
+  if (status === "cancelled") return "cancelada";
+  return status;
 }

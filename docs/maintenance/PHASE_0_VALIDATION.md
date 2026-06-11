@@ -32,7 +32,7 @@ npm run test:product-confidence
 ## Verificacoes documentais
 
 ```bash
-rg -n 'npm run hygiene|`JWT_SECRET`|`WORKER_CDP_URL`|/Users/gabrielbraga/Projetos/nuoma-wpp/' README.md docs AGENTS.md .claude --glob '!docs/maintenance/PHASE_0_VALIDATION.md'
+rg -n '<legacy-script>|<legacy-env>|<old-v1-absolute-path>' README.md docs AGENTS.md .claude
 git status --short --ignored
 git ls-files data storage '**/dist/**' '**/.turbo/**'
 ```
@@ -60,16 +60,16 @@ correta:
 
 Comandos executados na Fase 0:
 
-| Comando | Resultado | Observacao |
-| --- | --- | --- |
-| `npm ci` | passou | confirmou instalacao do workspace `@nuoma/migration` |
-| `npm run format:check` | falhou | Prettier reportou divida global em 280 arquivos; nao foi corrigido nesta fase para evitar reformatacao ampla |
-| `npm run lint` | passou | 10 tarefas Turbo |
-| `npm run typecheck` | passou | 21 tarefas Turbo |
-| `npm run build` | passou | 14 tarefas Turbo; Safari segue com converter indisponivel de forma esperada |
-| `npm test` | passou | 17 tarefas Turbo |
-| `npm run test:artifact-retention` | passou | `artifact-retention-policy-smoke|status=ok` |
-| `npm run test:product-confidence` | passou | `product-confidence-smoke|status=ok|checks=8` |
+| Comando                           | Resultado | Observacao                                                                                                   |
+| --------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------ |
+| `npm ci`                          | passou    | confirmou instalacao do workspace `@nuoma/migration`                                                         |
+| `npm run format:check`            | falhou    | Prettier reportou divida global em 280 arquivos; nao foi corrigido nesta fase para evitar reformatacao ampla |
+| `npm run lint`                    | passou    | 10 tarefas Turbo                                                                                             |
+| `npm run typecheck`               | passou    | 21 tarefas Turbo                                                                                             |
+| `npm run build`                   | passou    | 14 tarefas Turbo; Safari segue com converter indisponivel de forma esperada                                  |
+| `npm test`                        | passou    | 17 tarefas Turbo                                                                                             |
+| `npm run test:artifact-retention` | passou    | `artifact-retention-policy-smoke status=ok`                                                                  |
+| `npm run test:product-confidence` | passou    | `product-confidence-smoke status=ok checks=8`                                                                |
 
 Checagens documentais:
 
@@ -90,16 +90,16 @@ Status de aceite da Fase 0:
 A retomada do plano Carvao & Cobre executou gates focados adicionais sem envio
 real:
 
-| Comando | Resultado |
-| --- | --- |
-| `npm run typecheck --workspace @nuoma/ui` | passou |
-| `npm run typecheck --workspace @nuoma/web` | passou |
-| `npm run typecheck --workspace @nuoma/worker` | passou |
-| `npm run test --workspace @nuoma/web -- --run` | passou |
-| `npm run test --workspace @nuoma/worker` | passou |
-| `npm run build --workspace @nuoma/web` | passou |
-| `npm run test:v211-overlay-unit` | passou |
-| `npm run test:v211-overlay-fab` | passou |
+| Comando                                        | Resultado |
+| ---------------------------------------------- | --------- |
+| `npm run typecheck --workspace @nuoma/ui`      | passou    |
+| `npm run typecheck --workspace @nuoma/web`     | passou    |
+| `npm run typecheck --workspace @nuoma/worker`  | passou    |
+| `npm run test --workspace @nuoma/web -- --run` | passou    |
+| `npm run test --workspace @nuoma/worker`       | passou    |
+| `npm run build --workspace @nuoma/web`         | passou    |
+| `npm run test:v211-overlay-unit`               | passou    |
+| `npm run test:v211-overlay-fab`                | passou    |
 
 Esta retomada nao substitui o gate repo-wide acima: `format:check` continua
 registrado como divida preexistente. O status detalhado esta em

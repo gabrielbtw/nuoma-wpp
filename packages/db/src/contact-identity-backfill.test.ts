@@ -300,7 +300,10 @@ async function copyMigrationsThrough(maxIdx: number): Promise<string> {
     entries: Array<{ idx: number }>;
   };
   journal.entries = journal.entries.filter((entry) => entry.idx <= maxIdx);
-  await fs.writeFile(path.join(target, "meta", "_journal.json"), `${JSON.stringify(journal, null, 2)}\n`);
+  await fs.writeFile(
+    path.join(target, "meta", "_journal.json"),
+    `${JSON.stringify(journal, null, 2)}\n`,
+  );
 
   return target;
 }

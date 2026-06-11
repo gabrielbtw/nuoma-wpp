@@ -21,7 +21,10 @@ fs.mkdirSync(outDir, { recursive: true });
 
 try {
   const browser = await chromium.connectOverCDP(cdpUrl);
-  const page = browser.contexts().flatMap((context) => context.pages()).find((item) => item.url().includes("web.whatsapp.com"));
+  const page = browser
+    .contexts()
+    .flatMap((context) => context.pages())
+    .find((item) => item.url().includes("web.whatsapp.com"));
   if (!page) {
     throw new Error(`No WhatsApp Web page found through CDP ${cdpUrl}`);
   }
@@ -36,30 +39,57 @@ try {
   await shot(page, 2, "chat-correto-aberto", `phone=${phone}`);
 
   const opened24 = await openTemporaryMessagesPanel(page);
-  await shot(page, 3, "painel-aberto-antes-de-24h", `opened=${opened24}; state=${JSON.stringify(await readState(page))}`);
+  await shot(
+    page,
+    3,
+    "painel-aberto-antes-de-24h",
+    `opened=${opened24}; state=${JSON.stringify(await readState(page))}`,
+  );
   const clicked24 = await clickDuration(page, "24h");
   const selected24 = await waitSelected(page, "24h");
-  await shot(page, 4, "radio-24h-marcado", `click=${JSON.stringify(clicked24)}; state=${JSON.stringify(selected24)}`);
+  await shot(
+    page,
+    4,
+    "radio-24h-marcado",
+    `click=${JSON.stringify(clicked24)}; state=${JSON.stringify(selected24)}`,
+  );
   await closeSidePanel(page);
   const notice24 = await waitLatestNotice(page, "24h");
   await shot(page, 5, "saiu-do-painel-popup-24h-visivel", `notice=${JSON.stringify(notice24)}`);
 
-  const message = process.env.M303_WPP_PROOF_MESSAGE ?? `M30.3 prova oficial ${nowBr()} - envio com temporarias 24h; restaurar para 90d em seguida.`;
+  const message =
+    process.env.M303_WPP_PROOF_MESSAGE ??
+    `M30.3 prova oficial ${nowBr()} - envio com temporarias 24h; restaurar para 90d em seguida.`;
   await typeAndSend(page, message);
   await shot(page, 6, "mensagem-enviada-com-24h", message);
 
   const opened90 = await openTemporaryMessagesPanel(page);
-  await shot(page, 7, "painel-aberto-antes-restaurar-90d", `opened=${opened90}; state=${JSON.stringify(await readState(page))}`);
+  await shot(
+    page,
+    7,
+    "painel-aberto-antes-restaurar-90d",
+    `opened=${opened90}; state=${JSON.stringify(await readState(page))}`,
+  );
   const clicked90 = await clickDuration(page, "90d");
   const selected90 = await waitSelected(page, "90d");
-  await shot(page, 8, "radio-90d-marcado", `click=${JSON.stringify(clicked90)}; state=${JSON.stringify(selected90)}`);
+  await shot(
+    page,
+    8,
+    "radio-90d-marcado",
+    `click=${JSON.stringify(clicked90)}; state=${JSON.stringify(selected90)}`,
+  );
   await closeSidePanel(page);
   const notice90 = await waitLatestNotice(page, "90d");
   await shot(page, 9, "saiu-do-painel-popup-90d-visivel", `notice=${JSON.stringify(notice90)}`);
 
   const reopened = await openTemporaryMessagesPanel(page);
   const finalState = await waitSelected(page, "90d");
-  await shot(page, 10, "painel-reaberto-final-90d-marcado", `opened=${reopened}; state=${JSON.stringify(finalState)}`);
+  await shot(
+    page,
+    10,
+    "painel-reaberto-final-90d-marcado",
+    `opened=${reopened}; state=${JSON.stringify(finalState)}`,
+  );
 
   const report = { phone, outDir, message, notice24, notice90, finalState, evidence };
   fs.writeFileSync(path.join(outDir, "evidence.json"), `${JSON.stringify(report, null, 2)}\n`);
@@ -81,7 +111,10 @@ try {
 }
 
 function normalizePhone(value) {
-  const digits = String(value ?? "").split(",")[0]?.replace(/\D/g, "") ?? "";
+  const digits =
+    String(value ?? "")
+      .split(",")[0]
+      ?.replace(/\D/g, "") ?? "";
   return digits || null;
 }
 
@@ -129,7 +162,10 @@ async function stamp(page, label, extra = "") {
 async function shot(page, index, label, extra = "") {
   await stamp(page, `${String(index).padStart(2, "0")} ${label}`, extra);
   await page.waitForTimeout(250);
-  const file = path.join(outDir, `${String(index).padStart(2, "0")}-${label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.png`);
+  const file = path.join(
+    outDir,
+    `${String(index).padStart(2, "0")}-${label.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.png`,
+  );
   await page.screenshot({ path: file, fullPage: false });
   const row = { index, label, file, at: new Date().toISOString(), extra };
   evidence.push(row);
@@ -152,7 +188,9 @@ async function openTemporaryMessagesPanel(page) {
   ]);
   if (!clicked) {
     await page.evaluate(() => {
-      const nodes = visibleNodes("#main header button[aria-label], #main header [role='button'][aria-label], #main header span[data-icon='menu'], #main header span[data-icon='down']");
+      const nodes = visibleNodes(
+        "#main header button[aria-label], #main header [role='button'][aria-label], #main header span[data-icon='menu'], #main header span[data-icon='down']",
+      );
       const node = nodes.reverse()[0];
       const target = node?.closest("button") || node?.closest("[role='button']") || node;
       target?.click();
@@ -162,7 +200,12 @@ async function openTemporaryMessagesPanel(page) {
           if (!(item instanceof HTMLElement)) return false;
           const rect = item.getBoundingClientRect();
           const style = getComputedStyle(item);
-          return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+          return (
+            rect.width > 0 &&
+            rect.height > 0 &&
+            style.display !== "none" &&
+            style.visibility !== "hidden"
+          );
         });
       }
     });
@@ -178,32 +221,52 @@ async function openTemporaryMessagesPanel(page) {
   return clicked;
 }
 
-async function clickByText(page, needles, selector = "button,[role='button'],[role='menuitem'],div,span") {
+async function clickByText(
+  page,
+  needles,
+  selector = "button,[role='button'],[role='menuitem'],div,span",
+) {
   return page.evaluate(
     ({ needles, selector }) => {
       const normalized = needles.map(clean);
       const match = visibleNodes(selector)
         .map((node) => ({
           node,
-          text: clean(node.textContent || node.getAttribute("aria-label") || node.getAttribute("title") || ""),
+          text: clean(
+            node.textContent || node.getAttribute("aria-label") || node.getAttribute("title") || "",
+          ),
         }))
         .filter((item) => normalized.some((needle) => item.text.includes(needle)))
         .sort((a, b) => a.text.length - b.text.length)[0]?.node;
       if (!match) return false;
-      const target = match.closest("button") || match.closest("[role='button']") || match.closest("[role='menuitem']") || match;
+      const target =
+        match.closest("button") ||
+        match.closest("[role='button']") ||
+        match.closest("[role='menuitem']") ||
+        match;
       target.scrollIntoView({ block: "center", inline: "center" });
       target.click();
       return true;
 
       function clean(value) {
-        return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+        return String(value || "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .toLowerCase();
       }
       function visibleNodes(innerSelector) {
         return Array.from(document.querySelectorAll(innerSelector)).filter((item) => {
           if (!(item instanceof HTMLElement)) return false;
           const rect = item.getBoundingClientRect();
           const style = getComputedStyle(item);
-          return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+          return (
+            rect.width > 0 &&
+            rect.height > 0 &&
+            style.display !== "none" &&
+            style.visibility !== "hidden"
+          );
         });
       }
     },
@@ -221,35 +284,67 @@ async function clickDuration(page, duration) {
     const label = visibleNodes("label,span,div")
       .filter((node) => rightPanelNode(node))
       .map((node) => ({ node, text: clean(node.textContent || "") }))
-      .filter((item) => labels.some((candidate) => item.text === candidate || item.text.includes(candidate)))
+      .filter((item) =>
+        labels.some((candidate) => item.text === candidate || item.text.includes(candidate)),
+      )
       .sort((a, b) => optionScore(a, labels) - optionScore(b, labels))[0]?.node;
     if (!label) return { ok: false, reason: "label-not-found" };
 
     const row = label.closest("label") || label.parentElement;
-    const input = row?.querySelector("input[aria-checked], input[type='radio'], [role='radio'], [aria-checked]");
+    const input = row?.querySelector(
+      "input[aria-checked], input[type='radio'], [role='radio'], [aria-checked]",
+    );
     const target = input instanceof HTMLElement ? input : row instanceof HTMLElement ? row : label;
     target.scrollIntoView({ block: "center", inline: "center" });
     const rect = target.getBoundingClientRect();
-    target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 }));
-    target.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 }));
+    target.dispatchEvent(
+      new MouseEvent("mousedown", {
+        bubbles: true,
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2,
+      }),
+    );
+    target.dispatchEvent(
+      new MouseEvent("mouseup", {
+        bubbles: true,
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2,
+      }),
+    );
     target.click();
-    return { ok: true, target: target.tagName, text: (target.textContent || target.getAttribute("aria-label") || "").slice(0, 80) };
+    return {
+      ok: true,
+      target: target.tagName,
+      text: (target.textContent || target.getAttribute("aria-label") || "").slice(0, 80),
+    };
 
     function optionScore(item, exactLabels) {
       return (exactLabels.includes(item.text) ? 0 : 1_000) + item.text.length;
     }
     function rightPanelNode(node) {
-      return node instanceof HTMLElement && node.getBoundingClientRect().left > window.innerWidth * 0.58;
+      return (
+        node instanceof HTMLElement && node.getBoundingClientRect().left > window.innerWidth * 0.58
+      );
     }
     function clean(value) {
-      return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+      return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
     }
     function visibleNodes(selector) {
       return Array.from(document.querySelectorAll(selector)).filter((item) => {
         if (!(item instanceof HTMLElement)) return false;
         const rect = item.getBoundingClientRect();
         const style = getComputedStyle(item);
-        return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+        return (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          style.display !== "none" &&
+          style.visibility !== "hidden"
+        );
       });
     }
   }, duration);
@@ -257,9 +352,19 @@ async function clickDuration(page, duration) {
 
 async function closeSidePanel(page) {
   await page.evaluate(() => {
-    const back = visibleNodes("button, [role='button'], span[data-icon='back'], span[data-icon='back-refreshed']")
+    const back = visibleNodes(
+      "button, [role='button'], span[data-icon='back'], span[data-icon='back-refreshed']",
+    )
       .filter((node) => node.getBoundingClientRect().left > window.innerWidth * 0.58)
-      .find((node) => /voltar|back|back-refreshed/i.test(node.getAttribute("aria-label") || node.getAttribute("title") || node.getAttribute("data-icon") || node.textContent || ""));
+      .find((node) =>
+        /voltar|back|back-refreshed/i.test(
+          node.getAttribute("aria-label") ||
+            node.getAttribute("title") ||
+            node.getAttribute("data-icon") ||
+            node.textContent ||
+            "",
+        ),
+      );
     const target = back?.closest("button") || back?.closest("[role='button']") || back;
     target?.click();
 
@@ -268,7 +373,12 @@ async function closeSidePanel(page) {
         if (!(item instanceof HTMLElement)) return false;
         const rect = item.getBoundingClientRect();
         const style = getComputedStyle(item);
-        return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+        return (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          style.display !== "none" &&
+          style.visibility !== "hidden"
+        );
       });
     }
   });
@@ -307,32 +417,53 @@ async function waitLatestNotice(page, expected, timeoutMs = 10_000) {
 
 async function readState(page) {
   return page.evaluate(() => {
-    const optionNodes = Array.from(document.querySelectorAll("input[aria-checked], input[type='radio'], [role='radio'], [aria-checked]"))
-      .filter((node) => isVisible(node) && rightPanelNode(node));
+    const optionNodes = Array.from(
+      document.querySelectorAll(
+        "input[aria-checked], input[type='radio'], [role='radio'], [aria-checked]",
+      ),
+    ).filter((node) => isVisible(node) && rightPanelNode(node));
     const options = optionNodes.map((node) => ({
       duration: optionDuration(node),
       ariaChecked: node.getAttribute("aria-checked"),
       checked: "checked" in node ? Boolean(node.checked) : null,
     }));
-    const selected = options.find((item) => item.ariaChecked === "true" || item.checked === true)?.duration || null;
-    const latestNotice = Array.from(document.querySelectorAll("#main div, #main span"))
-      .filter(isVisible)
-      .map((node) => {
-        const rect = node.getBoundingClientRect();
-        const text = (node.textContent || "").replace(/\s+/g, " ").trim();
-        const duration = /voce atualizou a duracao das mensagens temporarias|você atualizou a duração das mensagens temporárias|voce ativou as mensagens temporarias|você ativou as mensagens temporárias/i.test(text)
-          ? durationFromText(text)
-          : null;
-        return duration ? { text: text.slice(0, 220), duration, top: Math.round(rect.top), left: Math.round(rect.left) } : null;
-      })
-      .filter(Boolean)
-      .sort((a, b) => b.top - a.top)[0] || null;
+    const selected =
+      options.find((item) => item.ariaChecked === "true" || item.checked === true)?.duration ||
+      null;
+    const latestNotice =
+      Array.from(document.querySelectorAll("#main div, #main span"))
+        .filter(isVisible)
+        .map((node) => {
+          const rect = node.getBoundingClientRect();
+          const text = (node.textContent || "").replace(/\s+/g, " ").trim();
+          const duration =
+            /voce atualizou a duracao das mensagens temporarias|você atualizou a duração das mensagens temporárias|voce ativou as mensagens temporarias|você ativou as mensagens temporárias/i.test(
+              text,
+            )
+              ? durationFromText(text)
+              : null;
+          return duration
+            ? {
+                text: text.slice(0, 220),
+                duration,
+                top: Math.round(rect.top),
+                left: Math.round(rect.left),
+              }
+            : null;
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.top - a.top)[0] || null;
 
     return {
       selected,
       options,
       latestNotice,
-      header: document.querySelector("#main header")?.textContent?.replace(/\s+/g, " ").trim().slice(0, 180) || null,
+      header:
+        document
+          .querySelector("#main header")
+          ?.textContent?.replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 180) || null,
       composer: Boolean(document.querySelector("#main footer [contenteditable='true']")),
     };
 
@@ -361,16 +492,28 @@ async function readState(page) {
       return null;
     }
     function rightPanelNode(node) {
-      return node instanceof HTMLElement && node.getBoundingClientRect().left > window.innerWidth * 0.58;
+      return (
+        node instanceof HTMLElement && node.getBoundingClientRect().left > window.innerWidth * 0.58
+      );
     }
     function isVisible(node) {
       if (!(node instanceof HTMLElement)) return false;
       const rect = node.getBoundingClientRect();
       const style = getComputedStyle(node);
-      return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden"
+      );
     }
     function clean(value) {
-      return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+      return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
     }
   });
 }

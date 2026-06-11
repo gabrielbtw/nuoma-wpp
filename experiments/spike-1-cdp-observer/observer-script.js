@@ -76,7 +76,7 @@
             payload: { message: String(err && err.message ? err.message : err) },
             ts: Date.now(),
             v: VERSION,
-          })
+          }),
         );
       } catch {
         /* binding not yet ready */
@@ -151,7 +151,7 @@
     if (!dataEl || dataEl.nodeType !== 1) return dataEl;
     return (
       dataEl.closest?.(
-        "[class*='message-in'], [class*='message-out'], [data-testid='msg-container'], [role='row']"
+        "[class*='message-in'], [class*='message-out'], [data-testid='msg-container'], [role='row']",
       ) || dataEl
     );
   }
@@ -177,7 +177,7 @@
     if (deliveryStatus) return "outgoing";
     if (
       bubbleRoot?.querySelector?.(
-        "[data-icon='msg-time'], [data-icon='msg-check'], [data-icon='msg-dblcheck'], [data-icon='msg-dblcheck-ack']"
+        "[data-icon='msg-time'], [data-icon='msg-check'], [data-icon='msg-dblcheck'], [data-icon='msg-dblcheck-ack']",
       )
     ) {
       return "outgoing";
@@ -304,9 +304,7 @@
     const year = yearRaw < 100 ? 2000 + yearRaw : yearRaw;
     const date = new Date(year, month - 1, day);
     const valid =
-      date.getFullYear() === year &&
-      date.getMonth() === month - 1 &&
-      date.getDate() === day;
+      date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
     const isoDate = valid
       ? `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
       : dateLabel;
@@ -329,7 +327,7 @@
 
   function isDateSeparatorText(text) {
     return /^(hoje|ontem|today|yesterday|domingo|segunda-feira|terça-feira|terca-feira|quarta-feira|quinta-feira|sexta-feira|sábado|sabado|\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4})$/i.test(
-      normalizeText(text)
+      normalizeText(text),
     );
   }
 
@@ -343,14 +341,15 @@
         const rect = el.getBoundingClientRect();
         return { text, rect };
       })
-      .filter((item) => (
-        item.text &&
-        item.text.length <= 24 &&
-        isDateSeparatorText(item.text) &&
-        item.rect.width > 0 &&
-        item.rect.height > 0 &&
-        item.rect.y <= targetRect.y
-      ))
+      .filter(
+        (item) =>
+          item.text &&
+          item.text.length <= 24 &&
+          isDateSeparatorText(item.text) &&
+          item.rect.width > 0 &&
+          item.rect.height > 0 &&
+          item.rect.y <= targetRect.y,
+      )
       .sort((a, b) => b.rect.y - a.rect.y);
     return candidates[0]?.text || null;
   }
@@ -382,9 +381,8 @@
   function readBodyText(bubbleRoot) {
     if (!bubbleRoot || bubbleRoot.nodeType !== 1) return "";
 
-    const selectable = uniqueBy(
-      queryAll(bubbleRoot, "span.selectable-text"),
-      (node) => normalizeText(node.textContent)
+    const selectable = uniqueBy(queryAll(bubbleRoot, "span.selectable-text"), (node) =>
+      normalizeText(node.textContent),
     )
       .map((node) => normalizeText(node.textContent))
       .filter(Boolean);
@@ -392,7 +390,7 @@
 
     const copyable = uniqueBy(
       queryAll(bubbleRoot, "[data-pre-plain-text] [dir='ltr'], [data-pre-plain-text] [dir='auto']"),
-      (node) => normalizeText(node.textContent)
+      (node) => normalizeText(node.textContent),
     )
       .map((node) => normalizeText(node.textContent))
       .filter(Boolean);
@@ -400,18 +398,22 @@
 
     const mediaLabel =
       bubbleRoot.querySelector?.("img[alt]")?.getAttribute("alt") ||
-      bubbleRoot.querySelector?.("video[aria-label], audio[aria-label], canvas[aria-label]")?.getAttribute("aria-label") ||
+      bubbleRoot
+        .querySelector?.("video[aria-label], audio[aria-label], canvas[aria-label]")
+        ?.getAttribute("aria-label") ||
       null;
     if (mediaLabel) return normalizeText(mediaLabel).slice(0, 1000);
 
     const clone = bubbleRoot.cloneNode(true);
-    queryAll(clone, "svg, [data-icon], time, [aria-hidden='true']").forEach((node) => node.remove());
+    queryAll(clone, "svg, [data-icon], time, [aria-hidden='true']").forEach((node) =>
+      node.remove(),
+    );
     return cleanFallbackBody(clone.textContent).slice(0, 1000);
   }
 
   function readDeliveryStatus(bubbleRoot) {
     const iconNode = bubbleRoot?.querySelector?.(
-      "[data-icon='msg-time'], [data-icon='msg-check'], [data-icon='msg-dblcheck'], [data-icon='msg-dblcheck-ack']"
+      "[data-icon='msg-time'], [data-icon='msg-check'], [data-icon='msg-dblcheck'], [data-icon='msg-dblcheck-ack']",
     );
     if (!iconNode) return null;
     const icon = iconNode.getAttribute("data-icon");
@@ -702,7 +704,7 @@
     const rows = candidates.length > 0 ? candidates : Array.from(target.children || []);
     return uniqueBy(
       rows.filter((row) => normalizeText(row.textContent).length > 0),
-      (row) => row
+      (row) => row,
     ).slice(0, 80);
   }
 

@@ -215,7 +215,9 @@ function parseCursor(request: FastifyRequest): StreamCursor {
   const eventId = parseLastEventId(request.headers["last-event-id"]);
   return {
     systemEventId:
-      parsePositiveInt(query.sinceSystemEventId) ?? eventId.systemEventId ?? Number.MAX_SAFE_INTEGER,
+      parsePositiveInt(query.sinceSystemEventId) ??
+      eventId.systemEventId ??
+      Number.MAX_SAFE_INTEGER,
   };
 }
 

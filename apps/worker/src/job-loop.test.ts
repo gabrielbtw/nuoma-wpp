@@ -2781,7 +2781,9 @@ describe("worker job loop", () => {
       WORKER_JOB_LOOP_ENABLED: "true",
       IG_SEND_ALLOWED_HANDLES: "gabriell_braga",
     });
-    vi.mocked(sendInstagramTextViaCdp).mockRejectedValueOnce(new Error("Instagram composer failed"));
+    vi.mocked(sendInstagramTextViaCdp).mockRejectedValueOnce(
+      new Error("Instagram composer failed"),
+    );
     const user = await repos.users.create({
       email: "instagram-failure@nuoma.local",
       passwordHash: "hash",
@@ -3010,9 +3012,9 @@ describe("worker job loop", () => {
     await loop.processOne();
 
     expect(sendCalls).toBe(1);
-    const storedJob = db.raw.prepare("select status, attempts from jobs where id = ?").get(job.id) as
-      | { status: string; attempts: number }
-      | undefined;
+    const storedJob = db.raw
+      .prepare("select status, attempts from jobs where id = ?")
+      .get(job.id) as { status: string; attempts: number } | undefined;
     expect(storedJob).toEqual({ status: "completed", attempts: 2 });
     const message = await repos.messages.findByIdempotencyKey({
       userId: user.id,

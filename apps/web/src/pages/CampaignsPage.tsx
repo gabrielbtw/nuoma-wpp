@@ -20,8 +20,7 @@ import {
 
 type CampaignTickResult = RouterOutput["campaigns"]["tick"];
 type RemarketingBatchInput = RouterInput["campaigns"]["remarketingBatchReady"];
-type RemarketingBatchDispatchResult =
-  RouterOutput["campaigns"]["remarketingBatchDispatch"];
+type RemarketingBatchDispatchResult = RouterOutput["campaigns"]["remarketingBatchDispatch"];
 type CampaignListItem = RouterOutput["campaigns"]["list"]["campaigns"][number];
 export function CampaignsPage() {
   const campaigns = trpc.campaigns.list.useQuery();
@@ -52,8 +51,7 @@ export function CampaignsPage() {
   }, [safeCampaignId]);
   const selectedSafeCampaign = useMemo(
     () =>
-      campaigns.data?.campaigns.find((campaign) => campaign.id === selectedSafeCampaignId) ??
-      null,
+      campaigns.data?.campaigns.find((campaign) => campaign.id === selectedSafeCampaignId) ?? null,
     [campaigns.data?.campaigns, selectedSafeCampaignId],
   );
   const currentBatchInput = useMemo(
@@ -264,11 +262,21 @@ export function CampaignsPage() {
       confirmText: safeBatchConfirm,
     });
   };
+  const openCampaignTab = (tab: CampaignTab, campaignId?: number) => {
+    if (campaignId) {
+      setSafeCampaignId(String(campaignId));
+      setSafeConfirm("");
+      setGlobalTickConfirm("");
+      setSafeBatchConfirm("");
+      setBatchReadyKey(null);
+    }
+    setActiveTab(tab);
+  };
 
   if (builderImmersive) {
     return (
       <div className="nuoma-campaign-immersive">
-        <CampaignFlowBuilder onOpenCampaignTab={setActiveTab} />
+        <CampaignFlowBuilder onOpenCampaignTab={openCampaignTab} />
       </div>
     );
   }
@@ -289,7 +297,7 @@ export function CampaignsPage() {
             {selectedSafeCampaign ? (
               <p className="mt-2 font-mono text-[0.68rem] uppercase tracking-widest text-fg-dim">
                 Selecionada: {selectedSafeCampaign.name} · {selectedSafeCampaign.channel} ·{" "}
-                {selectedSafeCampaign.status}
+                {campaignStatusLabel(selectedSafeCampaign.status)}
               </p>
             ) : (
               <p className="mt-2 font-mono text-[0.68rem] uppercase tracking-widest text-semantic-warning">
@@ -301,7 +309,11 @@ export function CampaignsPage() {
             <Button
               variant="soft"
               size="sm"
-              loading={selectedSafeCampaignId ? isCampaignTickPending(selectedSafeCampaignId, true) : isGlobalTickPending(true)}
+              loading={
+                selectedSafeCampaignId
+                  ? isCampaignTickPending(selectedSafeCampaignId, true)
+                  : isGlobalTickPending(true)
+              }
               disabled={!selectedSafeCampaignId}
               onClick={() => {
                 if (!selectedSafeCampaignId) return;
@@ -456,6 +468,16 @@ export function CampaignsPage() {
       </Tabs>
     </div>
   );
+}
+
+function campaignStatusLabel(status: string): string {
+  if (status === "running") return "em execução";
+  if (status === "scheduled") return "agendada";
+  if (status === "paused") return "pausada";
+  if (status === "draft") return "rascunho";
+  if (status === "completed") return "concluída";
+  if (status === "cancelled") return "cancelada";
+  return status;
 }
 
 function usePageIntent() {

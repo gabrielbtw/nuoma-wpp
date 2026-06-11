@@ -185,12 +185,34 @@ function createV1Fixture(dbPath: string, input: { activeJob: boolean }) {
       `INSERT INTO conversations
        (id, contact_id, wa_chat_id, title, unread_count, last_message_preview, last_message_at, status, created_at, updated_at, channel, external_thread_id)
        VALUES (?, ?, ?, ?, 0, ?, ?, 'open', ?, ?, ?, ?)`,
-    ).run("v1conv1", "c1", "5531982066263", "Gabriel", "Oi", now, now, now, "whatsapp", "5531982066263");
+    ).run(
+      "v1conv1",
+      "c1",
+      "5531982066263",
+      "Gabriel",
+      "Oi",
+      now,
+      now,
+      now,
+      "whatsapp",
+      "5531982066263",
+    );
     db.prepare(
       `INSERT INTO conversations
        (id, contact_id, wa_chat_id, title, unread_count, last_message_preview, last_message_at, status, created_at, updated_at, channel, external_thread_id)
        VALUES (?, ?, ?, ?, 0, ?, ?, 'open', ?, ?, ?, ?)`,
-    ).run("v1conv2", "c2", "instagram:nuoma", "Instagram Lead", "DM", now, now, now, "instagram", "nuoma");
+    ).run(
+      "v1conv2",
+      "c2",
+      "instagram:nuoma",
+      "Instagram Lead",
+      "DM",
+      now,
+      now,
+      now,
+      "instagram",
+      "nuoma",
+    );
     db.prepare(
       `INSERT INTO messages
        (id, conversation_id, contact_id, direction, content_type, body, external_id, status, sent_at, created_at, channel)
@@ -206,8 +228,12 @@ function createV1Fixture(dbPath: string, input: { activeJob: boolean }) {
        (id, sha256, original_name, safe_name, mime_type, size_bytes, category, storage_path, created_at)
        VALUES ('media1', ?, 'doc.pdf', 'doc.pdf', 'application/pdf', 10, 'document', '/tmp/doc.pdf', ?)`,
     ).run("a".repeat(64), now);
-    db.prepare("INSERT INTO campaigns (id, name, status) VALUES ('camp1', 'Smoke', 'completed')").run();
-    db.prepare("INSERT INTO campaign_steps (id, campaign_id, type) VALUES ('step1', 'camp1', 'text')").run();
+    db.prepare(
+      "INSERT INTO campaigns (id, name, status) VALUES ('camp1', 'Smoke', 'completed')",
+    ).run();
+    db.prepare(
+      "INSERT INTO campaign_steps (id, campaign_id, type) VALUES ('step1', 'camp1', 'text')",
+    ).run();
     db.prepare(
       "INSERT INTO campaign_recipients (id, campaign_id, status) VALUES ('rec1', 'camp1', 'sent')",
     ).run();

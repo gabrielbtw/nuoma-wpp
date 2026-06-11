@@ -9,8 +9,8 @@ module.exports = {
       args: "run start --workspace @nuoma/web-app",
       max_memory_restart: "500M",
       env: {
-        NODE_ENV: "production"
-      }
+        NODE_ENV: "production",
+      },
     },
     {
       name: "wa-worker",
@@ -20,8 +20,8 @@ module.exports = {
       max_memory_restart: "900M",
       cron_restart: "0 4 * * *",
       env: {
-        NODE_ENV: "production"
-      }
+        NODE_ENV: "production",
+      },
     },
     {
       name: "scheduler",
@@ -30,8 +30,8 @@ module.exports = {
       args: "run start --workspace @nuoma/scheduler",
       max_memory_restart: "300M",
       env: {
-        NODE_ENV: "production"
-      }
-    }
-  ]
+        NODE_ENV: "production",
+      },
+    },
+  ],
 };

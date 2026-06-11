@@ -48,28 +48,30 @@ export async function listOverlayCampaignOptions(input: {
     : null;
   const campaigns = await input.repos.campaigns.list(input.userId);
   const evaluated = await Promise.all(
-    campaigns.filter((campaign) => isOverlayEnabled(campaign.metadata)).map(async (campaign) => {
-      const existingRecipients = await input.repos.campaignRecipients.listByCampaign({
-        userId: input.userId,
-        campaignId: campaign.id,
-        limit: 1_000,
-      });
-      const activePipeline = phone
-        ? await input.repos.campaignRecipients.findActiveByPhone({
-            userId: input.userId,
-            phone,
-            channel: "whatsapp",
-          })
-        : null;
-      return evaluateOverlayCampaign({
-        campaign,
-        phone,
-        contact,
-        existingRecipients,
-        activePipeline: Boolean(activePipeline),
-        sendPolicy: input.sendPolicy,
-      });
-    }),
+    campaigns
+      .filter((campaign) => isOverlayEnabled(campaign.metadata))
+      .map(async (campaign) => {
+        const existingRecipients = await input.repos.campaignRecipients.listByCampaign({
+          userId: input.userId,
+          campaignId: campaign.id,
+          limit: 1_000,
+        });
+        const activePipeline = phone
+          ? await input.repos.campaignRecipients.findActiveByPhone({
+              userId: input.userId,
+              phone,
+              channel: "whatsapp",
+            })
+          : null;
+        return evaluateOverlayCampaign({
+          campaign,
+          phone,
+          contact,
+          existingRecipients,
+          activePipeline: Boolean(activePipeline),
+          sendPolicy: input.sendPolicy,
+        });
+      }),
   );
 
   return evaluated

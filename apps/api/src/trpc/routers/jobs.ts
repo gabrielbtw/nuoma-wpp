@@ -42,11 +42,7 @@ export const jobsRouter = router({
     }),
 
   cleanup: adminCsrfProcedure
-    .input(
-      z
-        .object({ olderThanDays: z.number().int().min(1).max(365).optional() })
-        .optional(),
-    )
+    .input(z.object({ olderThanDays: z.number().int().min(1).max(365).optional() }).optional())
     .mutation(async ({ ctx, input }) => {
       const days = input?.olderThanDays ?? 30;
       const olderThan = new Date(Date.now() - days * 24 * 60 * 60 * 1000);

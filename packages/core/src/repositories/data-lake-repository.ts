@@ -83,7 +83,7 @@ function mapSource(row: Record<string, unknown>): DataLakeSourceRecord {
     lastScanAt: (row.last_scan_at as string | null) ?? null,
     config: parseJson<Record<string, unknown>>(row.config_json as string | null, {}),
     createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at)
+    updatedAt: String(row.updated_at),
   };
 }
 
@@ -112,7 +112,7 @@ function mapAsset(row: Record<string, unknown>): DataLakeAssetRecord {
     capturedAt: (row.captured_at as string | null) ?? null,
     metadata: parseJson<Record<string, unknown>>(row.metadata_json as string | null, {}),
     createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at)
+    updatedAt: String(row.updated_at),
   };
 }
 
@@ -122,16 +122,31 @@ function mapReport(row: Record<string, unknown>): DataLakeReportRecord {
     status: String(row.status),
     sourceScope: String(row.source_scope),
     summaryText: String(row.summary_text ?? ""),
-    topKeywords: parseJson<Array<Record<string, unknown>>>(row.top_keywords_json as string | null, []),
-    topBigrams: parseJson<Array<Record<string, unknown>>>(row.top_bigrams_json as string | null, []),
-    topSenders: parseJson<Array<Record<string, unknown>>>(row.top_senders_json as string | null, []),
-    topThreads: parseJson<Array<Record<string, unknown>>>(row.top_threads_json as string | null, []),
-    intentSignals: parseJson<Array<Record<string, unknown>>>(row.intent_signals_json as string | null, []),
+    topKeywords: parseJson<Array<Record<string, unknown>>>(
+      row.top_keywords_json as string | null,
+      [],
+    ),
+    topBigrams: parseJson<Array<Record<string, unknown>>>(
+      row.top_bigrams_json as string | null,
+      [],
+    ),
+    topSenders: parseJson<Array<Record<string, unknown>>>(
+      row.top_senders_json as string | null,
+      [],
+    ),
+    topThreads: parseJson<Array<Record<string, unknown>>>(
+      row.top_threads_json as string | null,
+      [],
+    ),
+    intentSignals: parseJson<Array<Record<string, unknown>>>(
+      row.intent_signals_json as string | null,
+      [],
+    ),
     timeline: parseJson<Array<Record<string, unknown>>>(row.timeline_json as string | null, []),
     totals: parseJson<Record<string, unknown>>(row.totals_json as string | null, {}),
     metadata: parseJson<Record<string, unknown>>(row.metadata_json as string | null, {}),
     createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at)
+    updatedAt: String(row.updated_at),
   };
 }
 
@@ -145,7 +160,9 @@ export function upsertDataLakeSource(input: {
   config?: Record<string, unknown>;
 }) {
   const db = getDb();
-  const existing = db.prepare("SELECT * FROM data_lake_sources WHERE id = ?").get(input.id) as Record<string, unknown> | undefined;
+  const existing = db.prepare("SELECT * FROM data_lake_sources WHERE id = ?").get(input.id) as
+    | Record<string, unknown>
+    | undefined;
   const timestamp = nowIso();
 
   if (existing) {
@@ -161,7 +178,7 @@ export function upsertDataLakeSource(input: {
           config_json = ?,
           updated_at = ?
         WHERE id = ?
-      `
+      `,
     ).run(
       input.sourceType,
       input.label,
@@ -170,7 +187,7 @@ export function upsertDataLakeSource(input: {
       input.lastScanAt ?? existing.last_scan_at ?? null,
       JSON.stringify(input.config ?? parseJson(existing.config_json as string | null, {})),
       timestamp,
-      input.id
+      input.id,
     );
   } else {
     db.prepare(
@@ -178,7 +195,7 @@ export function upsertDataLakeSource(input: {
         INSERT INTO data_lake_sources (
           id, source_type, label, root_path, status, last_scan_at, config_json, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `
+      `,
     ).run(
       input.id,
       input.sourceType,
@@ -188,7 +205,7 @@ export function upsertDataLakeSource(input: {
       input.lastScanAt ?? null,
       JSON.stringify(input.config ?? {}),
       timestamp,
-      timestamp
+      timestamp,
     );
   }
 
@@ -197,13 +214,17 @@ export function upsertDataLakeSource(input: {
 
 export function getDataLakeSourceById(sourceId: string) {
   const db = getDb();
-  const row = db.prepare("SELECT * FROM data_lake_sources WHERE id = ?").get(sourceId) as Record<string, unknown> | undefined;
+  const row = db.prepare("SELECT * FROM data_lake_sources WHERE id = ?").get(sourceId) as
+    | Record<string, unknown>
+    | undefined;
   return row ? mapSource(row) : null;
 }
 
 export function listDataLakeSources() {
   const db = getDb();
-  const rows = db.prepare("SELECT * FROM data_lake_sources ORDER BY label ASC").all() as Array<Record<string, unknown>>;
+  const rows = db.prepare("SELECT * FROM data_lake_sources ORDER BY label ASC").all() as Array<
+    Record<string, unknown>
+  >;
   return rows.map(mapSource);
 }
 
@@ -231,7 +252,9 @@ export function upsertDataLakeAsset(input: {
   metadata?: Record<string, unknown>;
 }) {
   const db = getDb();
-  const existing = db.prepare("SELECT * FROM data_lake_assets WHERE origin_key = ?").get(input.originKey) as Record<string, unknown> | undefined;
+  const existing = db
+    .prepare("SELECT * FROM data_lake_assets WHERE origin_key = ?")
+    .get(input.originKey) as Record<string, unknown> | undefined;
   const timestamp = nowIso();
 
   if (existing) {
@@ -261,7 +284,7 @@ export function upsertDataLakeAsset(input: {
           metadata_json = ?,
           updated_at = ?
         WHERE id = ?
-      `
+      `,
     ).run(
       input.sourceId ?? existing.source_id ?? null,
       input.sourceType,
@@ -284,7 +307,7 @@ export function upsertDataLakeAsset(input: {
       input.capturedAt ?? existing.captured_at ?? null,
       JSON.stringify(input.metadata ?? parseJson(existing.metadata_json as string | null, {})),
       timestamp,
-      existing.id
+      existing.id,
     );
 
     return getDataLakeAssetById(String(existing.id));
@@ -298,7 +321,7 @@ export function upsertDataLakeAsset(input: {
         transcript_text, summary_text, mime_type, size_bytes, sha256, original_path, storage_path, enrichment_status,
         enrichment_model, enrichment_error, captured_at, metadata_json, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `
+    `,
   ).run(
     id,
     input.sourceId ?? null,
@@ -323,7 +346,7 @@ export function upsertDataLakeAsset(input: {
     input.capturedAt ?? null,
     JSON.stringify(input.metadata ?? {}),
     timestamp,
-    timestamp
+    timestamp,
   );
 
   return getDataLakeAssetById(id);
@@ -331,7 +354,9 @@ export function upsertDataLakeAsset(input: {
 
 export function getDataLakeAssetById(assetId: string) {
   const db = getDb();
-  const row = db.prepare("SELECT * FROM data_lake_assets WHERE id = ?").get(assetId) as Record<string, unknown> | undefined;
+  const row = db.prepare("SELECT * FROM data_lake_assets WHERE id = ?").get(assetId) as
+    | Record<string, unknown>
+    | undefined;
   return row ? mapAsset(row) : null;
 }
 
@@ -364,7 +389,7 @@ export function listDataLakeAssets(filters?: {
         ${whereClause}
         ORDER BY datetime(COALESCE(captured_at, updated_at)) DESC, created_at DESC
         LIMIT ?
-      `
+      `,
     )
     .all(...params, limit) as Array<Record<string, unknown>>;
 
@@ -385,7 +410,7 @@ export function listDataLakeTextCorpus(limit = 5000) {
         ) <> ''
         ORDER BY datetime(COALESCE(captured_at, updated_at)) DESC, created_at DESC
         LIMIT ?
-      `
+      `,
     )
     .all(Math.max(1, Math.min(10000, limit))) as Array<Record<string, unknown>>;
 
@@ -414,7 +439,7 @@ export function createDataLakeReport(input: {
         id, status, source_scope, summary_text, top_keywords_json, top_bigrams_json, top_senders_json, top_threads_json,
         intent_signals_json, timeline_json, totals_json, metadata_json, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `
+    `,
   ).run(
     id,
     input.status ?? "ready",
@@ -429,7 +454,7 @@ export function createDataLakeReport(input: {
     JSON.stringify(input.totals ?? {}),
     JSON.stringify(input.metadata ?? {}),
     timestamp,
-    timestamp
+    timestamp,
   );
 
   return getDataLakeReportById(id);
@@ -437,7 +462,9 @@ export function createDataLakeReport(input: {
 
 export function getDataLakeReportById(reportId: string) {
   const db = getDb();
-  const row = db.prepare("SELECT * FROM data_lake_reports WHERE id = ?").get(reportId) as Record<string, unknown> | undefined;
+  const row = db.prepare("SELECT * FROM data_lake_reports WHERE id = ?").get(reportId) as
+    | Record<string, unknown>
+    | undefined;
   return row ? mapReport(row) : null;
 }
 

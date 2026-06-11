@@ -15,7 +15,7 @@ export function TagPill({
   muted,
   removable,
   onRemove,
-  className
+  className,
 }: {
   name: string;
   color?: string | null;
@@ -30,7 +30,7 @@ export function TagPill({
     : {
         color: resolvedColor,
         borderColor: withAlpha(resolvedColor, "55"),
-        backgroundColor: withAlpha(resolvedColor, "14")
+        backgroundColor: withAlpha(resolvedColor, "14"),
       };
 
   return (
@@ -38,19 +38,24 @@ export function TagPill({
       className={cn(
         "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium tracking-[0.01em] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
         muted ? "border-white/10 bg-white/6 text-slate-300" : undefined,
-        className
+        className,
       )}
       style={styles}
     >
       <span
         className="h-1.5 w-1.5 rounded-full"
         style={{
-          backgroundColor: muted ? "#94a3b8" : resolvedColor
+          backgroundColor: muted ? "#94a3b8" : resolvedColor,
         }}
       />
       <span>{name}</span>
       {removable ? (
-        <button type="button" className="rounded-full p-0.5 transition hover:bg-black/15" onClick={onRemove} aria-label={`Remover tag ${name}`}>
+        <button
+          type="button"
+          className="rounded-full p-0.5 transition hover:bg-black/15"
+          onClick={onRemove}
+          aria-label={`Remover tag ${name}`}
+        >
           <X className="h-3.5 w-3.5" />
         </button>
       ) : null}

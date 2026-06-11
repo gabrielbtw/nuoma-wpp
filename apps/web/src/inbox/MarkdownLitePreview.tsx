@@ -142,8 +142,7 @@ function renderBlock(block: MarkdownBlock, index: number): ReactNode {
             <span
               className={cn(
                 "mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent",
-                item.checked === true &&
-                  "h-3.5 w-3.5 rounded border border-accent bg-accent",
+                item.checked === true && "h-3.5 w-3.5 rounded border border-accent bg-accent",
                 item.checked === false &&
                   "h-3.5 w-3.5 rounded border border-contour-line bg-bg-base",
               )}

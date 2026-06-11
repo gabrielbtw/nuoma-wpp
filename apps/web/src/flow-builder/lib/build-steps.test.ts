@@ -33,13 +33,14 @@ describe("buildStep", () => {
       type: "text",
       template: "Oi",
     });
-    expect(buildStep(stepDraft({ type: "link", linkText: " Abrir ", url: " https://x.test " }), 1))
-      .toMatchObject({
-        type: "link",
-        text: "Abrir",
-        url: "https://x.test",
-        previewEnabled: true,
-      });
+    expect(
+      buildStep(stepDraft({ type: "link", linkText: " Abrir ", url: " https://x.test " }), 1),
+    ).toMatchObject({
+      type: "link",
+      text: "Abrir",
+      url: "https://x.test",
+      previewEnabled: true,
+    });
     expect(
       buildStep(stepDraft({ type: "temporary_messages", temporaryMessagesDuration: "7d" }), 1),
     ).toMatchObject({ type: "temporary_messages", duration: "7d" });
@@ -77,7 +78,13 @@ describe("buildStep", () => {
     const result = buildStepConditions(
       stepDraft({
         conditions: [
-          { id: "c1", type: "has_tag", action: "branch", value: " vip ", targetStepId: " step 2!* " },
+          {
+            id: "c1",
+            type: "has_tag",
+            action: "branch",
+            value: " vip ",
+            targetStepId: " step 2!* ",
+          },
           { id: "c2", type: "replied", action: "exit", value: "", targetStepId: "ignored" },
         ],
       }),

@@ -8,7 +8,7 @@ import {
   getContactByInstagram,
   getContactByPhone,
   removeTagFromContact,
-  updateAssistedContact
+  updateAssistedContact,
 } from "../repositories/contact-repository.js";
 import {
   advanceCampaignRecipient,
@@ -20,9 +20,12 @@ import {
   markCampaignRecipientFailed,
   markCampaignRecipientProcessing,
   setCampaignStatus,
-  updateCampaignRecipientContact
+  updateCampaignRecipientContact,
 } from "../repositories/campaign-repository.js";
-import { getInstagramThreadIdForContact, isContactChannelValueInactive } from "../repositories/contact-channel-repository.js";
+import {
+  getInstagramThreadIdForContact,
+  isContactChannelValueInactive,
+} from "../repositories/contact-channel-repository.js";
 import { getLatestConversationForContactChannel } from "../repositories/conversation-repository.js";
 import { enqueueJob } from "../repositories/job-repository.js";
 import { getWorkerState, recordSystemEvent } from "../repositories/system-repository.js";
@@ -32,7 +35,13 @@ import { loadEnv } from "../config/env.js";
 import type { ChannelType, ContactInput, ContactRecord } from "../types/domain.js";
 import { looksLikeValidWhatsAppCandidate, normalizeInstagramHandle } from "../utils/phone.js";
 import { resolveTemplateVars } from "../utils/template-vars.js";
-import { addMinutes, addSeconds, isWithinTimeWindow, nextWindowStartIso, randomBetween } from "../utils/time.js";
+import {
+  addMinutes,
+  addSeconds,
+  isWithinTimeWindow,
+  nextWindowStartIso,
+  randomBetween,
+} from "../utils/time.js";
 
 const hhmmPattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
@@ -83,7 +92,7 @@ function countRecentCampaignMessages(windowMinutes: number, channel: ChannelType
           AND channel = ?
           AND datetime(created_at) >= datetime('now', '-' || ? || ' minutes')
           AND meta_json LIKE '%"source":"campaign"%'
-      `
+      `,
     )
     .get(channel, windowMinutes) as { count: number };
 
@@ -94,7 +103,11 @@ const STATE_FRESHNESS_SECONDS = 120; // Consider state stale after 2 minutes
 
 function isStateFresh(state: Record<string, unknown> | null): boolean {
   if (!state) return false;
-  const updatedAt = String((state as Record<string, unknown>).updatedAt ?? (state as Record<string, unknown>).updated_at ?? "");
+  const updatedAt = String(
+    (state as Record<string, unknown>).updatedAt ??
+      (state as Record<string, unknown>).updated_at ??
+      "",
+  );
   if (!updatedAt) return false;
   const ageMs = Date.now() - new Date(updatedAt).getTime();
   return ageMs < STATE_FRESHNESS_SECONDS * 1000;
@@ -104,14 +117,18 @@ function getChannelAvailability(channel: ChannelType) {
   if (channel === "whatsapp") {
     const state = getWorkerState("wa-worker");
     if (!isStateFresh(state as Record<string, unknown> | null)) return false; // Stale state = unavailable
-    const payload = state?.value && typeof state.value === "object" ? (state.value as Record<string, unknown>) : {};
+    const payload =
+      state?.value && typeof state.value === "object"
+        ? (state.value as Record<string, unknown>)
+        : {};
     const status = String(payload.status ?? "");
     return status === "authenticated" || status === "degraded";
   }
 
   const state = getWorkerState("instagram-assisted");
   // Freshness check relaxed for Instagram assisted mode (state updates every heartbeat)
-  const payload = state?.value && typeof state.value === "object" ? (state.value as Record<string, unknown>) : {};
+  const payload =
+    state?.value && typeof state.value === "object" ? (state.value as Record<string, unknown>) : {};
   return payload.authenticated === true || payload.status === "connected";
 }
 
@@ -120,13 +137,24 @@ function normalizeInstagramDisplay(input?: string | null) {
   return normalized ? `@${normalized}` : null;
 }
 
-function buildContactInputFromRecipient(recipient: CampaignRecipientRow, existing?: ContactRecord | null): ContactInput & { syncWhatsAppChannel?: boolean } {
+function buildContactInputFromRecipient(
+  recipient: CampaignRecipientRow,
+  existing?: ContactRecord | null,
+): ContactInput & { syncWhatsAppChannel?: boolean } {
   const phone = recipient.phone?.trim() ?? "";
   const instagram =
     normalizeInstagramDisplay(recipient.instagram) ??
-    (recipient.channel === "instagram" ? normalizeInstagramDisplay(recipient.target_normalized_value) : null);
+    (recipient.channel === "instagram"
+      ? normalizeInstagramDisplay(recipient.target_normalized_value)
+      : null);
   const tags = parseJsonArray(recipient.tags_json);
-  const name = recipient.name?.trim() || existing?.name || recipient.target_display_value?.trim() || instagram || phone || "Contato campanha";
+  const name =
+    recipient.name?.trim() ||
+    existing?.name ||
+    recipient.target_display_value?.trim() ||
+    instagram ||
+    phone ||
+    "Contato campanha";
   const syncWhatsAppChannel = Boolean(phone && looksLikeValidWhatsAppCandidate(phone));
 
   return {
@@ -142,7 +170,7 @@ function buildContactInputFromRecipient(recipient: CampaignRecipientRow, existin
     tags: existing?.tags ?? tags,
     lastInteractionAt: existing?.lastInteractionAt ?? null,
     lastProcedureAt: existing?.lastProcedureAt ?? null,
-    syncWhatsAppChannel
+    syncWhatsAppChannel,
   };
 }
 
@@ -160,7 +188,9 @@ function ensureCampaignRecipientContact(recipient: CampaignRecipientRow) {
     (recipient.contact_id ? getContactById(recipient.contact_id) : null) ??
     (recipient.phone ? getContactByPhone(recipient.phone) : null) ??
     (recipient.instagram ? getContactByInstagram(recipient.instagram) : null) ??
-    (recipient.channel === "instagram" && recipient.target_normalized_value ? getContactByInstagram(recipient.target_normalized_value) : null);
+    (recipient.channel === "instagram" && recipient.target_normalized_value
+      ? getContactByInstagram(recipient.target_normalized_value)
+      : null);
 
   if (!contact) {
     const input = buildContactInputFromRecipient(recipient);
@@ -170,9 +200,9 @@ function ensureCampaignRecipientContact(recipient: CampaignRecipientRow) {
         : createContact(
             {
               ...input,
-              phone: recipient.phone?.trim() ?? input.phone
+              phone: recipient.phone?.trim() ?? input.phone,
             },
-            "campaign"
+            "campaign",
           );
   } else {
     const input = buildContactInputFromRecipient(recipient, contact);
@@ -195,7 +225,10 @@ function ensureCampaignRecipientContact(recipient: CampaignRecipientRow) {
   return getContactById(contact.id) ?? contact;
 }
 
-function resolveRecipientExternalThreadId(recipient: CampaignRecipientRow, contact: ContactRecord | null) {
+function resolveRecipientExternalThreadId(
+  recipient: CampaignRecipientRow,
+  contact: ContactRecord | null,
+) {
   if (recipient.channel === "whatsapp") {
     return recipient.target_normalized_value ?? recipient.phone;
   }
@@ -204,7 +237,11 @@ function resolveRecipientExternalThreadId(recipient: CampaignRecipientRow, conta
     return null;
   }
 
-  return getLatestConversationForContactChannel(contact.id, "instagram")?.externalThreadId ?? getInstagramThreadIdForContact(contact.id) ?? null;
+  return (
+    getLatestConversationForContactChannel(contact.id, "instagram")?.externalThreadId ??
+    getInstagramThreadIdForContact(contact.id) ??
+    null
+  );
 }
 
 export function getCampaignActivationIssues(campaignId: string) {
@@ -249,7 +286,9 @@ export function getCampaignActivationIssues(campaignId: string) {
     const hasMedia = Boolean(step.mediaPath);
 
     if (step.channelScope !== "any" && !campaign.eligibleChannels.includes(step.channelScope)) {
-      issues.push(`${label}: o escopo da etapa precisa estar entre os canais elegíveis da campanha.`);
+      issues.push(
+        `${label}: o escopo da etapa precisa estar entre os canais elegíveis da campanha.`,
+      );
     }
 
     if (step.type === "wait") {
@@ -283,7 +322,9 @@ export function getCampaignActivationIssues(campaignId: string) {
       if (!attendant) {
         issues.push(`${label}: atendente selecionado nao encontrado. Reconfigure a voz.`);
       } else if (attendant.voiceSamples.length === 0) {
-        issues.push(`${label}: o atendente "${attendant.name}" nao possui amostras de voz. Envie ao menos uma amostra.`);
+        issues.push(
+          `${label}: o atendente "${attendant.name}" nao possui amostras de voz. Envie ao menos uma amostra.`,
+        );
       }
     }
   });
@@ -326,12 +367,20 @@ export function processCampaignTick() {
       continue;
     }
 
-    if (recipient.channel === "instagram" && isContactChannelValueInactive("instagram", recipient.target_normalized_value ?? recipient.instagram)) {
-      const instagramHandle = normalizeInstagramDisplay(recipient.target_normalized_value ?? recipient.instagram);
+    if (
+      recipient.channel === "instagram" &&
+      isContactChannelValueInactive(
+        "instagram",
+        recipient.target_normalized_value ?? recipient.instagram,
+      )
+    ) {
+      const instagramHandle = normalizeInstagramDisplay(
+        recipient.target_normalized_value ?? recipient.instagram,
+      );
       markCampaignRecipientFailed(
         recipient.id,
         `Perfil ${instagramHandle ?? "do Instagram"} marcado como inativo apos falha de validacao da URL.`,
-        "blocked_by_rule"
+        "blocked_by_rule",
       );
       continue;
     }
@@ -347,12 +396,22 @@ export function processCampaignTick() {
       continue;
     }
 
-    if (!isWithinTimeWindow(campaign.sendWindowStart, campaign.sendWindowEnd, env.DEFAULT_TIMEZONE)) {
-      advanceCampaignRecipient(recipient.id, recipient.step_index, nextWindowStartIso(campaign.sendWindowStart, campaign.sendWindowEnd, env.DEFAULT_TIMEZONE), "pending");
+    if (
+      !isWithinTimeWindow(campaign.sendWindowStart, campaign.sendWindowEnd, env.DEFAULT_TIMEZONE)
+    ) {
+      advanceCampaignRecipient(
+        recipient.id,
+        recipient.step_index,
+        nextWindowStartIso(campaign.sendWindowStart, campaign.sendWindowEnd, env.DEFAULT_TIMEZONE),
+        "pending",
+      );
       continue;
     }
 
-    if (countRecentCampaignMessages(campaign.rateLimitWindowMinutes, recipient.channel) >= campaign.rateLimitCount) {
+    if (
+      countRecentCampaignMessages(campaign.rateLimitWindowMinutes, recipient.channel) >=
+      campaign.rateLimitCount
+    ) {
       advanceCampaignRecipient(recipient.id, recipient.step_index, addMinutes(5), "pending");
       continue;
     }
@@ -369,7 +428,12 @@ export function processCampaignTick() {
     }
 
     if (step.type === "wait") {
-      advanceCampaignRecipient(recipient.id, recipient.step_index + 1, addMinutes(step.waitMinutes ?? 1), "pending");
+      advanceCampaignRecipient(
+        recipient.id,
+        recipient.step_index + 1,
+        addMinutes(step.waitMinutes ?? 1),
+        "pending",
+      );
       continue;
     }
 
@@ -406,8 +470,13 @@ export function processCampaignTick() {
         source: "campaign",
         channel: recipient.channel,
         externalThreadId: resolveRecipientExternalThreadId(recipient, contact),
-        recipientDisplayValue: recipient.target_display_value ?? recipient.name ?? recipient.phone ?? recipient.instagram,
-        recipientNormalizedValue: recipient.target_normalized_value ?? recipient.phone ?? recipient.instagram,
+        recipientDisplayValue:
+          recipient.target_display_value ??
+          recipient.name ??
+          recipient.phone ??
+          recipient.instagram,
+        recipientNormalizedValue:
+          recipient.target_normalized_value ?? recipient.phone ?? recipient.instagram,
         phone: recipient.phone,
         contactId: contact?.id ?? recipient.contact_id,
         recipientId: recipient.id,
@@ -416,9 +485,11 @@ export function processCampaignTick() {
         contentType: step.type,
         text: contact ? resolveTemplateVars(step.content, contact) : step.content,
         mediaPath: step.mediaPath,
-        caption: contact ? resolveTemplateVars(step.caption || step.content, contact) : (step.caption || step.content),
-        attendantId: step.attendantId ?? null
-      }
+        caption: contact
+          ? resolveTemplateVars(step.caption || step.content, contact)
+          : step.caption || step.content,
+        attendantId: step.attendantId ?? null,
+      },
     });
 
     markCampaignRecipientProcessing(recipient.id);
@@ -426,7 +497,7 @@ export function processCampaignTick() {
       campaignId: recipient.campaign_id,
       recipientId: recipient.id,
       channel: recipient.channel,
-      jobId
+      jobId,
     });
     queued += 1;
   }

@@ -28,7 +28,9 @@ async function main() {
   const sendJobsDelta = sendJobsAfter - sendJobsBefore;
 
   if (sendJobsDelta !== 0) {
-    throw new Error(`overlay smoke changed active send jobs: before=${sendJobsBefore} after=${sendJobsAfter}`);
+    throw new Error(
+      `overlay smoke changed active send jobs: before=${sendJobsBefore} after=${sendJobsAfter}`,
+    );
   }
 
   console.log(

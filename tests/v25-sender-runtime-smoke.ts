@@ -71,9 +71,12 @@ async function main() {
     });
     const noRuntimeProcessed = await noRuntimeLoop.processOne();
     assert(noRuntimeProcessed === false, "send job was claimed without connected runtime");
-    assert((await repos.jobs.list(user.id, "queued")).some((job) => job.id === noRuntimeJob.id), {
-      message: "no-runtime job did not remain queued",
-    });
+    assert(
+      (await repos.jobs.list(user.id, "queued")).some((job) => job.id === noRuntimeJob.id),
+      {
+        message: "no-runtime job did not remain queued",
+      },
+    );
     db.raw.prepare("DELETE FROM jobs WHERE id = ?").run(noRuntimeJob.id);
 
     const allowedJob = await repos.jobs.create({
@@ -156,9 +159,15 @@ async function main() {
     assert(sendCalls[0]?.phone === "5531982066263", "allowed send phone mismatch");
 
     const completed = await repos.jobs.list(user.id, "completed");
-    assert(completed.some((job) => job.id === allowedJob.id), "allowed job was not completed");
+    assert(
+      completed.some((job) => job.id === allowedJob.id),
+      "allowed job was not completed",
+    );
     const dead = await repos.jobs.listDead(user.id);
-    assert(dead.some((job) => job.originalJobId === blockedJob.id), "blocked job did not enter DLQ");
+    assert(
+      dead.some((job) => job.originalJobId === blockedJob.id),
+      "blocked job did not enter DLQ",
+    );
 
     const allowedEvents = await repos.systemEvents.list({
       userId: user.id,
@@ -180,7 +189,9 @@ async function main() {
       message: "blocked event reason mismatch",
     });
 
-    console.log("v25-sender-runtime|claim_guard=ok|send=ok|allowlist_block=ok|dlq=ok|status=closed");
+    console.log(
+      "v25-sender-runtime|claim_guard=ok|send=ok|allowlist_block=ok|dlq=ok|status=closed",
+    );
   } finally {
     db.close();
     await fs.rm(tempDir, { recursive: true, force: true });

@@ -2,13 +2,13 @@
 
 Medição em 2026-06-11:
 
-| Arquivo/grupo | Antes | Depois implementado |
-| --- | ---: | ---: |
-| `CLAUDE.md` | 9.650 chars / 1.221 palavras | 2.254 chars / 293 palavras |
-| `AGENTS.md` | 11.621 chars / 1.577 palavras | 5.496 chars / 677 palavras |
-| `.claude/skills/*.md` | 64.403 chars / 8.689 palavras | 10.312 chars / 1.325 palavras |
+| Arquivo/grupo                     |                          Antes |           Depois implementado |
+| --------------------------------- | -----------------------------: | ----------------------------: |
+| `CLAUDE.md`                       |   9.650 chars / 1.221 palavras |    2.254 chars / 293 palavras |
+| `AGENTS.md`                       |  11.621 chars / 1.577 palavras |    5.496 chars / 677 palavras |
+| `.claude/skills/*.md`             |  64.403 chars / 8.689 palavras | 10.312 chars / 1.325 palavras |
 | Base local `CLAUDE+AGENTS+skills` | 85.674 chars / 11.487 palavras | 18.062 chars / 2.295 palavras |
-| `~/.claude/CLAUDE.md` | inexistente | inexistente |
+| `~/.claude/CLAUDE.md`             |                    inexistente |                   inexistente |
 
 ## O que fica injetado
 

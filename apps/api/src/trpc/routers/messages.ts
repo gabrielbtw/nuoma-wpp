@@ -19,7 +19,6 @@ import { protectedCsrfProcedure, protectedProcedure, router } from "../init.js";
 
 const createMessageBodySchema = createMessageInputSchema.omit({ userId: true });
 const updateMessageBodySchema = updateMessageInputSchema.omit({ userId: true });
-const manualSendAllowedPhone = "5531982066263";
 const clientNonceSchema = z.string().min(8).max(128).optional();
 const instagramSendWindowMs = 24 * 60 * 60 * 1000;
 
@@ -65,36 +64,32 @@ export const messagesRouter = router({
       return { message };
     }),
 
-  create: protectedCsrfProcedure
-    .input(createMessageBodySchema)
-    .mutation(async ({ ctx, input }) => {
-      const conversation = await ctx.repos.conversations.findById({
-        userId: ctx.user.id,
-        id: input.conversationId,
-      });
-      if (!conversation) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found" });
-      }
-      const message = await ctx.repos.messages.create({
-        ...input,
-        userId: ctx.user.id,
-        contactId: input.contactId ?? conversation.contactId,
-        body: input.body ?? null,
-        media: input.media ?? null,
-        raw: input.raw ?? null,
-      });
-      return { message };
-    }),
+  create: protectedCsrfProcedure.input(createMessageBodySchema).mutation(async ({ ctx, input }) => {
+    const conversation = await ctx.repos.conversations.findById({
+      userId: ctx.user.id,
+      id: input.conversationId,
+    });
+    if (!conversation) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Conversation not found" });
+    }
+    const message = await ctx.repos.messages.create({
+      ...input,
+      userId: ctx.user.id,
+      contactId: input.contactId ?? conversation.contactId,
+      body: input.body ?? null,
+      media: input.media ?? null,
+      raw: input.raw ?? null,
+    });
+    return { message };
+  }),
 
-  update: protectedCsrfProcedure
-    .input(updateMessageBodySchema)
-    .mutation(async ({ ctx, input }) => {
-      const message = await ctx.repos.messages.update({
-        ...input,
-        userId: ctx.user.id,
-      });
-      return { message };
-    }),
+  update: protectedCsrfProcedure.input(updateMessageBodySchema).mutation(async ({ ctx, input }) => {
+    const message = await ctx.repos.messages.update({
+      ...input,
+      userId: ctx.user.id,
+    });
+    return { message };
+  }),
 
   softDelete: protectedCsrfProcedure
     .input(z.object({ id: z.number().int().positive() }))
@@ -150,10 +145,7 @@ export const messagesRouter = router({
 
       const job = await ctx.repos.jobs.create({
         userId: ctx.user.id,
-        type:
-          conversation.channel === "instagram"
-            ? "send_instagram_message"
-            : "send_message",
+        type: conversation.channel === "instagram" ? "send_instagram_message" : "send_message",
         status: "queued",
         payload: {
           conversationId: conversation.id,
@@ -344,12 +336,6 @@ function assertApiSendAllowed(
   env: Parameters<typeof resolveApiSendPolicy>[0],
   phone: string | null,
 ): asserts phone is string {
-  if (phone !== manualSendAllowedPhone) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: `Envio bloqueado pela allowlist da API: manual_target_not_${manualSendAllowedPhone}`,
-    });
-  }
   const decision = evaluateApiRealSendTarget(resolveApiSendPolicy(env), phone ?? "");
   if (!decision.allowed) {
     throw new TRPCError({

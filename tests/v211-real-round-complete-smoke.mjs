@@ -66,7 +66,10 @@ function mediaSeedParts() {
   return {
     photoColor: `0x${digest.slice(0, 6)}`,
     videoColor: `0x${digest.slice(6, 12)}`,
-    albumColors: Array.from({ length: 5 }, (_, index) => `0x${digest.slice(12 + index * 4, 18 + index * 4).padEnd(6, "0")}`),
+    albumColors: Array.from(
+      { length: 5 },
+      (_, index) => `0x${digest.slice(12 + index * 4, 18 + index * 4).padEnd(6, "0")}`,
+    ),
     audioFrequency1: 440 + (parseInt(digest.slice(32, 36), 16) % 360),
     audioFrequency2: 760 + (parseInt(digest.slice(36, 40), 16) % 360),
   };
@@ -91,9 +94,19 @@ async function generateMediaFiles() {
   const videoPath = path.join(mediaDir, `${tokens.video}.mp4`);
   const audio1Path = path.join(mediaDir, `${tokens.audio1}.wav`);
   const audio2Path = path.join(mediaDir, `${tokens.audio2}.wav`);
-  const albumPaths = Array.from({ length: 5 }, (_, index) => path.join(mediaDir, `${tokens.album}-${index + 1}.jpg`));
+  const albumPaths = Array.from({ length: 5 }, (_, index) =>
+    path.join(mediaDir, `${tokens.album}-${index + 1}.jpg`),
+  );
 
-  await runFfmpeg(["-f", "lavfi", "-i", `color=c=${seed.photoColor}:s=960x1280:d=1`, "-frames:v", "1", photoPath]);
+  await runFfmpeg([
+    "-f",
+    "lavfi",
+    "-i",
+    `color=c=${seed.photoColor}:s=960x1280:d=1`,
+    "-frames:v",
+    "1",
+    photoPath,
+  ]);
   await runFfmpeg([
     "-f",
     "lavfi",
@@ -114,10 +127,42 @@ async function generateMediaFiles() {
     "-shortest",
     videoPath,
   ]);
-  await runFfmpeg(["-f", "lavfi", "-i", `sine=frequency=${seed.audioFrequency1}:duration=2`, "-ac", "1", "-ar", "48000", "-c:a", "pcm_s16le", audio1Path]);
-  await runFfmpeg(["-f", "lavfi", "-i", `sine=frequency=${seed.audioFrequency2}:duration=2`, "-ac", "1", "-ar", "48000", "-c:a", "pcm_s16le", audio2Path]);
+  await runFfmpeg([
+    "-f",
+    "lavfi",
+    "-i",
+    `sine=frequency=${seed.audioFrequency1}:duration=2`,
+    "-ac",
+    "1",
+    "-ar",
+    "48000",
+    "-c:a",
+    "pcm_s16le",
+    audio1Path,
+  ]);
+  await runFfmpeg([
+    "-f",
+    "lavfi",
+    "-i",
+    `sine=frequency=${seed.audioFrequency2}:duration=2`,
+    "-ac",
+    "1",
+    "-ar",
+    "48000",
+    "-c:a",
+    "pcm_s16le",
+    audio2Path,
+  ]);
   for (let index = 0; index < albumPaths.length; index += 1) {
-    await runFfmpeg(["-f", "lavfi", "-i", `color=c=${seed.albumColors[index]}:s=960x1280:d=1`, "-frames:v", "1", albumPaths[index]]);
+    await runFfmpeg([
+      "-f",
+      "lavfi",
+      "-i",
+      `color=c=${seed.albumColors[index]}:s=960x1280:d=1`,
+      "-frames:v",
+      "1",
+      albumPaths[index],
+    ]);
   }
 
   return {
@@ -125,7 +170,9 @@ async function generateMediaFiles() {
     video: await mediaInput("video", "video/mp4", videoPath),
     audio1: await mediaInput("voice", "audio/wav", audio1Path, 2000),
     audio2: await mediaInput("voice", "audio/wav", audio2Path, 2000),
-    album: await Promise.all(albumPaths.map((filePath) => mediaInput("image", "image/jpeg", filePath))),
+    album: await Promise.all(
+      albumPaths.map((filePath) => mediaInput("image", "image/jpeg", filePath)),
+    ),
   };
 }
 
@@ -161,7 +208,14 @@ function seedConversation() {
          (user_id, name, phone, email, primary_channel, instagram_handle, status, notes, last_message_at, deleted_at, created_at, updated_at)
          VALUES (?, ?, ?, NULL, 'whatsapp', NULL, 'active', ?, NULL, NULL, ?, ?)`,
       )
-      .run(userId, `Smoke Canary ${phone}`, phone, "Contato canario para smoke real completo.", now, now);
+      .run(
+        userId,
+        `Smoke Canary ${phone}`,
+        phone,
+        "Contato canario para smoke real completo.",
+        now,
+        now,
+      );
     contact = { id: Number(result.lastInsertRowid), phone };
   }
 
@@ -305,7 +359,9 @@ async function waitJobCompleted(jobId, timeout, label) {
       throw new Error(`${label} job ${jobId} disappeared`);
     }
     if (job.status === "completed") {
-      console.log(`v211-real-round-complete|stage=job_completed|label=${label}|jobId=${jobId}|ig=nao_aplicavel`);
+      console.log(
+        `v211-real-round-complete|stage=job_completed|label=${label}|jobId=${jobId}|ig=nao_aplicavel`,
+      );
       return job;
     }
     if (["failed", "cancelled", "canceled", "dead"].includes(job.status)) {
@@ -368,7 +424,14 @@ function countMessages(direction, token, contentType = null) {
            AND (? IS NULL OR body LIKE ?)
            AND created_at >= datetime('now', '-30 minutes')`,
       )
-      .get(userId, direction, contentType, contentType, token ? `%${token}%` : null, token ? `%${token}%` : null)?.count ?? 0,
+      .get(
+        userId,
+        direction,
+        contentType,
+        contentType,
+        token ? `%${token}%` : null,
+        token ? `%${token}%` : null,
+      )?.count ?? 0,
   );
 }
 
@@ -424,12 +487,16 @@ async function captureWhatsAppProof(label, { tokensToFind = [], audioExternalIds
   }
   const browser = await chromium.connectOverCDP(cdpUrl);
   const context = browser.contexts()[0] ?? (await browser.newContext());
-  const page = context.pages().find((item) => item.url().startsWith("https://web.whatsapp.com")) ?? (await context.newPage());
+  const page =
+    context.pages().find((item) => item.url().startsWith("https://web.whatsapp.com")) ??
+    (await context.newPage());
   const onTargetChat = await page
     .evaluate((expectedPhone) => {
       const normalized = String(expectedPhone || "").replace(/\D/g, "");
       const hrefPhone = new URL(location.href).searchParams.get("phone")?.replace(/\D/g, "") ?? "";
-      const text = String(document.querySelector("#main header")?.textContent || document.body?.innerText || "");
+      const text = String(
+        document.querySelector("#main header")?.textContent || document.body?.innerText || "",
+      );
       return hrefPhone === normalized || text.replace(/\D/g, "").includes(normalized.slice(-8));
     }, phone)
     .catch(() => false);
@@ -451,29 +518,42 @@ async function captureWhatsAppProof(label, { tokensToFind = [], audioExternalIds
         function isVisible(node) {
           if (!node) return false;
           const rect = node.getBoundingClientRect();
-          return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.right > 0 && rect.top < window.innerHeight && rect.left < window.innerWidth;
+          return (
+            rect.width > 0 &&
+            rect.height > 0 &&
+            rect.bottom > 0 &&
+            rect.right > 0 &&
+            rect.top < window.innerHeight &&
+            rect.left < window.innerWidth
+          );
         }
-        const messageNodes = Array.from(document.querySelectorAll("#main .message-out, #main .message-in, #main [data-id]"));
+        const messageNodes = Array.from(
+          document.querySelectorAll("#main .message-out, #main .message-in, #main [data-id]"),
+        );
         const visibleTokens = expectedTokens.filter((token) =>
-          messageNodes.some((node) => isVisible(node) && String(node.textContent || "").includes(token)),
+          messageNodes.some(
+            (node) => isVisible(node) && String(node.textContent || "").includes(token),
+          ),
         );
         const audioEvidence = expectedAudioExternalIds.map((externalId) => {
           const audioNode =
-            externalId && window.CSS?.escape ? document.querySelector('[data-id="' + CSS.escape(externalId) + '"]') : null;
+            externalId && window.CSS?.escape
+              ? document.querySelector('[data-id="' + CSS.escape(externalId) + '"]')
+              : null;
           return Boolean(
             audioNode &&
-              isVisible(audioNode) &&
-              (audioNode.querySelector(
-                [
-                  '[data-icon="audio-play"]',
-                  '[data-icon="ptt"]',
-                  '[data-icon="status-v3-ptt"]',
-                  'button[aria-label*="Play"]',
-                  'button[aria-label*="Reproduzir"]',
-                  '[aria-valuemax]',
-                ].join(","),
-              ) ||
-                /\\b\\d{1,2}:\\d{2}\\b/.test(String(audioNode.textContent || ""))),
+            isVisible(audioNode) &&
+            (audioNode.querySelector(
+              [
+                '[data-icon="audio-play"]',
+                '[data-icon="ptt"]',
+                '[data-icon="status-v3-ptt"]',
+                'button[aria-label*="Play"]',
+                'button[aria-label*="Reproduzir"]',
+                "[aria-valuemax]",
+              ].join(","),
+            ) ||
+              /\\b\\d{1,2}:\\d{2}\\b/.test(String(audioNode.textContent || ""))),
           );
         });
         return {
@@ -500,7 +580,9 @@ async function captureWhatsAppProof(label, { tokensToFind = [], audioExternalIds
     throw new Error(`${label} WhatsApp visual proof was not evaluated`);
   }
   if (proof.missingTokens.length > 0) {
-    throw new Error(`${label} WhatsApp visual proof missing tokens: ${proof.missingTokens.join(", ")}`);
+    throw new Error(
+      `${label} WhatsApp visual proof missing tokens: ${proof.missingTokens.join(", ")}`,
+    );
   }
   if (!proof.audioEvidence.every(Boolean)) {
     throw new Error(`${label} WhatsApp visual proof missing audio bubble`);
@@ -529,7 +611,9 @@ async function captureApp() {
     }
     await page.goto(`${webUrl}/inbox`, { waitUntil: "domcontentloaded", timeout: 60_000 });
     await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => null);
-    const search = page.locator('input[type="search"], input[placeholder*="Buscar"], input[placeholder*="busca" i]').first();
+    const search = page
+      .locator('input[type="search"], input[placeholder*="Buscar"], input[placeholder*="busca" i]')
+      .first();
     if ((await search.count()) > 0) {
       await search.fill(phone);
       await page.waitForTimeout(1_000);
@@ -557,12 +641,52 @@ async function main() {
   }
 
   const results = [];
-  results.push(await sendAndWait(session, "text", "messages.send", { conversationId, body: `Smoke texto real ${tokens.text}` }, "sender.text_message.completed"));
-  results.push(await sendAndWait(session, "photo", "messages.sendMedia", { conversationId, mediaAssetId: photoAsset.id, caption: `Smoke texto com foto ${tokens.photo}` }, "sender.media_message.completed"));
-  results.push(await sendAndWait(session, "video", "messages.sendMedia", { conversationId, mediaAssetId: videoAsset.id, caption: `Smoke texto com video ${tokens.video}` }, "sender.media_message.completed"));
-  const albumJobId = enqueueDirectAlbumJob(conversationId, albumAssets, `Smoke envio de 5 fotos juntas ${tokens.album}`);
+  results.push(
+    await sendAndWait(
+      session,
+      "text",
+      "messages.send",
+      { conversationId, body: `Smoke texto real ${tokens.text}` },
+      "sender.text_message.completed",
+    ),
+  );
+  results.push(
+    await sendAndWait(
+      session,
+      "photo",
+      "messages.sendMedia",
+      {
+        conversationId,
+        mediaAssetId: photoAsset.id,
+        caption: `Smoke texto com foto ${tokens.photo}`,
+      },
+      "sender.media_message.completed",
+    ),
+  );
+  results.push(
+    await sendAndWait(
+      session,
+      "video",
+      "messages.sendMedia",
+      {
+        conversationId,
+        mediaAssetId: videoAsset.id,
+        caption: `Smoke texto com video ${tokens.video}`,
+      },
+      "sender.media_message.completed",
+    ),
+  );
+  const albumJobId = enqueueDirectAlbumJob(
+    conversationId,
+    albumAssets,
+    `Smoke envio de 5 fotos juntas ${tokens.album}`,
+  );
   await waitJobCompleted(albumJobId, timeoutMs, "album5");
-  const albumResult = await waitForSystemEvent(albumJobId, "sender.media_message.completed", "album5");
+  const albumResult = await waitForSystemEvent(
+    albumJobId,
+    "sender.media_message.completed",
+    "album5",
+  );
   if (albumResult.event.payload.mediaCount !== 5) {
     throw new Error(`album5_media_count_invalid:${albumResult.event.payload.mediaCount ?? "null"}`);
   }
@@ -570,13 +694,55 @@ async function main() {
     throw new Error("album5_sent_by_single_file_internal_fallback");
   }
   if ((albumResult.event.payload.previewAttachmentCount ?? 0) < 5) {
-    throw new Error(`album5_preview_attachment_count_invalid:${albumResult.event.payload.previewAttachmentCount ?? "null"}`);
+    throw new Error(
+      `album5_preview_attachment_count_invalid:${albumResult.event.payload.previewAttachmentCount ?? "null"}`,
+    );
   }
   results.push(albumResult);
-  results.push(await sendAndWait(session, "audio1", "messages.sendVoice", { conversationId, mediaAssetId: audio1Asset.id }, "sender.voice_message.completed", timeoutMs));
-  results.push(await sendAndWait(session, "audio2", "messages.sendVoice", { conversationId, mediaAssetId: audio2Asset.id }, "sender.voice_message.completed", timeoutMs));
-  results.push(await sendAndWait(session, "link", "messages.send", { conversationId, body: `Smoke link ${tokens.link} https://nuoma.local/smoke?token=${tokenRoot}` }, "sender.text_message.completed"));
-  results.push(await sendAndWait(session, "emoji", "messages.send", { conversationId, body: `Smoke emoji ${tokens.emoji} ${String.fromCodePoint(0x1f680)} ${String.fromCodePoint(0x1f44d)}` }, "sender.text_message.completed"));
+  results.push(
+    await sendAndWait(
+      session,
+      "audio1",
+      "messages.sendVoice",
+      { conversationId, mediaAssetId: audio1Asset.id },
+      "sender.voice_message.completed",
+      timeoutMs,
+    ),
+  );
+  results.push(
+    await sendAndWait(
+      session,
+      "audio2",
+      "messages.sendVoice",
+      { conversationId, mediaAssetId: audio2Asset.id },
+      "sender.voice_message.completed",
+      timeoutMs,
+    ),
+  );
+  results.push(
+    await sendAndWait(
+      session,
+      "link",
+      "messages.send",
+      {
+        conversationId,
+        body: `Smoke link ${tokens.link} https://nuoma.local/smoke?token=${tokenRoot}`,
+      },
+      "sender.text_message.completed",
+    ),
+  );
+  results.push(
+    await sendAndWait(
+      session,
+      "emoji",
+      "messages.send",
+      {
+        conversationId,
+        body: `Smoke emoji ${tokens.emoji} ${String.fromCodePoint(0x1f680)} ${String.fromCodePoint(0x1f44d)}`,
+      },
+      "sender.text_message.completed",
+    ),
+  );
 
   const dbChecks = {
     text: countMessages("outbound", tokens.text, "text"),
@@ -599,7 +765,14 @@ async function main() {
     .map((result) => result.event.payload.externalId)
     .filter(Boolean);
   const outboundProof = await captureWhatsAppProof("outbound", {
-    tokensToFind: [tokens.text, tokens.photo, tokens.video, tokens.album, tokens.link, tokens.emoji],
+    tokensToFind: [
+      tokens.text,
+      tokens.photo,
+      tokens.video,
+      tokens.album,
+      tokens.link,
+      tokens.emoji,
+    ],
     audioExternalIds,
   });
   await captureApp();
@@ -617,7 +790,9 @@ async function main() {
   );
   const inboundReceived = await waitForMessage("inbound", replyToken, inboundTimeoutMs);
   if (!inboundReceived) {
-    throw new Error(`inbound reply with token ${replyToken} was not received within ${inboundTimeoutMs}ms`);
+    throw new Error(
+      `inbound reply with token ${replyToken} was not received within ${inboundTimeoutMs}ms`,
+    );
   }
   const inboundProof = await captureWhatsAppProof("inbound", { tokensToFind: [replyToken] });
   const activeAfter = activeSendJobsCount();
@@ -648,6 +823,8 @@ main()
   })
   .catch((error) => {
     db.close();
-    console.error(`v211-real-round-complete|failed|phone=${phone}|tokenRoot=${tokenRoot}|replyToken=${replyToken}|ig=nao_aplicavel|error=${error.message}`);
+    console.error(
+      `v211-real-round-complete|failed|phone=${phone}|tokenRoot=${tokenRoot}|replyToken=${replyToken}|ig=nao_aplicavel|error=${error.message}`,
+    );
     process.exit(1);
   });

@@ -59,7 +59,9 @@ async function main() {
     try {
       const session = await app.inject({ method: "GET", url: "/instagram/session" });
       if (session.statusCode !== 200 || session.json().username !== "gabriell_braga") {
-        throw new Error(`unexpected Instagram session response: ${session.statusCode} ${session.body}`);
+        throw new Error(
+          `unexpected Instagram session response: ${session.statusCode} ${session.body}`,
+        );
       }
       const sync = await app.inject({
         method: "POST",

@@ -327,7 +327,14 @@ export const chatbotsRouter = router({
     }),
 
   summarizeVariantEvents: protectedProcedure
-    .input(z.object({ chatbotId: z.number().int().positive().optional(), ruleId: z.number().int().positive().optional() }).optional())
+    .input(
+      z
+        .object({
+          chatbotId: z.number().int().positive().optional(),
+          ruleId: z.number().int().positive().optional(),
+        })
+        .optional(),
+    )
     .query(async ({ ctx, input }) => {
       const variants = await ctx.repos.chatbots.summarizeVariantEvents({
         userId: ctx.user.id,

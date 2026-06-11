@@ -135,9 +135,7 @@ export const StatCard = forwardRef<HTMLDivElement, StatCardProps>(
           ) : (
             hint && <span className="text-xs text-ink-soft">{hint}</span>
           )}
-          {trend && trend.length > 1 && (
-            <Sparkline data={trend} stroke={TONE_STROKE[tone]} />
-          )}
+          {trend && trend.length > 1 && <Sparkline data={trend} stroke={TONE_STROKE[tone]} />}
         </div>
 
         {delta && hint && <span className="text-xs text-ink-soft">{hint}</span>}

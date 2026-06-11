@@ -29,7 +29,7 @@ export function listReplySuggestions(input?: { channel?: ChannelType | "all"; li
           AND a.enabled = 1
         ORDER BY datetime(a.updated_at) DESC, aa.sort_order ASC
         LIMIT 40
-      `
+      `,
     )
     .all() as Array<{ id: string; name: string; content: string }>;
 
@@ -43,7 +43,7 @@ export function listReplySuggestions(input?: { channel?: ChannelType | "all"; li
       id: `automation:${row.id}`,
       label: suggestionLabel("automation", row.name),
       content,
-      source: "automation"
+      source: "automation",
     });
   }
 
@@ -63,9 +63,15 @@ export function listReplySuggestions(input?: { channel?: ChannelType | "all"; li
           AND (? = 'all' OR cs.channel_scope IN ('any', ?))
         ORDER BY datetime(c.updated_at) DESC, cs.sort_order ASC
         LIMIT 40
-      `
+      `,
     )
-    .all(channel, channel) as Array<{ id: string; name: string; content: string; caption: string; channel_scope: string }>;
+    .all(channel, channel) as Array<{
+    id: string;
+    name: string;
+    content: string;
+    caption: string;
+    channel_scope: string;
+  }>;
 
   for (const row of campaignRows) {
     const content = normalizeSuggestionContent(row.content || row.caption);
@@ -77,7 +83,7 @@ export function listReplySuggestions(input?: { channel?: ChannelType | "all"; li
       id: `campaign:${row.id}`,
       label: suggestionLabel("campaign", row.name),
       content,
-      source: "campaign"
+      source: "campaign",
     });
   }
 

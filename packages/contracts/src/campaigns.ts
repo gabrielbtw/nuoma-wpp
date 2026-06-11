@@ -157,13 +157,16 @@ export type SegmentCondition = z.infer<typeof segmentConditionSchema>;
 export type Segment = z.infer<typeof segmentSchema>;
 export type CampaignStepCondition = z.infer<typeof campaignStepConditionSchema>;
 export type CampaignStep = z.infer<typeof campaignStepSchema>;
-export type CampaignTemporaryMessagesConfig = z.infer<
-  typeof campaignTemporaryMessagesConfigSchema
->;
+export type CampaignTemporaryMessagesConfig = z.infer<typeof campaignTemporaryMessagesConfigSchema>;
 export type Campaign = z.infer<typeof campaignSchema>;
 export type CreateCampaignInput = z.infer<typeof createCampaignInputSchema>;
 export type UpdateCampaignInput = z.infer<typeof updateCampaignInputSchema>;
 export type ListCampaignsFilter = z.infer<typeof listCampaignsFilterSchema>;
 export type CampaignRecipient = z.infer<typeof campaignRecipientSchema>;
 
-export const supportedCampaignMediaTypes = mediaAssetTypeSchema.extract(["voice", "document", "image", "video"]);
+export const supportedCampaignMediaTypes = mediaAssetTypeSchema.extract([
+  "voice",
+  "document",
+  "image",
+  "video",
+]);

@@ -14,7 +14,7 @@ function LogsPager({
   page,
   hasNext,
   onPrevious,
-  onNext
+  onNext,
 }: {
   page: number;
   hasNext: boolean;
@@ -68,9 +68,9 @@ export function LogsPage() {
     queryKey: ["logs", eventsPage, jobsPage],
     queryFn: () =>
       apiFetch<LogsResponse>(
-        `/logs?limit=${LOGS_PAGE_SIZE}&eventsOffset=${eventsPage * LOGS_PAGE_SIZE}&jobsOffset=${jobsPage * LOGS_PAGE_SIZE}`
+        `/logs?limit=${LOGS_PAGE_SIZE}&eventsOffset=${eventsPage * LOGS_PAGE_SIZE}&jobsOffset=${jobsPage * LOGS_PAGE_SIZE}`,
       ),
-    refetchInterval: autoRefresh ? 20_000 : false
+    refetchInterval: autoRefresh ? 20_000 : false,
   });
 
   const events = logsQuery.data?.events ?? [];
@@ -80,8 +80,9 @@ export function LogsPage() {
 
   const filteredEvents = useMemo(() => {
     let filtered = events;
-    if (levelFilter !== "all") filtered = filtered.filter(e => e.level === levelFilter);
-    if (searchTerm.trim()) filtered = filtered.filter(e => e.message.toLowerCase().includes(searchTerm.toLowerCase()));
+    if (levelFilter !== "all") filtered = filtered.filter((e) => e.level === levelFilter);
+    if (searchTerm.trim())
+      filtered = filtered.filter((e) => e.message.toLowerCase().includes(searchTerm.toLowerCase()));
     return filtered;
   }, [events, levelFilter, searchTerm]);
 
@@ -100,7 +101,12 @@ export function LogsPage() {
             <h3 className="text-label text-n-text">Eventos recentes</h3>
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-1.5 text-micro text-n-text-dim cursor-pointer">
-                <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} className="rounded" />
+                <input
+                  type="checkbox"
+                  checked={autoRefresh}
+                  onChange={(e) => setAutoRefresh(e.target.checked)}
+                  className="rounded"
+                />
                 Auto-refresh
               </label>
               <span className="text-micro text-n-text-dim">Max 20/pag</span>
@@ -110,9 +116,18 @@ export function LogsPage() {
           <div className="flex items-center gap-2 px-3 py-2 border-b border-n-border-subtle">
             <div className="relative flex-1 group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-n-text-dim" />
-              <Input className="h-8 pl-9 pr-3 text-caption" placeholder="Buscar nos logs..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              <Input
+                className="h-8 pl-9 pr-3 text-caption"
+                placeholder="Buscar nos logs..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-            <select className="h-8 rounded-xl border border-n-border bg-n-bg px-3 text-caption text-n-text-muted" value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)}>
+            <select
+              className="h-8 rounded-xl border border-n-border bg-n-bg px-3 text-caption text-n-text-muted"
+              value={levelFilter}
+              onChange={(e) => setLevelFilter(e.target.value)}
+            >
               <option value="all">Todos</option>
               <option value="error">Errors</option>
               <option value="warn">Warnings</option>
@@ -137,7 +152,9 @@ export function LogsPage() {
             ))}
             {!logsQuery.isLoading && filteredEvents.length === 0 ? (
               <div className="px-3 py-10 text-caption text-n-text-muted text-center">
-                {events.length === 0 ? "Nenhum evento encontrado." : "Nenhum evento corresponde aos filtros."}
+                {events.length === 0
+                  ? "Nenhum evento encontrado."
+                  : "Nenhum evento corresponde aos filtros."}
               </div>
             ) : null}
           </div>
@@ -170,7 +187,9 @@ export function LogsPage() {
                   </div>
                 </div>
                 <Badge
-                  tone={job.status === "done" ? "success" : job.status === "failed" ? "danger" : "info"}
+                  tone={
+                    job.status === "done" ? "success" : job.status === "failed" ? "danger" : "info"
+                  }
                   className="shrink-0 text-micro"
                 >
                   {job.status}

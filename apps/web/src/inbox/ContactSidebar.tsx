@@ -322,7 +322,6 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
       id: automationId,
       conversationId: conversation.id,
       dryRun,
-      allowedPhone: "5531982066263",
     });
   }
 
@@ -332,7 +331,6 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
       campaignId,
       conversationId: conversation.id,
       dryRun,
-      allowedPhone: "5531982066263",
       maxRecipients: 1,
     });
   }

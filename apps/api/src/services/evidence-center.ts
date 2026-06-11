@@ -59,7 +59,9 @@ interface EvidenceFile {
   updatedAt: string;
 }
 
-export async function listEvidenceCenter(input: { limit?: number } = {}): Promise<EvidenceCenterResult> {
+export async function listEvidenceCenter(
+  input: { limit?: number } = {},
+): Promise<EvidenceCenterResult> {
   const dataRoot = await resolveEvidenceDataRoot();
   const files = await listEvidenceFiles(dataRoot);
   const groups = await buildEvidenceGroups(files, input.limit ?? 80);
@@ -217,9 +219,7 @@ async function buildEvidenceGroups(files: EvidenceFile[], limit: number): Promis
     [...grouped.entries()].map(async ([key, groupFiles]) => buildEvidenceGroup(key, groupFiles)),
   );
 
-  return groups
-    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
-    .slice(0, limit);
+  return groups.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)).slice(0, limit);
 }
 
 async function buildEvidenceGroup(key: string, files: EvidenceFile[]): Promise<EvidenceGroup> {
@@ -234,9 +234,9 @@ async function buildEvidenceGroup(key: string, files: EvidenceFile[]): Promise<E
   const report = assets.find((asset) => asset.name.toLowerCase() === "report.md") ?? null;
   const evidenceJson = assets.find((asset) => asset.name.toLowerCase() === "evidence.json") ?? null;
   const cover = assets.find((asset) => asset.type === "image") ?? null;
-  const updatedAt = assets
-    .map((asset) => asset.updatedAt)
-    .sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? new Date(0).toISOString();
+  const updatedAt =
+    assets.map((asset) => asset.updatedAt).sort((a, b) => Date.parse(b) - Date.parse(a))[0] ??
+    new Date(0).toISOString();
   const markdownPreview = report
     ? await readMarkdownPreview(files.find((file) => file.relativePath === report.relativePath))
     : null;
@@ -267,8 +267,7 @@ function toEvidenceAsset(file: EvidenceFile): EvidenceAsset {
     name: file.name,
     relativePath: file.relativePath,
     routePath: `/api/evidence/file?path=${encodeURIComponent(encodeEvidencePath(file.relativePath))}`,
-    type:
-      file.extension === ".md" ? "markdown" : file.extension === ".json" ? "json" : "image",
+    type: file.extension === ".md" ? "markdown" : file.extension === ".json" ? "json" : "image",
     sizeBytes: file.sizeBytes,
     updatedAt: file.updatedAt,
   };
@@ -294,13 +293,13 @@ function assetRank(file: EvidenceFile): number {
   return 3;
 }
 
-function categoryFromKey(
-  key: string,
-  assets: EvidenceAsset[],
-): EvidenceGroup["category"] {
+function categoryFromKey(key: string, assets: EvidenceAsset[]): EvidenceGroup["category"] {
   const normalized = key.toLowerCase();
   if (normalized.includes("m303")) return "m303-proof";
-  if (normalized.includes("wpp") || assets.some((asset) => asset.name.toLowerCase().includes("wpp"))) {
+  if (
+    normalized.includes("wpp") ||
+    assets.some((asset) => asset.name.toLowerCase().includes("wpp"))
+  ) {
     return "wpp-smoke";
   }
   if (assets.some((asset) => asset.name.toLowerCase() === "report.md")) return "screen-smoke";

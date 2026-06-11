@@ -1,13 +1,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Clock, Globe2,
-  History, Instagram, LoaderCircle, MessageCircleMore, Power,
-  RefreshCw, Shield, Wifi, WifiOff, Zap
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Globe2,
+  History,
+  Instagram,
+  LoaderCircle,
+  MessageCircleMore,
+  Power,
+  RefreshCw,
+  Shield,
+  Wifi,
+  WifiOff,
+  Zap,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { formatChannelDisplayValue } from "@/lib/contact-utils";
-import type { HealthResponse, InstagramSessionResponse, RuntimeProcessState } from "@/lib/system-types";
+import type {
+  HealthResponse,
+  InstagramSessionResponse,
+  RuntimeProcessState,
+} from "@/lib/system-types";
 import { cn } from "@/lib/utils";
 
 // ── Types ──
@@ -52,65 +69,94 @@ function timeAgo(isoOrMs: string | number | undefined | null): string {
 function formatUptime(seconds: number | undefined | null): string {
   if (!seconds || seconds <= 0) return "—";
   if (seconds < 3600) return `${Math.floor(seconds / 60)}min`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}min`;
+  if (seconds < 86400)
+    return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}min`;
   return `${Math.floor(seconds / 86400)}d ${Math.floor((seconds % 86400) / 3600)}h`;
 }
 
 // ── View Model Builders ──
 
-function buildWhatsAppSessionViewModel(health: HealthResponse | undefined, loading: boolean): SessionViewModel {
+function buildWhatsAppSessionViewModel(
+  health: HealthResponse | undefined,
+  loading: boolean,
+): SessionViewModel {
   if (loading && !health) {
     return {
-      key: "whatsapp", label: "WhatsApp", detail: "Consultando worker",
-      state: "loading", statusText: "Verificando", icon: MessageCircleMore,
-      profileName: "", lastSyncAgo: "", uptimeLabel: "", authDetail: "", isSyncing: false
+      key: "whatsapp",
+      label: "WhatsApp",
+      detail: "Consultando worker",
+      state: "loading",
+      statusText: "Verificando",
+      icon: MessageCircleMore,
+      profileName: "",
+      lastSyncAgo: "",
+      uptimeLabel: "",
+      authDetail: "",
+      isSyncing: false,
     };
   }
 
-  const worker: RuntimeProcessState = health?.worker?.value ?? health?.channels?.whatsapp?.worker ?? {};
+  const worker: RuntimeProcessState =
+    health?.worker?.value ?? health?.channels?.whatsapp?.worker ?? {};
   const phoneLabel =
     readTrimmedText(worker.sessionPhone) ||
     readTrimmedText(worker.phoneNumber) ||
     readTrimmedText(worker.phone) ||
-    readTrimmedText(health?.channels?.whatsapp?.sessionIdentifier) || "";
+    readTrimmedText(health?.channels?.whatsapp?.sessionIdentifier) ||
+    "";
   const status = readTrimmedText(worker.status).toLowerCase();
   const authStatus = readTrimmedText(worker.authStatus).toLowerCase();
   const workerLive = worker.live !== false;
-  const ready = workerLive && (authStatus === "authenticated" || status === "authenticated" || status === "degraded");
-  const attention = workerLive && !ready && ["starting", "restarting", "connecting"].includes(status);
+  const ready =
+    workerLive &&
+    (authStatus === "authenticated" || status === "authenticated" || status === "degraded");
+  const attention =
+    workerLive && !ready && ["starting", "restarting", "connecting"].includes(status);
   const accountLabel = phoneLabel
     ? formatChannelDisplayValue("whatsapp", phoneLabel)
     : ready
       ? readTrimmedText(worker.profileName) || readTrimmedText(worker.sessionName) || "Sessao ativa"
       : "Sessao indisponivel";
 
-  const profileName = readTrimmedText(worker.profileName) || readTrimmedText(worker.sessionName) || "";
+  const profileName =
+    readTrimmedText(worker.profileName) || readTrimmedText(worker.sessionName) || "";
   const lastSyncAt = worker.lastSyncAt ?? worker.updatedAt ?? null;
   const uptimeSec = typeof worker.uptimeSec === "number" ? worker.uptimeSec : null;
   const isSyncing = status === "syncing" || worker.browserTask === "sync";
 
   return {
-    key: "whatsapp", label: "WhatsApp", detail: accountLabel,
+    key: "whatsapp",
+    label: "WhatsApp",
+    detail: accountLabel,
     state: ready ? "ready" : attention ? "attention" : "offline",
     statusText: ready ? "Logado" : attention ? "Inicializando" : "Desconectado",
-    icon: MessageCircleMore, profileName,
+    icon: MessageCircleMore,
+    profileName,
     lastSyncAgo: timeAgo(lastSyncAt as string | null),
     uptimeLabel: formatUptime(uptimeSec),
     authDetail: authStatus || status || "unknown",
-    isSyncing: Boolean(isSyncing)
+    isSyncing: Boolean(isSyncing),
   };
 }
 
 function buildInstagramSessionViewModel(
   health: HealthResponse | undefined,
   session: InstagramSessionResponse | undefined,
-  loading: boolean
+  loading: boolean,
 ): SessionViewModel {
   if (loading && !session && !health) {
     return {
-      key: "instagram", label: "Instagram", detail: "Consultando sessao",
-      state: "loading", statusText: "Verificando", icon: Instagram,
-      profileName: "", lastSyncAgo: "", uptimeLabel: "", authDetail: "", isSyncing: false
+      key: "instagram",
+      label: "Instagram",
+      detail: "Consultando sessao",
+      state: "loading",
+      statusText: "Verificando",
+      icon: Instagram,
+      profileName: "",
+      lastSyncAgo: "",
+      uptimeLabel: "",
+      authDetail: "",
+      isSyncing: false,
     };
   }
 
@@ -118,22 +164,33 @@ function buildInstagramSessionViewModel(
   const accountLabel =
     readTrimmedText(session?.username) ||
     readTrimmedText(session?.accountUsername) ||
-    readTrimmedText(health?.channels?.instagram?.sessionIdentifier) || "";
+    readTrimmedText(health?.channels?.instagram?.sessionIdentifier) ||
+    "";
   const sessionStatus = readTrimmedText(session?.status).toLowerCase();
   const workerStatus = readTrimmedText(worker.status).toLowerCase();
-  const ready = session?.authenticated === true || sessionStatus === "connected" || worker.authenticated === true || workerStatus === "connected";
-  const attention = !ready && (sessionStatus === "assisted" || workerStatus === "assisted" || workerStatus === "starting");
+  const ready =
+    session?.authenticated === true ||
+    sessionStatus === "connected" ||
+    worker.authenticated === true ||
+    workerStatus === "connected";
+  const attention =
+    !ready &&
+    (sessionStatus === "assisted" || workerStatus === "assisted" || workerStatus === "starting");
 
   return {
-    key: "instagram", label: "Instagram",
+    key: "instagram",
+    label: "Instagram",
     detail: ready || attention ? formatInstagramDetail(accountLabel) : "Sessao indisponivel",
     state: ready ? "ready" : attention ? "attention" : "offline",
     statusText: ready ? "Logado" : attention ? "Sessao aberta" : "Desconectado",
-    icon: Instagram, profileName: accountLabel,
-    lastSyncAgo: timeAgo(worker.lastSyncAt as string | null ?? worker.updatedAt as string | null),
+    icon: Instagram,
+    profileName: accountLabel,
+    lastSyncAgo: timeAgo(
+      (worker.lastSyncAt as string | null) ?? (worker.updatedAt as string | null),
+    ),
     uptimeLabel: formatUptime(typeof worker.uptimeSec === "number" ? worker.uptimeSec : null),
     authDetail: sessionStatus || workerStatus || "unknown",
-    isSyncing: workerStatus === "syncing" || worker.browserTask === "sync"
+    isSyncing: workerStatus === "syncing" || worker.browserTask === "sync",
   };
 }
 
@@ -146,7 +203,7 @@ const toneMap = {
     text: "text-n-wa",
     iconBox: "bg-n-wa/10 text-n-wa",
     dot: "active" as const,
-    barColor: "bg-n-wa"
+    barColor: "bg-n-wa",
   },
   attention: {
     bg: "bg-n-amber/[0.06]",
@@ -154,7 +211,7 @@ const toneMap = {
     text: "text-n-amber",
     iconBox: "bg-n-amber/10 text-n-amber",
     dot: "warning" as const,
-    barColor: "bg-n-amber"
+    barColor: "bg-n-amber",
   },
   offline: {
     bg: "bg-n-red/[0.04]",
@@ -162,7 +219,7 @@ const toneMap = {
     text: "text-n-red",
     iconBox: "bg-n-red/10 text-n-red",
     dot: "error" as const,
-    barColor: "bg-n-red"
+    barColor: "bg-n-red",
   },
   loading: {
     bg: "bg-n-surface-2",
@@ -170,8 +227,8 @@ const toneMap = {
     text: "text-n-text-dim",
     iconBox: "bg-n-surface-2 text-n-text-dim",
     dot: "idle" as const,
-    barColor: "bg-n-text-dim"
-  }
+    barColor: "bg-n-text-dim",
+  },
 };
 
 // ── Session Card ──
@@ -179,7 +236,7 @@ const toneMap = {
 function SessionCard({
   session,
   compact = false,
-  onReconnect
+  onReconnect,
 }: {
   session: SessionViewModel;
   compact?: boolean;
@@ -191,39 +248,59 @@ function SessionCard({
 
   if (compact) {
     return (
-      <div className={cn(
-        "flex items-center gap-2 rounded-xl px-2.5 py-1.5 ring-1 transition-all duration-200",
-        tone.bg, tone.ring
-      )}>
-        <div className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-lg", tone.iconBox)}>
+      <div
+        className={cn(
+          "flex items-center gap-2 rounded-xl px-2.5 py-1.5 ring-1 transition-all duration-200",
+          tone.bg,
+          tone.ring,
+        )}
+      >
+        <div
+          className={cn(
+            "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg",
+            tone.iconBox,
+          )}
+        >
           <Icon className={cn("h-3 w-3", session.state === "loading" && "animate-spin")} />
         </div>
         <div className="min-w-0 flex-1">
           <p className={cn("truncate text-label font-medium", tone.text)}>{session.statusText}</p>
         </div>
         {/* Melhoria 4: Animacao de pulso quando sincronizando */}
-        <span className={cn(
-          "signal-dot shrink-0",
-          `${tone.dot}`,
-          session.isSyncing && "animate-pulse"
-        )} />
+        <span
+          className={cn("signal-dot shrink-0", `${tone.dot}`, session.isSyncing && "animate-pulse")}
+        />
       </div>
     );
   }
 
   return (
-    <div className={cn(
-      "rounded-2xl ring-1 transition-all duration-300 overflow-hidden",
-      tone.bg, tone.ring,
-      expanded && "shadow-lg shadow-black/10"
-    )}>
+    <div
+      className={cn(
+        "rounded-2xl ring-1 transition-all duration-300 overflow-hidden",
+        tone.bg,
+        tone.ring,
+        expanded && "shadow-lg shadow-black/10",
+      )}
+    >
       {/* Melhoria 8: Health bar visual no topo */}
-      <div className={cn("h-[2px] transition-all duration-500", tone.barColor, session.state === "loading" && "animate-pulse")} />
+      <div
+        className={cn(
+          "h-[2px] transition-all duration-500",
+          tone.barColor,
+          session.state === "loading" && "animate-pulse",
+        )}
+      />
 
       <div className="px-4 py-3">
         {/* Main row */}
         <div className="flex items-center gap-3">
-          <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ring-white/[0.04]", tone.iconBox)}>
+          <div
+            className={cn(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ring-white/[0.04]",
+              tone.iconBox,
+            )}
+          >
             <Icon className={cn("h-4 w-4", session.state === "loading" && "animate-spin")} />
           </div>
 
@@ -231,11 +308,13 @@ function SessionCard({
             <div className="flex items-center gap-2">
               <span className={cn("text-h4", tone.text)}>{session.statusText}</span>
               {/* Melhoria 4: Pulso de syncing */}
-              <span className={cn(
-                "signal-dot shrink-0",
-                `${tone.dot}`,
-                session.isSyncing && "animate-pulse"
-              )} />
+              <span
+                className={cn(
+                  "signal-dot shrink-0",
+                  `${tone.dot}`,
+                  session.isSyncing && "animate-pulse",
+                )}
+              />
             </div>
             {/* Melhoria 1: Mostrar detail (phone/handle) + profile name */}
             <p className="text-caption text-n-text-dim truncate mt-0.5">
@@ -251,7 +330,10 @@ function SessionCard({
             {session.state === "offline" && onReconnect && (
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); onReconnect(); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReconnect();
+                }}
                 className="flex h-7 w-7 items-center justify-center rounded-lg bg-n-surface-2 text-n-text-dim ring-1 ring-white/[0.04] transition-all duration-200 hover:bg-n-blue/10 hover:text-n-blue"
                 title="Reconectar canal"
               >
@@ -264,7 +346,11 @@ function SessionCard({
               onClick={() => setExpanded(!expanded)}
               className="flex h-7 w-7 items-center justify-center rounded-lg bg-n-surface-2/50 text-n-text-dim transition-all duration-200 hover:bg-n-surface-2"
             >
-              {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              {expanded ? (
+                <ChevronUp className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5" />
+              )}
             </button>
           </div>
         </div>
@@ -292,7 +378,9 @@ function SessionCard({
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-lg bg-n-bg/50 px-3 py-2">
               <p className="text-micro uppercase tracking-wider text-n-text-dim">Auth Status</p>
-              <p className="text-caption text-n-text-muted mt-0.5 capitalize">{session.authDetail}</p>
+              <p className="text-caption text-n-text-muted mt-0.5 capitalize">
+                {session.authDetail}
+              </p>
             </div>
             <div className="rounded-lg bg-n-bg/50 px-3 py-2">
               <p className="text-micro uppercase tracking-wider text-n-text-dim">Ultimo Sync</p>
@@ -329,7 +417,8 @@ function OnboardingBanner() {
       <div>
         <h3 className="text-h4 text-n-text">Conecte seus canais</h3>
         <p className="text-caption text-n-text-dim mt-1 max-w-sm mx-auto">
-          Inicie o worker para conectar WhatsApp Web e Instagram. Os canais serao detectados automaticamente.
+          Inicie o worker para conectar WhatsApp Web e Instagram. Os canais serao detectados
+          automaticamente.
         </p>
       </div>
       <div className="flex items-center justify-center gap-3 text-micro text-n-text-dim">
@@ -349,7 +438,11 @@ function OnboardingBanner() {
 
 // ── Disconnection Toast — Melhoria 9 ──
 
-function DisconnectionToast({ channel, onReconnect, onDismiss }: {
+function DisconnectionToast({
+  channel,
+  onReconnect,
+  onDismiss,
+}: {
   channel: string;
   onReconnect: () => void;
   onDismiss: () => void;
@@ -367,7 +460,9 @@ function DisconnectionToast({ channel, onReconnect, onDismiss }: {
       >
         Reconectar
       </button>
-      <button onClick={onDismiss} className="text-n-text-dim hover:text-n-text text-micro">✕</button>
+      <button onClick={onDismiss} className="text-n-text-dim hover:text-n-text text-micro">
+        ✕
+      </button>
     </div>
   );
 }
@@ -382,14 +477,22 @@ function RateLimitIndicator({ health }: { health: HealthResponse | undefined }) 
   return (
     <div className="flex items-center gap-2 rounded-xl bg-n-amber/[0.06] px-3 py-2 ring-1 ring-n-amber/15">
       <Shield className="h-3.5 w-3.5 text-n-amber" />
-      <span className="text-caption text-n-amber">Rate limit ativo — envios pausados temporariamente</span>
+      <span className="text-caption text-n-amber">
+        Rate limit ativo — envios pausados temporariamente
+      </span>
     </div>
   );
 }
 
 // ── Main Component ──
 
-export function ChannelSessionStrip({ className, compact = false }: { className?: string; compact?: boolean }) {
+export function ChannelSessionStrip({
+  className,
+  compact = false,
+}: {
+  className?: string;
+  compact?: boolean;
+}) {
   const queryClient = useQueryClient();
   const [dismissedDisconnect, setDismissedDisconnect] = useState<string | null>(null);
   const prevStatesRef = useRef<Record<string, string>>({});
@@ -397,21 +500,30 @@ export function ChannelSessionStrip({ className, compact = false }: { className?
   const healthQuery = useQuery({
     queryKey: ["health", "channel-sessions"],
     queryFn: () => apiFetch<HealthResponse>("/health"),
-    refetchInterval: 15_000
+    refetchInterval: 15_000,
   });
 
   const instagramSessionQuery = useQuery({
     queryKey: ["instagram-session", "channel-sessions"],
     queryFn: () => apiFetch<InstagramSessionResponse>("/instagram/session"),
-    refetchInterval: 15_000
+    refetchInterval: 15_000,
   });
 
   const sessions = useMemo(
     () => [
       buildWhatsAppSessionViewModel(healthQuery.data, healthQuery.isLoading),
-      buildInstagramSessionViewModel(healthQuery.data, instagramSessionQuery.data, instagramSessionQuery.isLoading)
+      buildInstagramSessionViewModel(
+        healthQuery.data,
+        instagramSessionQuery.data,
+        instagramSessionQuery.isLoading,
+      ),
     ],
-    [healthQuery.data, healthQuery.isLoading, instagramSessionQuery.data, instagramSessionQuery.isLoading]
+    [
+      healthQuery.data,
+      healthQuery.isLoading,
+      instagramSessionQuery.data,
+      instagramSessionQuery.isLoading,
+    ],
   );
 
   // Melhoria 9: Detectar desconexao
@@ -427,7 +539,9 @@ export function ChannelSessionStrip({ className, compact = false }: { className?
 
   useEffect(() => {
     const next: Record<string, string> = {};
-    for (const s of sessions) { next[s.key] = s.state; }
+    for (const s of sessions) {
+      next[s.key] = s.state;
+    }
     prevStatesRef.current = next;
   }, [sessions]);
 
@@ -436,7 +550,7 @@ export function ChannelSessionStrip({ className, compact = false }: { className?
     mutationFn: () => apiFetch("/jobs/restart-worker", { method: "POST" }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["health"] });
-    }
+    },
   });
 
   const handleReconnect = useCallback(() => {

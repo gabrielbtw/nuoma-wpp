@@ -72,7 +72,9 @@ async function main() {
     await assertVisibleBubbleTypes(page, ["image", "video"]);
 
     await page.getByTestId("timeline-filter-clear").click();
-    await page.locator('[data-testid="timeline-filter-date"][data-filter-value="yesterday"]').click();
+    await page
+      .locator('[data-testid="timeline-filter-date"][data-filter-value="yesterday"]')
+      .click();
     await expectFilterCount(page, 1);
 
     await page.getByTestId("timeline-filter-clear").click();

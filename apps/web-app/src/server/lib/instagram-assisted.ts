@@ -8,7 +8,7 @@ import {
   recordSystemEvent,
   setWorkerState,
   type InstagramAssistedSessionState,
-  type InstagramAssistedThreadSnapshot
+  type InstagramAssistedThreadSnapshot,
 } from "@nuoma/core";
 
 declare const document: any;
@@ -67,7 +67,9 @@ function resolveInstagramProfileDir(env = loadEnv()) {
 function resolveSharedBrowserEndpoint(env = loadEnv()) {
   const workerState = getWorkerState("wa-worker");
   const endpoint =
-    workerState?.value && typeof workerState.value === "object" && typeof (workerState.value as { browserCdpEndpoint?: unknown }).browserCdpEndpoint === "string"
+    workerState?.value &&
+    typeof workerState.value === "object" &&
+    typeof (workerState.value as { browserCdpEndpoint?: unknown }).browserCdpEndpoint === "string"
       ? String((workerState.value as { browserCdpEndpoint: string }).browserCdpEndpoint)
       : null;
   return endpoint ?? `http://${env.CHROMIUM_CDP_HOST}:${env.CHROMIUM_CDP_PORT}`;
@@ -88,7 +90,7 @@ function defaultSessionState(): InstagramAssistedSessionState {
     sharedBrowser: env.IG_USE_SHARED_BROWSER,
     browserEndpoint: env.IG_USE_SHARED_BROWSER ? resolveSharedBrowserEndpoint(env) : null,
     pageUrl: null,
-    lastCheckedAt: null
+    lastCheckedAt: null,
   };
 }
 
@@ -100,14 +102,14 @@ function readStoredSessionState() {
 
   return {
     ...defaultSessionState(),
-    ...(stored.value as Partial<InstagramAssistedSessionState>)
+    ...(stored.value as Partial<InstagramAssistedSessionState>),
   } satisfies InstagramAssistedSessionState;
 }
 
 function persistSessionState(partial: Partial<InstagramAssistedSessionState>) {
   const nextState = {
     ...readStoredSessionState(),
-    ...partial
+    ...partial,
   } satisfies InstagramAssistedSessionState;
   setWorkerState(WORKER_KEY, nextState);
   return nextState;
@@ -127,7 +129,7 @@ function normalizeThreads(threads: InstagramAssistedThreadSnapshot[] = []) {
         direction: message.direction,
         body: collapseWhitespace(message.body),
         contentType: message.contentType ?? "text",
-        sentAt: message.sentAt ?? null
+        sentAt: message.sentAt ?? null,
       }))
       .filter((message) => message.body.length > 0 || message.contentType !== "text");
     const lastMessage = messages[messages.length - 1] ?? null;
@@ -140,7 +142,7 @@ function normalizeThreads(threads: InstagramAssistedThreadSnapshot[] = []) {
       lastMessagePreview: collapseWhitespace(thread.lastMessagePreview) || lastMessage?.body || "",
       lastMessageAt: thread.lastMessageAt ?? lastMessage?.sentAt ?? null,
       lastMessageDirection: thread.lastMessageDirection ?? lastMessage?.direction ?? null,
-      messages
+      messages,
     } satisfies InstagramAssistedThreadSnapshot;
   });
 }
@@ -187,7 +189,12 @@ function deriveDisplayNameFromProfileLink(text: string, username: string) {
     .replace(/\s+/g, " ")
     .trim();
 
-  if (!cleaned || cleaned.startsWith("@") || /^https?:\/\//i.test(cleaned) || normalizeSearchableText(cleaned) === username) {
+  if (
+    !cleaned ||
+    cleaned.startsWith("@") ||
+    /^https?:\/\//i.test(cleaned) ||
+    normalizeSearchableText(cleaned) === username
+  ) {
     return null;
   }
 
@@ -202,7 +209,15 @@ export function resolveInstagramThreadParticipant(input: {
   ownUsername?: string | null;
   fallbackTitle?: string | null;
 }) {
-  const blockedRoots = new Set(["accounts", "direct", "explore", "reels", "stories", "about", "legal"]);
+  const blockedRoots = new Set([
+    "accounts",
+    "direct",
+    "explore",
+    "reels",
+    "stories",
+    "about",
+    "legal",
+  ]);
   const ownUsername = normalizeInstagramHandleCandidate(input.ownUsername);
   const candidates = new Map<string, { score: number; hits: number; displayName: string | null }>();
 
@@ -227,7 +242,7 @@ export function resolveInstagramThreadParticipant(input: {
     const current = candidates.get(username) ?? {
       score: 0,
       hits: 0,
-      displayName: null
+      displayName: null,
     };
 
     current.score += score;
@@ -256,13 +271,18 @@ export function resolveInstagramThreadParticipant(input: {
   if (!resolvedUsername && fallbackUsername) {
     resolvedUsername = fallbackUsername;
   }
-  if (!resolvedDisplayName && fallbackTitle && fallbackTitle !== `@${resolvedUsername}` && !fallbackUsername) {
+  if (
+    !resolvedDisplayName &&
+    fallbackTitle &&
+    fallbackTitle !== `@${resolvedUsername}` &&
+    !fallbackUsername
+  ) {
     resolvedDisplayName = fallbackTitle;
   }
 
   return {
     username: resolvedUsername,
-    displayName: resolvedDisplayName
+    displayName: resolvedDisplayName,
   };
 }
 
@@ -308,7 +328,7 @@ export function pickInstagramComposerRecipientCandidate(input: {
     "primary",
     "general",
     "requests",
-    "pedidos"
+    "pedidos",
   ]);
   let bestIndex: number | null = null;
   let bestScore = -1;
@@ -345,7 +365,8 @@ export function pickInstagramComposerRecipientCandidate(input: {
     }
 
     const hasDisplayName = normalizedDisplayName
-      ? normalizedText.includes(normalizedDisplayName) || descendantTexts.includes(normalizedDisplayName)
+      ? normalizedText.includes(normalizedDisplayName) ||
+        descendantTexts.includes(normalizedDisplayName)
       : false;
     let score = 0;
     if (hasExactUsername) {
@@ -375,7 +396,10 @@ export function pickInstagramComposerRecipientCandidate(input: {
   return bestIndex;
 }
 
-export function assessInstagramProfileSnapshot(snapshot: InstagramProfileSnapshot, username: string) {
+export function assessInstagramProfileSnapshot(
+  snapshot: InstagramProfileSnapshot,
+  username: string,
+) {
   const normalizedUsername = sanitizeInstagramUsername(username);
   const currentPath = normalizeInstagramPathname(snapshot.currentPath);
   const canonicalPath = normalizeInstagramPathname(snapshot.canonicalPath);
@@ -394,47 +418,47 @@ export function assessInstagramProfileSnapshot(snapshot: InstagramProfileSnapsho
     "o link que voce acessou pode estar quebrado",
     "o link que voce seguiu pode estar quebrado",
     "usuario nao encontrado",
-    "user not found"
+    "user not found",
   ];
 
   if (!normalizedUsername) {
     return {
       valid: false,
-      reason: "Username do Instagram ausente."
+      reason: "Username do Instagram ausente.",
     };
   }
 
   if (currentPath && currentPath !== normalizedUsername) {
     return {
       valid: false,
-      reason: `Perfil redirecionado para ${currentPath || "rota desconhecida"}.`
+      reason: `Perfil redirecionado para ${currentPath || "rota desconhecida"}.`,
     };
   }
 
   if (canonicalPath && canonicalPath !== normalizedUsername) {
     return {
       valid: false,
-      reason: `Canonical do perfil nao corresponde a @${normalizedUsername}.`
+      reason: `Canonical do perfil nao corresponde a @${normalizedUsername}.`,
     };
   }
 
   if (invalidPhrases.some((entry) => bodyText.includes(entry) || title.includes(entry))) {
     return {
       valid: false,
-      reason: `Perfil @${normalizedUsername} nao esta disponivel.`
+      reason: `Perfil @${normalizedUsername} nao esta disponivel.`,
     };
   }
 
   if (!snapshot.hasHeader && !snapshot.hasActionBar) {
     return {
       valid: false,
-      reason: `Perfil @${normalizedUsername} nao exibiu cabecalho nem acoes do perfil.`
+      reason: `Perfil @${normalizedUsername} nao exibiu cabecalho nem acoes do perfil.`,
     };
   }
 
   return {
     valid: true,
-    reason: null
+    reason: null,
   };
 }
 
@@ -455,7 +479,10 @@ class InstagramAssistedService {
   private contextPromise: Promise<BrowserContextLike> | null = null;
   private operationQueue: Promise<void> = Promise.resolve();
 
-  private async runExclusive<T>(operation: "open-session" | "sync-inbox" | "send-message", task: () => Promise<T>) {
+  private async runExclusive<T>(
+    operation: "open-session" | "sync-inbox" | "send-message",
+    task: () => Promise<T>,
+  ) {
     const previous = this.operationQueue;
     let release: () => void = () => {};
     this.operationQueue = new Promise<void>((resolve) => {
@@ -469,7 +496,7 @@ class InstagramAssistedService {
     } finally {
       release();
       recordSystemEvent("instagram-assisted", "debug", "Instagram assisted operation released", {
-        operation
+        operation,
       });
     }
   }
@@ -487,14 +514,22 @@ class InstagramAssistedService {
       sharedBrowser: env.IG_USE_SHARED_BROWSER,
       browserEndpoint: env.IG_USE_SHARED_BROWSER ? resolveSharedBrowserEndpoint(env) : null,
       username: sanitizeInstagramUsername(partial.username) ?? readStoredSessionState().username,
-      ...partial
+      ...partial,
     });
   }
 
   private async detectOwnUsername(page: PageLike) {
     try {
       const username = await page.evaluate(() => {
-        const blockedRoots = new Set(["accounts", "direct", "explore", "reels", "stories", "about", "legal"]);
+        const blockedRoots = new Set([
+          "accounts",
+          "direct",
+          "explore",
+          "reels",
+          "stories",
+          "about",
+          "legal",
+        ]);
         const normalizeCandidate = (value?: string | null) => {
           const normalized = String(value ?? "")
             .replace(/^@+/, "")
@@ -519,10 +554,14 @@ class InstagramAssistedService {
         const candidates = [
           normalizeCandidate(win._sharedData?.config?.viewer?.username),
           normalizeCandidate(win.__additionalData?.viewer?.username),
-          normalizeCandidate(win.__initialData?.data?.user?.username)
+          normalizeCandidate(win.__initialData?.data?.user?.username),
         ];
 
-        const anchors = Array.from(document.querySelectorAll("a[href]") as Array<{ getAttribute(name: string): string | null }>)
+        const anchors = Array.from(
+          document.querySelectorAll("a[href]") as Array<{
+            getAttribute(name: string): string | null;
+          }>,
+        )
           .map((anchor) => anchor.getAttribute("href") ?? "")
           .map((href) => {
             const match = href.match(/^\/([a-z0-9._]+)\/?$/i);
@@ -560,7 +599,7 @@ class InstagramAssistedService {
       authenticated: false,
       errorMessage: message,
       pageUrl: null,
-      lastCheckedAt: new Date().toISOString()
+      lastCheckedAt: new Date().toISOString(),
     });
     return message;
   }
@@ -578,16 +617,18 @@ class InstagramAssistedService {
       ...defaultSessionState(),
       ...(parsed.session ?? {}),
       mode: "fixture",
-      status: (parsed.session?.status as InstagramAssistedSessionState["status"] | undefined) ?? "connected",
+      status:
+        (parsed.session?.status as InstagramAssistedSessionState["status"] | undefined) ??
+        "connected",
       authenticated: parsed.session?.authenticated ?? true,
       threadCount: threads.length,
       messageCount: threads.reduce((total, thread) => total + thread.messages.length, 0),
-      errorMessage: null
+      errorMessage: null,
     } satisfies InstagramAssistedSessionState;
 
     return {
       session,
-      threads
+      threads,
     };
   }
 
@@ -603,7 +644,9 @@ class InstagramAssistedService {
 
         if (env.IG_USE_SHARED_BROWSER) {
           if (!this.browserPromise) {
-            this.browserPromise = chromium.connectOverCDP(resolveSharedBrowserEndpoint(env)) as Promise<BrowserLike>;
+            this.browserPromise = chromium.connectOverCDP(
+              resolveSharedBrowserEndpoint(env),
+            ) as Promise<BrowserLike>;
           }
 
           const browser = await this.browserPromise;
@@ -616,7 +659,7 @@ class InstagramAssistedService {
 
         return chromium.launchPersistentContext(env.IG_CHROMIUM_PROFILE_DIR, {
           headless: false,
-          viewport: { width: 1440, height: 960 }
+          viewport: { width: 1440, height: 960 },
         }) as Promise<BrowserContextLike>;
       })().catch((error) => {
         this.resetBrowserConnection();
@@ -629,7 +672,11 @@ class InstagramAssistedService {
 
   private findInstagramPage(context: BrowserContextLike) {
     const pages = context.pages().filter((page) => !(page.isClosed?.() ?? false));
-    return pages.find((page) => page.url().includes("instagram.com/direct/")) ?? pages.find((page) => page.url().includes("instagram.com")) ?? null;
+    return (
+      pages.find((page) => page.url().includes("instagram.com/direct/")) ??
+      pages.find((page) => page.url().includes("instagram.com")) ??
+      null
+    );
   }
 
   private async ensurePage(options?: { navigateToInbox?: boolean }) {
@@ -655,7 +702,8 @@ class InstagramAssistedService {
 
   private async collectProfileSnapshot(page: PageLike) {
     return page.evaluate<InstagramProfileSnapshot>(() => {
-      const canonicalHref = document.querySelector("link[rel='canonical']")?.getAttribute("href") ?? null;
+      const canonicalHref =
+        document.querySelector("link[rel='canonical']")?.getAttribute("href") ?? null;
       const actionLabels = new Set([
         "message",
         "mensagem",
@@ -669,11 +717,16 @@ class InstagramAssistedService {
         "opções",
         "mais opcoes",
         "mais opções",
-        "more options"
+        "more options",
       ]);
-      const hasActionBar = (Array.from(document.querySelectorAll("button, a, div[role='button']")) as any[]).some((element) => {
+      const hasActionBar = (
+        Array.from(document.querySelectorAll("button, a, div[role='button']")) as any[]
+      ).some((element) => {
         const text = (element.textContent ?? "").replace(/\s+/g, " ").trim().toLowerCase();
-        const aria = (element.getAttribute("aria-label") ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+        const aria = (element.getAttribute("aria-label") ?? "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .toLowerCase();
         return actionLabels.has(text) || [...actionLabels].some((label) => aria.includes(label));
       });
 
@@ -683,7 +736,7 @@ class InstagramAssistedService {
         title: document.title ?? "",
         bodyText: document.body?.innerText ?? "",
         hasHeader: Boolean(document.querySelector("header")),
-        hasActionBar
+        hasActionBar,
       };
     });
   }
@@ -700,7 +753,11 @@ class InstagramAssistedService {
 
   private async readProfileDisplayName(page: PageLike, username: string) {
     return page.evaluate((targetUsername) => {
-      const candidates = Array.from(document.querySelectorAll("header h1, header h2, main h1, main h2, section h1, section h2, main span, header span")) as any[];
+      const candidates = Array.from(
+        document.querySelectorAll(
+          "header h1, header h2, main h1, main h2, section h1, section h2, main span, header span",
+        ),
+      ) as any[];
       for (const node of candidates) {
         const text = (node.textContent ?? "").replace(/\s+/g, " ").trim();
         const normalizedText = text.toLowerCase();
@@ -720,7 +777,9 @@ class InstagramAssistedService {
     const snapshot = await page.evaluate(() => ({
       url: window.location.pathname ?? "",
       hasTextarea: Boolean(document.querySelector("textarea")),
-      hasRichTextbox: Boolean(document.querySelector("div[contenteditable='true'][role='textbox']"))
+      hasRichTextbox: Boolean(
+        document.querySelector("div[contenteditable='true'][role='textbox']"),
+      ),
     }));
     return isInstagramComposerSurfaceReady(snapshot);
   }
@@ -728,30 +787,44 @@ class InstagramAssistedService {
   private async readCurrentThreadParticipant(page: PageLike) {
     const ownUsername = await this.detectOwnUsername(page);
     const snapshot = await page.evaluate(() => {
-      const titleCandidates = Array.from(document.querySelectorAll("main h1, main h2, header h1, header h2, main span[dir='auto'], header span[dir='auto']"))
-        .map((node) => (((node as { textContent?: string | null }).textContent ?? "").replace(/\s+/g, " ").trim()))
+      const titleCandidates = Array.from(
+        document.querySelectorAll(
+          "main h1, main h2, header h1, header h2, main span[dir='auto'], header span[dir='auto']",
+        ),
+      )
+        .map((node) =>
+          ((node as { textContent?: string | null }).textContent ?? "").replace(/\s+/g, " ").trim(),
+        )
         .filter(Boolean);
       const fallbackTitle =
-        titleCandidates.find((candidate) => candidate.length <= 80 && !candidate.startsWith("@") && !/^(?:mensagens|messages|primary|general|pedidos)$/i.test(candidate)) ??
+        titleCandidates.find(
+          (candidate) =>
+            candidate.length <= 80 &&
+            !candidate.startsWith("@") &&
+            !/^(?:mensagens|messages|primary|general|pedidos)$/i.test(candidate),
+        ) ??
         titleCandidates[0] ??
         document.title.replace(/\s+/g, " ").trim();
       const profileLinks = Array.from(document.querySelectorAll("main a[href], header a[href]"))
         .map((anchor) => ({
-          href: (anchor as { getAttribute(name: string): string | null }).getAttribute("href") ?? "",
-          text: (((anchor as { textContent?: string | null }).textContent ?? "").replace(/\s+/g, " ").trim())
+          href:
+            (anchor as { getAttribute(name: string): string | null }).getAttribute("href") ?? "",
+          text: ((anchor as { textContent?: string | null }).textContent ?? "")
+            .replace(/\s+/g, " ")
+            .trim(),
         }))
         .filter((entry) => Boolean(entry.href));
 
       return {
         fallbackTitle,
-        profileLinks
+        profileLinks,
       };
     });
 
     return resolveInstagramThreadParticipant({
       profileLinks: snapshot.profileLinks,
       ownUsername,
-      fallbackTitle: snapshot.fallbackTitle
+      fallbackTitle: snapshot.fallbackTitle,
     });
   }
 
@@ -769,7 +842,12 @@ class InstagramAssistedService {
     return participant.username === normalizedUsername;
   }
 
-  private async waitForComposerTarget(page: PageLike, username?: string | null, attempts = 6, delayMs = 700) {
+  private async waitForComposerTarget(
+    page: PageLike,
+    username?: string | null,
+    attempts = 6,
+    delayMs = 700,
+  ) {
     for (let attempt = 0; attempt < attempts; attempt += 1) {
       if (await this.isExpectedThreadOpen(page, username)) {
         return true;
@@ -795,9 +873,17 @@ class InstagramAssistedService {
 
       while (current) {
         const actions = Array.from(current.querySelectorAll("button, div[role='button']"))
-          .map((element) => String((element as { textContent?: string | null }).textContent ?? "").replace(/\s+/g, " ").trim())
+          .map((element) =>
+            String((element as { textContent?: string | null }).textContent ?? "")
+              .replace(/\s+/g, " ")
+              .trim(),
+          )
           .filter(Boolean);
-        if (actions.length >= 3 && actions.length <= 40 && actions.some((value) => /^(?:enviar mensagem|send message|chat|bate-papo)$/i.test(value))) {
+        if (
+          actions.length >= 3 &&
+          actions.length <= 40 &&
+          actions.some((value) => /^(?:enviar mensagem|send message|chat|bate-papo)$/i.test(value))
+        ) {
           scope = current;
           break;
         }
@@ -806,12 +892,23 @@ class InstagramAssistedService {
 
       const candidates = Array.from(scope.querySelectorAll("div[role='button'], button"));
       return candidates.map((element) => ({
-        text: String((element as { textContent?: string | null }).textContent ?? "").replace(/\s+/g, " ").trim(),
-        aria: String((element as { getAttribute(name: string): string | null }).getAttribute?.("aria-label") ?? "").replace(/\s+/g, " ").trim(),
+        text: String((element as { textContent?: string | null }).textContent ?? "")
+          .replace(/\s+/g, " ")
+          .trim(),
+        aria: String(
+          (element as { getAttribute(name: string): string | null }).getAttribute?.("aria-label") ??
+            "",
+        )
+          .replace(/\s+/g, " ")
+          .trim(),
         descendantTexts: Array.from((element as any).querySelectorAll("span, div"))
-          .map((node) => String((node as { textContent?: string | null }).textContent ?? "").replace(/\s+/g, " ").trim())
+          .map((node) =>
+            String((node as { textContent?: string | null }).textContent ?? "")
+              .replace(/\s+/g, " ")
+              .trim(),
+          )
           .filter(Boolean)
-          .slice(0, 12)
+          .slice(0, 12),
       }));
     });
   }
@@ -824,9 +921,17 @@ class InstagramAssistedService {
 
       while (current) {
         const actions = Array.from(current.querySelectorAll("button, div[role='button']"))
-          .map((element) => String((element as { textContent?: string | null }).textContent ?? "").replace(/\s+/g, " ").trim())
+          .map((element) =>
+            String((element as { textContent?: string | null }).textContent ?? "")
+              .replace(/\s+/g, " ")
+              .trim(),
+          )
           .filter(Boolean);
-        if (actions.length >= 3 && actions.length <= 40 && actions.some((value) => /^(?:enviar mensagem|send message|chat|bate-papo)$/i.test(value))) {
+        if (
+          actions.length >= 3 &&
+          actions.length <= 40 &&
+          actions.some((value) => /^(?:enviar mensagem|send message|chat|bate-papo)$/i.test(value))
+        ) {
           scope = current;
           break;
         }
@@ -851,23 +956,48 @@ class InstagramAssistedService {
 
       while (current) {
         const actions = Array.from(current.querySelectorAll("button, div[role='button']"))
-          .map((element) => String((element as { textContent?: string | null }).textContent ?? "").replace(/\s+/g, " ").trim().toLowerCase())
+          .map((element) =>
+            String((element as { textContent?: string | null }).textContent ?? "")
+              .replace(/\s+/g, " ")
+              .trim()
+              .toLowerCase(),
+          )
           .filter(Boolean);
-        if (actions.length >= 2 && actions.length <= 40 && actions.some((value) => /^(?:enviar mensagem|send message|chat|bate-papo)$/i.test(value))) {
+        if (
+          actions.length >= 2 &&
+          actions.length <= 40 &&
+          actions.some((value) => /^(?:enviar mensagem|send message|chat|bate-papo)$/i.test(value))
+        ) {
           scope = current;
           break;
         }
         current = current.parentElement;
       }
 
-      const target = Array.from(scope.querySelectorAll("button, div[role='button']")).find((element) => {
-        const text = String((element as { textContent?: string | null }).textContent ?? "").replace(/\s+/g, " ").trim().toLowerCase();
-        const aria = String((element as { getAttribute(name: string): string | null }).getAttribute?.("aria-label") ?? "")
-          .replace(/\s+/g, " ")
-          .trim()
-          .toLowerCase();
-        return text === "enviar mensagem" || text === "send message" || text === "chat" || text === "bate-papo" || aria === "enviar mensagem" || aria === "send message";
-      }) as { click?: () => void } | undefined;
+      const target = Array.from(scope.querySelectorAll("button, div[role='button']")).find(
+        (element) => {
+          const text = String((element as { textContent?: string | null }).textContent ?? "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .toLowerCase();
+          const aria = String(
+            (element as { getAttribute(name: string): string | null }).getAttribute?.(
+              "aria-label",
+            ) ?? "",
+          )
+            .replace(/\s+/g, " ")
+            .trim()
+            .toLowerCase();
+          return (
+            text === "enviar mensagem" ||
+            text === "send message" ||
+            text === "chat" ||
+            text === "bate-papo" ||
+            aria === "enviar mensagem" ||
+            aria === "send message"
+          );
+        },
+      ) as { click?: () => void } | undefined;
 
       if (!target || typeof target.click !== "function") {
         return false;
@@ -886,11 +1016,20 @@ class InstagramAssistedService {
   private async clickDirectProfileMessageAction(page: PageLike, username?: string | null) {
     const clicked = await page.evaluate(() => {
       const labels = ["message", "mensagem", "enviar mensagem"];
-      const candidates = Array.from(document.querySelectorAll("header button, header a, header div[role='button'], main header button, main header a, main header div[role='button']")) as any[];
+      const candidates = Array.from(
+        document.querySelectorAll(
+          "header button, header a, header div[role='button'], main header button, main header a, main header div[role='button']",
+        ),
+      ) as any[];
       const target = candidates.find((element: any) => {
         const text = (element.textContent ?? "").replace(/\s+/g, " ").trim().toLowerCase();
-        const aria = (element.getAttribute("aria-label") ?? "").replace(/\s+/g, " ").trim().toLowerCase();
-        return labels.includes(text) || labels.some((label) => aria === label || aria.includes(label));
+        const aria = (element.getAttribute("aria-label") ?? "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .toLowerCase();
+        return (
+          labels.includes(text) || labels.some((label) => aria === label || aria.includes(label))
+        );
       });
 
       if (!target) {
@@ -912,10 +1051,17 @@ class InstagramAssistedService {
   private async clickOverflowProfileMessageAction(page: PageLike, username?: string | null) {
     const openedMenu = await page.evaluate(() => {
       const labels = ["options", "opcoes", "opções", "mais opcoes", "mais opções", "more options"];
-      const candidates = Array.from(document.querySelectorAll("header button, header a, header div[role='button'], main header button, main header a, main header div[role='button']")) as any[];
+      const candidates = Array.from(
+        document.querySelectorAll(
+          "header button, header a, header div[role='button'], main header button, main header a, main header div[role='button']",
+        ),
+      ) as any[];
       const target = candidates.find((element: any) => {
         const text = (element.textContent ?? "").replace(/\s+/g, " ").trim().toLowerCase();
-        const aria = (element.getAttribute("aria-label") ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+        const aria = (element.getAttribute("aria-label") ?? "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .toLowerCase();
         return labels.includes(text) || labels.some((label) => aria.includes(label));
       });
 
@@ -938,15 +1084,36 @@ class InstagramAssistedService {
       const scope =
         overlays.reverse().find((element) => {
           const labels = Array.from(element.querySelectorAll("button, div[role='button']"))
-            .map((node: any) => String(node.textContent ?? "").replace(/\s+/g, " ").trim().toLowerCase())
+            .map((node: any) =>
+              String(node.textContent ?? "")
+                .replace(/\s+/g, " ")
+                .trim()
+                .toLowerCase(),
+            )
             .filter(Boolean);
-          return labels.includes("enviar mensagem") && (labels.includes("bloquear") || labels.includes("restringir") || labels.includes("denunciar"));
+          return (
+            labels.includes("enviar mensagem") &&
+            (labels.includes("bloquear") ||
+              labels.includes("restringir") ||
+              labels.includes("denunciar"))
+          );
         }) ?? document.body;
       const candidates = Array.from(scope.querySelectorAll("button, div[role='button']")) as any[];
       const target = candidates.find((element: any) => {
-        const text = String(element.textContent ?? "").replace(/\s+/g, " ").trim().toLowerCase();
-        const aria = String(element.getAttribute?.("aria-label") ?? "").replace(/\s+/g, " ").trim().toLowerCase();
-        return text === "enviar mensagem" || text === "send message" || aria === "enviar mensagem" || aria === "send message";
+        const text = String(element.textContent ?? "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .toLowerCase();
+        const aria = String(element.getAttribute?.("aria-label") ?? "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .toLowerCase();
+        return (
+          text === "enviar mensagem" ||
+          text === "send message" ||
+          aria === "enviar mensagem" ||
+          aria === "send message"
+        );
       });
 
       if (!target || typeof target.click !== "function") {
@@ -970,65 +1137,72 @@ class InstagramAssistedService {
     input: {
       threadId?: string | null;
       username?: string | null;
-    }
+    },
   ) {
     if (input.threadId?.trim()) {
-      const threadUrl = new URL(`/direct/t/${input.threadId}/`, "https://www.instagram.com").toString();
+      const threadUrl = new URL(
+        `/direct/t/${input.threadId}/`,
+        "https://www.instagram.com",
+      ).toString();
       await page.goto(threadUrl, { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(1000);
       return;
     }
 
-      if (input.username?.trim()) {
-        const username = input.username.replace(/^@+/, "").trim().toLowerCase();
-        await page.goto(resolveInstagramProfileUrl(username), { waitUntil: "domcontentloaded" });
+    if (input.username?.trim()) {
+      const username = input.username.replace(/^@+/, "").trim().toLowerCase();
+      await page.goto(resolveInstagramProfileUrl(username), { waitUntil: "domcontentloaded" });
+      await page.waitForTimeout(1200);
+      await this.assertValidProfilePage(page, username);
+      const profileDisplayName = await this.readProfileDisplayName(page, username);
+      let openedComposer = await this.clickDirectProfileMessageAction(page, username);
+
+      if (!openedComposer) {
+        openedComposer = await this.clickOverflowProfileMessageAction(page, username);
+      }
+
+      if (!openedComposer) {
+        await page.goto("https://www.instagram.com/direct/new/", { waitUntil: "domcontentloaded" });
         await page.waitForTimeout(1200);
-        await this.assertValidProfilePage(page, username);
-        const profileDisplayName = await this.readProfileDisplayName(page, username);
-        let openedComposer = await this.clickDirectProfileMessageAction(page, username);
-
-        if (!openedComposer) {
-          openedComposer = await this.clickOverflowProfileMessageAction(page, username);
-        }
-
-        if (!openedComposer) {
-          await page.goto("https://www.instagram.com/direct/new/", { waitUntil: "domcontentloaded" });
-          await page.waitForTimeout(1200);
 
         const searchInput = page.locator("input[name='searchInput']").last();
         if ((await searchInput.count()) === 0) {
           throw new InputError("Nao foi possivel abrir o composer assistido do Instagram.");
         }
 
-          await searchInput.fill(username);
-          await page.waitForTimeout(1600);
+        await searchInput.fill(username);
+        await page.waitForTimeout(1600);
 
-          const composerCandidates = await this.collectComposerRecipientCandidates(page);
-          const selectedRecipientIndex = pickInstagramComposerRecipientCandidate({
-            targetUsername: username,
-            targetDisplayName: profileDisplayName,
-            candidates: composerCandidates
-          });
-          const selectedRecipient =
-            selectedRecipientIndex !== null ? await this.clickComposerRecipientCandidate(page, selectedRecipientIndex) : false;
+        const composerCandidates = await this.collectComposerRecipientCandidates(page);
+        const selectedRecipientIndex = pickInstagramComposerRecipientCandidate({
+          targetUsername: username,
+          targetDisplayName: profileDisplayName,
+          candidates: composerCandidates,
+        });
+        const selectedRecipient =
+          selectedRecipientIndex !== null
+            ? await this.clickComposerRecipientCandidate(page, selectedRecipientIndex)
+            : false;
 
-          if (!selectedRecipient) {
-            throw new InputError("Nao foi possivel localizar o destinatario no composer assistido do Instagram.");
-          }
-
-          await page.waitForTimeout(1200);
-
-          if (!(await this.isExpectedThreadOpen(page, username))) {
-            await this.clickComposerStartAction(page);
-          }
-
-          if (!(await this.waitForComposerTarget(page, username))) {
-            throw new InputError(`Nao foi possivel abrir a conversa do Instagram para @${username}.`);
-          }
+        if (!selectedRecipient) {
+          throw new InputError(
+            "Nao foi possivel localizar o destinatario no composer assistido do Instagram.",
+          );
         }
 
-        await page.waitForTimeout(1400);
-        return;
+        await page.waitForTimeout(1200);
+
+        if (!(await this.isExpectedThreadOpen(page, username))) {
+          await this.clickComposerStartAction(page);
+        }
+
+        if (!(await this.waitForComposerTarget(page, username))) {
+          throw new InputError(`Nao foi possivel abrir a conversa do Instagram para @${username}.`);
+        }
+      }
+
+      await page.waitForTimeout(1400);
+      return;
     }
 
     throw new InputError("Informe a thread ou o username do Instagram para envio assistido.");
@@ -1069,7 +1243,10 @@ class InstagramAssistedService {
       const labels = ["send", "enviar"];
       const nodes = Array.from(document.querySelectorAll("button, div[role='button']")) as any[];
       const target = nodes.find((element: any) => {
-        const aria = (element.getAttribute("aria-label") ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+        const aria = (element.getAttribute("aria-label") ?? "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .toLowerCase();
         const text = (element.textContent ?? "").replace(/\s+/g, " ").trim().toLowerCase();
         return labels.some((label) => aria.includes(label) || text === label);
       });
@@ -1083,7 +1260,11 @@ class InstagramAssistedService {
     });
 
     if (!clicked) {
-      const sendButton = page.locator("button[aria-label*='Send'], button[aria-label*='Enviar'], div[role='button'][aria-label*='Send'], div[role='button'][aria-label*='Enviar']").last();
+      const sendButton = page
+        .locator(
+          "button[aria-label*='Send'], button[aria-label*='Enviar'], div[role='button'][aria-label*='Send'], div[role='button'][aria-label*='Enviar']",
+        )
+        .last();
       if ((await sendButton.count()) === 0) {
         throw new InputError("Botão de envio do Instagram não encontrado.");
       }
@@ -1101,12 +1282,15 @@ class InstagramAssistedService {
       messagesLimit?: number;
       scrollPasses?: number;
       scrollStartPass?: number;
-    }
+    },
   ) {
     const env = loadEnv();
     const threadLimit = Math.max(1, options?.threadLimit ?? env.IG_SYNC_THREADS_LIMIT);
     const messagesLimit = Math.max(1, options?.messagesLimit ?? env.IG_SYNC_MESSAGES_LIMIT);
-    const scrollPasses = Math.max(1, options?.scrollPasses ?? Math.max(6, Math.ceil(threadLimit / 4) * 3));
+    const scrollPasses = Math.max(
+      1,
+      options?.scrollPasses ?? Math.max(6, Math.ceil(threadLimit / 4) * 3),
+    );
     const scrollStartPass = Math.max(0, options?.scrollStartPass ?? 0);
     const inboxUrl = env.IG_URL;
     const ownUsername = await this.detectOwnUsername(page);
@@ -1166,11 +1350,11 @@ class InstagramAssistedService {
 
         const desiredTop = Math.min(
           Math.max(0, container.scrollHeight - container.clientHeight),
-          Math.round(index * container.clientHeight * 0.82)
+          Math.round(index * container.clientHeight * 0.82),
         );
         container.scrollTo({
           top: desiredTop,
-          behavior: "auto"
+          behavior: "auto",
         });
       }, passIndex);
       await page.waitForTimeout(650);
@@ -1193,9 +1377,11 @@ class InstagramAssistedService {
           /ícone de seta para baixo/i,
           /^primary$/i,
           /^general$/i,
-          /^pedidos$/i
+          /^pedidos$/i,
         ];
-        const candidateRows = Array.from(nav.querySelectorAll("div[role='button'], button")) as Array<{
+        const candidateRows = Array.from(
+          nav.querySelectorAll("div[role='button'], button"),
+        ) as Array<{
           textContent?: string | null;
           querySelectorAll(selector: string): Iterable<unknown>;
           getBoundingClientRect(): { width: number; height: number; bottom: number; top: number };
@@ -1204,25 +1390,39 @@ class InstagramAssistedService {
           .map((element, index) => {
             const label = (element.textContent ?? "").replace(/\s+/g, " ").trim();
             const rect = element.getBoundingClientRect();
-            if (!label || rect.width < 150 || rect.height < 24 || rect.bottom <= 90 || rect.top >= window.innerHeight - 12) {
+            if (
+              !label ||
+              rect.width < 150 ||
+              rect.height < 24 ||
+              rect.bottom <= 90 ||
+              rect.top >= window.innerHeight - 12
+            ) {
               return null;
             }
             if (noisePatterns.some((pattern) => pattern.test(label))) {
               return null;
             }
 
-            const titleCandidates = Array.from(element.querySelectorAll("h1, h2, h3, h4, span[dir='auto'], div[dir='auto']"))
-              .map((node) => ((node as { textContent?: string | null }).textContent ?? "").replace(/\s+/g, " ").trim())
+            const titleCandidates = Array.from(
+              element.querySelectorAll("h1, h2, h3, h4, span[dir='auto'], div[dir='auto']"),
+            )
+              .map((node) =>
+                ((node as { textContent?: string | null }).textContent ?? "")
+                  .replace(/\s+/g, " ")
+                  .trim(),
+              )
               .filter(Boolean);
             const title =
-              titleCandidates.find((candidate) => candidate.length <= 80 && !/[·•]/.test(candidate)) ??
+              titleCandidates.find(
+                (candidate) => candidate.length <= 80 && !/[·•]/.test(candidate),
+              ) ??
               titleCandidates[0] ??
               label;
 
             return {
               index,
               label,
-              title
+              title,
             };
           })
           .filter(Boolean) as Array<{ index: number; label: string; title: string }>;
@@ -1251,7 +1451,9 @@ class InstagramAssistedService {
             return false;
           }
 
-          const candidateRows = Array.from(nav.querySelectorAll("div[role='button'], button")) as Array<{ click(): void }>;
+          const candidateRows = Array.from(
+            nav.querySelectorAll("div[role='button'], button"),
+          ) as Array<{ click(): void }>;
           const element = candidateRows[targetIndex];
           if (!element) {
             return false;
@@ -1292,29 +1494,49 @@ class InstagramAssistedService {
           },
           number
         >((limit) => {
-          const titleCandidates = Array.from(document.querySelectorAll("main h1, main h2, header h1, header h2, main span[dir='auto'], header span[dir='auto']"))
-            .map((node) => (((node as { textContent?: string | null }).textContent ?? "").replace(/\s+/g, " ").trim()))
+          const titleCandidates = Array.from(
+            document.querySelectorAll(
+              "main h1, main h2, header h1, header h2, main span[dir='auto'], header span[dir='auto']",
+            ),
+          )
+            .map((node) =>
+              ((node as { textContent?: string | null }).textContent ?? "")
+                .replace(/\s+/g, " ")
+                .trim(),
+            )
             .filter(Boolean);
           const title =
-            titleCandidates.find((candidate) => candidate.length <= 80 && !candidate.startsWith("@") && !/^(?:mensagens|messages)$/i.test(candidate)) ??
+            titleCandidates.find(
+              (candidate) =>
+                candidate.length <= 80 &&
+                !candidate.startsWith("@") &&
+                !/^(?:mensagens|messages)$/i.test(candidate),
+            ) ??
             titleCandidates[0] ??
             document.title.replace(/\s+/g, " ").trim();
 
           const profileLinks = Array.from(document.querySelectorAll("a[href]"))
             .map((anchor) => ({
-              href: (anchor as { getAttribute(name: string): string | null }).getAttribute("href") ?? "",
-              text: (((anchor as { textContent?: string | null }).textContent ?? "").replace(/\s+/g, " ").trim())
+              href:
+                (anchor as { getAttribute(name: string): string | null }).getAttribute("href") ??
+                "",
+              text: ((anchor as { textContent?: string | null }).textContent ?? "")
+                .replace(/\s+/g, " ")
+                .trim(),
             }))
             .filter((entry) => Boolean(entry.href));
 
           // Relative-time labels shown as date dividers between messages — not real content
-          const relativeTimePattern = /^(\d+\s*(s|min|h|d|sem|sem\.|w|hr|hrs|days?|weeks?|months?|meses?|hora|horas|dia|dias|semana|semanas|minuto|minutos|segundo|segundos)|hoje|ontem|yesterday|today|just now|agora)$/i;
+          const relativeTimePattern =
+            /^(\d+\s*(s|min|h|d|sem|sem\.|w|hr|hrs|days?|weeks?|months?|meses?|hora|horas|dia|dias|semana|semanas|minuto|minutos|segundo|segundos)|hoje|ontem|yesterday|today|just now|agora)$/i;
 
-          const rawNodes = (Array.from(document.querySelectorAll("main div[dir='auto'], main span")) as Array<{
+          const rawNodes = Array.from(
+            document.querySelectorAll("main div[dir='auto'], main span"),
+          ) as Array<{
             textContent?: string | null;
             contains(other: unknown): boolean;
             getBoundingClientRect(): { width: number; height: number; left: number; top: number };
-          }>);
+          }>;
 
           // Only keep nodes whose text is not contained in a sibling/ancestor also matched
           // Strategy: collect all texts with their rects, then deduplicate by proximity (same text within 2px vertically)
@@ -1338,7 +1560,7 @@ class InstagramAssistedService {
               return {
                 text,
                 left: rect.left,
-                top: rect.top
+                top: rect.top,
               };
             })
             .filter(Boolean) as Array<{ text: string; left: number; top: number }>;
@@ -1347,7 +1569,7 @@ class InstagramAssistedService {
           const deduped: Array<{ text: string; left: number; top: number }> = [];
           for (const node of textNodes) {
             const isDuplicate = deduped.some(
-              (seen) => seen.text === node.text && Math.abs(seen.top - node.top) <= 2
+              (seen) => seen.text === node.text && Math.abs(seen.top - node.top) <= 2,
             );
             if (!isDuplicate) {
               deduped.push(node);
@@ -1360,10 +1582,12 @@ class InstagramAssistedService {
             .map((item, index) => ({
               // Null externalId: instagram-sync will build a stable content-based ID
               externalId: null as string | null,
-              direction: (item.left > window.innerWidth * 0.5 ? "outgoing" : "incoming") as "incoming" | "outgoing",
+              direction: (item.left > window.innerWidth * 0.5 ? "outgoing" : "incoming") as
+                | "incoming"
+                | "outgoing",
               body: item.text,
               contentType: "text" as const,
-              sentAt: null
+              sentAt: null,
             }));
           const lastMessage = ordered[ordered.length - 1] ?? null;
 
@@ -1374,14 +1598,14 @@ class InstagramAssistedService {
             unreadCount: 0,
             lastMessagePreview: lastMessage?.body ?? "",
             lastMessageDirection: lastMessage?.direction ?? null,
-            lastMessageAt: null
+            lastMessageAt: null,
           };
         }, messagesLimit);
 
         const participant = resolveInstagramThreadParticipant({
           profileLinks: snapshot.profileLinks,
           ownUsername,
-          fallbackTitle: row.title
+          fallbackTitle: row.title,
         });
         processedThreadIds.add(openedThreadId);
 
@@ -1393,7 +1617,7 @@ class InstagramAssistedService {
           lastMessagePreview: snapshot.lastMessagePreview,
           lastMessageAt: snapshot.lastMessageAt,
           lastMessageDirection: snapshot.lastMessageDirection,
-          messages: snapshot.messages
+          messages: snapshot.messages,
         });
 
         await restoreInboxViewport(viewportPass);
@@ -1421,7 +1645,7 @@ class InstagramAssistedService {
       const fixture = await this.readFixture();
       if (fixture) {
         recordSystemEvent("instagram-assisted", "info", "Instagram fixture session ready", {
-          fixturePath: loadEnv().IG_ASSISTED_FIXTURE_PATH
+          fixturePath: loadEnv().IG_ASSISTED_FIXTURE_PATH,
         });
         return persistSessionState(fixture.session);
       }
@@ -1440,14 +1664,19 @@ class InstagramAssistedService {
           username,
           errorMessage: null,
           pageUrl: page.url(),
-          lastCheckedAt: new Date().toISOString()
+          lastCheckedAt: new Date().toISOString(),
         });
 
-        recordSystemEvent("instagram-assisted", authenticated ? "info" : "warn", "Instagram session checked", {
-          authenticated,
-          browserEndpoint: state.browserEndpoint,
-          profileDir: state.profileDir
-        });
+        recordSystemEvent(
+          "instagram-assisted",
+          authenticated ? "info" : "warn",
+          "Instagram session checked",
+          {
+            authenticated,
+            browserEndpoint: state.browserEndpoint,
+            profileDir: state.profileDir,
+          },
+        );
 
         return state;
       } catch (error) {
@@ -1471,11 +1700,11 @@ class InstagramAssistedService {
         const session = persistSessionState({
           ...fixture.session,
           authenticated: true,
-          lastSyncAt: new Date().toISOString()
+          lastSyncAt: new Date().toISOString(),
         });
         return {
           session,
-          threads: fixture.threads
+          threads: fixture.threads,
         };
       }
 
@@ -1501,15 +1730,15 @@ class InstagramAssistedService {
           messageCount: threads.reduce((total, thread) => total + thread.messages.length, 0),
           errorMessage: null,
           pageUrl: page.url(),
-          lastCheckedAt: new Date().toISOString()
+          lastCheckedAt: new Date().toISOString(),
         });
         recordSystemEvent("instagram-assisted", "info", "Instagram inbox synced", {
-          threadCount: threads.length
+          threadCount: threads.length,
         });
 
         return {
           session,
-          threads
+          threads,
         };
       } catch (error) {
         this.handleBrowserError(error, "Falha ao sincronizar inbox do Instagram");
@@ -1533,18 +1762,18 @@ class InstagramAssistedService {
         recordSystemEvent("instagram-assisted", "info", "Instagram fixture message sent", {
           threadId: input.threadId ?? null,
           username: input.username ?? null,
-          contentType: input.contentType ?? "text"
+          contentType: input.contentType ?? "text",
         });
         persistSessionState({
           ...fixture.session,
           authenticated: true,
           status: "connected",
-          lastSyncAt: sentAt
+          lastSyncAt: sentAt,
         });
         return {
           externalId: `ig-fixture-${randomUUID()}`,
           sentAt,
-          threadId: input.threadId ?? input.username?.replace(/^@+/, "").toLowerCase() ?? null
+          threadId: input.threadId ?? input.username?.replace(/^@+/, "").toLowerCase() ?? null,
         };
       }
 
@@ -1578,7 +1807,9 @@ class InstagramAssistedService {
             await this.clickSendButton(page);
           }
         } else {
-          throw new InputError("Informe texto, legenda ou mídia para o envio assistido do Instagram.");
+          throw new InputError(
+            "Informe texto, legenda ou mídia para o envio assistido do Instagram.",
+          );
         }
 
         const sentAt = new Date().toISOString();
@@ -1590,20 +1821,21 @@ class InstagramAssistedService {
           lastSyncAt: sentAt,
           errorMessage: null,
           pageUrl: page.url(),
-          lastCheckedAt: sentAt
+          lastCheckedAt: sentAt,
         });
 
-        const resolvedThreadId = page.url().match(/\/direct\/t\/([^/?#]+)/)?.[1] ?? input.threadId ?? null;
+        const resolvedThreadId =
+          page.url().match(/\/direct\/t\/([^/?#]+)/)?.[1] ?? input.threadId ?? null;
         recordSystemEvent("instagram-assisted", "info", "Instagram message sent", {
           threadId: resolvedThreadId,
           username: input.username ?? null,
-          contentType: input.contentType ?? (input.mediaPath ? "image" : "text")
+          contentType: input.contentType ?? (input.mediaPath ? "image" : "text"),
         });
 
         return {
           externalId: `ig-browser-${randomUUID()}`,
           sentAt,
-          threadId: resolvedThreadId
+          threadId: resolvedThreadId,
         };
       } catch (error) {
         this.handleBrowserError(error, "Falha ao enviar mensagem assistida do Instagram");
@@ -1632,5 +1864,8 @@ export function resolveInstagramThreadUrl(threadId: string) {
 }
 
 export function resolveInstagramProfileUrl(username: string) {
-  return new URL(path.posix.join("/", username.replace(/^@+/, ""), "/"), "https://www.instagram.com").toString();
+  return new URL(
+    path.posix.join("/", username.replace(/^@+/, ""), "/"),
+    "https://www.instagram.com",
+  ).toString();
 }

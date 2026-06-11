@@ -4,10 +4,23 @@ import { getActiveChatbotsForChannel, matchChatbotRule } from "./chatbot-reposit
 import { createAutomationRun, getOpenAutomationRunForContact } from "./automation-repository.js";
 import { enqueueJob } from "./job-repository.js";
 import { ensureDefaultChannelAccounts } from "./channel-account-repository.js";
-import { createAutoContact, getContactById, getContactByPhone, hydrateAutoContact, recordContactHistory, touchContactTimestamps } from "./contact-repository.js";
+import {
+  createAutoContact,
+  getContactById,
+  getContactByPhone,
+  hydrateAutoContact,
+  recordContactHistory,
+  touchContactTimestamps,
+} from "./contact-repository.js";
 import { recordAuditLog } from "./audit-log-repository.js";
 import { rememberInstagramThreadForContact } from "./contact-channel-repository.js";
-import type { ChannelType, ConversationRecord, MessageContentType, MessageDirection, MessageRecord } from "../types/domain.js";
+import type {
+  ChannelType,
+  ConversationRecord,
+  MessageContentType,
+  MessageDirection,
+  MessageRecord,
+} from "../types/domain.js";
 
 function nowIso() {
   return new Date().toISOString();
@@ -41,7 +54,8 @@ function mapConversation(row: Record<string, unknown>): ConversationRecord {
     externalThreadId,
     inboxCategory: String(row.inbox_category ?? "primary"),
     internalStatus: String(row.internal_status ?? row.status ?? "open"),
-    waChatId: channel === "whatsapp" ? externalThreadId : String(row.wa_chat_id ?? externalThreadId),
+    waChatId:
+      channel === "whatsapp" ? externalThreadId : String(row.wa_chat_id ?? externalThreadId),
     title: String(row.title),
     unreadCount: Number(row.unread_count ?? 0),
     lastMessagePreview: String(row.last_message_preview ?? ""),
@@ -53,7 +67,7 @@ function mapConversation(row: Record<string, unknown>): ConversationRecord {
     metadata: parseMeta(row.metadata_json as string | null),
     contactName: (row.contact_name as string | null) ?? null,
     contactPhone: (row.contact_phone as string | null) ?? null,
-    contactInstagram: (row.contact_instagram as string | null) ?? null
+    contactInstagram: (row.contact_instagram as string | null) ?? null,
   };
 }
 
@@ -68,30 +82,40 @@ function mapMessage(row: Record<string, unknown>): MessageRecord {
     direction: String(row.direction) as MessageDirection,
     contentType: String(row.content_type) as MessageContentType,
     body: String(row.body ?? ""),
-    mediaPath: (row.storage_path as string | null) ?? (row.media_storage_path as string | null) ?? (meta.mediaPath as string | null) ?? null,
+    mediaPath:
+      (row.storage_path as string | null) ??
+      (row.media_storage_path as string | null) ??
+      (meta.mediaPath as string | null) ??
+      null,
     externalId: (row.external_id as string | null) ?? null,
     status: String(row.status ?? "sent"),
     sentAt: (row.sent_at as string | null) ?? null,
     createdAt: String(row.created_at),
-    meta
+    meta,
   };
 }
 
-function ensureContact(input: { channel: ChannelType; contactPhone: string | null | undefined; contactName: string }) {
+function ensureContact(input: {
+  channel: ChannelType;
+  contactPhone: string | null | undefined;
+  contactName: string;
+}) {
   if (input.channel !== "whatsapp" || !input.contactPhone) {
     return null;
   }
 
   const existing = getContactByPhone(input.contactPhone);
   if (existing) {
-    return hydrateAutoContact(existing.id, {
-      title: input.contactName
-    }) ?? existing;
+    return (
+      hydrateAutoContact(existing.id, {
+        title: input.contactName,
+      }) ?? existing
+    );
   }
 
   return createAutoContact({
     phone: input.contactPhone,
-    title: input.contactName
+    title: input.contactName,
   });
 }
 
@@ -119,7 +143,7 @@ function rememberInstagramThreadForConversation(input: {
     threadId: input.externalThreadId,
     threadTitle: input.title,
     observedAt: input.observedAt ?? null,
-    source: input.source ?? "conversation-upsert"
+    source: input.source ?? "conversation-upsert",
   });
 }
 
@@ -141,7 +165,7 @@ export function listConversations(filters?: { channel?: string; status?: string;
   if (filters?.query) {
     const like = `%${filters.query.trim()}%`;
     where.push(
-      "(conv.title LIKE ? OR IFNULL(conv.last_message_preview, '') LIKE ? OR IFNULL(c.name, '') LIKE ? OR IFNULL(c.phone, '') LIKE ? OR IFNULL(c.instagram, '') LIKE ?)"
+      "(conv.title LIKE ? OR IFNULL(conv.last_message_preview, '') LIKE ? OR IFNULL(c.name, '') LIKE ? OR IFNULL(c.phone, '') LIKE ? OR IFNULL(c.instagram, '') LIKE ?)",
     );
     params.push(like, like, like, like, like);
   }
@@ -159,7 +183,7 @@ export function listConversations(filters?: { channel?: string; status?: string;
         LEFT JOIN contacts c ON c.id = conv.contact_id
         ${whereClause}
         ORDER BY datetime(COALESCE(conv.last_message_at, conv.updated_at)) DESC
-      `
+      `,
     )
     .all(...params) as Array<Record<string, unknown>>;
 
@@ -171,7 +195,13 @@ export function listConversations(filters?: { channel?: string; status?: string;
  * Returns one entry per contact with their latest message across all channels.
  * Supports pagination via page/pageSize params.
  */
-export function listUnifiedInbox(filters?: { channel?: string; status?: string; query?: string; page?: number; pageSize?: number }) {
+export function listUnifiedInbox(filters?: {
+  channel?: string;
+  status?: string;
+  query?: string;
+  page?: number;
+  pageSize?: number;
+}) {
   const db = getDb();
   const where: string[] = ["conv.contact_id IS NOT NULL"];
   const params: unknown[] = [];
@@ -189,7 +219,7 @@ export function listUnifiedInbox(filters?: { channel?: string; status?: string; 
   if (filters?.query) {
     const like = `%${filters.query.trim()}%`;
     where.push(
-      "(IFNULL(c.name, '') LIKE ? OR IFNULL(c.phone, '') LIKE ? OR IFNULL(c.instagram, '') LIKE ? OR IFNULL(conv.last_message_preview, '') LIKE ?)"
+      "(IFNULL(c.name, '') LIKE ? OR IFNULL(c.phone, '') LIKE ? OR IFNULL(c.instagram, '') LIKE ? OR IFNULL(conv.last_message_preview, '') LIKE ?)",
     );
     params.push(like, like, like, like);
   }
@@ -197,15 +227,17 @@ export function listUnifiedInbox(filters?: { channel?: string; status?: string; 
   const whereClause = where.length > 0 ? `WHERE ${where.join(" AND ")}` : "";
 
   // Count total grouped contacts matching filters
-  const countRow = db.prepare(
-    `SELECT COUNT(*) AS cnt FROM (
+  const countRow = db
+    .prepare(
+      `SELECT COUNT(*) AS cnt FROM (
       SELECT c.id
       FROM conversations conv
       INNER JOIN contacts c ON c.id = conv.contact_id
       ${whereClause}
       GROUP BY c.id
-    )`
-  ).get(...params) as { cnt: number };
+    )`,
+    )
+    .get(...params) as { cnt: number };
   const total = countRow.cnt;
 
   const page = Math.max(1, filters?.page ?? 1);
@@ -215,8 +247,9 @@ export function listUnifiedInbox(filters?: { channel?: string; status?: string; 
   const offset = (safePage - 1) * pageSize;
 
   // Single query with subquery to avoid N+1 (architecture fix)
-  const rows = db.prepare(
-    `SELECT
+  const rows = db
+    .prepare(
+      `SELECT
       c.id AS contact_id,
       c.name AS contact_name,
       c.phone AS contact_phone,
@@ -237,8 +270,9 @@ export function listUnifiedInbox(filters?: { channel?: string; status?: string; 
     ${whereClause}
     GROUP BY c.id
     ORDER BY (MAX(conv.last_message_at) IS NULL), MAX(datetime(COALESCE(conv.last_message_at, '1970-01-01'))) DESC
-    LIMIT ? OFFSET ?`
-  ).all(...params, pageSize, offset) as Array<Record<string, unknown>>;
+    LIMIT ? OFFSET ?`,
+    )
+    .all(...params, pageSize, offset) as Array<Record<string, unknown>>;
 
   const items = rows.map((row) => ({
     contactId: String(row.contact_id),
@@ -246,12 +280,14 @@ export function listUnifiedInbox(filters?: { channel?: string; status?: string; 
     contactPhone: (row.contact_phone as string) ?? null,
     contactInstagram: (row.contact_instagram as string) ?? null,
     contactStatus: String(row.contact_status ?? "novo"),
-    channels: String(row.channels ?? "").split(",").filter(Boolean),
+    channels: String(row.channels ?? "")
+      .split(",")
+      .filter(Boolean),
     lastMessageAt: (row.last_message_at as string) ?? null,
     lastMessagePreview: String(row.latest_preview ?? ""),
     lastMessageChannel: (row.latest_channel as string) ?? null,
     totalUnread: Number(row.total_unread ?? 0),
-    conversationCount: Number(row.conversation_count ?? 0)
+    conversationCount: Number(row.conversation_count ?? 0),
   }));
 
   return { items, total, page: safePage, pageSize, totalPages };
@@ -262,22 +298,24 @@ export function listUnifiedInbox(filters?: { channel?: string; status?: string; 
  */
 export function listMessagesForContact(contactId: string, limit = 200) {
   const db = getDb();
-  const rows = db.prepare(
-    `SELECT m.*, conv.channel AS conv_channel, ma.storage_path AS media_storage_path
+  const rows = db
+    .prepare(
+      `SELECT m.*, conv.channel AS conv_channel, ma.storage_path AS media_storage_path
      FROM messages m
      INNER JOIN conversations conv ON conv.id = m.conversation_id
      LEFT JOIN media_assets ma ON ma.id = m.media_asset_id
      WHERE conv.contact_id = ?
      ORDER BY datetime(m.created_at) ASC
-     LIMIT ?`
-  ).all(contactId, limit) as Array<Record<string, unknown>>;
+     LIMIT ?`,
+    )
+    .all(contactId, limit) as Array<Record<string, unknown>>;
 
   return rows.map((row) => {
     const msg = mapMessage(row);
     return {
       ...msg,
       channel: String(row.conv_channel ?? row.channel ?? "whatsapp") as ChannelType,
-      mediaPath: (row.media_storage_path as string) ?? msg.mediaPath ?? null
+      mediaPath: (row.media_storage_path as string) ?? msg.mediaPath ?? null,
     };
   });
 }
@@ -295,7 +333,7 @@ export function getConversationById(conversationId: string) {
         FROM conversations conv
         LEFT JOIN contacts c ON c.id = conv.contact_id
         WHERE conv.id = ?
-      `
+      `,
     )
     .get(conversationId) as Record<string, unknown> | undefined;
   return row ? mapConversation(row) : null;
@@ -321,7 +359,7 @@ export function getLatestConversationForContactChannel(contactId: string, channe
           AND channel = ?
         ORDER BY datetime(COALESCE(last_message_at, updated_at)) DESC
         LIMIT 1
-      `
+      `,
     )
     .get(contactId, channel) as Record<string, unknown> | undefined;
 
@@ -331,7 +369,9 @@ export function getLatestConversationForContactChannel(contactId: string, channe
 export function getConversationByChatId(waChatId: string) {
   const db = getDb();
   const row = db
-    .prepare("SELECT * FROM conversations WHERE channel = 'whatsapp' AND (external_thread_id = ? OR wa_chat_id = ?)")
+    .prepare(
+      "SELECT * FROM conversations WHERE channel = 'whatsapp' AND (external_thread_id = ? OR wa_chat_id = ?)",
+    )
     .get(waChatId, waChatId) as Record<string, unknown> | undefined;
   return row ? mapConversation(row) : null;
 }
@@ -354,7 +394,7 @@ export function getConversationMessageCount(waChatId: string): number {
     .prepare(
       `SELECT COUNT(*) as cnt FROM messages m
        JOIN conversations c ON c.id = m.conversation_id
-       WHERE c.channel = 'whatsapp' AND (c.external_thread_id = ? OR c.wa_chat_id = ?)`
+       WHERE c.channel = 'whatsapp' AND (c.external_thread_id = ? OR c.wa_chat_id = ?)`,
     )
     .get(waChatId, waChatId) as { cnt: number } | undefined;
   return row?.cnt ?? 0;
@@ -372,7 +412,7 @@ export function isLastMessageOutgoingWithin(waChatId: string, hours: number): bo
       `SELECT direction, sent_at FROM messages m
        JOIN conversations c ON c.id = m.conversation_id
        WHERE c.channel = 'whatsapp' AND (c.external_thread_id = ? OR c.wa_chat_id = ?)
-       ORDER BY m.sent_at DESC, m.created_at DESC LIMIT 1`
+       ORDER BY m.sent_at DESC, m.created_at DESC LIMIT 1`,
     )
     .get(waChatId, waChatId) as { direction: string; sent_at: string } | undefined;
 
@@ -396,7 +436,7 @@ export function hasPlaceholderMessage(waChatId: string): boolean {
       `SELECT 1 FROM messages m
        JOIN conversations c ON c.id = m.conversation_id
        WHERE c.channel = 'whatsapp' AND (c.external_thread_id = ? OR c.wa_chat_id = ?)
-       AND json_extract(m.meta_json, '$.placeholder') = 1 LIMIT 1`
+       AND json_extract(m.meta_json, '$.placeholder') = 1 LIMIT 1`,
     )
     .get(waChatId, waChatId) as Record<string, unknown> | undefined;
 
@@ -413,7 +453,7 @@ export function getMessageByExternalId(externalId: string) {
         LEFT JOIN media_assets ma ON ma.id = m.media_asset_id
         WHERE m.external_id = ?
         LIMIT 1
-      `
+      `,
     )
     .get(externalId) as Record<string, unknown> | undefined;
 
@@ -439,7 +479,7 @@ export function findMessageByMinute(
     direction: MessageDirection;
     body: string;
     mediaType: MessageContentType | null;
-  }
+  },
 ) {
   const db = getDb();
   const isMedia = criteria.mediaType !== null;
@@ -458,7 +498,7 @@ export function findMessageByMinute(
             OR (? = 0 AND (body = ? OR (length(?) > 0 AND body LIKE ? || '%')))
           )
         LIMIT 1
-      `
+      `,
     )
     .get(
       conversationId,
@@ -472,10 +512,12 @@ export function findMessageByMinute(
       isMedia ? 1 : 0,
       criteria.body,
       bodyPrefix,
-      bodyPrefix
+      bodyPrefix,
     ) as Record<string, unknown> | undefined;
 
-  return row ? { id: String(row.id), body: String(row.body ?? ""), contentType: String(row.content_type) } : null;
+  return row
+    ? { id: String(row.id), body: String(row.body ?? ""), contentType: String(row.content_type) }
+    : null;
 }
 
 export function listMessagesForConversation(conversationId: string, limit = 120) {
@@ -489,7 +531,7 @@ export function listMessagesForConversation(conversationId: string, limit = 120)
         WHERE m.conversation_id = ?
         ORDER BY datetime(COALESCE(m.sent_at, m.created_at)) DESC, datetime(m.created_at) DESC
         LIMIT ?
-      `
+      `,
     )
     .all(conversationId, limit) as Array<Record<string, unknown>>;
 
@@ -526,16 +568,20 @@ export function upsertConversation(input: {
     const db = getDb();
     const accounts = ensureDefaultChannelAccounts();
     const channelAccountId =
-      input.channelAccountId ?? (channel === "instagram" ? accounts.instagram?.id : accounts.whatsapp?.id) ?? null;
+      input.channelAccountId ??
+      (channel === "instagram" ? accounts.instagram?.id : accounts.whatsapp?.id) ??
+      null;
     const existing = getConversationByExternalThread(channel, externalThreadId);
     const timestamp = nowIso();
     const ensuredContact = ensureContact({
       channel,
       contactPhone: input.contactPhone ?? null,
-      contactName: input.title
+      contactName: input.title,
     });
     const contactId = input.contactId ?? ensuredContact?.id ?? existing?.contactId ?? null;
-    const instagramHandle = input.contactInstagram ?? (typeof input.metadata?.username === "string" ? input.metadata.username : null);
+    const instagramHandle =
+      input.contactInstagram ??
+      (typeof input.metadata?.username === "string" ? input.metadata.username : null);
 
     if (existing) {
       db.prepare(
@@ -555,7 +601,7 @@ export function upsertConversation(input: {
             metadata_json = ?,
             updated_at = ?
           WHERE id = ?
-        `
+        `,
       ).run(
         input.title,
         input.unreadCount ?? existing.unreadCount,
@@ -569,7 +615,7 @@ export function upsertConversation(input: {
         input.internalStatus ?? existing.internalStatus ?? "open",
         JSON.stringify(input.metadata ?? existing.metadata ?? {}),
         timestamp,
-        existing.id
+        existing.id,
       );
 
       recordAuditLog({
@@ -581,9 +627,9 @@ export function upsertConversation(input: {
         conversationId: existing.id,
         metadata: {
           externalThreadId,
-          title: input.title
+          title: input.title,
         },
-        createdAt: timestamp
+        createdAt: timestamp,
       });
 
       if (channel === "instagram") {
@@ -593,7 +639,7 @@ export function upsertConversation(input: {
           instagramHandle,
           title: input.title,
           observedAt: input.lastMessageAt ?? existing.lastMessageAt ?? timestamp,
-          source: "conversation-upsert"
+          source: "conversation-upsert",
         });
       }
 
@@ -607,7 +653,7 @@ export function upsertConversation(input: {
           id, contact_id, wa_chat_id, title, unread_count, last_message_preview, last_message_at, last_message_direction,
           status, assigned_to, created_at, updated_at, channel, channel_account_id, external_thread_id, inbox_category, internal_status, metadata_json
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `
+      `,
     ).run(
       id,
       contactId,
@@ -625,7 +671,7 @@ export function upsertConversation(input: {
       externalThreadId,
       input.inboxCategory ?? "primary",
       input.internalStatus ?? "open",
-      JSON.stringify(input.metadata ?? {})
+      JSON.stringify(input.metadata ?? {}),
     );
 
     recordAuditLog({
@@ -637,9 +683,9 @@ export function upsertConversation(input: {
       conversationId: id,
       metadata: {
         externalThreadId,
-        title: input.title
+        title: input.title,
       },
-      createdAt: timestamp
+      createdAt: timestamp,
     });
 
     if (channel === "instagram") {
@@ -649,7 +695,7 @@ export function upsertConversation(input: {
         instagramHandle,
         title: input.title,
         observedAt: input.lastMessageAt ?? timestamp,
-        source: "conversation-upsert"
+        source: "conversation-upsert",
       });
     }
 
@@ -670,7 +716,7 @@ export function updateConversationInternalStatus(conversationId: string, interna
       UPDATE conversations
       SET internal_status = ?, updated_at = ?
       WHERE id = ?
-    `
+    `,
   ).run(internalStatus, timestamp, conversationId);
 
   recordAuditLog({
@@ -682,9 +728,9 @@ export function updateConversationInternalStatus(conversationId: string, interna
     conversationId,
     metadata: {
       previousStatus: existing.internalStatus,
-      nextStatus: internalStatus
+      nextStatus: internalStatus,
     },
-    createdAt: timestamp
+    createdAt: timestamp,
   });
 
   return getConversationById(conversationId);
@@ -704,133 +750,164 @@ export function addMessage(input: {
   meta?: Record<string, unknown>;
 }) {
   return withSqliteBusyRetry(() => {
-  const db = getDb();
-  const conversation = getConversationById(input.conversationId);
-  if (input.externalId) {
-    const existing = db.prepare("SELECT id FROM messages WHERE external_id = ?").get(input.externalId) as { id: string } | undefined;
-    if (existing) {
-      return existing.id;
+    const db = getDb();
+    const conversation = getConversationById(input.conversationId);
+    if (input.externalId) {
+      const existing = db
+        .prepare("SELECT id FROM messages WHERE external_id = ?")
+        .get(input.externalId) as { id: string } | undefined;
+      if (existing) {
+        return existing.id;
+      }
     }
-  }
 
-  const timestamp = nowIso();
-  const id = randomUUID();
-  try {
-    db.prepare(
-      `
+    const timestamp = nowIso();
+    const id = randomUUID();
+    try {
+      db.prepare(
+        `
         INSERT INTO messages (
           id, conversation_id, contact_id, direction, content_type, body, media_asset_id, external_id, status, sent_at, meta_json, created_at, channel, channel_account_id
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `
-    ).run(
-      id,
-      input.conversationId,
-      input.contactId ?? null,
-      input.direction,
-      input.contentType,
-      input.body ?? "",
-      input.mediaAssetId ?? null,
-      input.externalId ?? null,
-      input.status ?? "sent",
-      input.sentAt ?? timestamp,
-      JSON.stringify(input.meta ?? {}),
-      timestamp,
-      conversation?.channel ?? "whatsapp",
-      conversation?.channelAccountId ?? null
-    );
-  } catch (err: unknown) {
-    // UNIQUE constraint violation — message already exists (race condition resolved)
-    if (err instanceof Error && err.message.includes("UNIQUE constraint failed")) {
-      if (input.externalId) {
-        const existing = db.prepare("SELECT id FROM messages WHERE external_id = ?").get(input.externalId) as { id: string } | undefined;
-        if (existing) return existing.id;
+      `,
+      ).run(
+        id,
+        input.conversationId,
+        input.contactId ?? null,
+        input.direction,
+        input.contentType,
+        input.body ?? "",
+        input.mediaAssetId ?? null,
+        input.externalId ?? null,
+        input.status ?? "sent",
+        input.sentAt ?? timestamp,
+        JSON.stringify(input.meta ?? {}),
+        timestamp,
+        conversation?.channel ?? "whatsapp",
+        conversation?.channelAccountId ?? null,
+      );
+    } catch (err: unknown) {
+      // UNIQUE constraint violation — message already exists (race condition resolved)
+      if (err instanceof Error && err.message.includes("UNIQUE constraint failed")) {
+        if (input.externalId) {
+          const existing = db
+            .prepare("SELECT id FROM messages WHERE external_id = ?")
+            .get(input.externalId) as { id: string } | undefined;
+          if (existing) return existing.id;
+        }
+        return id; // fallback
       }
-      return id; // fallback
+      throw err;
     }
-    throw err;
-  }
 
-  const preview = input.body?.trim() || (input.contentType === "text" ? "Mensagem" : `Arquivo: ${input.contentType}`);
-  db.prepare(
-    `
+    const preview =
+      input.body?.trim() ||
+      (input.contentType === "text" ? "Mensagem" : `Arquivo: ${input.contentType}`);
+    db.prepare(
+      `
       UPDATE conversations
       SET last_message_preview = ?, last_message_at = ?, last_message_direction = ?, updated_at = ?
       WHERE id = ?
-    `
-  ).run(preview, input.sentAt ?? timestamp, input.direction, timestamp, input.conversationId);
+    `,
+    ).run(preview, input.sentAt ?? timestamp, input.direction, timestamp, input.conversationId);
 
-  if (input.contactId && input.meta?.source !== "snapshot" && conversation?.lastMessagePreview !== preview) {
-    recordContactHistory(input.contactId, {
-      field: "last_message_preview",
-      label: "Última mensagem",
-      previousValue: conversation?.lastMessagePreview ?? null,
-      nextValue: preview,
-      source: conversation?.channel ?? "whatsapp",
-      createdAt: input.sentAt ?? timestamp
-    });
-  }
+    if (
+      input.contactId &&
+      input.meta?.source !== "snapshot" &&
+      conversation?.lastMessagePreview !== preview
+    ) {
+      recordContactHistory(input.contactId, {
+        field: "last_message_preview",
+        label: "Última mensagem",
+        previousValue: conversation?.lastMessagePreview ?? null,
+        nextValue: preview,
+        source: conversation?.channel ?? "whatsapp",
+        createdAt: input.sentAt ?? timestamp,
+      });
+    }
 
-  if (input.contactId) {
-    touchContactTimestamps(input.contactId, {
-      lastInteractionAt: input.sentAt ?? timestamp,
-      lastOutgoingAt: input.direction === "outgoing" ? input.sentAt ?? timestamp : null,
-      lastIncomingAt: input.direction === "incoming" ? input.sentAt ?? timestamp : null
-    });
+    if (input.contactId) {
+      touchContactTimestamps(input.contactId, {
+        lastInteractionAt: input.sentAt ?? timestamp,
+        lastOutgoingAt: input.direction === "outgoing" ? (input.sentAt ?? timestamp) : null,
+        lastIncomingAt: input.direction === "incoming" ? (input.sentAt ?? timestamp) : null,
+      });
 
-    // Auto-detect phone number from incoming messages and update contact
-    if (input.direction === "incoming" && input.body) {
-      const phoneMatch = input.body.match(/(?:\+?55\s?)?(?:\(?0?\d{2}\)?\s?)?\d{4,5}[-.\s]?\d{4}/);
-      if (phoneMatch) {
-        const rawPhone = phoneMatch[0].replace(/[\s\-.\(\)]/g, "").replace(/^0+/, "").replace(/^55/, "");
-        if (rawPhone.length >= 10 && rawPhone.length <= 11) {
-          const contact = getContactById(input.contactId);
-          if (contact && (!contact.phone || contact.phone.trim() === "")) {
-            db.prepare("UPDATE contacts SET phone = ?, updated_at = ? WHERE id = ?").run(rawPhone, timestamp, input.contactId);
-            recordContactHistory(input.contactId, {
-              field: "phone",
-              label: "Telefone (auto-detectado)",
-              previousValue: null,
-              nextValue: rawPhone,
-              source: "auto-detect-from-message"
-            });
+      // Auto-detect phone number from incoming messages and update contact
+      if (input.direction === "incoming" && input.body) {
+        const phoneMatch = input.body.match(
+          /(?:\+?55\s?)?(?:\(?0?\d{2}\)?\s?)?\d{4,5}[-.\s]?\d{4}/,
+        );
+        if (phoneMatch) {
+          const rawPhone = phoneMatch[0]
+            .replace(/[\s\-.\(\)]/g, "")
+            .replace(/^0+/, "")
+            .replace(/^55/, "");
+          if (rawPhone.length >= 10 && rawPhone.length <= 11) {
+            const contact = getContactById(input.contactId);
+            if (contact && (!contact.phone || contact.phone.trim() === "")) {
+              db.prepare("UPDATE contacts SET phone = ?, updated_at = ? WHERE id = ?").run(
+                rawPhone,
+                timestamp,
+                input.contactId,
+              );
+              recordContactHistory(input.contactId, {
+                field: "phone",
+                label: "Telefone (auto-detectado)",
+                previousValue: null,
+                nextValue: rawPhone,
+                source: "auto-detect-from-message",
+              });
+            }
           }
         }
       }
     }
-  }
 
-  recordAuditLog({
-    entityType: "message",
-    entityId: id,
-    action: "message.recorded",
-    channel: conversation?.channel ?? "whatsapp",
-    contactId: input.contactId ?? null,
-    conversationId: input.conversationId,
-    messageId: id,
-    metadata: {
-      direction: input.direction,
-      contentType: input.contentType,
-      source: input.meta?.source ?? null
-    },
-    createdAt: input.sentAt ?? timestamp
-  });
+    recordAuditLog({
+      entityType: "message",
+      entityId: id,
+      action: "message.recorded",
+      channel: conversation?.channel ?? "whatsapp",
+      contactId: input.contactId ?? null,
+      conversationId: input.conversationId,
+      messageId: id,
+      metadata: {
+        direction: input.direction,
+        contentType: input.contentType,
+        source: input.meta?.source ?? null,
+      },
+      createdAt: input.sentAt ?? timestamp,
+    });
 
-  return id;
+    return id;
   }); // withSqliteBusyRetry
 }
 
-export function updateMessageStatus(messageId: string, updates: {
-  status?: string;
-  sentAt?: string | null;
-  externalId?: string | null;
-}) {
+export function updateMessageStatus(
+  messageId: string,
+  updates: {
+    status?: string;
+    sentAt?: string | null;
+    externalId?: string | null;
+  },
+) {
   const db = getDb();
   const sets: string[] = [];
   const values: unknown[] = [];
 
-  if (updates.status !== undefined) { sets.push("status = ?"); values.push(updates.status); }
-  if (updates.sentAt !== undefined) { sets.push("sent_at = ?"); values.push(updates.sentAt); }
-  if (updates.externalId !== undefined) { sets.push("external_id = ?"); values.push(updates.externalId); }
+  if (updates.status !== undefined) {
+    sets.push("status = ?");
+    values.push(updates.status);
+  }
+  if (updates.sentAt !== undefined) {
+    sets.push("sent_at = ?");
+    values.push(updates.sentAt);
+  }
+  if (updates.externalId !== undefined) {
+    sets.push("external_id = ?");
+    values.push(updates.externalId);
+  }
 
   if (sets.length === 0) return;
 
@@ -870,7 +947,7 @@ export function saveConversationSnapshot(input: {
     lastMessagePreview: input.lastMessagePreview,
     lastMessageAt: input.lastMessageAt,
     lastMessageDirection: input.lastMessageDirection,
-    contactPhone: input.contactPhone
+    contactPhone: input.contactPhone,
   });
 
   if (!conversation) {
@@ -887,7 +964,7 @@ export function saveConversationSnapshot(input: {
         `DELETE FROM messages
          WHERE conversation_id = ?
            AND external_id IS NULL
-           AND json_extract(meta_json, '$.source') = 'snapshot'`
+           AND json_extract(meta_json, '$.source') = 'snapshot'`,
       ).run(conversation.id);
 
       for (const message of input.messages) {
@@ -901,8 +978,8 @@ export function saveConversationSnapshot(input: {
           externalId: message.externalId ?? null,
           meta: {
             source: "snapshot",
-            ...message.meta
-          }
+            ...message.meta,
+          },
         });
       }
     })();
@@ -933,20 +1010,23 @@ export function saveConversationSnapshot(input: {
               text: rule.responseBody,
               contentType: rule.responseType !== "text" ? rule.responseType : "text",
               mediaPath: rule.responseMediaPath ?? null,
-              ruleId: rule.id
-            }
+              ruleId: rule.id,
+            },
           });
         }
 
         // Trigger automation if rule has trigger_automation_id
         if (rule.triggerAutomationId && conversation.contactId) {
-          const openRun = getOpenAutomationRunForContact(rule.triggerAutomationId, conversation.contactId);
+          const openRun = getOpenAutomationRunForContact(
+            rule.triggerAutomationId,
+            conversation.contactId,
+          );
           if (!openRun) {
             createAutomationRun({
               automationId: rule.triggerAutomationId,
               contactId: conversation.contactId,
               conversationId: conversation.id,
-              nextRunAt: new Date().toISOString()
+              nextRunAt: new Date().toISOString(),
             });
           }
         }

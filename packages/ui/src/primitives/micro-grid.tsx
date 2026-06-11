@@ -14,8 +14,7 @@ export const MicroGrid = forwardRef<HTMLDivElement, MicroGridProps>(
     const gridSize = typeof size === "number" ? `${size}px` : "28px";
     const gridStyle: React.CSSProperties = {
       ...style,
-      backgroundImage:
-        "radial-gradient(rgb(var(--nw-line-hairline) / 0.9) 1px, transparent 1px)",
+      backgroundImage: "radial-gradient(rgb(var(--nw-line-hairline) / 0.9) 1px, transparent 1px)",
       backgroundSize: `${gridSize} ${gridSize}`,
       maskImage: fade
         ? "radial-gradient(ellipse at center, black 40%, transparent 100%)"

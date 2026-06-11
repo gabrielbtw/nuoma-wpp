@@ -86,16 +86,17 @@ export function InboxPage() {
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
+      if (event.defaultPrevented) return;
       const target = event.target as HTMLElement | null;
-      if (event.key === "Escape" && crmDrawerOpen) {
-        event.preventDefault();
-        setCrmDrawerOpen(false);
-        return;
-      }
       if (isInboxShortcutTarget(target)) {
         if (event.key === "Escape") {
           target?.blur();
         }
+        return;
+      }
+      if (event.key === "Escape" && crmDrawerOpen) {
+        event.preventDefault();
+        setCrmDrawerOpen(false);
         return;
       }
       const list = conversations.data?.conversations ?? [];

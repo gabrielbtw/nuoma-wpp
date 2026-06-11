@@ -131,9 +131,11 @@ After analyzing, write the conclusion to `REPORT.md` (template below) and includ
 # Spike 1 — Report
 
 ## Verdict
+
 verde | amarelo | vermelho
 
 ## Numbers
+
 - Messages captured: X / 50
 - Latency p50: X ms
 - Latency p95: X ms
@@ -147,13 +149,15 @@ verde | amarelo | vermelho
 - Missing date/time/second: X/Y
 
 ## Edge cases
-| Edge case | Captured? |
-|---|---|
-| Forwarded | yes/no |
-| Edited | yes/no |
-| Deleted | yes/no |
-| Same body same minute | yes/no |
+
+| Edge case             | Captured? |
+| --------------------- | --------- |
+| Forwarded             | yes/no    |
+| Edited                | yes/no    |
+| Deleted               | yes/no    |
+| Same body same minute | yes/no    |
 
 ## Notes
+
 …
 ```

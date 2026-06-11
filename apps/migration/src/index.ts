@@ -387,8 +387,14 @@ function parseOptions(argv: string[], env: NodeJS.ProcessEnv): Options {
     reportPath: argMap.get("report") ?? env.V215_REPORT_PATH ?? null,
     targetUserId: positiveInt(argMap.get("target-user") ?? env.V215_TARGET_USER_ID, 1),
     requireBackup: envFlag(argMap.get("require-backup") ?? env.V215_REQUIRE_BACKUP, true),
-    requireM303Proof: envFlag(argMap.get("require-m303-proof") ?? env.V215_REQUIRE_M303_PROOF, true),
-    requireV1CleanJobs: envFlag(argMap.get("require-v1-clean-jobs") ?? env.V215_REQUIRE_V1_CLEAN_JOBS, true),
+    requireM303Proof: envFlag(
+      argMap.get("require-m303-proof") ?? env.V215_REQUIRE_M303_PROOF,
+      true,
+    ),
+    requireV1CleanJobs: envFlag(
+      argMap.get("require-v1-clean-jobs") ?? env.V215_REQUIRE_V1_CLEAN_JOBS,
+      true,
+    ),
     allowBlockers: envFlag(argMap.get("allow-blockers") ?? env.V215_ALLOW_BLOCKERS, false),
     confirmCutover: env.V215_CONFIRM_CUTOVER === "SIM" || argMap.get("confirm") === "SIM",
   };
@@ -507,11 +513,19 @@ async function runMigration(options: Options): Promise<MigrationReport> {
       mediaTargetRoot: options.mediaTargetRoot,
       warnings: report.warnings,
     });
-    insertLegacyEventOnce(v2, options.targetUserId, "v215.cutover.applied", "info", "cutover", "applied", {
-      backup: report.backup,
-      counts: report.counts,
-      source: { v1DbPath: options.v1DbPath },
-    });
+    insertLegacyEventOnce(
+      v2,
+      options.targetUserId,
+      "v215.cutover.applied",
+      "info",
+      "cutover",
+      "applied",
+      {
+        backup: report.backup,
+        counts: report.counts,
+        source: { v1DbPath: options.v1DbPath },
+      },
+    );
     report.validation = validateImportedData(v2, source, options.targetUserId);
     report.status = report.validation.ok ? "applied" : "invalid";
     return finishReport(report);
@@ -560,7 +574,8 @@ function inspectV1(db: SqliteDatabase, options: Options, report: MigrationReport
     if (!tables.has(table)) continue;
     const existing = new Set(listColumns(db, table));
     for (const columnName of columns) {
-      if (!existing.has(columnName)) report.blockers.push(`v1_missing_column:${table}.${columnName}`);
+      if (!existing.has(columnName))
+        report.blockers.push(`v1_missing_column:${table}.${columnName}`);
     }
   }
 
@@ -577,7 +592,8 @@ function inspectV1(db: SqliteDatabase, options: Options, report: MigrationReport
       .map((table) => [table, scalar(db, `SELECT count(*) FROM ${quoteIdent(table)}`)]),
   );
 
-  if (options.requireV1CleanJobs && activeJobs > 0) report.blockers.push(`v1_active_jobs:${activeJobs}`);
+  if (options.requireV1CleanJobs && activeJobs > 0)
+    report.blockers.push(`v1_active_jobs:${activeJobs}`);
   if (tables.has("contacts")) {
     const contactsWithoutReach = scalar(
       db,
@@ -586,7 +602,8 @@ function inspectV1(db: SqliteDatabase, options: Options, report: MigrationReport
          AND IFNULL(TRIM(instagram), '') = ''
          AND IFNULL(TRIM(deleted_at), '') = ''`,
     );
-    if (contactsWithoutReach > 0) report.warnings.push(`v1_contacts_without_phone_or_instagram:${contactsWithoutReach}`);
+    if (contactsWithoutReach > 0)
+      report.warnings.push(`v1_contacts_without_phone_or_instagram:${contactsWithoutReach}`);
   }
 
   return { counts, activeJobs, ignoredTables };
@@ -625,12 +642,20 @@ function applyOperationalGates(options: Options, report: MigrationReport) {
   if (options.requireBackup) {
     const backup = findLatestBackup(options.backupDir);
     if (!backup) report.blockers.push(`missing_v2_backup:${options.backupDir}`);
-    else report.v2 = { ...(report.v2 ?? { counts: {}, activeJobs: 0, targetUserExists: false }), latestBackup: backup };
+    else
+      report.v2 = {
+        ...(report.v2 ?? { counts: {}, activeJobs: 0, targetUserExists: false }),
+        latestBackup: backup,
+      };
   }
   if (options.requireM303Proof) {
     const proof = findM303Proof(options.proofRoot);
     if (!proof) report.blockers.push(`missing_m303_wpp_24_send_90_proof:${options.proofRoot}`);
-    else report.v2 = { ...(report.v2 ?? { counts: {}, activeJobs: 0, targetUserExists: false }), m303Proof: proof };
+    else
+      report.v2 = {
+        ...(report.v2 ?? { counts: {}, activeJobs: 0, targetUserExists: false }),
+        m303Proof: proof,
+      };
   }
 }
 
@@ -678,7 +703,9 @@ function planCounts(source: SourceData): MigrationCounts {
   const counts = emptyCounts();
   counts.users = 1;
   counts.tags = source.tags.length;
-  counts.contacts = source.contacts.filter((row) => !nullableText(column(row, "deleted_at"))).length;
+  counts.contacts = source.contacts.filter(
+    (row) => !nullableText(column(row, "deleted_at")),
+  ).length;
   counts.contactTags = source.contactTags.length;
   counts.attendants = source.attendants.length;
   counts.mediaAssets = source.mediaAssets.length;
@@ -754,12 +781,23 @@ function applyCutover(input: {
           `INSERT OR IGNORE INTO contact_tags (contact_id, tag_id, user_id, sort_order, created_at)
            VALUES (?, ?, ?, ?, ?)`,
         )
-        .run(contactId, tagId, input.targetUserId, numberValue(column(row, "sort_order"), 0), nowIso());
+        .run(
+          contactId,
+          tagId,
+          input.targetUserId,
+          numberValue(column(row, "sort_order"), 0),
+          nowIso(),
+        );
       counts.contactTags += 1;
     }
 
     for (const row of input.source.mediaAssets) {
-      const copiedPath = copyMediaFile(row, input.v1StorageRoot, input.mediaTargetRoot, input.warnings);
+      const copiedPath = copyMediaFile(
+        row,
+        input.v1StorageRoot,
+        input.mediaTargetRoot,
+        input.warnings,
+      );
       if (copiedPath.status === "copied") counts.mediaFilesCopied += 1;
       if (copiedPath.status === "missing") counts.mediaFilesMissing += 1;
       const id = upsertMediaAsset(input.v2, input.targetUserId, row, copiedPath.storagePath);
@@ -782,13 +820,22 @@ function applyCutover(input: {
       }
       const contactId = maps.contacts.get(String(column(row, "contact_id"))) ?? null;
       const mediaAssetId = maps.mediaAssets.get(String(column(row, "media_asset_id"))) ?? null;
-      const id = upsertMessage(input.v2, input.targetUserId, row, { conversationId, contactId, mediaAssetId });
+      const id = upsertMessage(input.v2, input.targetUserId, row, {
+        conversationId,
+        contactId,
+        mediaAssetId,
+      });
       if (id) maps.messages.set(sourceKey(row), id);
       counts.messages += 1;
     }
 
     for (const row of input.source.campaigns) {
-      const id = upsertCampaign(input.v2, input.targetUserId, row, stepsByCampaign.get(sourceKey(row)) ?? []);
+      const id = upsertCampaign(
+        input.v2,
+        input.targetUserId,
+        row,
+        stepsByCampaign.get(sourceKey(row)) ?? [],
+      );
       maps.campaigns.set(sourceKey(row), id);
       counts.campaigns += 1;
     }
@@ -939,23 +986,35 @@ function applyCutover(input: {
 }
 
 function ensureTargetUser(db: SqliteDatabase, targetUserId: number) {
-  const existing = db.prepare("SELECT id FROM users WHERE id = ?").get(targetUserId) as Row | undefined;
+  const existing = db.prepare("SELECT id FROM users WHERE id = ?").get(targetUserId) as
+    | Row
+    | undefined;
   if (existing) return true;
   db.prepare(
     `INSERT INTO users (id, email, password_hash, role, display_name, is_active, created_at, updated_at)
      VALUES (?, ?, ?, 'admin', 'Gabriel', 1, ?, ?)`,
-  ).run(targetUserId, `admin+v215-${targetUserId}@nuoma.local`, "v215-import-placeholder", nowIso(), nowIso());
+  ).run(
+    targetUserId,
+    `admin+v215-${targetUserId}@nuoma.local`,
+    "v215-import-placeholder",
+    nowIso(),
+    nowIso(),
+  );
   return true;
 }
 
 function upsertTag(db: SqliteDatabase, userId: number, row: Row) {
   const name = textValue(column(row, "name")) || `v1-tag-${sourceKey(row)}`;
   const color = textValue(column(row, "color")) || "#3ddc97";
-  const existing = db.prepare("SELECT id FROM tags WHERE user_id = ? AND name = ?").get(userId, name) as
-    | Row
-    | undefined;
+  const existing = db
+    .prepare("SELECT id FROM tags WHERE user_id = ? AND name = ?")
+    .get(userId, name) as Row | undefined;
   if (existing?.id) {
-    db.prepare("UPDATE tags SET color = ?, updated_at = ? WHERE id = ?").run(color, nowIso(), existing.id);
+    db.prepare("UPDATE tags SET color = ?, updated_at = ? WHERE id = ?").run(
+      color,
+      nowIso(),
+      existing.id,
+    );
     return Number(existing.id);
   }
   const result = db
@@ -969,10 +1028,15 @@ function upsertTag(db: SqliteDatabase, userId: number, row: Row) {
 
 function upsertAttendant(db: SqliteDatabase, userId: number, row: Row) {
   const email = nullableText(column(row, "email"));
-  const name = nullableText(column(row, "name", "display_name")) || email || `Atendente V1 ${sourceKey(row)}`;
+  const name =
+    nullableText(column(row, "name", "display_name")) || email || `Atendente V1 ${sourceKey(row)}`;
   const existing = email
-    ? (db.prepare("SELECT id FROM attendants WHERE user_id = ? AND email = ?").get(userId, email) as Row | undefined)
-    : (db.prepare("SELECT id FROM attendants WHERE user_id = ? AND name = ?").get(userId, name) as Row | undefined);
+    ? (db
+        .prepare("SELECT id FROM attendants WHERE user_id = ? AND email = ?")
+        .get(userId, email) as Row | undefined)
+    : (db.prepare("SELECT id FROM attendants WHERE user_id = ? AND name = ?").get(userId, name) as
+        | Row
+        | undefined);
   if (existing?.id) {
     db.prepare("UPDATE attendants SET name = ?, is_active = ?, updated_at = ? WHERE id = ?").run(
       name,
@@ -991,7 +1055,11 @@ function upsertAttendant(db: SqliteDatabase, userId: number, row: Row) {
       userId,
       name,
       email,
-      enumValue({ admin: "admin", attendant: "attendant", viewer: "viewer" }, column(row, "role"), "attendant"),
+      enumValue(
+        { admin: "admin", attendant: "attendant", viewer: "viewer" },
+        column(row, "role"),
+        "attendant",
+      ),
       booleanInt(column(row, "is_active", "active"), true),
       nowIso(),
       nowIso(),
@@ -1006,10 +1074,17 @@ function upsertContact(db: SqliteDatabase, userId: number, row: Row) {
   const email = nullableText(column(row, "email"));
   const instagram = normalizeInstagram(column(row, "instagram", "instagram_handle"));
   const existing = findExistingContact(db, userId, { phone, phoneE164, waJid, email, instagram });
-  const name = nullableText(column(row, "name")) || phone || instagram || email || `Contato V1 ${sourceKey(row)}`;
+  const name =
+    nullableText(column(row, "name")) ||
+    phone ||
+    instagram ||
+    email ||
+    `Contato V1 ${sourceKey(row)}`;
   const status = enumValue(statusMap, column(row, "status"), "lead");
   const note = migrationNote("contact", sourceKey(row));
-  const lastMessageAt = nullableText(column(row, "last_message_at", "last_interaction_at", "updated_at"));
+  const lastMessageAt = nullableText(
+    column(row, "last_message_at", "last_interaction_at", "updated_at"),
+  );
 
   if (existing?.id) {
     db.prepare(
@@ -1071,9 +1146,9 @@ function upsertContact(db: SqliteDatabase, userId: number, row: Row) {
 
 function upsertMediaAsset(db: SqliteDatabase, userId: number, row: Row, storagePath: string) {
   const sha = textValue(column(row, "sha256")) || `v1-${sourceKey(row)}`;
-  const existing = db.prepare("SELECT id FROM media_assets WHERE user_id = ? AND sha256 = ?").get(userId, sha) as
-    | Row
-    | undefined;
+  const existing = db
+    .prepare("SELECT id FROM media_assets WHERE user_id = ? AND sha256 = ?")
+    .get(userId, sha) as Row | undefined;
   if (existing?.id) return Number(existing.id);
   const result = db
     .prepare(
@@ -1085,7 +1160,8 @@ function upsertMediaAsset(db: SqliteDatabase, userId: number, row: Row, storageP
     .run(
       userId,
       mediaType(column(row, "category", "type", "content_type")),
-      textValue(column(row, "original_name", "file_name", "safe_name")) || `media-${sourceKey(row)}`,
+      textValue(column(row, "original_name", "file_name", "safe_name")) ||
+        `media-${sourceKey(row)}`,
       textValue(column(row, "mime_type")) || "application/octet-stream",
       sha,
       numberValue(column(row, "size_bytes"), 0),
@@ -1098,7 +1174,12 @@ function upsertMediaAsset(db: SqliteDatabase, userId: number, row: Row, storageP
   return Number(result.lastInsertRowid);
 }
 
-function upsertConversation(db: SqliteDatabase, userId: number, row: Row, contactId: number | null) {
+function upsertConversation(
+  db: SqliteDatabase,
+  userId: number,
+  row: Row,
+  contactId: number | null,
+) {
   const channel = channelValue(column(row, "channel"));
   const externalThreadId =
     normalizePhone(column(row, "external_thread_id", "wa_chat_id")) ||
@@ -1107,7 +1188,9 @@ function upsertConversation(db: SqliteDatabase, userId: number, row: Row, contac
   const waJid = channel === "whatsapp" ? normalizeWaJid(externalThreadId) : null;
   const title = nullableText(column(row, "title")) || externalThreadId;
   const existing = db
-    .prepare("SELECT id FROM conversations WHERE user_id = ? AND channel = ? AND external_thread_id = ?")
+    .prepare(
+      "SELECT id FROM conversations WHERE user_id = ? AND channel = ? AND external_thread_id = ?",
+    )
     .get(userId, channel, externalThreadId) as Row | undefined;
 
   if (existing?.id) {
@@ -1165,7 +1248,12 @@ function upsertMessage(
   refs: { conversationId: number; contactId: number | null; mediaAssetId: number | null },
 ) {
   const sourceId = sourceKey(row);
-  const existing = findImportedMessage(db, refs.conversationId, sourceId, nullableText(column(row, "external_id")));
+  const existing = findImportedMessage(
+    db,
+    refs.conversationId,
+    sourceId,
+    nullableText(column(row, "external_id")),
+  );
   const externalId = nullableText(column(row, "external_id"));
   const direction = enumValue(directionMap, column(row, "direction"), "system");
   const contentType = enumValue(messageTypeMap, column(row, "content_type", "type"), "text");
@@ -1316,15 +1404,27 @@ function upsertCampaignRecipient(
 
 function upsertAutomation(db: SqliteDatabase, userId: number, row: Row, actionRows: Row[]) {
   const sourceId = sourceKey(row);
-  const existing = findImportedByMetadata(db, "automations", userId, "sourceAutomationId", sourceId);
+  const existing = findImportedByMetadata(
+    db,
+    "automations",
+    userId,
+    "sourceAutomationId",
+    sourceId,
+  );
   const name = nullableText(column(row, "name", "title")) || `Automação V1 ${sourceId}`;
-  const actions = actionRows.length > 0 ? actionRows.map(mapAutomationAction) : parseJsonArray(column(row, "actions_json"));
+  const actions =
+    actionRows.length > 0
+      ? actionRows.map(mapAutomationAction)
+      : parseJsonArray(column(row, "actions_json"));
   const trigger = parseJsonObject(column(row, "trigger_json")) ?? {
     type: nullableText(column(row, "trigger_type", "trigger_event")) || "message_received",
     event: nullableText(column(row, "trigger_event")),
   };
   const condition = parseJsonObject(column(row, "condition_json", "trigger_conditions_json")) ?? {};
-  const metadata = JSON.stringify({ v1: { sourceAutomationId: sourceId, raw: row }, migratedBy: "v215" });
+  const metadata = JSON.stringify({
+    v1: { sourceAutomationId: sourceId, raw: row },
+    migratedBy: "v215",
+  });
 
   if (existing?.id) {
     db.prepare(
@@ -1370,7 +1470,10 @@ function upsertAutomation(db: SqliteDatabase, userId: number, row: Row, actionRo
 function upsertChatbot(db: SqliteDatabase, userId: number, row: Row) {
   const sourceId = sourceKey(row);
   const existing = findImportedByMetadata(db, "chatbots", userId, "sourceChatbotId", sourceId);
-  const metadata = JSON.stringify({ v1: { sourceChatbotId: sourceId, raw: row }, migratedBy: "v215" });
+  const metadata = JSON.stringify({
+    v1: { sourceChatbotId: sourceId, raw: row },
+    migratedBy: "v215",
+  });
   if (existing?.id) {
     db.prepare(
       `UPDATE chatbots
@@ -1412,7 +1515,9 @@ function upsertChatbotRule(db: SqliteDatabase, userId: number, row: Row, chatbot
   const metadata = JSON.stringify({ v1: { sourceRuleId: sourceId, raw: row }, migratedBy: "v215" });
   const match = parseJsonObject(column(row, "match_json")) ?? {
     type: nullableText(column(row, "match_type")) || "keyword",
-    keywords: parseJsonArray(column(row, "keywords_json")) ?? [nullableText(column(row, "keyword"))].filter(Boolean),
+    keywords:
+      parseJsonArray(column(row, "keywords_json")) ??
+      [nullableText(column(row, "keyword"))].filter(Boolean),
   };
   const actions = parseJsonArray(column(row, "actions_json")) ?? [
     { type: "send_message", body: nullableText(column(row, "response", "body")) || "" },
@@ -1534,7 +1639,10 @@ function upsertReminder(
        ORDER BY id DESC LIMIT 1`,
     )
     .get(userId, `%${marker}%`) as Row | undefined;
-  const notes = mergeNote(nullableText(column(row, "notes", "body")), migrationNote("reminder", sourceId));
+  const notes = mergeNote(
+    nullableText(column(row, "notes", "body")),
+    migrationNote("reminder", sourceId),
+  );
   if (existing?.id) {
     db.prepare(
       `UPDATE reminders
@@ -1654,21 +1762,36 @@ function validateImportPlan(source: SourceData): ValidationSummary {
   return { ok: true, checks };
 }
 
-function validateImportedData(db: SqliteDatabase, source: SourceData, userId: number): ValidationSummary {
+function validateImportedData(
+  db: SqliteDatabase,
+  source: SourceData,
+  userId: number,
+): ValidationSummary {
   const importable = planCounts(source);
   const checks: Record<string, boolean | number | string> = {
-    contactsAtLeastImportable: scalar(db, "SELECT count(*) FROM contacts WHERE user_id = ?", [userId]) >= importable.contacts,
+    contactsAtLeastImportable:
+      scalar(db, "SELECT count(*) FROM contacts WHERE user_id = ?", [userId]) >=
+      importable.contacts,
     conversationsAtLeastImportable:
-      scalar(db, "SELECT count(*) FROM conversations WHERE user_id = ?", [userId]) >= importable.conversations,
+      scalar(db, "SELECT count(*) FROM conversations WHERE user_id = ?", [userId]) >=
+      importable.conversations,
     messagesAtLeastImportable:
-      scalar(db, "SELECT count(*) FROM messages WHERE user_id = ?", [userId]) >= importable.messages,
+      scalar(db, "SELECT count(*) FROM messages WHERE user_id = ?", [userId]) >=
+      importable.messages,
     campaignsAtLeastImportable:
-      scalar(db, "SELECT count(*) FROM campaigns WHERE user_id = ?", [userId]) >= importable.campaigns,
+      scalar(db, "SELECT count(*) FROM campaigns WHERE user_id = ?", [userId]) >=
+      importable.campaigns,
     foreignKeyCheck: readForeignKeyCheck(db),
     migratedEventExists:
-      scalar(db, "SELECT count(*) FROM system_events WHERE user_id = ? AND type = 'v215.cutover.applied'", [userId]) >= 0,
+      scalar(
+        db,
+        "SELECT count(*) FROM system_events WHERE user_id = ? AND type = 'v215.cutover.applied'",
+        [userId],
+      ) >= 0,
   };
-  const ok = Object.values(checks).every((value) => value === true || value === "ok" || typeof value === "number");
+  const ok = Object.values(checks).every(
+    (value) => value === true || value === "ok" || typeof value === "number",
+  );
   return { ok, checks };
 }
 
@@ -1680,7 +1803,9 @@ function copyMediaFile(row: Row, sourceRoot: string, targetRoot: string, warning
     warnings.push(`media_missing:${sourceKey(row)}:${sourcePath}`);
     return { status: "missing" as const, storagePath: original };
   }
-  const fileName = sanitizeFileName(textValue(column(row, "original_name", "file_name", "safe_name")) || path.basename(sourcePath));
+  const fileName = sanitizeFileName(
+    textValue(column(row, "original_name", "file_name", "safe_name")) || path.basename(sourcePath),
+  );
   const sha = textValue(column(row, "sha256")) || `v1-${sourceKey(row)}`;
   const targetPath = path.join(targetRoot, sha.slice(0, 2), `${sha}-${fileName}`);
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
@@ -1748,7 +1873,10 @@ function emptyCounts(): MigrationCounts {
 
 async function createPreCutoverBackup(dbPath: string, backupDir: string) {
   fs.mkdirSync(backupDir, { recursive: true });
-  const backupPath = path.join(backupDir, `pre-v215-cutover-${nowIso().replaceAll(":", "-").replaceAll(".", "-")}.db`);
+  const backupPath = path.join(
+    backupDir,
+    `pre-v215-cutover-${nowIso().replaceAll(":", "-").replaceAll(".", "-")}.db`,
+  );
   const db = new Database(dbPath, { readonly: true, fileMustExist: true });
   try {
     await db.backup(backupPath);
@@ -1761,7 +1889,13 @@ async function createPreCutoverBackup(dbPath: string, backupDir: string) {
 function findExistingContact(
   db: SqliteDatabase,
   userId: number,
-  input: { phone: string | null; phoneE164: string | null; waJid: string | null; email: string | null; instagram: string | null },
+  input: {
+    phone: string | null;
+    phoneE164: string | null;
+    waJid: string | null;
+    email: string | null;
+    instagram: string | null;
+  },
 ) {
   if (input.phone) {
     const row = db
@@ -1780,15 +1914,21 @@ function findExistingContact(
     if (row) return row;
   }
   if (input.email) {
-    const row = db.prepare("SELECT * FROM contacts WHERE user_id = ? AND email = ?").get(userId, input.email) as
-      | Row
-      | undefined;
+    const row = db
+      .prepare("SELECT * FROM contacts WHERE user_id = ? AND email = ?")
+      .get(userId, input.email) as Row | undefined;
     if (row) return row;
   }
   return null;
 }
 
-function findImportedByMetadata(db: SqliteDatabase, table: string, userId: number, key: string, sourceId: string) {
+function findImportedByMetadata(
+  db: SqliteDatabase,
+  table: string,
+  userId: number,
+  key: string,
+  sourceId: string,
+) {
   return db
     .prepare(
       `SELECT id FROM ${quoteIdent(table)}
@@ -1810,7 +1950,12 @@ function findImportedRecipient(db: SqliteDatabase, campaignId: number, sourceId:
     .get(campaignId, sourceId) as Row | undefined;
 }
 
-function findImportedMessage(db: SqliteDatabase, conversationId: number, sourceId: string, externalId: string | null) {
+function findImportedMessage(
+  db: SqliteDatabase,
+  conversationId: number,
+  sourceId: string,
+  externalId: string | null,
+) {
   if (externalId) {
     const byExternal = db
       .prepare("SELECT id FROM messages WHERE conversation_id = ? AND external_id = ?")
@@ -1827,9 +1972,16 @@ function findImportedMessage(db: SqliteDatabase, conversationId: number, sourceI
     .get(conversationId, sourceId) as Row | undefined;
 }
 
-function findImportedJob(db: SqliteDatabase, userId: number, sourceId: string, dedupeKey: string | null) {
+function findImportedJob(
+  db: SqliteDatabase,
+  userId: number,
+  sourceId: string,
+  dedupeKey: string | null,
+) {
   if (dedupeKey) {
-    const byDedupe = db.prepare("SELECT id FROM jobs WHERE dedupe_key = ?").get(dedupeKey) as Row | undefined;
+    const byDedupe = db.prepare("SELECT id FROM jobs WHERE dedupe_key = ?").get(dedupeKey) as
+      | Row
+      | undefined;
     if (byDedupe) return byDedupe;
   }
   return db
@@ -1988,7 +2140,9 @@ function sourceKey(row: Row) {
 
 function isLiveV1Job(row: Row) {
   const status = textValue(column(row, "status")).toLowerCase();
-  return status === "pending" || status === "processing" || status === "queued" || status === "running";
+  return (
+    status === "pending" || status === "processing" || status === "queued" || status === "running"
+  );
 }
 
 function normalizePhone(value: unknown) {
@@ -2049,13 +2203,15 @@ function channelValue(value: unknown) {
 }
 
 function mediaType(value: unknown) {
-  const mapped = messageTypeMap[String(value ?? "").toLowerCase()] ?? String(value ?? "").toLowerCase();
+  const mapped =
+    messageTypeMap[String(value ?? "").toLowerCase()] ?? String(value ?? "").toLowerCase();
   return ["image", "audio", "voice", "video", "document"].includes(mapped) ? mapped : "document";
 }
 
 function messageStatus(value: unknown, direction: string) {
   const status = String(value ?? "").toLowerCase();
-  if (["pending", "sent", "delivered", "read", "failed", "received"].includes(status)) return status;
+  if (["pending", "sent", "delivered", "read", "failed", "received"].includes(status))
+    return status;
   return direction === "inbound" ? "received" : "sent";
 }
 
@@ -2084,7 +2240,9 @@ function parseJsonObject(value: unknown) {
   if (!text) return null;
   try {
     const parsed = JSON.parse(text) as unknown;
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
   } catch {
     return null;
   }

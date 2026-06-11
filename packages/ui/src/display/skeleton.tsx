@@ -37,11 +37,7 @@ export const SkeletonText = forwardRef<HTMLDivElement, SkeletonTextProps>(
   ({ lines = 3, className, ...props }, ref) => (
     <div ref={ref} className={cn("flex flex-col gap-2", className)} {...props}>
       {Array.from({ length: lines }).map((_, index) => (
-        <Skeleton
-          key={index}
-          variant="line"
-          className={index === lines - 1 ? "w-3/5" : "w-full"}
-        />
+        <Skeleton key={index} variant="line" className={index === lines - 1 ? "w-3/5" : "w-full"} />
       ))}
     </div>
   ),

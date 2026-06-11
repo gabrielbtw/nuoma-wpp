@@ -52,7 +52,9 @@ async function main() {
       throw new Error("conversation list did not expose virtualized=true");
     }
     if (diagnostics.totalCount <= 0) {
-      throw new Error("virtualized conversation list needs at least one conversation in the smoke DB");
+      throw new Error(
+        "virtualized conversation list needs at least one conversation in the smoke DB",
+      );
     }
     if (diagnostics.renderedRows <= 0) {
       throw new Error("virtualized conversation list rendered no visible rows");
@@ -94,9 +96,7 @@ async function main() {
     }
 
     await page.screenshot({ path: screenshotPath, fullPage: true });
-    const result = await new AxeBuilder({ page })
-      .withTags(["wcag2a", "wcag2aa"])
-      .analyze();
+    const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
     const blocking = result.violations.filter(
       (violation) => violation.impact === "critical" || violation.impact === "serious",
     );

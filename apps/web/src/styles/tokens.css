@@ -24,8 +24,8 @@
   /* Tinta — off-white quente */
   --nw-ink-strong: 245 242 236;
   --nw-ink-base: 178 171 159;
-  --nw-ink-soft: 141 134 123;
-  --nw-ink-faint: 113 107 97;
+  --nw-ink-soft: 148 141 130;
+  --nw-ink-faint: 132 126 115;
 
   /* Acento único — cobre. `on` é a tinta sobre superfícies cobre (AA). */
   --nw-accent: 232 100 44;
@@ -166,6 +166,10 @@
   --shadow-glow-aura: 0 16px 40px -16px rgb(0 0 0 / 0.6);
 
   --gradient-accent: linear-gradient(120deg, rgb(var(--nw-accent)), rgb(var(--nw-accent-hover)));
-  --gradient-aura: radial-gradient(120% 120% at 0% 0%, rgb(var(--nw-accent) / 0.08), transparent 60%);
+  --gradient-aura: radial-gradient(
+    120% 120% at 0% 0%,
+    rgb(var(--nw-accent) / 0.08),
+    transparent 60%
+  );
   --gradient-glass: linear-gradient(180deg, rgb(255 255 255 / 0.02), transparent 60%);
 }

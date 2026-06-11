@@ -15,7 +15,7 @@ async function start() {
     shuttingDown = true;
     logger.info({ signal }, "Stopping WhatsApp worker");
     recordSystemEvent("wa-worker", "info", "Stopping WhatsApp worker", {
-      signal
+      signal,
     });
     await worker.stop();
     process.exit(0);

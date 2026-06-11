@@ -50,9 +50,7 @@ async function main() {
     }
 
     await page.screenshot({ path: screenshotPath, fullPage: true });
-    const result = await new AxeBuilder({ page })
-      .withTags(["wcag2a", "wcag2aa"])
-      .analyze();
+    const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
     const blocking = result.violations.filter(
       (violation) => violation.impact === "critical" || violation.impact === "serious",
     );

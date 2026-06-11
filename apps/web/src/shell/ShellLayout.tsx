@@ -48,7 +48,10 @@ export function ShellLayout() {
     currentLocation.pathname,
     currentLocation.searchStr,
   );
-  const breadcrumb = shellBreadcrumbForLocation(currentLocation.pathname, currentLocation.searchStr);
+  const breadcrumb = shellBreadcrumbForLocation(
+    currentLocation.pathname,
+    currentLocation.searchStr,
+  );
   const metrics = trpc.system.metrics.useQuery(undefined, {
     enabled: isAdmin,
     refetchInterval: 10_000,
@@ -63,23 +66,20 @@ export function ShellLayout() {
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
+      if (event.defaultPrevented) return;
       const isMod = event.metaKey || event.ctrlKey;
       const key = event.key.toLowerCase();
-      if (isMod && key === "k") {
+      const isShortcutTarget = isShellShortcutTarget(event.target);
+      if (isMod && key === "k" && !isShortcutTarget) {
         event.preventDefault();
         setPaletteOpen((value) => !value);
         return;
       }
+      if (isShortcutTarget) return;
       if (event.key === "Escape" && paletteOpen) setPaletteOpen(false);
       if (event.key === "Escape" && mobileNavOpen) setMobileNavOpen(false);
 
-      if (
-        !isMod &&
-        !event.altKey &&
-        !event.shiftKey &&
-        !paletteOpen &&
-        !isTextEntryTarget(event.target)
-      ) {
+      if (!isMod && !event.altKey && !event.shiftKey && !paletteOpen && !isShortcutTarget) {
         const target = getShellShortcutItems(isAdmin).find((item) => item.shortcut === event.key);
         if (target) {
           event.preventDefault();
@@ -261,12 +261,16 @@ export function ShellLayout() {
   );
 }
 
-function isTextEntryTarget(target: EventTarget | null): boolean {
+function isShellShortcutTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
     return false;
   }
-  const tag = target.tagName.toLowerCase();
-  return tag === "input" || tag === "textarea" || tag === "select" || target.isContentEditable;
+  if (target.isContentEditable) return true;
+  return Boolean(
+    target.closest(
+      'input, textarea, select, button, a, [role="button"], [role="menu"], [role="dialog"], [data-radix-popper-content-wrapper]',
+    ),
+  );
 }
 
 function runtimeStatusFromMetrics(

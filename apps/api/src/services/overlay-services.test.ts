@@ -6,10 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createRepositories, openDb, runMigrations, type DbHandle } from "@nuoma/db";
 
-import {
-  listOverlayAutomationOptions,
-  runOverlayAutomationNow,
-} from "./overlay-automations.js";
+import { listOverlayAutomationOptions, runOverlayAutomationNow } from "./overlay-automations.js";
 import { listOverlayCampaignOptions, runOverlayCampaignNow } from "./overlay-campaigns.js";
 
 let tempDir: string;

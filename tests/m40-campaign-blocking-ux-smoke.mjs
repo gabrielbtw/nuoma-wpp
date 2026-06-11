@@ -10,7 +10,9 @@ const email = process.env.SMOKE_EMAIL ?? "admin@nuoma.local";
 const password = process.env.SMOKE_PASSWORD ?? "nuoma-dev-admin-123";
 const databaseUrl = path.resolve(process.env.DATABASE_URL ?? "data/nuoma-v2.db");
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-const outputDir = path.resolve(process.env.M40_CAMPAIGN_BLOCKING_UX_DIR ?? `data/m40-campaign-blocking-ux-${stamp}`);
+const outputDir = path.resolve(
+  process.env.M40_CAMPAIGN_BLOCKING_UX_DIR ?? `data/m40-campaign-blocking-ux-${stamp}`,
+);
 const campaignScreenshot = path.join(outputDir, "01-campaign-blocked.png");
 const reportPath = path.join(outputDir, "REPORT.md");
 
@@ -51,13 +53,13 @@ async function main() {
       errors: Number(element.getAttribute("data-errors") ?? "0"),
       rejected: Number(element.getAttribute("data-rejected") ?? "0"),
       text: element.textContent ?? "",
-      rejectedReasons: Array.from(element.querySelectorAll('[data-testid="campaign-rejected-reason"]')).map(
-        (node) => ({
-          reason: node.getAttribute("data-reason"),
-          count: Number(node.getAttribute("data-count") ?? "0"),
-          text: node.textContent ?? "",
-        }),
-      ),
+      rejectedReasons: Array.from(
+        element.querySelectorAll('[data-testid="campaign-rejected-reason"]'),
+      ).map((node) => ({
+        reason: node.getAttribute("data-reason"),
+        count: Number(node.getAttribute("data-count") ?? "0"),
+        text: node.textContent ?? "",
+      })),
     }));
     if (diagnostics.status !== "blocked" || diagnostics.errors < 2 || diagnostics.rejected < 2) {
       throw new Error(`M40 blocking summary mismatch: ${JSON.stringify(diagnostics)}`);
@@ -72,10 +74,14 @@ async function main() {
       throw new Error(`M40 temporary messages guidance missing: ${diagnostics.text}`);
     }
     if (
-      !diagnostics.rejectedReasons.some((item) => item.reason === "not_allowlisted_for_test_execution") ||
+      !diagnostics.rejectedReasons.some(
+        (item) => item.reason === "not_allowlisted_for_test_execution",
+      ) ||
       !diagnostics.rejectedReasons.some((item) => item.reason === "invalid_phone")
     ) {
-      throw new Error(`M40 rejected reason grouping mismatch: ${JSON.stringify(diagnostics.rejectedReasons)}`);
+      throw new Error(
+        `M40 rejected reason grouping mismatch: ${JSON.stringify(diagnostics.rejectedReasons)}`,
+      );
     }
 
     const disabledReason = await page.getByTestId("safe-batch-disabled-reason").textContent();
@@ -131,12 +137,16 @@ function seedFixture() {
       .prepare("SELECT id FROM campaigns WHERE user_id = 1 AND name LIKE 'M40 Blocking UX Smoke%'")
       .all();
     for (const row of existing) {
-      db.prepare("DELETE FROM campaign_recipients WHERE user_id = 1 AND campaign_id = ?").run(row.id);
+      db.prepare("DELETE FROM campaign_recipients WHERE user_id = 1 AND campaign_id = ?").run(
+        row.id,
+      );
       db.prepare("DELETE FROM jobs WHERE user_id = 1 AND dedupe_key LIKE ?").run(
         `campaign_step:${row.id}:%`,
       );
     }
-    db.prepare("DELETE FROM campaigns WHERE user_id = 1 AND name LIKE 'M40 Blocking UX Smoke%'").run();
+    db.prepare(
+      "DELETE FROM campaigns WHERE user_id = 1 AND name LIKE 'M40 Blocking UX Smoke%'",
+    ).run();
 
     const now = new Date().toISOString();
     const steps = JSON.stringify([

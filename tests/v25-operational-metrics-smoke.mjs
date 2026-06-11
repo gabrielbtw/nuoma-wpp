@@ -7,8 +7,7 @@ const apiUrl = process.env.API_URL ?? "http://127.0.0.1:3001";
 const email = process.env.SMOKE_EMAIL ?? "admin@nuoma.local";
 const password = process.env.SMOKE_PASSWORD ?? "nuoma-dev-admin-123";
 const screenshotPath = process.env.SCREENSHOT_PATH ?? "data/v25-metrics-m3.png";
-const mobileScreenshotPath =
-  process.env.MOBILE_SCREENSHOT_PATH ?? "data/v25-metrics-m3-mobile.png";
+const mobileScreenshotPath = process.env.MOBILE_SCREENSHOT_PATH ?? "data/v25-metrics-m3-mobile.png";
 
 async function main() {
   await assertHttp(`${webUrl}/`, "web");
@@ -103,12 +102,10 @@ async function assertOperationalMetricsPanel(
     throw new Error(`${label} operational metrics panel is visually collapsed`);
   }
 
-  const horizontalOverflowPx = await panel.evaluate(
-    (element) => {
-      const rect = element.getBoundingClientRect();
-      return Math.max(0, -rect.left, rect.right - window.innerWidth);
-    },
-  );
+  const horizontalOverflowPx = await panel.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return Math.max(0, -rect.left, rect.right - window.innerWidth);
+  });
   if (horizontalOverflowPx > maxHorizontalOverflowPx) {
     throw new Error(
       `${label} operational metrics panel overflows horizontally by ${horizontalOverflowPx}px`,
@@ -117,9 +114,7 @@ async function assertOperationalMetricsPanel(
 }
 
 async function analyzeA11y(page, viewport) {
-  const result = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa"])
-    .analyze();
+  const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
   const blocking = result.violations
     .filter((violation) => violation.impact === "critical" || violation.impact === "serious")
     .map((violation) => ({ ...violation, viewport }));

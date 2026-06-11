@@ -27,8 +27,8 @@ export const colors = {
   ink: {
     strong: "245 242 236",
     base: "178 171 159",
-    soft: "141 134 123",
-    faint: "113 107 97",
+    soft: "148 141 130",
+    faint: "132 126 115",
   },
   /** Acento único — cobre. `on` é a tinta sobre superfícies cobre (AA). */
   accent: {
@@ -130,10 +130,22 @@ export const fontSize = {
   body: ["0.9375rem", { lineHeight: "1.55", letterSpacing: "0" }],
   lead: ["1.0625rem", { lineHeight: "1.5", letterSpacing: "-0.005em" }],
   h3: ["1.0625rem", { lineHeight: "1.3", letterSpacing: "-0.01em", fontWeight: "600" }],
-  h2: ["clamp(1.15rem, 1.05rem + 0.5vw, 1.25rem)", { lineHeight: "1.25", letterSpacing: "-0.015em", fontWeight: "600" }],
-  h1: ["clamp(1.35rem, 1.2rem + 0.8vw, 1.5rem)", { lineHeight: "1.2", letterSpacing: "-0.02em", fontWeight: "620" }],
-  display: ["clamp(1.7rem, 1.4rem + 1.6vw, 2.1rem)", { lineHeight: "1.1", letterSpacing: "-0.025em", fontWeight: "640" }],
-  "display-lg": ["clamp(2.1rem, 1.6rem + 2.6vw, 2.75rem)", { lineHeight: "1.04", letterSpacing: "-0.03em", fontWeight: "660" }],
+  h2: [
+    "clamp(1.15rem, 1.05rem + 0.5vw, 1.25rem)",
+    { lineHeight: "1.25", letterSpacing: "-0.015em", fontWeight: "600" },
+  ],
+  h1: [
+    "clamp(1.35rem, 1.2rem + 0.8vw, 1.5rem)",
+    { lineHeight: "1.2", letterSpacing: "-0.02em", fontWeight: "620" },
+  ],
+  display: [
+    "clamp(1.7rem, 1.4rem + 1.6vw, 2.1rem)",
+    { lineHeight: "1.1", letterSpacing: "-0.025em", fontWeight: "640" },
+  ],
+  "display-lg": [
+    "clamp(2.1rem, 1.6rem + 2.6vw, 2.75rem)",
+    { lineHeight: "1.04", letterSpacing: "-0.03em", fontWeight: "660" },
+  ],
 } as const;
 
 export const fontWeight = {

@@ -11,7 +11,7 @@ import {
   processCampaignTick,
   recordSystemEvent,
   releaseStaleJobLocks,
-  setWorkerState
+  setWorkerState,
 } from "@nuoma/core";
 
 const env = loadEnv();
@@ -66,7 +66,7 @@ async function publishSchedulerState(extra?: Record<string, unknown>) {
     pid: process.pid,
     uptimeSec: Math.round(process.uptime()),
     updatedAt: new Date().toISOString(),
-    ...extra
+    ...extra,
   });
 }
 
@@ -78,7 +78,10 @@ async function watchdog() {
 
   const lastUpdate = new Date(worker.updatedAt).getTime();
   const isStale = Date.now() - lastUpdate > env.WATCHDOG_STALE_SECONDS * 1000;
-  const status = worker.value && typeof worker.value === "object" ? String((worker.value as Record<string, unknown>).status ?? "") : "";
+  const status =
+    worker.value && typeof worker.value === "object"
+      ? String((worker.value as Record<string, unknown>).status ?? "")
+      : "";
 
   if (!isStale && !["error", "restarting"].includes(status)) {
     return;
@@ -88,7 +91,7 @@ async function watchdog() {
   recordSystemEvent("scheduler", "warn", "Worker watchdog triggered", {
     correlationId,
     isStale,
-    status
+    status,
   });
   logger.warn({ correlationId, isStale, status }, "Worker watchdog triggered");
 
@@ -97,7 +100,7 @@ async function watchdog() {
       logger.error({ err: error, correlationId }, "Failed to restart wa-worker via PM2");
       recordSystemEvent("scheduler", "error", "Failed to restart wa-worker via PM2", {
         correlationId,
-        message: error instanceof Error ? error.message : String(error)
+        message: error instanceof Error ? error.message : String(error),
       });
     });
   }
@@ -115,7 +118,9 @@ async function runCycle() {
     const releasedLocks = releaseStaleJobLocks(5);
     if (releasedLocks > 0) {
       logger.warn({ releasedLocks }, "Released stale job locks");
-      recordSystemEvent("scheduler", "warn", `Released ${releasedLocks} stale job lock(s)`, { releasedLocks });
+      recordSystemEvent("scheduler", "warn", `Released ${releasedLocks} stale job lock(s)`, {
+        releasedLocks,
+      });
     }
 
     const msgTriggers = processMessageReceivedTriggers();
@@ -127,16 +132,17 @@ async function runCycle() {
       lastRunAt: new Date().toISOString(),
       automationQueued: automations.queued,
       campaignQueued: campaigns.queued,
-      correlationId
+      correlationId,
     });
 
     // Only record visible event when actual work was done to avoid log noise
-    const hadWork = automations.queued > 0 || campaigns.queued > 0 || msgTriggers.queued > 0 || releasedLocks > 0;
+    const hadWork =
+      automations.queued > 0 || campaigns.queued > 0 || msgTriggers.queued > 0 || releasedLocks > 0;
     if (hadWork) {
       recordSystemEvent("scheduler", "info", "Scheduler cycle completed", {
         correlationId,
         automations,
-        campaigns
+        campaigns,
       });
     } else {
       logger.debug({ correlationId }, "Scheduler cycle completed (no-op)");
@@ -145,11 +151,11 @@ async function runCycle() {
     logger.error({ err: error, correlationId }, "Scheduler cycle failed");
     recordSystemEvent("scheduler", "error", "Scheduler cycle failed", {
       correlationId,
-      message: error instanceof Error ? error.message : String(error)
+      message: error instanceof Error ? error.message : String(error),
     });
     await publishSchedulerState({
       lastFailureAt: new Date().toISOString(),
-      lastFailureSummary: error instanceof Error ? error.message : String(error)
+      lastFailureSummary: error instanceof Error ? error.message : String(error),
     });
   } finally {
     cycleInFlight = false;
@@ -162,7 +168,9 @@ async function start() {
   getDb();
   await publishSchedulerState({ startedAt: new Date().toISOString() });
   await runCycle();
-  cycleInterval = setInterval(() => { void runCycle(); }, env.SCHEDULER_INTERVAL_SEC * 1000);
+  cycleInterval = setInterval(() => {
+    void runCycle();
+  }, env.SCHEDULER_INTERVAL_SEC * 1000);
 }
 
 async function shutdown(signal: string) {

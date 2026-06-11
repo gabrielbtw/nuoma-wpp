@@ -44,7 +44,9 @@ async function main() {
     await page.getByTestId("inbox-message-timeline").waitFor({ state: "visible" });
     await page.locator('input[placeholder^="Buscar conversa"]').fill("V2.9.11");
     await page.getByTestId("inbox-conversation-row").waitFor({ state: "visible" });
-    await page.locator(`[data-testid="inbox-conversation-row"][data-conv="${conversationId}"]`).click();
+    await page
+      .locator(`[data-testid="inbox-conversation-row"][data-conv="${conversationId}"]`)
+      .click();
 
     const deliveryStatuses = page.getByTestId("message-delivery-status");
     await deliveryStatuses.first().waitFor({ state: "visible", timeout: 10_000 });
@@ -96,7 +98,9 @@ async function main() {
     console.log(
       `v29-delivery-status|conversation=${conversationId}|statuses=${diagnostics
         .map((entry) => `${entry.status}:${entry.stage}`)
-        .join(",")}|violations=${result.violations.length}|blocking=${blocking.length}|${screenshotPath}`,
+        .join(
+          ",",
+        )}|violations=${result.violations.length}|blocking=${blocking.length}|${screenshotPath}`,
     );
     if (blocking.length > 0) {
       throw new Error(

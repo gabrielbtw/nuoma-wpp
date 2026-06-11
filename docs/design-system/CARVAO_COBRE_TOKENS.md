@@ -12,15 +12,15 @@ Carvao & Cobre e a direcao visual atual da web canonica e do overlay WhatsApp.
 
 ## Papeis Canonicos
 
-| Papel | Uso |
-| --- | --- |
-| `--nw-surface-*` | fundos e superficies |
-| `--nw-ink-*` | texto e icones |
-| `--nw-accent*` | acoes primarias cobre |
-| `--nw-line-*` | bordas e hairlines |
-| `--nw-status-*` | ok, warn, error, info |
+| Papel            | Uso                         |
+| ---------------- | --------------------------- |
+| `--nw-surface-*` | fundos e superficies        |
+| `--nw-ink-*`     | texto e icones              |
+| `--nw-accent*`   | acoes primarias cobre       |
+| `--nw-line-*`    | bordas e hairlines          |
+| `--nw-status-*`  | ok, warn, error, info       |
 | `--nw-channel-*` | WhatsApp, Instagram, system |
-| `--nw-chart-*` | graficos |
+| `--nw-chart-*`   | graficos                    |
 
 ## Overlay
 

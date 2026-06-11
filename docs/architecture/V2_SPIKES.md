@@ -1,5 +1,9 @@
 # V2 — Spikes técnicos (Fase 0 de Prova)
 
+> HISTORICO / SPIKES PRE-CANONICALIZATION: este documento registra provas
+> anteriores a stack canonica da Fase 1. Use como evidencia historica, nao como
+> runbook operacional atual.
+
 Documento operacional para validar as 4 hipóteses críticas do V2 **antes** de criar o repo `nuoma-wpp-v2/` ou comprometer com stack/arquitetura.
 
 Cada spike tem: **objetivo**, **critério de aceitação**, **escopo (o que faz)**, **fora de escopo (o que não faz)**, **artefato esperado**, **tempo limite (timebox)**, **decisão pós-spike**.
@@ -240,7 +244,7 @@ Harness criado em `experiments/spike-4-migration/` com:
 - schema Drizzle candidato em `schema-v2-candidate.ts`;
 - dry-run que percorre todas as linhas e simula política de import sem gravar.
 
-Resultado contra `/Users/gabrielbraga/Projetos/nuoma-wpp/storage/database/nuoma.db`: 488.511 linhas escaneadas em 2.257ms, 422.963 importáveis, 65.548 puladas por regra, 0 JSON inválidos, nenhuma tabela obrigatória ausente, schema Drizzle compilando com `npm run typecheck`.
+Resultado contra `<V1_REPO>/storage/database/nuoma.db`: 488.511 linhas escaneadas em 2.257ms, 422.963 importáveis, 65.548 puladas por regra, 0 JSON inválidos, nenhuma tabela obrigatória ausente, schema Drizzle compilando com `npm run typecheck`.
 
 Status atualizado após decisão do owner: **VERDE com política aceita**. Há 334.158 orphans brutos, incluindo 40.786 em tabelas operacionais dependentes de contatos apagados (`contact_tags`, `contact_channels`, `contact_history`, `automation_*`), mas a política final é pular dependentes órfãos no import operacional, preservar `campaign_recipients` por telefone com `contact_id=NULL`, manter `contacts.phone` nullable porque contatos futuros podem existir só por Instagram, manter `messages.external_id` nullable e preservar `audit_logs` sem FK forte ou com FK nula. A etapa de estabilização V2 deve rodar resync geral para reconstruir estado operacional recente após o import.
 
@@ -292,11 +296,11 @@ Status atualizado após decisão do owner: **VERDE com política aceita**. Há 3
 
 ## Decisão geral pós-4-spikes
 
-| Resultado | Ação |
-|---|---|
-| 4 verdes | Cria `nuoma-wpp-v2/`, inicia V2.1 Foundations. Aprova ADRs 0002, 0005, 0007, 0010. |
-| 3 verdes + 1 amarelo | Avalia o amarelo: se não-bloqueador, segue. Em 2026-04-30, Spike 3 hosted foi classificado como não-bloqueador para V2.1 Foundations e bloqueador antes do worker/deploy produtivo de áudio. |
-| 2+ amarelos OU 1 vermelho | **NÃO inicia V2**. Re-avalia em sprint dedicada OU pivota estratégia (mais V1 patches, ou produto outro). |
+| Resultado                 | Ação                                                                                                                                                                                         |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 4 verdes                  | Cria `nuoma-wpp-v2/`, inicia V2.1 Foundations. Aprova ADRs 0002, 0005, 0007, 0010.                                                                                                           |
+| 3 verdes + 1 amarelo      | Avalia o amarelo: se não-bloqueador, segue. Em 2026-04-30, Spike 3 hosted foi classificado como não-bloqueador para V2.1 Foundations e bloqueador antes do worker/deploy produtivo de áudio. |
+| 2+ amarelos OU 1 vermelho | **NÃO inicia V2**. Re-avalia em sprint dedicada OU pivota estratégia (mais V1 patches, ou produto outro).                                                                                    |
 
 ## Ferramentas reutilizáveis
 

@@ -6,7 +6,7 @@ import {
   updateTemplate,
   deleteTemplate,
   templateInputSchema,
-  listAvailableVars
+  listAvailableVars,
 } from "@nuoma/core";
 
 export async function registerTemplateRoutes(app: FastifyInstance) {

@@ -1,4 +1,14 @@
-import { createAutomation, createCampaign, createContact, createTag, getDb, listAutomations, listCampaigns, listContacts, listTags } from "../index.js";
+import {
+  createAutomation,
+  createCampaign,
+  createContact,
+  createTag,
+  getDb,
+  listAutomations,
+  listCampaigns,
+  listContacts,
+  listTags,
+} from "../index.js";
 
 getDb();
 
@@ -22,7 +32,7 @@ if (listContacts().length === 0) {
     status: "aguardando_resposta",
     tags: ["vip", "follow-up"],
     lastInteractionAt: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
-    lastProcedureAt: null
+    lastProcedureAt: null,
   });
 
   createContact({
@@ -37,7 +47,7 @@ if (listContacts().length === 0) {
     status: "cliente",
     tags: ["pos"],
     lastInteractionAt: new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString(),
-    lastProcedureAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString()
+    lastProcedureAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
   });
 }
 
@@ -68,9 +78,9 @@ if (listAutomations().length === 0) {
         waitSeconds: null,
         tagName: null,
         reminderText: null,
-        metadata: {}
-      }
-    ]
+        metadata: {},
+      },
+    ],
   });
 
   createAutomation({
@@ -99,7 +109,7 @@ if (listAutomations().length === 0) {
         waitSeconds: null,
         tagName: null,
         reminderText: null,
-        metadata: {}
+        metadata: {},
       },
       {
         type: "wait",
@@ -108,7 +118,7 @@ if (listAutomations().length === 0) {
         waitSeconds: 120,
         tagName: null,
         reminderText: null,
-        metadata: {}
+        metadata: {},
       },
       {
         type: "create-reminder",
@@ -117,9 +127,9 @@ if (listAutomations().length === 0) {
         waitSeconds: null,
         tagName: null,
         reminderText: "Checar resposta do cliente de pós-procedimento",
-        metadata: {}
-      }
-    ]
+        metadata: {},
+      },
+    ],
   });
 }
 
@@ -150,7 +160,7 @@ if (listCampaigns().length === 0) {
         conditionType: null,
         conditionValue: null,
         conditionAction: null,
-        conditionJumpTo: null
+        conditionJumpTo: null,
       },
       {
         type: "wait",
@@ -164,7 +174,7 @@ if (listCampaigns().length === 0) {
         conditionType: null,
         conditionValue: null,
         conditionAction: null,
-        conditionJumpTo: null
+        conditionJumpTo: null,
       },
       {
         type: "text",
@@ -178,9 +188,9 @@ if (listCampaigns().length === 0) {
         conditionType: null,
         conditionValue: null,
         conditionAction: null,
-        conditionJumpTo: null
-      }
-    ]
+        conditionJumpTo: null,
+      },
+    ],
   });
 }
 

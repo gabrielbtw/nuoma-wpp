@@ -239,7 +239,9 @@ async function ensureSingleWhatsAppTab(input: { env: WorkerEnv; logger: Logger }
   );
 }
 
-async function listCdpTargets(env: WorkerEnv): Promise<Array<{ id?: string; type?: string; url: string }>> {
+async function listCdpTargets(
+  env: WorkerEnv,
+): Promise<Array<{ id?: string; type?: string; url: string }>> {
   const response = await fetch(
     `http://${env.CHROMIUM_CDP_HOST}:${env.CHROMIUM_CDP_PORT}/json/list`,
     { signal: AbortSignal.timeout(2_000) },
@@ -305,7 +307,10 @@ async function removeStaleChromiumProfileLocks(input: {
     }
   }
   if (removed.length > 0) {
-    input.logger.info({ profileDir: input.profileDir, removed }, "removed stale Chromium profile locks");
+    input.logger.info(
+      { profileDir: input.profileDir, removed },
+      "removed stale Chromium profile locks",
+    );
   }
 }
 

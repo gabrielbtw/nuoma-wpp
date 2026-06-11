@@ -13,19 +13,15 @@ export const tagsRouter = router({
     return { tags };
   }),
 
-  create: protectedCsrfProcedure
-    .input(createTagBodySchema)
-    .mutation(async ({ ctx, input }) => {
-      const tag = await ctx.repos.tags.create({ ...input, userId: ctx.user.id });
-      return { tag };
-    }),
+  create: protectedCsrfProcedure.input(createTagBodySchema).mutation(async ({ ctx, input }) => {
+    const tag = await ctx.repos.tags.create({ ...input, userId: ctx.user.id });
+    return { tag };
+  }),
 
-  update: protectedCsrfProcedure
-    .input(updateTagBodySchema)
-    .mutation(async ({ ctx, input }) => {
-      const tag = await ctx.repos.tags.update({ ...input, userId: ctx.user.id });
-      return { tag };
-    }),
+  update: protectedCsrfProcedure.input(updateTagBodySchema).mutation(async ({ ctx, input }) => {
+    const tag = await ctx.repos.tags.update({ ...input, userId: ctx.user.id });
+    return { tag };
+  }),
 
   delete: protectedCsrfProcedure
     .input(z.object({ id: z.number().int().positive() }))

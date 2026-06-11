@@ -133,7 +133,9 @@ function seedPauseResumeFixture() {
       .prepare("SELECT id FROM campaigns WHERE user_id = 1 AND name LIKE 'V2.10.9 Smoke%'")
       .all();
     for (const row of existingCampaigns) {
-      db.prepare("DELETE FROM campaign_recipients WHERE user_id = 1 AND campaign_id = ?").run(row.id);
+      db.prepare("DELETE FROM campaign_recipients WHERE user_id = 1 AND campaign_id = ?").run(
+        row.id,
+      );
       db.prepare("DELETE FROM jobs WHERE user_id = 1 AND dedupe_key LIKE ?").run(
         `campaign_step:${row.id}:%`,
       );
@@ -142,7 +144,9 @@ function seedPauseResumeFixture() {
       );
     }
     db.prepare("DELETE FROM campaigns WHERE user_id = 1 AND name LIKE 'V2.10.9 Smoke%'").run();
-    db.prepare("DELETE FROM system_events WHERE user_id = 1 AND payload_json LIKE '%v2.10.9-smoke%'").run();
+    db.prepare(
+      "DELETE FROM system_events WHERE user_id = 1 AND payload_json LIKE '%v2.10.9-smoke%'",
+    ).run();
 
     const steps = [
       {
@@ -355,7 +359,10 @@ async function readWhatsAppCanaryTitle() {
       });
       await page.waitForTimeout(5_000);
       const title = await page.evaluate(() => {
-        const clean = (value) => String(value || "").replace(/\s+/g, " ").trim();
+        const clean = (value) =>
+          String(value || "")
+            .replace(/\s+/g, " ")
+            .trim();
         const header = document.querySelector("#main header");
         const candidates = header
           ? Array.from(header.querySelectorAll("span[title], span, div"))
@@ -389,7 +396,10 @@ async function captureWhatsAppPrint(outputPath, token) {
       });
       await page.setViewportSize({ width: 1366, height: 768 });
       await page.waitForTimeout(6_000);
-      const tokenVisible = await page.getByText(token, { exact: false }).count().catch(() => 0);
+      const tokenVisible = await page
+        .getByText(token, { exact: false })
+        .count()
+        .catch(() => 0);
       await page.screenshot({ path: outputPath, fullPage: false });
       return tokenVisible > 0 ? "cdp-token" : "cdp";
     } finally {

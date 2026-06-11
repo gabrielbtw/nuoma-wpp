@@ -18,7 +18,7 @@ function getLocalParts(timeZone: string, reference = new Date()) {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-    hour12: false
+    hour12: false,
   });
 
   const entries = formatter.formatToParts(reference);
@@ -30,7 +30,7 @@ function getLocalParts(timeZone: string, reference = new Date()) {
     day: Number(map.day),
     hour: Number(map.hour),
     minute: Number(map.minute),
-    second: Number(map.second)
+    second: Number(map.second),
   };
 }
 
@@ -72,9 +72,15 @@ export function nextWindowStartIso(start: string, end: string, timeZone: string)
 
   let deltaMinutes = 0;
   if (!overnight) {
-    deltaMinutes = currentMinutes < startMinutes ? startMinutes - currentMinutes : 24 * 60 - currentMinutes + startMinutes;
+    deltaMinutes =
+      currentMinutes < startMinutes
+        ? startMinutes - currentMinutes
+        : 24 * 60 - currentMinutes + startMinutes;
   } else {
-    deltaMinutes = currentMinutes < startMinutes && currentMinutes > endMinutes ? startMinutes - currentMinutes : 24 * 60 - currentMinutes + startMinutes;
+    deltaMinutes =
+      currentMinutes < startMinutes && currentMinutes > endMinutes
+        ? startMinutes - currentMinutes
+        : 24 * 60 - currentMinutes + startMinutes;
   }
 
   const next = new Date(Date.now() + deltaMinutes * 60 * 1000);

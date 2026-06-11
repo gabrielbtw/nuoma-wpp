@@ -9,13 +9,15 @@ import {
   listSystemEventsByProcess,
   loadEnv,
   setSettings,
-  getWorkerState
+  getWorkerState,
 } from "@nuoma/core";
 
 type WorkerPayload = Record<string, unknown>;
 
 function readWorkerPayload(workerState: ReturnType<typeof getWorkerState>) {
-  return workerState?.value && typeof workerState.value === "object" ? (workerState.value as WorkerPayload) : null;
+  return workerState?.value && typeof workerState.value === "object"
+    ? (workerState.value as WorkerPayload)
+    : null;
 }
 
 function readWorkerPid(payload: WorkerPayload | null) {
@@ -36,7 +38,11 @@ function isProcessRunning(pid: number | null) {
   }
 }
 
-function normalizeWorkerPayload(payload: WorkerPayload | null, live: boolean, overrides: WorkerPayload = {}) {
+function normalizeWorkerPayload(
+  payload: WorkerPayload | null,
+  live: boolean,
+  overrides: WorkerPayload = {},
+) {
   if (!payload) {
     return null;
   }
@@ -49,7 +55,7 @@ function normalizeWorkerPayload(payload: WorkerPayload | null, live: boolean, ov
     ...payload,
     ...overrides,
     live: false,
-    stale: true
+    stale: true,
   };
 }
 
@@ -78,12 +84,14 @@ function buildEffectiveSettings() {
   const env = loadEnv();
   const persistedSettings = new Map(getSettings().map((item) => [item.key, item.value]));
   const envEntries = Object.entries(env).filter(([key]) => key !== "PROJECT_ROOT");
-  const keys = [...new Set([...envEntries.map(([key]) => key), ...persistedSettings.keys()])].sort((left, right) => left.localeCompare(right));
+  const keys = [...new Set([...envEntries.map(([key]) => key), ...persistedSettings.keys()])].sort(
+    (left, right) => left.localeCompare(right),
+  );
 
   return keys.map((key) => ({
     key,
     value: persistedSettings.has(key) ? persistedSettings.get(key) : env[key as keyof typeof env],
-    source: persistedSettings.has(key) ? "database" : "env"
+    source: persistedSettings.has(key) ? "database" : "env",
   }));
 }
 
@@ -107,22 +115,42 @@ export async function registerSystemRoutes(app: FastifyInstance) {
     const env = loadEnv();
     const db = getDb();
     const channelAccounts = ensureDefaultChannelAccounts();
-    const activeCampaigns = Number((db.prepare("SELECT COUNT(*) AS count FROM campaigns WHERE status = 'active'").get() as { count: number }).count);
-    const activeAutomations = Number((db.prepare("SELECT COUNT(*) AS count FROM automations WHERE enabled = 1").get() as { count: number }).count);
+    const activeCampaigns = Number(
+      (
+        db.prepare("SELECT COUNT(*) AS count FROM campaigns WHERE status = 'active'").get() as {
+          count: number;
+        }
+      ).count,
+    );
+    const activeAutomations = Number(
+      (
+        db.prepare("SELECT COUNT(*) AS count FROM automations WHERE enabled = 1").get() as {
+          count: number;
+        }
+      ).count,
+    );
     const waitingConversations = Number(
-      (db.prepare("SELECT COUNT(*) AS count FROM contacts WHERE deleted_at IS NULL AND status = 'aguardando_resposta'").get() as { count: number }).count
+      (
+        db
+          .prepare(
+            "SELECT COUNT(*) AS count FROM contacts WHERE deleted_at IS NULL AND status = 'aguardando_resposta'",
+          )
+          .get() as { count: number }
+      ).count,
     );
     const pendingFollowUps = Number(
       (
-        db.prepare(
-          `
+        db
+          .prepare(
+            `
             SELECT COUNT(*) AS count
             FROM automation_runs ar
             INNER JOIN automations a ON a.id = ar.automation_id
             WHERE a.category = 'follow-up' AND ar.status IN ('pending', 'active')
-          `
-        ).get() as { count: number }
-      ).count
+          `,
+          )
+          .get() as { count: number }
+      ).count,
     );
 
     const worker = getWorkerState("wa-worker");
@@ -136,10 +164,10 @@ export async function registerSystemRoutes(app: FastifyInstance) {
     const normalizedWorker = normalizeWorkerPayload(workerPayload, workerLive, {
       status: "disconnected",
       authStatus: "disconnected",
-      sessionPhone: null
+      sessionPhone: null,
     });
     const normalizedScheduler = normalizeWorkerPayload(schedulerPayload, schedulerLive, {
-      status: "offline"
+      status: "offline",
     });
     const normalizedWorkerSessionPhone = readStringFromPayload(normalizedWorker, "sessionPhone");
     const instagramWorkerUsername = readStringFromPayload(instagramWorkerPayload, "username");
@@ -155,7 +183,7 @@ export async function registerSystemRoutes(app: FastifyInstance) {
           SELECT channel, COUNT(*) AS count
           FROM conversations
           GROUP BY channel
-        `
+        `,
       )
       .all() as Array<{ channel: string; count: number }>;
     const contactChannelsByType = db
@@ -165,18 +193,22 @@ export async function registerSystemRoutes(app: FastifyInstance) {
           FROM contact_channels
           WHERE is_active = 1
           GROUP BY type
-        `
+        `,
       )
       .all() as Array<{ type: string; count: number }>;
 
-    const conversationsMap = Object.fromEntries(conversationsByChannel.map((item) => [item.channel, Number(item.count)]));
-    const contactChannelsMap = Object.fromEntries(contactChannelsByType.map((item) => [item.type, Number(item.count)]));
+    const conversationsMap = Object.fromEntries(
+      conversationsByChannel.map((item) => [item.channel, Number(item.count)]),
+    );
+    const contactChannelsMap = Object.fromEntries(
+      contactChannelsByType.map((item) => [item.type, Number(item.count)]),
+    );
     const workerStatus = readStatusFromPayload(normalizedWorker);
     const instagramWorkerStatus = readStatusFromPayload(instagramWorkerPayload);
     const overallStatus = ["error", "degraded", "disconnected"].includes(workerStatus ?? "")
-      ? workerStatus ?? "error"
+      ? (workerStatus ?? "error")
       : ["error", "disconnected"].includes(instagramWorkerStatus ?? "")
-        ? instagramWorkerStatus ?? "error"
+        ? (instagramWorkerStatus ?? "error")
         : "ok";
 
     return {
@@ -186,7 +218,7 @@ export async function registerSystemRoutes(app: FastifyInstance) {
       appStatus: {
         status: "ok",
         host: env.APP_HOST,
-        port: env.APP_PORT
+        port: env.APP_PORT,
       },
       databasePath: env.DATABASE_PATH,
       worker: worker ? { ...worker, value: normalizedWorker } : null,
@@ -199,7 +231,7 @@ export async function registerSystemRoutes(app: FastifyInstance) {
           sessionIdentifier: whatsappSessionPhone,
           worker: normalizedWorker,
           mappedConversations: conversationsMap.whatsapp ?? 0,
-          mappedContactChannels: contactChannelsMap.whatsapp ?? 0
+          mappedContactChannels: contactChannelsMap.whatsapp ?? 0,
         },
         instagram: {
           label: "Instagram Assistido",
@@ -208,32 +240,37 @@ export async function registerSystemRoutes(app: FastifyInstance) {
           sessionIdentifier: instagramSessionUsername,
           worker: instagramWorkerPayload,
           mappedConversations: conversationsMap.instagram ?? 0,
-          mappedContactChannels: contactChannelsMap.instagram ?? 0
-        }
+          mappedContactChannels: contactChannelsMap.instagram ?? 0,
+        },
       },
       metrics: {
         activeCampaigns,
         activeAutomations,
         waitingConversations,
-        pendingFollowUps
+        pendingFollowUps,
       },
       features: {
         automations: env.ENABLE_AUTOMATIONS,
         campaigns: env.ENABLE_CAMPAIGNS,
-        postProcedure: env.ENABLE_POST_PROCEDURE
-      }
+        postProcedure: env.ENABLE_POST_PROCEDURE,
+      },
     };
   });
 
   app.get("/logs", async (request) => {
-    const query = request.query as { limit?: string; offset?: string; eventsOffset?: string; jobsOffset?: string };
+    const query = request.query as {
+      limit?: string;
+      offset?: string;
+      eventsOffset?: string;
+      jobsOffset?: string;
+    };
     const limit = Math.max(1, Math.min(200, Number(query.limit ?? 150)));
     const fallbackOffset = Math.max(0, Number(query.offset ?? 0));
     const eventsOffset = Math.max(0, Number(query.eventsOffset ?? fallbackOffset));
     const jobsOffset = Math.max(0, Number(query.jobsOffset ?? fallbackOffset));
     return {
       events: listSystemEvents(limit, eventsOffset),
-      jobs: listRecentJobs(limit, jobsOffset)
+      jobs: listRecentJobs(limit, jobsOffset),
     };
   });
 
@@ -242,9 +279,11 @@ export async function registerSystemRoutes(app: FastifyInstance) {
     const limit = Math.max(1, Math.min(200, Number(query.limit ?? 100)));
     const events = listSystemEventsByProcess("instagram-import", limit).map((event) => ({
       ...event,
-      meta: parseMetaJson(event.meta_json)
+      meta: parseMetaJson(event.meta_json),
     }));
-    const batchEvents = events.filter((event) => (event.meta as { eventType?: string }).eventType === "batch");
+    const batchEvents = events.filter(
+      (event) => (event.meta as { eventType?: string }).eventType === "batch",
+    );
     const latestBatch =
       batchEvents.find((event) => {
         const meta = event.meta as {
@@ -265,7 +304,9 @@ export async function registerSystemRoutes(app: FastifyInstance) {
       }) ??
       batchEvents[0] ??
       null;
-    const fileRuns = events.filter((event) => (event.meta as { eventType?: string }).eventType === "file");
+    const fileRuns = events.filter(
+      (event) => (event.meta as { eventType?: string }).eventType === "file",
+    );
 
     const totals = fileRuns.reduce(
       (accumulator, event) => {
@@ -277,13 +318,17 @@ export async function registerSystemRoutes(app: FastifyInstance) {
           updated: accumulator.updated + Number(summary.updated ?? 0),
           unchanged: accumulator.unchanged + Number(summary.unchanged ?? 0),
           processedThreads: accumulator.processedThreads + Number(summary.processedThreads ?? 0),
-          processedFollowers: accumulator.processedFollowers + Number(summary.processedFollowers ?? 0),
-          processedFollowing: accumulator.processedFollowing + Number(summary.processedFollowing ?? 0),
+          processedFollowers:
+            accumulator.processedFollowers + Number(summary.processedFollowers ?? 0),
+          processedFollowing:
+            accumulator.processedFollowing + Number(summary.processedFollowing ?? 0),
           phonesDiscovered: accumulator.phonesDiscovered + Number(summary.phonesDiscovered ?? 0),
-          whatsappCsvMatches: accumulator.whatsappCsvMatches + Number(summary.whatsappCsvMatches ?? 0),
-          whatsappCsvNamesApplied: accumulator.whatsappCsvNamesApplied + Number(summary.whatsappCsvNamesApplied ?? 0),
+          whatsappCsvMatches:
+            accumulator.whatsappCsvMatches + Number(summary.whatsappCsvMatches ?? 0),
+          whatsappCsvNamesApplied:
+            accumulator.whatsappCsvNamesApplied + Number(summary.whatsappCsvNamesApplied ?? 0),
           namesFromPhones: accumulator.namesFromPhones + Number(summary.namesFromPhones ?? 0),
-          deletedSources: accumulator.deletedSources + Number(Boolean(meta.deletedSource))
+          deletedSources: accumulator.deletedSources + Number(Boolean(meta.deletedSource)),
         };
       },
       {
@@ -298,14 +343,14 @@ export async function registerSystemRoutes(app: FastifyInstance) {
         whatsappCsvMatches: 0,
         whatsappCsvNamesApplied: 0,
         namesFromPhones: 0,
-        deletedSources: 0
-      }
+        deletedSources: 0,
+      },
     );
 
     return {
       latestBatch,
       totals,
-      fileRuns
+      fileRuns,
     };
   });
 

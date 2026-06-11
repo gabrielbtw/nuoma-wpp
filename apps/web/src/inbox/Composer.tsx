@@ -37,10 +37,7 @@ import type { QuickReply } from "@nuoma/contracts";
 import { API_URL } from "../lib/api-url.js";
 import { csrfFromCookie } from "../lib/csrf.js";
 import { trpc } from "../lib/trpc.js";
-import {
-  composerBodyForAction,
-  type MessageActionDraft,
-} from "./message-action-draft.js";
+import { composerBodyForAction, type MessageActionDraft } from "./message-action-draft.js";
 import type { OptimisticMessageResult } from "./optimistic-message.js";
 
 interface ComposerProps {
@@ -119,7 +116,7 @@ const emojiCategories: EmojiCategory[] = [
     icon: "👍",
     items: [
       emoji("👍", "ok", "positivo beleza"),
-      emoji("👎", "negativo", "nao ruim"),
+      emoji("👎", "negativo", "não ruim"),
       emoji("👏", "palmas", "parabens aplauso"),
       emoji("🙌", "comemorando", "celebrar festa"),
       emoji("🤝", "acordo", "parceria combinado"),
@@ -311,7 +308,10 @@ export function Composer({
 
   useEffect(() => {
     if (!actionDraft) {
-      if (lastActionDraftKindRef.current === "forward" || lastActionDraftKindRef.current === "edit") {
+      if (
+        lastActionDraftKindRef.current === "forward" ||
+        lastActionDraftKindRef.current === "edit"
+      ) {
         setText("");
       }
       lastActionDraftKindRef.current = null;
@@ -633,7 +633,8 @@ export function Composer({
             : type === "video"
               ? "Vídeo enfileirado"
               : "Documento enfileirado",
-        description: "O processador vai anexar o arquivo no WhatsApp com a política de envio ativa.",
+        description:
+          "O processador vai anexar o arquivo no WhatsApp com a política de envio ativa.",
         variant: "success",
       });
       void utils.messages.listByConversation.invalidate();

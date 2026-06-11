@@ -23,7 +23,11 @@ const requiredWorkspaces = [
   },
   { dir: "packages/config", name: "@nuoma/config", files: ["src/index.ts"] },
   { dir: "packages/contracts", name: "@nuoma/contracts", files: ["src/index.ts", "src/health.ts"] },
-  { dir: "packages/db", name: "@nuoma/db", files: ["src/index.ts", "src/schema.ts", "src/migrate.ts", "drizzle.config.ts"] },
+  {
+    dir: "packages/db",
+    name: "@nuoma/db",
+    files: ["src/index.ts", "src/schema.ts", "src/migrate.ts", "drizzle.config.ts"],
+  },
   { dir: "packages/ui", name: "@nuoma/ui", files: ["src/index.ts"] },
 ];
 
@@ -55,7 +59,10 @@ function main() {
 
   const tsconfig = readJson("tsconfig.base.json");
   for (const alias of requiredAliases) {
-    assert(Array.isArray(tsconfig.compilerOptions?.paths?.[alias]), `tsconfig alias missing: ${alias}`);
+    assert(
+      Array.isArray(tsconfig.compilerOptions?.paths?.[alias]),
+      `tsconfig alias missing: ${alias}`,
+    );
   }
 
   for (const file of requiredRootFiles) {
@@ -64,7 +71,10 @@ function main() {
 
   for (const workspace of requiredWorkspaces) {
     const pkg = readJson(path.join(workspace.dir, "package.json"));
-    assert(pkg.name === workspace.name, `workspace ${workspace.dir} has unexpected name ${pkg.name}`);
+    assert(
+      pkg.name === workspace.name,
+      `workspace ${workspace.dir} has unexpected name ${pkg.name}`,
+    );
     assertFile(path.join(workspace.dir, "tsconfig.json"));
     for (const file of workspace.files) {
       assertFile(path.join(workspace.dir, file));

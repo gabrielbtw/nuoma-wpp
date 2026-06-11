@@ -48,7 +48,7 @@ const apiSchema = baseSchema.extend({
   API_AUTOMATION_ENGINE_ENABLED: booleanFromEnv.default(false),
   API_AUTOMATION_ENGINE_INTERVAL_MS: z.coerce.number().int().min(1_000).default(5_000),
   API_AUTOMATION_ENGINE_USER_ID: z.coerce.number().int().positive().default(1),
-  API_AUTOMATION_ENGINE_ALLOWED_PHONE: z.string().default("5531982066263"),
+  API_AUTOMATION_ENGINE_ALLOWED_PHONE: z.string().default(""),
   API_WEB_PUSH_VAPID_PUBLIC_KEY: z.string().min(1).optional(),
   API_WEB_PUSH_VAPID_PRIVATE_KEY: z.string().min(1).optional(),
   API_WEB_PUSH_VAPID_SUBJECT: z.string().min(1).default("mailto:admin@nuoma.local"),

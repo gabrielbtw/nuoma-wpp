@@ -2,15 +2,13 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 
-const booleanish = z
-  .union([z.boolean(), z.string()])
-  .transform((value) => {
-    if (typeof value === "boolean") {
-      return value;
-    }
+const booleanish = z.union([z.boolean(), z.string()]).transform((value) => {
+  if (typeof value === "boolean") {
+    return value;
+  }
 
-    return ["1", "true", "yes", "on"].includes(value.toLowerCase());
-  });
+  return ["1", "true", "yes", "on"].includes(value.toLowerCase());
+});
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -78,7 +76,7 @@ const envSchema = z.object({
   OPENAI_TRANSCRIPTION_MODEL: z.string().default("gpt-4o-mini-transcribe"),
   OPENAI_VISION_MODEL: z.string().default("gpt-4.1-mini"),
   PYTHON_BIN: z.string().default("python3"),
-  XTTS_TIMEOUT_SECONDS: z.coerce.number().int().min(30).max(600).default(120)
+  XTTS_TIMEOUT_SECONDS: z.coerce.number().int().min(30).max(600).default(120),
 });
 
 export type AppEnv = z.infer<typeof envSchema> & {
@@ -142,7 +140,10 @@ function parseDotEnvFile(filePath: string) {
     }
 
     const key = line.slice(0, separatorIndex).trim();
-    const value = line.slice(separatorIndex + 1).trim().replace(/^['"]|['"]$/g, "");
+    const value = line
+      .slice(separatorIndex + 1)
+      .trim()
+      .replace(/^['"]|['"]$/g, "");
     values[key] = value;
   }
 
@@ -160,7 +161,7 @@ export function loadEnv(overrides?: Partial<NodeJS.ProcessEnv>): AppEnv {
   const parsed = envSchema.parse({
     ...dotEnvValues,
     ...process.env,
-    ...overrides
+    ...overrides,
   });
 
   const resolvedEnv: AppEnv = {
@@ -175,7 +176,7 @@ export function loadEnv(overrides?: Partial<NodeJS.ProcessEnv>): AppEnv {
     DATA_LAKE_DIR: resolveProjectPath(root, parsed.DATA_LAKE_DIR),
     WHISPER_MODEL_PATH: resolveProjectPath(root, parsed.WHISPER_MODEL_PATH),
     CHROMIUM_PROFILE_DIR: resolveProjectPath(root, parsed.CHROMIUM_PROFILE_DIR),
-    IG_CHROMIUM_PROFILE_DIR: resolveProjectPath(root, parsed.IG_CHROMIUM_PROFILE_DIR)
+    IG_CHROMIUM_PROFILE_DIR: resolveProjectPath(root, parsed.IG_CHROMIUM_PROFILE_DIR),
   };
 
   if (!overrides) {

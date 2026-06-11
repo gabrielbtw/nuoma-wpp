@@ -17,8 +17,7 @@ const SIDE: Record<"left" | "right" | "top" | "bottom", string> = {
   bottom: "bottom-3 left-3 right-3 max-h-[85vh] rounded-xxl",
 };
 
-export interface SheetContentProps
-  extends ComponentPropsWithoutRef<typeof RadixDialog.Content> {
+export interface SheetContentProps extends ComponentPropsWithoutRef<typeof RadixDialog.Content> {
   side?: keyof typeof SIDE;
   showClose?: boolean;
   children?: ReactNode;

@@ -62,23 +62,23 @@ Alterados:
 
 ## Validacoes
 
-| Comando | Status | Observacao |
-| --- | --- | --- |
-| `npm ci` | passou | 662 packages instalados; hooks atualizados |
-| `npm run lint` | passou | 10 tarefas Turbo |
-| `npm run typecheck` | passou | 21 tarefas Turbo |
-| `npm run build` | passou | 14 tarefas Turbo; Safari segue `blocked_converter_unavailable` por converter local ausente |
-| `npm test` | passou | 17 tarefas Turbo |
-| `npm run lint:canonical` | passou | 7 tarefas Turbo |
-| `npm run typecheck:canonical` | passou | 12 tarefas Turbo apos ajuste de narrowing em `overlay-quick-actions` |
-| `npm run build:canonical` | passou | 7 tarefas Turbo |
-| `npm run test:canonical` | passou | 12 tarefas Turbo |
-| `npm run legacy:typecheck` | passou | 5 tarefas Turbo |
-| `npm run test:phase1-guards` | passou | `phase1-guards-smoke|status=ok` |
-| `npm run test:v215-cutover-preflight` | passou | `v215-cutover-preflight-smoke|ready=ok|blocker=ok|status=closed` |
-| `npm run test:v215-cutover-apply` | passou | `v215-cutover-apply-smoke|dryRun=ok|apply=ok|idempotent=ok|status=closed` |
-| `npm run test:artifact-retention` | passou | `artifact-retention-policy-smoke|status=ok` |
-| `npm run test:product-confidence` | passou | `product-confidence-smoke|status=ok|checks=8` |
+| Comando                               | Status | Observacao                                                                                 |
+| ------------------------------------- | ------ | ------------------------------------------------------------------------------------------ | ---------- | ---------- | -------------- | -------------- |
+| `npm ci`                              | passou | 662 packages instalados; hooks atualizados                                                 |
+| `npm run lint`                        | passou | 10 tarefas Turbo                                                                           |
+| `npm run typecheck`                   | passou | 21 tarefas Turbo                                                                           |
+| `npm run build`                       | passou | 14 tarefas Turbo; Safari segue `blocked_converter_unavailable` por converter local ausente |
+| `npm test`                            | passou | 17 tarefas Turbo                                                                           |
+| `npm run lint:canonical`              | passou | 7 tarefas Turbo                                                                            |
+| `npm run typecheck:canonical`         | passou | 12 tarefas Turbo apos ajuste de narrowing em `overlay-quick-actions`                       |
+| `npm run build:canonical`             | passou | 7 tarefas Turbo                                                                            |
+| `npm run test:canonical`              | passou | 12 tarefas Turbo                                                                           |
+| `npm run legacy:typecheck`            | passou | 5 tarefas Turbo                                                                            |
+| `npm run test:phase1-guards`          | passou | `phase1-guards-smoke                                                                       | status=ok` |
+| `npm run test:v215-cutover-preflight` | passou | `v215-cutover-preflight-smoke                                                              | ready=ok   | blocker=ok | status=closed` |
+| `npm run test:v215-cutover-apply`     | passou | `v215-cutover-apply-smoke                                                                  | dryRun=ok  | apply=ok   | idempotent=ok  | status=closed` |
+| `npm run test:artifact-retention`     | passou | `artifact-retention-policy-smoke                                                           | status=ok` |
+| `npm run test:product-confidence`     | passou | `product-confidence-smoke                                                                  | status=ok  | checks=8`  |
 
 `npm run format:check` nao foi executado. A Fase 0 ja registrou divida global
 de Prettier em 280 arquivos; rodar formatter amplo nesta fase geraria churn fora

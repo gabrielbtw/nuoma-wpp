@@ -46,15 +46,17 @@ async function main() {
     await panel.waitFor({ state: "visible", timeout: 10_000 });
     await panel.scrollIntoViewIfNeeded();
 
-    const stats = await panel.locator('[data-testid="campaign-step-stat-row"]').evaluateAll((rows) =>
-      rows.map((row) => ({
-        stepId: row.getAttribute("data-step-id"),
-        completed: Number(row.getAttribute("data-completed") ?? "0"),
-        failed: Number(row.getAttribute("data-failed") ?? "0"),
-        rate: Number(row.getAttribute("data-completion-rate") ?? "0"),
-        text: row.textContent ?? "",
-      })),
-    );
+    const stats = await panel
+      .locator('[data-testid="campaign-step-stat-row"]')
+      .evaluateAll((rows) =>
+        rows.map((row) => ({
+          stepId: row.getAttribute("data-step-id"),
+          completed: Number(row.getAttribute("data-completed") ?? "0"),
+          failed: Number(row.getAttribute("data-failed") ?? "0"),
+          rate: Number(row.getAttribute("data-completion-rate") ?? "0"),
+          text: row.textContent ?? "",
+        })),
+      );
     assertStep(stats, "step-intro", { completed: 3, failed: 0, rate: 0.75 });
     assertStep(stats, "step-proof", { completed: 2, failed: 1, rate: 0.5 });
     assertStep(stats, "step-close", { completed: 1, failed: 0, rate: 0.25 });
@@ -65,7 +67,9 @@ async function main() {
     const campaignStepJobsAfter = countCampaignStepJobs();
     const campaignStepJobsDelta = campaignStepJobsAfter - campaignStepJobsBefore;
     if (campaignStepJobsDelta !== 0) {
-      throw new Error(`step stats smoke created campaign_step job(s): delta=${campaignStepJobsDelta}`);
+      throw new Error(
+        `step stats smoke created campaign_step job(s): delta=${campaignStepJobsDelta}`,
+      );
     }
 
     await page.screenshot({ path: appScreenshotPath, fullPage: false });
@@ -101,10 +105,14 @@ function seedStepStatsFixture() {
       .prepare("SELECT id FROM campaigns WHERE user_id = 1 AND name LIKE 'V2.10.6 Smoke%'")
       .all();
     for (const row of existing) {
-      db.prepare("DELETE FROM campaign_recipients WHERE user_id = 1 AND campaign_id = ?").run(row.id);
+      db.prepare("DELETE FROM campaign_recipients WHERE user_id = 1 AND campaign_id = ?").run(
+        row.id,
+      );
     }
     db.prepare("DELETE FROM campaigns WHERE user_id = 1 AND name LIKE 'V2.10.6 Smoke%'").run();
-    db.prepare("DELETE FROM system_events WHERE user_id = 1 AND payload_json LIKE '%v2.10.6-smoke%'").run();
+    db.prepare(
+      "DELETE FROM system_events WHERE user_id = 1 AND payload_json LIKE '%v2.10.6-smoke%'",
+    ).run();
 
     const steps = [
       {
@@ -212,7 +220,15 @@ function seedStepStatsFixture() {
       INSERT INTO system_events (user_id, type, severity, payload_json, created_at)
       VALUES (1, @type, @severity, @payload, @createdAt)
     `);
-    const event = (minutesAgo, type, severity, recipientIndex, stepId, stepType, navigationMode) => {
+    const event = (
+      minutesAgo,
+      type,
+      severity,
+      recipientIndex,
+      stepId,
+      stepType,
+      navigationMode,
+    ) => {
       const createdAt = new Date(now.getTime() - minutesAgo * 60_000).toISOString();
       insertEvent.run({
         type,
@@ -232,12 +248,44 @@ function seedStepStatsFixture() {
       });
     };
     event(30, "sender.campaign_step.completed", "info", 0, "step-intro", "text", "navigated");
-    event(29, "sender.campaign_step.completed", "info", 1, "step-intro", "text", "reused-open-chat");
+    event(
+      29,
+      "sender.campaign_step.completed",
+      "info",
+      1,
+      "step-intro",
+      "text",
+      "reused-open-chat",
+    );
     event(28, "sender.campaign_step.completed", "info", 2, "step-intro", "text", "navigated");
-    event(20, "sender.campaign_step.completed", "info", 0, "step-proof", "link", "reused-open-chat");
-    event(19, "sender.campaign_step.completed", "info", 1, "step-proof", "link", "reused-open-chat");
+    event(
+      20,
+      "sender.campaign_step.completed",
+      "info",
+      0,
+      "step-proof",
+      "link",
+      "reused-open-chat",
+    );
+    event(
+      19,
+      "sender.campaign_step.completed",
+      "info",
+      1,
+      "step-proof",
+      "link",
+      "reused-open-chat",
+    );
     event(18, "sender.campaign_step.failed", "warn", 2, "step-proof", "link", "navigated");
-    event(10, "sender.campaign_step.completed", "info", 0, "step-close", "text", "reused-open-chat");
+    event(
+      10,
+      "sender.campaign_step.completed",
+      "info",
+      0,
+      "step-close",
+      "text",
+      "reused-open-chat",
+    );
 
     return { campaignId };
   } finally {
@@ -251,7 +299,11 @@ function assertStep(stats, stepId, expected) {
     throw new Error(`missing step stat ${stepId}: ${JSON.stringify(stats)}`);
   }
   const rateDiff = Math.abs(stat.rate - expected.rate);
-  if (stat.completed !== expected.completed || stat.failed !== expected.failed || rateDiff > 0.001) {
+  if (
+    stat.completed !== expected.completed ||
+    stat.failed !== expected.failed ||
+    rateDiff > 0.001
+  ) {
     throw new Error(
       `step stat mismatch for ${stepId}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(stat)}`,
     );

@@ -38,7 +38,12 @@ const { registerContactRoutes } = await import("../apps/web-app/src/server/route
 const { registerDataLakeRoutes } = await import("../apps/web-app/src/server/routes/data-lake.ts");
 const { registerSystemRoutes } = await import("../apps/web-app/src/server/routes/system.ts");
 const { registerTagRoutes } = await import("../apps/web-app/src/server/routes/tags.ts");
-const { assessInstagramProfileSnapshot, isInstagramComposerSurfaceReady, pickInstagramComposerRecipientCandidate, resolveInstagramThreadParticipant } = await import("../apps/web-app/src/server/lib/instagram-assisted.ts");
+const {
+  assessInstagramProfileSnapshot,
+  isInstagramComposerSurfaceReady,
+  pickInstagramComposerRecipientCandidate,
+  resolveInstagramThreadParticipant,
+} = await import("../apps/web-app/src/server/lib/instagram-assisted.ts");
 const contactUtils = await import("../apps/web-app/src/client/lib/contact-utils.ts");
 
 const {
@@ -63,9 +68,10 @@ const {
   sendJobPayloadSchema,
   setWorkerState,
   triggerIncomingAutomationRuns,
-  upsertConversation
+  upsertConversation,
 } = core;
-const { formatChannelDisplayValue, formatPhoneForInput, isValidCpf, normalizePhoneForSubmission } = contactUtils;
+const { formatChannelDisplayValue, formatPhoneForInput, isValidCpf, normalizePhoneForSubmission } =
+  contactUtils;
 
 let app: FastifyInstance;
 
@@ -76,7 +82,16 @@ async function resetDatabase() {
     await rm(filePath, { force: true });
   }
 
-  for (const directory of [logDir, uploadsDir, mediaDir, tempDir, screenshotsDir, dataLakeDir, chromiumProfileDir, instagramProfileDir]) {
+  for (const directory of [
+    logDir,
+    uploadsDir,
+    mediaDir,
+    tempDir,
+    screenshotsDir,
+    dataLakeDir,
+    chromiumProfileDir,
+    instagramProfileDir,
+  ]) {
     await rm(directory, { recursive: true, force: true });
     await mkdir(directory, { recursive: true });
   }
@@ -98,14 +113,19 @@ function buildContact(index: number, overrides?: Partial<Parameters<typeof creat
     tags: [],
     lastInteractionAt: null,
     lastProcedureAt: null,
-    ...overrides
+    ...overrides,
   };
 }
 
 before(async () => {
   app = Fastify({ logger: false });
   app.setErrorHandler((error, _request, reply) => {
-    const message = error instanceof ZodError ? error.issues[0]?.message || "Dados inválidos" : error instanceof Error ? error.message : "Erro interno";
+    const message =
+      error instanceof ZodError
+        ? error.issues[0]?.message || "Dados inválidos"
+        : error instanceof Error
+          ? error.message
+          : "Erro interno";
     reply.code(error instanceof ZodError || isInputError(error) ? 400 : 500).send({ message });
   });
   await registerContactRoutes(app);
@@ -138,14 +158,14 @@ test("contacts pagination and tag filtering stay consistent across pages", async
   for (let index = 1; index <= 25; index += 1) {
     createContact(
       buildContact(index, {
-        tags: index <= 22 ? ["vip"] : ["pos"]
-      })
+        tags: index <= 22 ? ["vip"] : ["pos"],
+      }),
     );
   }
 
   const response = await app.inject({
     method: "GET",
-    url: "/contacts?tag=vip&page=2&pageSize=20"
+    url: "/contacts?tag=vip&page=2&pageSize=20",
   });
 
   assert.equal(response.statusCode, 200);
@@ -160,8 +180,8 @@ test("contacts patch rejects removing every channel and still records history fo
   const created = createContact(
     buildContact(1, {
       name: "Gabriel Braga",
-      instagram: "@gabriell_braga"
-    })
+      instagram: "@gabriell_braga",
+    }),
   );
 
   assert.ok(created);
@@ -171,8 +191,8 @@ test("contacts patch rejects removing every channel and still records history fo
     url: `/contacts/${created.id}`,
     payload: {
       phone: "",
-      instagram: ""
-    }
+      instagram: "",
+    },
   });
 
   assert.equal(invalidPatch.statusCode, 400);
@@ -183,21 +203,23 @@ test("contacts patch rejects removing every channel and still records history fo
     url: `/contacts/${created.id}`,
     payload: {
       status: "cliente",
-      notes: "Contato priorizado"
-    }
+      notes: "Contato priorizado",
+    },
   });
 
   assert.equal(validPatch.statusCode, 200);
 
   const historyResponse = await app.inject({
     method: "GET",
-    url: `/contacts/${created.id}/history?limit=10`
+    url: `/contacts/${created.id}/history?limit=10`,
   });
 
   assert.equal(historyResponse.statusCode, 200);
   const historyItems = historyResponse.json() as Array<{ field: string; nextValue: string | null }>;
   assert(historyItems.some((item) => item.field === "status" && item.nextValue === "cliente"));
-  assert(historyItems.some((item) => item.field === "notes" && item.nextValue === "Contato priorizado"));
+  assert(
+    historyItems.some((item) => item.field === "notes" && item.nextValue === "Contato priorizado"),
+  );
 });
 
 test("visible attachment candidates are persisted as media assets and exposed by contact", async () => {
@@ -209,7 +231,7 @@ test("visible attachment candidates are persisted as media assets and exposed by
     unreadCount: 0,
     lastMessagePreview: "Foto recebida",
     lastMessageAt: "2026-05-05T12:00:00.000Z",
-    contactPhone: contact.phone
+    contactPhone: contact.phone,
   });
   assert.ok(conversation);
 
@@ -220,7 +242,7 @@ test("visible attachment candidates are persisted as media assets and exposed by
     contentType: "image",
     body: "Foto recebida",
     sentAt: "2026-05-05T12:00:00.000Z",
-    meta: { source: "test" }
+    meta: { source: "test" },
   });
 
   const candidate = createAttachmentCandidate({
@@ -238,7 +260,7 @@ test("visible attachment candidates are persisted as media assets and exposed by
     sourceUrl: "blob:https://web.whatsapp.com/visible-photo",
     caption: "Foto recebida",
     observedAt: "2026-05-05T12:00:01.000Z",
-    metadata: { source: "wa-dom-visible" }
+    metadata: { source: "wa-dom-visible" },
   });
 
   assert.ok(candidate);
@@ -256,17 +278,20 @@ test("visible attachment candidates are persisted as media assets and exposed by
     mimeType: "image/jpeg",
     sha256: "a".repeat(64),
     storagePath: `wa-visible://${"a".repeat(64)}`,
-    observedAt: "2026-05-05T12:00:02.000Z"
+    observedAt: "2026-05-05T12:00:02.000Z",
   });
   assert.equal(repeated?.id, candidate.id);
 
   const response = await app.inject({
     method: "GET",
-    url: `/contacts/${contact.id}/attachment-candidates?limit=10`
+    url: `/contacts/${contact.id}/attachment-candidates?limit=10`,
   });
 
   assert.equal(response.statusCode, 200);
-  const payload = response.json() as { total: number; items: Array<{ contentType: string; sha256: string; storagePath: string }> };
+  const payload = response.json() as {
+    total: number;
+    items: Array<{ contentType: string; sha256: string; storagePath: string }>;
+  };
   assert.equal(payload.total, 1);
   assert.equal(payload.items.length, 1);
   assert.equal(payload.items[0]?.contentType, "image");
@@ -279,8 +304,8 @@ test("campaign import preview resolves Instagram matches and blocks duplicate or
     buildContact(1, {
       name: "Lead existente",
       phone: "5531987654321",
-      instagram: "@gabriell_braga"
-    })
+      instagram: "@gabriell_braga",
+    }),
   );
 
   const preview = buildCampaignImportPreview(
@@ -288,13 +313,13 @@ test("campaign import preview resolves Instagram matches and blocks duplicate or
       { nome: "Existente", telefone: "", instagram: "gabriell_braga" },
       { nome: "Novo", telefone: "31 99999-0000", instagram: "" },
       { nome: "Duplicado", telefone: "31 99999-0000", instagram: "" },
-      { nome: "Invalido", telefone: "123", instagram: "" }
+      { nome: "Invalido", telefone: "123", instagram: "" },
     ],
     {
       name: "nome",
       phone: "telefone",
-      instagram: "instagram"
-    }
+      instagram: "instagram",
+    },
   );
 
   assert.deepEqual(preview.summary, {
@@ -304,7 +329,7 @@ test("campaign import preview resolves Instagram matches and blocks duplicate or
     new_contact: 1,
     needs_review: 0,
     insufficient_link: 1,
-    invalid: 1
+    invalid: 1,
   });
   assert.equal(preview.preview[0]?._resolvedPhone, "5531987654321");
   assert.equal(preview.preview[0]?._exists, "eligible");
@@ -316,8 +341,8 @@ test("campaign routes only accept controlled CSV references and import eligible 
     buildContact(1, {
       name: "Lead existente",
       phone: "5531987654321",
-      instagram: "@gabriell_braga"
-    })
+      instagram: "@gabriell_braga",
+    }),
   );
 
   const campaign = createCampaign({
@@ -336,9 +361,9 @@ test("campaign routes only accept controlled CSV references and import eligible 
         content: "Mensagem inicial",
         mediaPath: null,
         waitMinutes: null,
-        caption: ""
-      }
-    ]
+        caption: "",
+      },
+    ],
   });
 
   assert.ok(campaign);
@@ -349,9 +374,9 @@ test("campaign routes only accept controlled CSV references and import eligible 
     payload: {
       uploadId: "../../etc/passwd",
       mapping: {
-        phone: "telefone"
-      }
-    }
+        phone: "telefone",
+      },
+    },
   });
 
   assert.equal(invalidReference.statusCode, 400);
@@ -361,8 +386,13 @@ test("campaign routes only accept controlled CSV references and import eligible 
   await mkdir(csvDirectory, { recursive: true });
   await writeFile(
     path.join(csvDirectory, `${uploadId}.csv`),
-    ["nome,telefone,instagram", "Existente,,gabriell_braga", "Novo Lead,31 99999-0000,", "Duplicado,31 99999-0000,"].join("\n"),
-    "utf8"
+    [
+      "nome,telefone,instagram",
+      "Existente,,gabriell_braga",
+      "Novo Lead,31 99999-0000,",
+      "Duplicado,31 99999-0000,",
+    ].join("\n"),
+    "utf8",
   );
 
   const previewResponse = await app.inject({
@@ -373,9 +403,9 @@ test("campaign routes only accept controlled CSV references and import eligible 
       mapping: {
         name: "nome",
         phone: "telefone",
-        instagram: "instagram"
-      }
-    }
+        instagram: "instagram",
+      },
+    },
   });
 
   assert.equal(previewResponse.statusCode, 200);
@@ -393,20 +423,23 @@ test("campaign routes only accept controlled CSV references and import eligible 
       mapping: {
         name: "nome",
         phone: "telefone",
-        instagram: "instagram"
-      }
-    }
+        instagram: "instagram",
+      },
+    },
   });
 
   assert.equal(importResponse.statusCode, 200);
 
   const recipientsResponse = await app.inject({
     method: "GET",
-    url: `/campaigns/${campaign.id}/recipients`
+    url: `/campaigns/${campaign.id}/recipients`,
   });
 
   assert.equal(recipientsResponse.statusCode, 200);
-  const recipients = recipientsResponse.json() as Array<{ contact_id: string | null; phone: string }>;
+  const recipients = recipientsResponse.json() as Array<{
+    contact_id: string | null;
+    phone: string;
+  }>;
   assert.equal(recipients.length, 2);
   assert(recipients.some((recipient) => recipient.contact_id != null));
   assert(recipients.some((recipient) => recipient.phone === "5531999990000"));
@@ -429,16 +462,16 @@ test("duplicating a campaign keeps the flow but resets it to a clean draft", () 
         content: "Primeiro toque",
         mediaPath: null,
         waitMinutes: null,
-        caption: ""
+        caption: "",
       },
       {
         type: "wait",
         content: "",
         mediaPath: null,
         waitMinutes: 15,
-        caption: ""
-      }
-    ]
+        caption: "",
+      },
+    ],
   });
 
   assert.ok(original);
@@ -458,7 +491,7 @@ test("instagram send payload accepts blank phone when the username is present", 
     recipientNormalizedValue: "roseleite",
     phone: "",
     contentType: "text",
-    text: "Oi"
+    text: "Oi",
   });
 
   assert.equal(payload.phone, null);
@@ -470,8 +503,8 @@ test("instagram campaign jobs reuse the latest known thread id for faster sends"
     buildContact(1, {
       name: "Gabriel Braga",
       phone: "",
-      instagram: "@gabriell_braga"
-    })
+      instagram: "@gabriell_braga",
+    }),
   );
 
   assert.ok(contact);
@@ -485,7 +518,7 @@ test("instagram campaign jobs reuse the latest known thread id for faster sends"
     lastMessagePreview: "Ultima mensagem",
     lastMessageAt: new Date().toISOString(),
     lastMessageDirection: "incoming",
-    contactPhone: null
+    contactPhone: null,
   });
 
   assert.ok(conversation);
@@ -509,9 +542,9 @@ test("instagram campaign jobs reuse the latest known thread id for faster sends"
         waitMinutes: null,
         caption: "",
         tagName: null,
-        channelScope: "instagram"
-      }
-    ]
+        channelScope: "instagram",
+      },
+    ],
   });
 
   assert.ok(campaign);
@@ -525,13 +558,13 @@ test("instagram campaign jobs reuse the latest known thread id for faster sends"
       targetNormalizedValue: "gabriell_braga",
       name: "Gabriel Braga",
       tags: [],
-      extra: {}
-    }
+      extra: {},
+    },
   ]);
 
   setWorkerState("instagram-assisted", {
     status: "connected",
-    authenticated: true
+    authenticated: true,
   });
 
   const tick = processCampaignTick();
@@ -542,7 +575,10 @@ test("instagram campaign jobs reuse the latest known thread id for faster sends"
     .get() as { payload_json: string } | undefined;
 
   assert.ok(row);
-  const payload = JSON.parse(row.payload_json) as { externalThreadId: string | null; recipientNormalizedValue: string };
+  const payload = JSON.parse(row.payload_json) as {
+    externalThreadId: string | null;
+    recipientNormalizedValue: string;
+  };
   assert.equal(payload.externalThreadId, "ig-thread-known");
   assert.equal(payload.recipientNormalizedValue, "gabriell_braga");
 });
@@ -552,8 +588,8 @@ test("instagram contact channel stores the observed thread id in hidden metadata
     buildContact(1, {
       name: "Gabriel Braga",
       phone: "",
-      instagram: "@gabriell_braga"
-    })
+      instagram: "@gabriell_braga",
+    }),
   );
 
   assert.ok(contact);
@@ -564,7 +600,7 @@ test("instagram contact channel stores the observed thread id in hidden metadata
     threadId: "ig-thread-hidden",
     threadTitle: "Gabriel Braga",
     observedAt: new Date("2026-03-18T10:00:00.000Z").toISOString(),
-    source: "test"
+    source: "test",
   });
 
   assert.ok(channel);
@@ -584,8 +620,8 @@ test("instagram upsertConversation persists the thread id on the contact channel
     buildContact(1, {
       name: "Paciente IG",
       phone: "5531998765432",
-      instagram: ""
-    })
+      instagram: "",
+    }),
   );
 
   assert.ok(contact);
@@ -599,7 +635,7 @@ test("instagram upsertConversation persists the thread id on the contact channel
     unreadCount: 0,
     lastMessagePreview: "Oi",
     lastMessageAt: new Date("2026-03-18T10:10:00.000Z").toISOString(),
-    lastMessageDirection: "incoming"
+    lastMessageDirection: "incoming",
   });
 
   assert.ok(conversation);
@@ -616,8 +652,8 @@ test("instagram campaign jobs fall back to the stored contact thread id when the
     buildContact(1, {
       name: "Gabriel Braga",
       phone: "",
-      instagram: "@gabriell_braga"
-    })
+      instagram: "@gabriell_braga",
+    }),
   );
 
   assert.ok(contact);
@@ -628,7 +664,7 @@ test("instagram campaign jobs fall back to the stored contact thread id when the
     threadId: "ig-thread-from-contact",
     threadTitle: "Gabriel Braga",
     observedAt: new Date("2026-03-18T10:05:00.000Z").toISOString(),
-    source: "test"
+    source: "test",
   });
 
   const campaign = createCampaign({
@@ -650,9 +686,9 @@ test("instagram campaign jobs fall back to the stored contact thread id when the
         waitMinutes: null,
         caption: "",
         tagName: null,
-        channelScope: "instagram"
-      }
-    ]
+        channelScope: "instagram",
+      },
+    ],
   });
 
   assert.ok(campaign);
@@ -666,13 +702,13 @@ test("instagram campaign jobs fall back to the stored contact thread id when the
       targetNormalizedValue: "gabriell_braga",
       name: "Gabriel Braga",
       tags: [],
-      extra: {}
-    }
+      extra: {},
+    },
   ]);
 
   setWorkerState("instagram-assisted", {
     status: "connected",
-    authenticated: true
+    authenticated: true,
   });
 
   const tick = processCampaignTick();
@@ -683,7 +719,10 @@ test("instagram campaign jobs fall back to the stored contact thread id when the
     .get() as { payload_json: string } | undefined;
 
   assert.ok(row);
-  const payload = JSON.parse(row.payload_json) as { externalThreadId: string | null; recipientNormalizedValue: string };
+  const payload = JSON.parse(row.payload_json) as {
+    externalThreadId: string | null;
+    recipientNormalizedValue: string;
+  };
   assert.equal(payload.externalThreadId, "ig-thread-from-contact");
   assert.equal(payload.recipientNormalizedValue, "gabriell_braga");
 });
@@ -693,8 +732,8 @@ test("instagram channel deactivation preserves thread metadata and reason", () =
     buildContact(1, {
       name: "Perfil indisponivel",
       phone: "",
-      instagram: "@perfil_indisponivel"
-    })
+      instagram: "@perfil_indisponivel",
+    }),
   );
 
   assert.ok(contact);
@@ -705,7 +744,7 @@ test("instagram channel deactivation preserves thread metadata and reason", () =
     threadId: "ig-thread-inactive",
     threadTitle: "Perfil indisponivel",
     observedAt: new Date("2026-03-18T11:00:00.000Z").toISOString(),
-    source: "test"
+    source: "test",
   });
 
   const channel = deactivateContactChannel({
@@ -713,13 +752,16 @@ test("instagram channel deactivation preserves thread metadata and reason", () =
     type: "instagram",
     normalizedValue: "perfil_indisponivel",
     reason: "Perfil @perfil_indisponivel nao esta disponivel.",
-    source: "test"
+    source: "test",
   });
 
   assert.ok(channel);
   assert.equal(channel?.isActive, false);
   assert.equal(channel?.metadata.threadId, "ig-thread-inactive");
-  assert.equal(channel?.metadata.inactiveReason, "Perfil @perfil_indisponivel nao esta disponivel.");
+  assert.equal(
+    channel?.metadata.inactiveReason,
+    "Perfil @perfil_indisponivel nao esta disponivel.",
+  );
   assert.equal(channel?.metadata.inactiveSource, "test");
 });
 
@@ -728,8 +770,8 @@ test("campaign import preview blocks instagram handles marked inactive", () => {
     buildContact(1, {
       name: "Rose Leite",
       phone: "",
-      instagram: "@roseleite"
-    })
+      instagram: "@roseleite",
+    }),
   );
 
   assert.ok(contact);
@@ -739,7 +781,7 @@ test("campaign import preview blocks instagram handles marked inactive", () => {
     type: "instagram",
     normalizedValue: "roseleite",
     reason: "Perfil @roseleite nao esta disponivel.",
-    source: "test"
+    source: "test",
   });
 
   const preview = buildCampaignImportPreview(
@@ -747,11 +789,11 @@ test("campaign import preview blocks instagram handles marked inactive", () => {
     {
       name: "nome",
       phone: "telefone",
-      instagram: "instagram"
+      instagram: "instagram",
     },
     {
-      eligibleChannels: ["instagram"]
-    }
+      eligibleChannels: ["instagram"],
+    },
   );
 
   assert.deepEqual(preview.summary, {
@@ -761,7 +803,7 @@ test("campaign import preview blocks instagram handles marked inactive", () => {
     new_contact: 0,
     needs_review: 0,
     insufficient_link: 0,
-    invalid: 1
+    invalid: 1,
   });
   assert.equal(preview.preview[0]?._exists, "invalid");
   assert.match(preview.preview[0]?._reason ?? "", /inativo/i);
@@ -773,8 +815,8 @@ test("campaign tick blocks instagram recipients already marked inactive", () => 
     buildContact(1, {
       name: "Sandra Inativa",
       phone: "",
-      instagram: "@sandra_inativa"
-    })
+      instagram: "@sandra_inativa",
+    }),
   );
 
   assert.ok(contact);
@@ -784,7 +826,7 @@ test("campaign tick blocks instagram recipients already marked inactive", () => 
     type: "instagram",
     normalizedValue: "sandra_inativa",
     reason: "Perfil @sandra_inativa nao esta disponivel.",
-    source: "test"
+    source: "test",
   });
 
   const campaign = createCampaign({
@@ -806,9 +848,9 @@ test("campaign tick blocks instagram recipients already marked inactive", () => 
         waitMinutes: null,
         caption: "",
         tagName: null,
-        channelScope: "instagram"
-      }
-    ]
+        channelScope: "instagram",
+      },
+    ],
   });
 
   assert.ok(campaign);
@@ -822,13 +864,13 @@ test("campaign tick blocks instagram recipients already marked inactive", () => 
       targetNormalizedValue: "sandra_inativa",
       name: "Sandra Inativa",
       tags: [],
-      extra: {}
-    }
+      extra: {},
+    },
   ]);
 
   setWorkerState("instagram-assisted", {
     status: "connected",
-    authenticated: true
+    authenticated: true,
   });
 
   const tick = processCampaignTick();
@@ -851,9 +893,9 @@ test("instagram profile snapshot validation rejects unavailable profiles and acc
       title: "Instagram",
       bodyText: "Sorry, this page isn't available.",
       hasHeader: false,
-      hasActionBar: false
+      hasActionBar: false,
     },
-    "roseleite"
+    "roseleite",
   );
 
   assert.equal(invalid.valid, false);
@@ -866,9 +908,9 @@ test("instagram profile snapshot validation rejects unavailable profiles and acc
       title: "@roseleite • Instagram photos and videos",
       bodyText: "roseleite Publicacoes Seguidores Seguindo Mensagem",
       hasHeader: true,
-      hasActionBar: true
+      hasActionBar: true,
     },
-    "roseleite"
+    "roseleite",
   );
 
   assert.equal(valid.valid, true);
@@ -882,8 +924,8 @@ test("instagram thread participant resolution prefers profile links over display
     profileLinks: [
       { href: "/studionuoma/", text: "Perfil" },
       { href: "/dric941/", text: "Adriana dric941" },
-      { href: "/dric941/", text: "Ver perfil" }
-    ]
+      { href: "/dric941/", text: "Ver perfil" },
+    ],
   });
 
   assert.equal(participant.username, "dric941");
@@ -892,7 +934,7 @@ test("instagram thread participant resolution prefers profile links over display
   const fallback = resolveInstagramThreadParticipant({
     ownUsername: "studionuoma",
     fallbackTitle: "@compartilhandomensagens",
-    profileLinks: []
+    profileLinks: [],
   });
 
   assert.equal(fallback.username, "compartilhandomensagens");
@@ -901,7 +943,7 @@ test("instagram thread participant resolution prefers profile links over display
   const invalidFallback = resolveInstagramThreadParticipant({
     ownUsername: "studionuoma",
     fallbackTitle: "Gabriel Braga",
-    profileLinks: []
+    profileLinks: [],
   });
 
   assert.equal(invalidFallback.username, null);
@@ -913,27 +955,27 @@ test("instagram composer readiness ignores direct/new until a real thread or tex
     isInstagramComposerSurfaceReady({
       url: "https://www.instagram.com/direct/new/",
       hasTextarea: false,
-      hasRichTextbox: false
+      hasRichTextbox: false,
     }),
-    false
+    false,
   );
 
   assert.equal(
     isInstagramComposerSurfaceReady({
       url: "https://www.instagram.com/direct/t/107576893972150/",
       hasTextarea: false,
-      hasRichTextbox: false
+      hasRichTextbox: false,
     }),
-    true
+    true,
   );
 
   assert.equal(
     isInstagramComposerSurfaceReady({
       url: "https://www.instagram.com/roseleite/",
       hasTextarea: false,
-      hasRichTextbox: true
+      hasRichTextbox: true,
     }),
-    true
+    true,
   );
 });
 
@@ -944,17 +986,17 @@ test("instagram composer recipient selection prefers the exact searched username
     candidates: [
       {
         text: "roseleite Você: Oi! · 3 min",
-        descendantTexts: ["roseleite", "Você: Oi!", "3 min"]
+        descendantTexts: ["roseleite", "Você: Oi!", "3 min"],
       },
       {
         text: "Emanuele Rodrigues emanuelerodrigues",
-        descendantTexts: ["Emanuele Rodrigues", "emanuelerodrigues"]
+        descendantTexts: ["Emanuele Rodrigues", "emanuelerodrigues"],
       },
       {
         text: "Enviar mensagem",
-        descendantTexts: ["Enviar mensagem"]
-      }
-    ]
+        descendantTexts: ["Enviar mensagem"],
+      },
+    ],
   });
 
   assert.equal(selectedIndex, 1);
@@ -965,8 +1007,8 @@ test("instagram incoming automation queues an assisted reply on the synced threa
     buildContact(1, {
       name: "Gabriel Braga",
       phone: "",
-      instagram: "@gabriell_braga"
-    })
+      instagram: "@gabriell_braga",
+    }),
   );
 
   assert.ok(contact);
@@ -980,7 +1022,7 @@ test("instagram incoming automation queues an assisted reply on the synced threa
     lastMessagePreview: "Oi",
     lastMessageAt: new Date().toISOString(),
     lastMessageDirection: "incoming",
-    contactPhone: null
+    contactPhone: null,
   });
 
   assert.ok(conversation);
@@ -1011,9 +1053,9 @@ test("instagram incoming automation queues an assisted reply on the synced threa
         waitSeconds: null,
         tagName: null,
         reminderText: null,
-        metadata: {}
-      }
-    ]
+        metadata: {},
+      },
+    ],
   });
 
   assert.ok(automation);
@@ -1021,14 +1063,14 @@ test("instagram incoming automation queues an assisted reply on the synced threa
   const trigger = triggerIncomingAutomationRuns({
     channel: "instagram",
     contactId: contact.id,
-    conversationId: conversation.id
+    conversationId: conversation.id,
   });
 
   assert.equal(trigger.queued, 1);
 
   setWorkerState("instagram-assisted", {
     status: "connected",
-    authenticated: true
+    authenticated: true,
   });
 
   processAutomationTick();
@@ -1040,7 +1082,12 @@ test("instagram incoming automation queues an assisted reply on the synced threa
   assert.ok(row);
   assert.equal(row.type, "send-assisted-message");
 
-  const payload = JSON.parse(row.payload_json) as { channel: string; externalThreadId: string | null; recipientNormalizedValue: string; text: string };
+  const payload = JSON.parse(row.payload_json) as {
+    channel: string;
+    externalThreadId: string | null;
+    recipientNormalizedValue: string;
+    text: string;
+  };
   assert.equal(payload.channel, "instagram");
   assert.equal(payload.externalThreadId, "ig-thread-auto");
   assert.equal(payload.recipientNormalizedValue, "gabriell_braga");
@@ -1055,8 +1102,8 @@ test("tags route creates, updates and lists metadata consistently", async () => 
       name: "VIP Ouro",
       color: "#fbbf24",
       type: "manual",
-      active: true
-    }
+      active: true,
+    },
   });
 
   assert.equal(createResponse.statusCode, 201);
@@ -1070,19 +1117,24 @@ test("tags route creates, updates and lists metadata consistently", async () => 
       name: "VIP Ouro",
       color: "#22d3ee",
       type: "automacao",
-      active: false
-    }
+      active: false,
+    },
   });
 
   assert.equal(updateResponse.statusCode, 200);
 
   const listResponse = await app.inject({
     method: "GET",
-    url: "/tags"
+    url: "/tags",
   });
 
   assert.equal(listResponse.statusCode, 200);
-  const tags = listResponse.json() as Array<{ id: string; color: string; type: string; active: boolean }>;
+  const tags = listResponse.json() as Array<{
+    id: string;
+    color: string;
+    type: string;
+    active: boolean;
+  }>;
   const updatedTag = tags.find((tag) => tag.id === createdTag.id);
   assert.ok(updatedTag);
   assert.equal(updatedTag.color, "#22d3ee");
@@ -1093,11 +1145,15 @@ test("tags route creates, updates and lists metadata consistently", async () => 
 test("settings route exposes effective env settings and marks persisted overrides", async () => {
   const settingsResponse = await app.inject({
     method: "GET",
-    url: "/settings"
+    url: "/settings",
   });
 
   assert.equal(settingsResponse.statusCode, 200);
-  const initialSettings = settingsResponse.json() as Array<{ key: string; value: unknown; source: string }>;
+  const initialSettings = settingsResponse.json() as Array<{
+    key: string;
+    value: unknown;
+    source: string;
+  }>;
   const appNameSetting = initialSettings.find((setting) => setting.key === "APP_NAME");
   assert.ok(appNameSetting);
   assert.equal(appNameSetting?.value, "Nuoma WPP");
@@ -1107,12 +1163,16 @@ test("settings route exposes effective env settings and marks persisted override
     method: "PATCH",
     url: "/settings",
     payload: {
-      APP_NAME: "Nuoma WPP Premium"
-    }
+      APP_NAME: "Nuoma WPP Premium",
+    },
   });
 
   assert.equal(patchResponse.statusCode, 200);
-  const patchedSettings = patchResponse.json() as Array<{ key: string; value: unknown; source: string }>;
+  const patchedSettings = patchResponse.json() as Array<{
+    key: string;
+    value: unknown;
+    source: string;
+  }>;
   const patchedAppName = patchedSettings.find((setting) => setting.key === "APP_NAME");
   assert.ok(patchedAppName);
   assert.equal(patchedAppName?.value, "Nuoma WPP Premium");
@@ -1124,13 +1184,13 @@ test("logs route pagina eventos e jobs com offsets independentes", async () => {
     recordSystemEvent("review-test", "info", `evento-${index}`);
     enqueueJob({
       type: "send-message",
-      payload: { index }
+      payload: { index },
     });
   }
 
   const response = await app.inject({
     method: "GET",
-    url: "/logs?limit=20&eventsOffset=20&jobsOffset=0"
+    url: "/logs?limit=20&eventsOffset=20&jobsOffset=0",
   });
 
   assert.equal(response.statusCode, 200);
@@ -1150,8 +1210,8 @@ test("data lake pipeline indexes database conversations and local media", async 
   const contact = createContact(
     buildContact(1, {
       name: "Paciente IG",
-      instagram: "@paciente_ig"
-    })
+      instagram: "@paciente_ig",
+    }),
   );
 
   assert.ok(contact);
@@ -1164,7 +1224,7 @@ test("data lake pipeline indexes database conversations and local media", async 
     unreadCount: 0,
     lastMessagePreview: "Quero saber valor",
     lastMessageAt: new Date("2026-03-17T12:00:00.000Z").toISOString(),
-    lastMessageDirection: "incoming"
+    lastMessageDirection: "incoming",
   });
 
   assert.ok(conversation);
@@ -1178,8 +1238,8 @@ test("data lake pipeline indexes database conversations and local media", async 
     externalId: "ig-review-message-1",
     sentAt: new Date("2026-03-17T12:00:00.000Z").toISOString(),
     meta: {
-      source: "test"
-    }
+      source: "test",
+    },
   });
 
   const mediaRoot = path.join(tempRoot, "fake-downloads", "Nuoma");
@@ -1194,8 +1254,8 @@ test("data lake pipeline indexes database conversations and local media", async 
       includeInstagramExports: false,
       mediaRoots: [mediaRoot],
       maxMediaFiles: 10,
-      maxEnrichmentItems: 2
-    }
+      maxEnrichmentItems: 2,
+    },
   });
 
   assert.equal(runResponse.statusCode, 200);
@@ -1216,7 +1276,7 @@ test("data lake pipeline indexes database conversations and local media", async 
 
   const overviewResponse = await app.inject({
     method: "GET",
-    url: "/data-lake"
+    url: "/data-lake",
   });
 
   assert.equal(overviewResponse.statusCode, 200);
@@ -1231,5 +1291,7 @@ test("data lake pipeline indexes database conversations and local media", async 
   assert.equal(overviewPayload.countsByKind.image, 1);
   assert.ok(overviewPayload.latestReport);
   assert.match(overviewPayload.latestReport?.summaryText ?? "", /registros textuais indexados/i);
-  assert.ok((overviewPayload.latestReport?.topKeywords ?? []).some((item) => item.term === "valor"));
+  assert.ok(
+    (overviewPayload.latestReport?.topKeywords ?? []).some((item) => item.term === "valor"),
+  );
 });

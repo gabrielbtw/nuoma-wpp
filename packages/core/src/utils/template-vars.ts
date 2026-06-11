@@ -4,11 +4,17 @@ const VAR_PATTERN = /\{\{(\w+)\}\}/g;
 
 const GLOBAL_VAR_MAP: Record<string, () => string> = {
   saudacao: () => {
-    const h = Number(new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "numeric", hour12: false }));
+    const h = Number(
+      new Date().toLocaleString("pt-BR", {
+        timeZone: "America/Sao_Paulo",
+        hour: "numeric",
+        hour12: false,
+      }),
+    );
     if (h < 12) return "Bom dia";
     if (h < 18) return "Boa tarde";
     return "Boa noite";
-  }
+  },
 };
 
 const CONTACT_VAR_MAP: Record<string, (contact: ContactRecord) => string> = {
@@ -21,7 +27,7 @@ const CONTACT_VAR_MAP: Record<string, (contact: ContactRecord) => string> = {
     return labels[c.procedureStatus] ?? c.procedureStatus;
   },
   status: (c) => c.status,
-  primeiro_nome: (c) => (c.name || "").split(" ")[0] || ""
+  primeiro_nome: (c) => (c.name || "").split(" ")[0] || "",
 };
 
 /**
@@ -75,6 +81,6 @@ export function listAvailableVars(): Array<{ name: string; description: string }
     { name: "email", description: "Email do contato" },
     { name: "instagram", description: "Instagram do contato" },
     { name: "procedimento", description: "Status do procedimento (Sim/Não/Indefinido)" },
-    { name: "status", description: "Status do contato" }
+    { name: "status", description: "Status do contato" },
   ];
 }

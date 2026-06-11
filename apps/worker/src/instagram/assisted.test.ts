@@ -31,7 +31,10 @@ describe("Instagram assisted sender", () => {
 
     expect(page.keyboard.insertText).toHaveBeenCalledWith("fallback por input event");
     expect(richComposer.evaluate).toHaveBeenCalledTimes(2);
-    expect(richComposer.evaluate).toHaveBeenLastCalledWith(expect.any(Function), "fallback por input event");
+    expect(richComposer.evaluate).toHaveBeenLastCalledWith(
+      expect.any(Function),
+      "fallback por input event",
+    );
   });
 });
 
@@ -222,7 +225,7 @@ function evaluateInstagramHarness(source: unknown, state: InstagramHarnessState)
       loginInput: false,
     };
   }
-  if (text.includes("document.querySelector(\"textarea\")")) {
+  if (text.includes('document.querySelector("textarea")')) {
     return state.composerAvailable;
   }
   if (text.includes("input[type='file']")) {

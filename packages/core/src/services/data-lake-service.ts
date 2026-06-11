@@ -13,10 +13,13 @@ import {
   listDataLakeTextCorpus,
   upsertDataLakeAsset,
   upsertDataLakeSource,
-  type DataLakeAssetRecord
+  type DataLakeAssetRecord,
 } from "../repositories/data-lake-repository.js";
 import { recordSystemEvent } from "../repositories/system-repository.js";
-import { extractInstagramConversationSnapshots, listInstagramExportFiles } from "./instagram-contact-import-service.js";
+import {
+  extractInstagramConversationSnapshots,
+  listInstagramExportFiles,
+} from "./instagram-contact-import-service.js";
 import { ensureDir } from "../utils/fs.js";
 
 type DataLakeRunOptions = {
@@ -46,7 +49,18 @@ type IntentSignal = {
   sample: string | null;
 };
 
-const SUPPORTED_AUDIO_EXTENSIONS = new Set([".aac", ".m4a", ".mp3", ".wav", ".ogg", ".oga", ".opus", ".mp4", ".mpeg", ".webm"]);
+const SUPPORTED_AUDIO_EXTENSIONS = new Set([
+  ".aac",
+  ".m4a",
+  ".mp3",
+  ".wav",
+  ".ogg",
+  ".oga",
+  ".opus",
+  ".mp4",
+  ".mpeg",
+  ".webm",
+]);
 const SUPPORTED_IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".heic"]);
 const SUPPORTED_VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".m4v", ".webm"]);
 const PORTUGUESE_STOPWORDS = new Set([
@@ -175,16 +189,41 @@ const PORTUGUESE_STOPWORDS = new Set([
   "vcs",
   "voce",
   "voces",
-  "vocês"
+  "vocês",
 ]);
 
 const TREND_SIGNAL_RULES: Array<{ key: string; label: string; pattern: RegExp }> = [
-  { key: "agendamento", label: "Agendamento", pattern: /\b(agenda|agendar|agendamento|horario|horário|marcar|disponibilidade)\b/i },
-  { key: "preco", label: "Preço", pattern: /\b(valor|preco|preço|custa|orcamento|orçamento|desconto)\b/i },
-  { key: "procedimento", label: "Procedimentos", pattern: /\b(botox|peeling|melasma|laser|limpeza|procedimento|tratamento|toxina|bioestimulador)\b/i },
-  { key: "resultado", label: "Resultados", pattern: /\b(resultado|antes e depois|melhorou|recuperacao|recuperação|duracao|duração)\b/i },
-  { key: "duvida", label: "Dúvidas", pattern: /\b(duvida|dúvida|como funciona|posso|pode|explica|explicar)\b/i },
-  { key: "pos_venda", label: "Pós-atendimento", pattern: /\b(retorno|pos|pós|revisao|revisão|manutencao|manutenção)\b/i }
+  {
+    key: "agendamento",
+    label: "Agendamento",
+    pattern: /\b(agenda|agendar|agendamento|horario|horário|marcar|disponibilidade)\b/i,
+  },
+  {
+    key: "preco",
+    label: "Preço",
+    pattern: /\b(valor|preco|preço|custa|orcamento|orçamento|desconto)\b/i,
+  },
+  {
+    key: "procedimento",
+    label: "Procedimentos",
+    pattern:
+      /\b(botox|peeling|melasma|laser|limpeza|procedimento|tratamento|toxina|bioestimulador)\b/i,
+  },
+  {
+    key: "resultado",
+    label: "Resultados",
+    pattern: /\b(resultado|antes e depois|melhorou|recuperacao|recuperação|duracao|duração)\b/i,
+  },
+  {
+    key: "duvida",
+    label: "Dúvidas",
+    pattern: /\b(duvida|dúvida|como funciona|posso|pode|explica|explicar)\b/i,
+  },
+  {
+    key: "pos_venda",
+    label: "Pós-atendimento",
+    pattern: /\b(retorno|pos|pós|revisao|revisão|manutencao|manutenção)\b/i,
+  },
 ];
 
 function nowIso() {
@@ -200,7 +239,9 @@ function hashFile(filePath: string) {
 }
 
 function normalizeSourcePaths(paths: string[]) {
-  return [...new Set(paths.map((entry) => path.resolve(entry)).filter((entry) => existsSync(entry)))];
+  return [
+    ...new Set(paths.map((entry) => path.resolve(entry)).filter((entry) => existsSync(entry))),
+  ];
 }
 
 function sourceIdForRoot(sourceType: string, rootPath: string) {
@@ -212,7 +253,10 @@ function defaultInstagramRoots() {
 }
 
 function defaultMediaRoots() {
-  return normalizeSourcePaths([path.join(homedir(), "Downloads", "Nuoma"), path.join(homedir(), "Downloads", "media")]);
+  return normalizeSourcePaths([
+    path.join(homedir(), "Downloads", "Nuoma"),
+    path.join(homedir(), "Downloads", "media"),
+  ]);
 }
 
 function ensureDataLakeSource(sourceType: string, rootPath: string, label: string) {
@@ -222,7 +266,7 @@ function ensureDataLakeSource(sourceType: string, rootPath: string, label: strin
     label,
     rootPath,
     status: "active",
-    config: {}
+    config: {},
   });
 }
 
@@ -267,7 +311,9 @@ function tokenizeText(input?: string | null) {
   return normalizeAnalysisText(input)
     .split(/[^a-z0-9@]+/g)
     .map((token) => token.trim())
-    .filter((token) => token.length >= 3 && !PORTUGUESE_STOPWORDS.has(token) && !/^\d+$/.test(token));
+    .filter(
+      (token) => token.length >= 3 && !PORTUGUESE_STOPWORDS.has(token) && !/^\d+$/.test(token),
+    );
 }
 
 function takeTopTerms(counts: Map<string, number>, limit: number) {
@@ -278,7 +324,10 @@ function takeTopTerms(counts: Map<string, number>, limit: number) {
 }
 
 function collectSearchText(asset: DataLakeAssetRecord) {
-  return [asset.textContent, asset.transcriptText, asset.summaryText].filter(Boolean).join(" ").trim();
+  return [asset.textContent, asset.transcriptText, asset.summaryText]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
 }
 
 function guessMimeType(filePath: string) {
@@ -288,7 +337,7 @@ function guessMimeType(filePath: string) {
     ".jpeg": "image/jpeg",
     ".png": "image/png",
     ".webp": "image/webp",
-    ".heic": "image/heic"
+    ".heic": "image/heic",
   };
   const audioMimeMap: Record<string, string> = {
     ".aac": "audio/aac",
@@ -300,16 +349,21 @@ function guessMimeType(filePath: string) {
     ".opus": "audio/ogg",
     ".webm": "audio/webm",
     ".mpeg": "audio/mpeg",
-    ".mp4": "audio/mp4"
+    ".mp4": "audio/mp4",
   };
   const videoMimeMap: Record<string, string> = {
     ".mp4": "video/mp4",
     ".mov": "video/quicktime",
     ".m4v": "video/x-m4v",
-    ".webm": "video/webm"
+    ".webm": "video/webm",
   };
 
-  return imageMimeMap[extension] ?? audioMimeMap[extension] ?? videoMimeMap[extension] ?? "application/octet-stream";
+  return (
+    imageMimeMap[extension] ??
+    audioMimeMap[extension] ??
+    videoMimeMap[extension] ??
+    "application/octet-stream"
+  );
 }
 
 function guessAssetKind(filePath: string) {
@@ -394,7 +448,7 @@ function inferMediaStatus(assetKind: string) {
 function commandExists(command: string) {
   try {
     execFileSync("which", [command], {
-      stdio: ["ignore", "pipe", "ignore"]
+      stdio: ["ignore", "pipe", "ignore"],
     });
     return true;
   } catch {
@@ -409,7 +463,8 @@ function isOpenAiCostApproved(env: AppEnv) {
 export function getDataLakeProviderStatus(env: AppEnv = loadEnv()): DataLakeProviderStatus {
   const openAiApproved = env.AI_COST_APPROVED === "SIM";
   const openAiAvailable = openAiApproved && Boolean(env.OPENAI_API_KEY);
-  const localWhisperAvailable = existsSync(env.WHISPER_MODEL_PATH) && commandExists(env.WHISPER_BIN);
+  const localWhisperAvailable =
+    existsSync(env.WHISPER_MODEL_PATH) && commandExists(env.WHISPER_BIN);
   const localOllamaAvailable = commandExists("ollama");
 
   let audioProvider: DataLakeProviderStatus["audioProvider"] = "none";
@@ -436,7 +491,7 @@ export function getDataLakeProviderStatus(env: AppEnv = loadEnv()): DataLakeProv
     localWhisperAvailable,
     localOllamaAvailable,
     audioProvider,
-    imageProvider
+    imageProvider,
   };
 }
 
@@ -445,19 +500,19 @@ function buildAudioTranscriptionPath(filePath: string) {
   if ([".wav", ".mp3", ".ogg", ".flac"].includes(extension)) {
     return {
       convertedPath: filePath,
-      cleanup: () => undefined
+      cleanup: () => undefined,
     };
   }
 
   const tempOutput = path.join(loadEnv().TEMP_DIR, `${hashString(filePath)}-${Date.now()}.wav`);
   execFileSync("afconvert", ["-f", "WAVE", "-d", "LEI16@16000", filePath, tempOutput], {
-    stdio: ["ignore", "pipe", "pipe"]
+    stdio: ["ignore", "pipe", "pipe"],
   });
   return {
     convertedPath: tempOutput,
     cleanup: () => {
       rmSync(tempOutput, { force: true });
-    }
+    },
   };
 }
 
@@ -472,14 +527,18 @@ async function transcribeAudioWithOpenAi(asset: DataLakeAssetRecord) {
     const fileBuffer = readFileSync(convertedPath);
     const form = new FormData();
     form.append("model", env.OPENAI_TRANSCRIPTION_MODEL);
-    form.append("file", new globalThis.Blob([fileBuffer], { type: guessMimeType(convertedPath) }), path.basename(convertedPath));
+    form.append(
+      "file",
+      new globalThis.Blob([fileBuffer], { type: guessMimeType(convertedPath) }),
+      path.basename(convertedPath),
+    );
 
     const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${env.OPENAI_API_KEY}`
+        Authorization: `Bearer ${env.OPENAI_API_KEY}`,
       },
-      body: form
+      body: form,
     });
 
     if (!response.ok) {
@@ -507,8 +566,8 @@ async function transcribeAudioLocally(asset: DataLakeAssetRecord) {
       {
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"],
-        maxBuffer: 1024 * 1024 * 32
-      }
+        maxBuffer: 1024 * 1024 * 32,
+      },
     );
 
     return output.replace(/\s+/g, " ").trim();
@@ -528,7 +587,7 @@ async function describeImageWithOpenAi(asset: DataLakeAssetRecord) {
     method: "POST",
     headers: {
       Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
       model: env.OPENAI_VISION_MODEL,
@@ -538,16 +597,16 @@ async function describeImageWithOpenAi(asset: DataLakeAssetRecord) {
           content: [
             {
               type: "input_text",
-              text: "Descreva a imagem em portugues, destacando contexto comercial, objetos, pessoas e possiveis temas de conversa."
+              text: "Descreva a imagem em portugues, destacando contexto comercial, objetos, pessoas e possiveis temas de conversa.",
             },
             {
               type: "input_image",
-              image_url: `data:${asset.mimeType ?? "image/jpeg"};base64,${fileBuffer.toString("base64")}`
-            }
-          ]
-        }
-      ]
-    })
+              image_url: `data:${asset.mimeType ?? "image/jpeg"};base64,${fileBuffer.toString("base64")}`,
+            },
+          ],
+        },
+      ],
+    }),
   });
 
   if (!response.ok) {
@@ -567,14 +626,15 @@ async function describeImageWithOllama(asset: DataLakeAssetRecord) {
   const response = await fetch(`${env.OLLAMA_HOST.replace(/\/$/, "")}/api/generate`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
       model: env.OLLAMA_VISION_MODEL,
-      prompt: "Descreva a imagem em português, destacando contexto comercial, objetos, pessoas, resultado visual e possíveis temas de conversa.",
+      prompt:
+        "Descreva a imagem em português, destacando contexto comercial, objetos, pessoas, resultado visual e possíveis temas de conversa.",
       stream: false,
-      images: [fileBuffer.toString("base64")]
-    })
+      images: [fileBuffer.toString("base64")],
+    }),
   });
 
   if (!response.ok) {
@@ -582,7 +642,9 @@ async function describeImageWithOllama(asset: DataLakeAssetRecord) {
   }
 
   const payload = (await response.json()) as { response?: string };
-  return String(payload.response ?? "").replace(/\s+/g, " ").trim();
+  return String(payload.response ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function touchSourceScan(sourceType: string, rootPath: string, label: string) {
@@ -593,13 +655,17 @@ function touchSourceScan(sourceType: string, rootPath: string, label: string) {
     rootPath,
     status: "active",
     lastScanAt: nowIso(),
-    config: {}
+    config: {},
   });
 }
 
 export function ingestConversationMessagesFromDatabase() {
   const db = getDb();
-  const source = ensureDataLakeSource("database-conversations", loadEnv().DATABASE_PATH, "SQLite conversations");
+  const source = ensureDataLakeSource(
+    "database-conversations",
+    loadEnv().DATABASE_PATH,
+    "SQLite conversations",
+  );
   const rows = db
     .prepare(
       `
@@ -621,7 +687,7 @@ export function ingestConversationMessagesFromDatabase() {
         FROM messages m
         INNER JOIN conversations conv ON conv.id = m.conversation_id
         ORDER BY datetime(COALESCE(m.sent_at, m.created_at)) DESC
-      `
+      `,
     )
     .all() as Array<Record<string, unknown>>;
 
@@ -645,21 +711,28 @@ export function ingestConversationMessagesFromDatabase() {
         direction: row.direction,
         contentType: row.content_type,
         messageMeta: parseJson<Record<string, unknown>>(row.meta_json as string | null, {}),
-        conversationMeta: parseJson<Record<string, unknown>>(row.conversation_meta_json as string | null, {})
-      }
+        conversationMeta: parseJson<Record<string, unknown>>(
+          row.conversation_meta_json as string | null,
+          {},
+        ),
+      },
     });
     indexed += 1;
   }
 
   touchSourceScan("database-conversations", loadEnv().DATABASE_PATH, "SQLite conversations");
   return {
-    indexed
+    indexed,
   };
 }
 
 export function ingestInstagramArchiveToDataLake(zipPath: string) {
   const resolvedZipPath = path.resolve(zipPath);
-  const source = ensureDataLakeSource("instagram-export", path.dirname(resolvedZipPath), "Instagram exports");
+  const source = ensureDataLakeSource(
+    "instagram-export",
+    path.dirname(resolvedZipPath),
+    "Instagram exports",
+  );
   const snapshot = extractInstagramConversationSnapshots(resolvedZipPath);
   let indexedMessages = 0;
   let indexedThreads = 0;
@@ -685,8 +758,8 @@ export function ingestInstagramArchiveToDataLake(zipPath: string) {
           instagramHandle: thread.instagramHandle,
           participants: thread.participants,
           senderName: message.senderName,
-          direction: message.direction
-        }
+          direction: message.direction,
+        },
       });
       indexedMessages += 1;
     });
@@ -698,7 +771,7 @@ export function ingestInstagramArchiveToDataLake(zipPath: string) {
     threads: snapshot.threads.length,
     indexedThreads,
     indexedMessages,
-    ownAliases: snapshot.ownAliases
+    ownAliases: snapshot.ownAliases,
   };
 }
 
@@ -741,8 +814,8 @@ export function ingestLocalMediaRoots(inputRoots?: string[], maxFiles = 400) {
         enrichmentStatus,
         capturedAt: new Date(stats.mtimeMs).toISOString(),
         metadata: {
-          sourceRoot: rootPath
-        }
+          sourceRoot: rootPath,
+        },
       });
       scannedFiles += 1;
       indexedFiles += 1;
@@ -758,7 +831,7 @@ export function ingestLocalMediaRoots(inputRoots?: string[], maxFiles = 400) {
     roots,
     scannedFiles,
     indexedFiles,
-    pendingAiAssets
+    pendingAiAssets,
   };
 }
 
@@ -768,7 +841,7 @@ export async function enrichPendingDataLakeAssets(maxItems = 24) {
   const assets = listDataLakeAssets({
     assetKinds: ["audio", "image", "video"],
     enrichmentStatuses: ["pending_ai", "failed"],
-    limit: Math.max(1, Math.min(200, maxItems))
+    limit: Math.max(1, Math.min(200, maxItems)),
   });
 
   if (providerStatus.audioProvider === "none" && providerStatus.imageProvider === "none") {
@@ -778,7 +851,7 @@ export async function enrichPendingDataLakeAssets(maxItems = 24) {
       transcriptsCompleted: 0,
       imagesDescribed: 0,
       failed: 0,
-      pendingProvider: assets.length
+      pendingProvider: assets.length,
     };
   }
 
@@ -797,7 +870,9 @@ export async function enrichPendingDataLakeAssets(maxItems = 24) {
         }
 
         const transcriptText =
-          providerStatus.audioProvider === "local-whisper" ? await transcribeAudioLocally(asset) : await transcribeAudioWithOpenAi(asset);
+          providerStatus.audioProvider === "local-whisper"
+            ? await transcribeAudioLocally(asset)
+            : await transcribeAudioWithOpenAi(asset);
         if (transcriptText) {
           upsertDataLakeAsset({
             originKey: asset.originKey,
@@ -814,10 +889,13 @@ export async function enrichPendingDataLakeAssets(maxItems = 24) {
             originalPath: asset.originalPath,
             storagePath: asset.storagePath,
             enrichmentStatus: "completed",
-            enrichmentModel: providerStatus.audioProvider === "local-whisper" ? `whisper.cpp:${path.basename(env.WHISPER_MODEL_PATH)}` : env.OPENAI_TRANSCRIPTION_MODEL,
+            enrichmentModel:
+              providerStatus.audioProvider === "local-whisper"
+                ? `whisper.cpp:${path.basename(env.WHISPER_MODEL_PATH)}`
+                : env.OPENAI_TRANSCRIPTION_MODEL,
             enrichmentError: null,
             capturedAt: asset.capturedAt,
-            metadata: asset.metadata
+            metadata: asset.metadata,
           });
           transcriptsCompleted += 1;
         }
@@ -831,7 +909,10 @@ export async function enrichPendingDataLakeAssets(maxItems = 24) {
           continue;
         }
 
-        const summaryText = providerStatus.imageProvider === "local-ollama" ? await describeImageWithOllama(asset) : await describeImageWithOpenAi(asset);
+        const summaryText =
+          providerStatus.imageProvider === "local-ollama"
+            ? await describeImageWithOllama(asset)
+            : await describeImageWithOpenAi(asset);
         if (summaryText) {
           upsertDataLakeAsset({
             originKey: asset.originKey,
@@ -848,10 +929,13 @@ export async function enrichPendingDataLakeAssets(maxItems = 24) {
             originalPath: asset.originalPath,
             storagePath: asset.storagePath,
             enrichmentStatus: "completed",
-            enrichmentModel: providerStatus.imageProvider === "local-ollama" ? env.OLLAMA_VISION_MODEL : env.OPENAI_VISION_MODEL,
+            enrichmentModel:
+              providerStatus.imageProvider === "local-ollama"
+                ? env.OLLAMA_VISION_MODEL
+                : env.OPENAI_VISION_MODEL,
             enrichmentError: null,
             capturedAt: asset.capturedAt,
-            metadata: asset.metadata
+            metadata: asset.metadata,
           });
           imagesDescribed += 1;
         }
@@ -880,19 +964,24 @@ export async function enrichPendingDataLakeAssets(maxItems = 24) {
         enrichmentModel: asset.enrichmentModel,
         enrichmentError: error instanceof Error ? error.message : String(error),
         capturedAt: asset.capturedAt,
-        metadata: asset.metadata
+        metadata: asset.metadata,
       });
       failed += 1;
     }
   }
 
   return {
-    provider: providerStatus.audioProvider === "local-whisper" ? "local-whisper" : providerStatus.imageProvider === "openai" ? "openai" : "mixed",
+    provider:
+      providerStatus.audioProvider === "local-whisper"
+        ? "local-whisper"
+        : providerStatus.imageProvider === "openai"
+          ? "openai"
+          : "mixed",
     processed,
     transcriptsCompleted,
     imagesDescribed,
     failed,
-    pendingProvider
+    pendingProvider,
   };
 }
 
@@ -948,7 +1037,7 @@ export function buildDataLakeTrendReport(sourceScope = "default") {
           key: rule.key,
           label: rule.label,
           count: 1,
-          sample: searchText.slice(0, 220)
+          sample: searchText.slice(0, 220),
         });
       }
     }
@@ -958,7 +1047,9 @@ export function buildDataLakeTrendReport(sourceScope = "default") {
   const topBigrams = takeTopTerms(bigramCounts, 8);
   const topSenders = takeTopTerms(senderCounts, 8);
   const topThreads = takeTopTerms(threadCounts, 8);
-  const rankedSignals = [...intentSignals.values()].sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, "pt-BR"));
+  const rankedSignals = [...intentSignals.values()].sort(
+    (left, right) => right.count - left.count || left.label.localeCompare(right.label, "pt-BR"),
+  );
   const timeline = [...timelineCounts.entries()]
     .sort((left, right) => left[0].localeCompare(right[0], "en"))
     .slice(-30)
@@ -983,11 +1074,11 @@ export function buildDataLakeTrendReport(sourceScope = "default") {
     totals: {
       totalDocuments: corpus.length,
       uniqueThreads: threadCounts.size,
-      uniqueSenders: senderCounts.size
+      uniqueSenders: senderCounts.size,
     },
     metadata: {
-      generatedAt: nowIso()
-    }
+      generatedAt: nowIso(),
+    },
   });
 }
 
@@ -999,7 +1090,7 @@ export function getDataLakeOverview() {
         SELECT asset_kind, COUNT(*) AS count
         FROM data_lake_assets
         GROUP BY asset_kind
-      `
+      `,
     )
     .all() as Array<{ asset_kind: string; count: number }>;
   const byStatus = db
@@ -1008,20 +1099,22 @@ export function getDataLakeOverview() {
         SELECT enrichment_status, COUNT(*) AS count
         FROM data_lake_assets
         GROUP BY enrichment_status
-      `
+      `,
     )
     .all() as Array<{ enrichment_status: string; count: number }>;
 
   return {
     countsByKind: Object.fromEntries(byKind.map((item) => [item.asset_kind, Number(item.count)])),
-    countsByStatus: Object.fromEntries(byStatus.map((item) => [item.enrichment_status, Number(item.count)])),
+    countsByStatus: Object.fromEntries(
+      byStatus.map((item) => [item.enrichment_status, Number(item.count)]),
+    ),
     sources: listDataLakeSources(),
     latestReport: getLatestDataLakeReport(),
     recentAssets: listDataLakeAssets({ limit: 16 }),
     pendingAssets: listDataLakeAssets({
       enrichmentStatuses: ["pending_ai", "failed"],
-      limit: 16
-    })
+      limit: 16,
+    }),
   };
 }
 
@@ -1029,10 +1122,16 @@ export async function runDataLakePipeline(options?: DataLakeRunOptions) {
   const startedAt = nowIso();
   const includeDatabaseMessages = options?.includeDatabaseMessages ?? true;
   const includeInstagramExports = options?.includeInstagramExports ?? true;
-  const instagramRoots = normalizeSourcePaths(options?.instagramRoots?.length ? options.instagramRoots : defaultInstagramRoots());
-  const mediaRoots = normalizeSourcePaths(options?.mediaRoots?.length ? options.mediaRoots : defaultMediaRoots());
+  const instagramRoots = normalizeSourcePaths(
+    options?.instagramRoots?.length ? options.instagramRoots : defaultInstagramRoots(),
+  );
+  const mediaRoots = normalizeSourcePaths(
+    options?.mediaRoots?.length ? options.mediaRoots : defaultMediaRoots(),
+  );
 
-  const databaseSummary = includeDatabaseMessages ? ingestConversationMessagesFromDatabase() : { indexed: 0 };
+  const databaseSummary = includeDatabaseMessages
+    ? ingestConversationMessagesFromDatabase()
+    : { indexed: 0 };
   let instagramArchiveThreads = 0;
   let instagramArchiveMessages = 0;
   const scannedArchives: string[] = [];
@@ -1069,13 +1168,13 @@ export async function runDataLakePipeline(options?: DataLakeRunOptions) {
     reportId: report?.id ?? null,
     sourceRoots: {
       instagramRoots,
-      mediaRoots
-    }
+      mediaRoots,
+    },
   };
 
   recordSystemEvent("data-lake", "info", "Data lake atualizado com sucesso", summary);
   return {
     summary,
-    overview: getDataLakeOverview()
+    overview: getDataLakeOverview(),
   };
 }

@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 import { getDb } from "../db/connection.js";
 import type { ContactHistoryRecord, ContactInput, ContactRecord } from "../types/domain.js";
 import { recordAuditLog } from "./audit-log-repository.js";
-import { findContactIdByChannel, listContactChannelsForContacts, syncPrimaryContactChannels } from "./contact-channel-repository.js";
+import {
+  findContactIdByChannel,
+  listContactChannelsForContacts,
+  syncPrimaryContactChannels,
+} from "./contact-channel-repository.js";
 import { ensureTag, normalizeTagName } from "./tag-repository.js";
 import { normalizeWhatsAppValue } from "../utils/channels.js";
 
@@ -106,8 +110,11 @@ function stringifyHistoryValue(value: unknown) {
 }
 
 function mapContact(row: Record<string, unknown>): ContactRecord {
-  const tagsCsv = typeof row.tags_csv === "string" && row.tags_csv.length > 0 ? row.tags_csv.split(",") : [];
-  const tags = [...new Set(tagsCsv.map((tag) => tag.trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right, "pt-BR"));
+  const tagsCsv =
+    typeof row.tags_csv === "string" && row.tags_csv.length > 0 ? row.tags_csv.split(",") : [];
+  const tags = [...new Set(tagsCsv.map((tag) => tag.trim()).filter(Boolean))].sort((left, right) =>
+    left.localeCompare(right, "pt-BR"),
+  );
   const instagramFollowsMeValue = row.instagram_follows_me;
   const instagramFollowedByMeValue = row.instagram_followed_by_me;
 
@@ -129,14 +136,15 @@ function mapContact(row: Record<string, unknown>): ContactRecord {
     instagramFollowedByMe:
       instagramFollowedByMeValue == null ? null : Number(instagramFollowedByMeValue) === 1,
     instagramIncomingMessagesCount: Number(row.instagram_incoming_messages_count ?? 0),
-    instagramSentMoreThanThreeMessages: Number(row.instagram_sent_more_than_three_messages ?? 0) === 1,
+    instagramSentMoreThanThreeMessages:
+      Number(row.instagram_sent_more_than_three_messages ?? 0) === 1,
     lastInteractionAt: (row.last_interaction_at as string | null) ?? null,
     lastProcedureAt: (row.last_procedure_at as string | null) ?? null,
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
     conversationId: (row.conversation_id as string | null) ?? null,
     lastMessagePreview: normalizeNullable(String(row.last_message_preview ?? "")),
-    lastMessageAt: (row.last_message_at as string | null) ?? null
+    lastMessageAt: (row.last_message_at as string | null) ?? null,
   };
 }
 
@@ -144,7 +152,7 @@ function hydrateContactsWithChannels(contacts: ContactRecord[]) {
   const channelsByContact = listContactChannelsForContacts(contacts.map((contact) => contact.id));
   return contacts.map((contact) => ({
     ...contact,
-    channels: channelsByContact.get(contact.id) ?? []
+    channels: channelsByContact.get(contact.id) ?? [],
   }));
 }
 
@@ -157,7 +165,7 @@ function mapHistoryRow(row: Record<string, unknown>): ContactHistoryRecord {
     previousValue: normalizeNullable(String(row.previous_value ?? "")),
     nextValue: normalizeNullable(String(row.next_value ?? "")),
     source: String(row.source ?? "manual"),
-    createdAt: String(row.created_at)
+    createdAt: String(row.created_at),
   };
 }
 
@@ -168,12 +176,14 @@ function replaceContactTags(contactId: string, tagNames: string[]) {
 
   const transaction = db.transaction(() => {
     db.prepare("DELETE FROM contact_tags WHERE contact_id = ?").run(contactId);
-    const insert = db.prepare("INSERT INTO contact_tags (contact_id, tag_id, created_at) VALUES (?, ?, ?)");
+    const insert = db.prepare(
+      "INSERT INTO contact_tags (contact_id, tag_id, created_at) VALUES (?, ?, ?)",
+    );
 
     for (const tagName of cleanTags) {
       const tag = ensureTag(tagName, {
         type: normalizeTagName(tagName) === WHATSAPP_TAG_NAME ? "canal" : "manual",
-        active: true
+        active: true,
       });
       insert.run(contactId, tag.id, timestamp);
     }
@@ -206,14 +216,14 @@ function buildContactFilters(filters?: { query?: string; tag?: string; status?: 
   if (filters?.query) {
     const like = `%${filters.query}%`;
     where.push(
-      "(c.name LIKE ? OR c.phone LIKE ? OR IFNULL(c.instagram, '') LIKE ? OR EXISTS (SELECT 1 FROM contact_tags ctx INNER JOIN tags tx ON tx.id = ctx.tag_id WHERE ctx.contact_id = c.id AND tx.name LIKE ?))"
+      "(c.name LIKE ? OR c.phone LIKE ? OR IFNULL(c.instagram, '') LIKE ? OR EXISTS (SELECT 1 FROM contact_tags ctx INNER JOIN tags tx ON tx.id = ctx.tag_id WHERE ctx.contact_id = c.id AND tx.name LIKE ?))",
     );
     params.push(like, like, like, like);
   }
 
   if (filters?.tag) {
     where.push(
-      "EXISTS (SELECT 1 FROM contact_tags ctx INNER JOIN tags tx ON tx.id = ctx.tag_id WHERE ctx.contact_id = c.id AND tx.normalized_name = ?)"
+      "EXISTS (SELECT 1 FROM contact_tags ctx INNER JOIN tags tx ON tx.id = ctx.tag_id WHERE ctx.contact_id = c.id AND tx.normalized_name = ?)",
     );
     params.push(normalizeTagName(filters.tag));
   }
@@ -225,12 +235,22 @@ function buildContactFilters(filters?: { query?: string; tag?: string; status?: 
 
   return {
     whereClause: `WHERE ${where.join(" AND ")}`,
-    params
+    params,
   };
 }
 
 export type SegmentFilter = {
-  field: "tag" | "status" | "channel" | "procedure" | "created_after" | "created_before" | "last_interaction_after" | "last_interaction_before" | "has_phone" | "has_instagram";
+  field:
+    | "tag"
+    | "status"
+    | "channel"
+    | "procedure"
+    | "created_after"
+    | "created_before"
+    | "last_interaction_after"
+    | "last_interaction_before"
+    | "has_phone"
+    | "has_instagram";
   operator: "equals" | "not_equals" | "has" | "not_has";
   value: string;
 };
@@ -252,25 +272,34 @@ export function queryContactsBySegment(segment: SegmentQuery, page = 1, pageSize
 
   const joiner = segment.logic === "or" ? " OR " : " AND ";
   const filterClauses = clauses.slice(1); // skip deleted_at
-  const whereStr = filterClauses.length > 0
-    ? `WHERE c.deleted_at IS NULL AND (${filterClauses.join(joiner)})`
-    : "WHERE c.deleted_at IS NULL";
+  const whereStr =
+    filterClauses.length > 0
+      ? `WHERE c.deleted_at IS NULL AND (${filterClauses.join(joiner)})`
+      : "WHERE c.deleted_at IS NULL";
 
-  const total = Number((db.prepare(`SELECT COUNT(*) AS count FROM contacts c ${whereStr}`).get(...params) as { count: number }).count ?? 0);
+  const total = Number(
+    (
+      db.prepare(`SELECT COUNT(*) AS count FROM contacts c ${whereStr}`).get(...params) as {
+        count: number;
+      }
+    ).count ?? 0,
+  );
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(Math.max(1, page), totalPages);
   const offset = (safePage - 1) * pageSize;
 
-  const rows = db.prepare(
-    `${baseContactQuery(whereStr)} ORDER BY COALESCE(c.last_interaction_at, c.updated_at) DESC LIMIT ? OFFSET ?`
-  ).all(...params, pageSize, offset) as Array<Record<string, unknown>>;
+  const rows = db
+    .prepare(
+      `${baseContactQuery(whereStr)} ORDER BY COALESCE(c.last_interaction_at, c.updated_at) DESC LIMIT ? OFFSET ?`,
+    )
+    .all(...params, pageSize, offset) as Array<Record<string, unknown>>;
 
   return {
     items: hydrateContactsWithChannels(rows.map(mapContact)),
     total,
     page: safePage,
     pageSize,
-    totalPages
+    totalPages,
   };
 }
 
@@ -317,9 +346,13 @@ function buildSegmentClause(f: SegmentFilter, params: unknown[]): string | null 
       params.push(f.value);
       return "datetime(c.last_interaction_at) <= datetime(?)";
     case "has_phone":
-      return f.value === "true" ? "c.phone IS NOT NULL AND trim(c.phone) <> ''" : "(c.phone IS NULL OR trim(c.phone) = '')";
+      return f.value === "true"
+        ? "c.phone IS NOT NULL AND trim(c.phone) <> ''"
+        : "(c.phone IS NULL OR trim(c.phone) = '')";
     case "has_instagram":
-      return f.value === "true" ? "c.instagram IS NOT NULL AND trim(c.instagram) <> ''" : "(c.instagram IS NULL OR trim(c.instagram) = '')";
+      return f.value === "true"
+        ? "c.instagram IS NOT NULL AND trim(c.instagram) <> ''"
+        : "(c.instagram IS NULL OR trim(c.instagram) = '')";
     default:
       return null;
   }
@@ -335,7 +368,7 @@ function getTagNamesForContact(contactId: string) {
         INNER JOIN tags t ON t.id = ct.tag_id
         WHERE ct.contact_id = ?
         ORDER BY t.name ASC
-      `
+      `,
     )
     .all(contactId) as Array<{ name: string }>;
 
@@ -351,7 +384,10 @@ type HistoryEntryInput = {
   createdAt?: string;
 };
 
-export function recordContactHistory(contactId: string, input: HistoryEntryInput | HistoryEntryInput[]) {
+export function recordContactHistory(
+  contactId: string,
+  input: HistoryEntryInput | HistoryEntryInput[],
+) {
   const db = getDb();
   const entries = Array.isArray(input) ? input : [input];
 
@@ -359,7 +395,7 @@ export function recordContactHistory(contactId: string, input: HistoryEntryInput
     `
       INSERT INTO contact_history (id, contact_id, field_key, field_label, previous_value, next_value, source, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `
+    `,
   );
 
   const transaction = db.transaction(() => {
@@ -378,7 +414,7 @@ export function recordContactHistory(contactId: string, input: HistoryEntryInput
         previousValue,
         nextValue,
         entry.source ?? "manual",
-        entry.createdAt ?? nowIso()
+        entry.createdAt ?? nowIso(),
       );
     }
   });
@@ -389,48 +425,72 @@ export function recordContactHistory(contactId: string, input: HistoryEntryInput
 function recordContactChanges(before: ContactRecord, after: ContactRecord, source = "manual") {
   recordContactHistory(before.id, [
     { field: "name", label: "Nome", previousValue: before.name, nextValue: after.name, source },
-    { field: "phone", label: "Telefone", previousValue: before.phone, nextValue: after.phone, source },
+    {
+      field: "phone",
+      label: "Telefone",
+      previousValue: before.phone,
+      nextValue: after.phone,
+      source,
+    },
     { field: "cpf", label: "CPF", previousValue: before.cpf, nextValue: after.cpf, source },
     { field: "email", label: "Email", previousValue: before.email, nextValue: after.email, source },
-    { field: "instagram", label: "Instagram", previousValue: before.instagram, nextValue: after.instagram, source },
-    { field: "status", label: "Status", previousValue: before.status, nextValue: after.status, source },
+    {
+      field: "instagram",
+      label: "Instagram",
+      previousValue: before.instagram,
+      nextValue: after.instagram,
+      source,
+    },
+    {
+      field: "status",
+      label: "Status",
+      previousValue: before.status,
+      nextValue: after.status,
+      source,
+    },
     {
       field: "procedure_status",
       label: "Status do procedimento",
       previousValue: before.procedureStatus,
       nextValue: after.procedureStatus,
-      source
+      source,
     },
-    { field: "notes", label: "Observações", previousValue: before.notes, nextValue: after.notes, source },
+    {
+      field: "notes",
+      label: "Observações",
+      previousValue: before.notes,
+      nextValue: after.notes,
+      source,
+    },
     {
       field: "instagram_follows_me",
       label: "Segue no Instagram",
       previousValue: before.instagramFollowsMe,
       nextValue: after.instagramFollowsMe,
-      source
+      source,
     },
     {
       field: "instagram_followed_by_me",
       label: "Seguido por você no Instagram",
       previousValue: before.instagramFollowedByMe,
       nextValue: after.instagramFollowedByMe,
-      source
+      source,
     },
     {
       field: "instagram_incoming_messages_count",
       label: "Mensagens recebidas no Instagram",
       previousValue: before.instagramIncomingMessagesCount,
       nextValue: after.instagramIncomingMessagesCount,
-      source
+      source,
     },
     {
       field: "instagram_sent_more_than_three_messages",
       label: "Mais de 3 mensagens no Instagram",
       previousValue: before.instagramSentMoreThanThreeMessages,
       nextValue: after.instagramSentMoreThanThreeMessages,
-      source
+      source,
     },
-    { field: "tags", label: "Tags", previousValue: before.tags, nextValue: after.tags, source }
+    { field: "tags", label: "Tags", previousValue: before.tags, nextValue: after.tags, source },
   ]);
 }
 
@@ -442,7 +502,7 @@ export function updateContactInstagramSignals(
     instagramIncomingMessagesCount?: number;
     instagramSentMoreThanThreeMessages?: boolean;
   },
-  source = "instagram-import"
+  source = "instagram-import",
 ) {
   const db = getDb();
   const existing = getContactById(contactId);
@@ -450,12 +510,19 @@ export function updateContactInstagramSignals(
     return null;
   }
 
-  const nextInstagramFollowsMe =
-    Object.prototype.hasOwnProperty.call(input, "instagramFollowsMe") ? input.instagramFollowsMe ?? null : existing.instagramFollowsMe;
-  const nextInstagramFollowedByMe =
-    Object.prototype.hasOwnProperty.call(input, "instagramFollowedByMe") ? input.instagramFollowedByMe ?? null : existing.instagramFollowedByMe;
+  const nextInstagramFollowsMe = Object.prototype.hasOwnProperty.call(input, "instagramFollowsMe")
+    ? (input.instagramFollowsMe ?? null)
+    : existing.instagramFollowsMe;
+  const nextInstagramFollowedByMe = Object.prototype.hasOwnProperty.call(
+    input,
+    "instagramFollowedByMe",
+  )
+    ? (input.instagramFollowedByMe ?? null)
+    : existing.instagramFollowedByMe;
   const nextInstagramIncomingMessagesCount =
-    input.instagramIncomingMessagesCount != null ? Math.max(0, Math.trunc(input.instagramIncomingMessagesCount)) : existing.instagramIncomingMessagesCount;
+    input.instagramIncomingMessagesCount != null
+      ? Math.max(0, Math.trunc(input.instagramIncomingMessagesCount))
+      : existing.instagramIncomingMessagesCount;
   const nextInstagramSentMoreThanThreeMessages =
     input.instagramSentMoreThanThreeMessages != null
       ? input.instagramSentMoreThanThreeMessages
@@ -481,14 +548,14 @@ export function updateContactInstagramSignals(
         instagram_sent_more_than_three_messages = ?,
         updated_at = ?
       WHERE id = ?
-    `
+    `,
   ).run(
     nextInstagramFollowsMe == null ? null : Number(nextInstagramFollowsMe),
     nextInstagramFollowedByMe == null ? null : Number(nextInstagramFollowedByMe),
     nextInstagramIncomingMessagesCount,
     Number(nextInstagramSentMoreThanThreeMessages),
     timestamp,
-    contactId
+    contactId,
   );
 
   const updated = getContactById(contactId);
@@ -500,7 +567,7 @@ export function updateContactInstagramSignals(
         previousValue: existing.instagramFollowsMe,
         nextValue: updated.instagramFollowsMe,
         source,
-        createdAt: timestamp
+        createdAt: timestamp,
       },
       {
         field: "instagram_followed_by_me",
@@ -508,7 +575,7 @@ export function updateContactInstagramSignals(
         previousValue: existing.instagramFollowedByMe,
         nextValue: updated.instagramFollowedByMe,
         source,
-        createdAt: timestamp
+        createdAt: timestamp,
       },
       {
         field: "instagram_incoming_messages_count",
@@ -516,7 +583,7 @@ export function updateContactInstagramSignals(
         previousValue: existing.instagramIncomingMessagesCount,
         nextValue: updated.instagramIncomingMessagesCount,
         source,
-        createdAt: timestamp
+        createdAt: timestamp,
       },
       {
         field: "instagram_sent_more_than_three_messages",
@@ -524,8 +591,8 @@ export function updateContactInstagramSignals(
         previousValue: existing.instagramSentMoreThanThreeMessages,
         nextValue: updated.instagramSentMoreThanThreeMessages,
         source,
-        createdAt: timestamp
-      }
+        createdAt: timestamp,
+      },
     ]);
     recordAuditLog({
       entityType: "contact",
@@ -538,9 +605,9 @@ export function updateContactInstagramSignals(
         instagramFollowsMe: updated.instagramFollowsMe,
         instagramFollowedByMe: updated.instagramFollowedByMe,
         instagramIncomingMessagesCount: updated.instagramIncomingMessagesCount,
-        instagramSentMoreThanThreeMessages: updated.instagramSentMoreThanThreeMessages
+        instagramSentMoreThanThreeMessages: updated.instagramSentMoreThanThreeMessages,
       },
-      createdAt: timestamp
+      createdAt: timestamp,
     });
   }
 
@@ -551,24 +618,40 @@ export function listContacts(filters?: { query?: string; tag?: string; status?: 
   const db = getDb();
   const { whereClause, params } = buildContactFilters(filters);
   const rows = db
-    .prepare(`${baseContactQuery(whereClause)} ORDER BY COALESCE(c.last_interaction_at, c.updated_at, c.created_at) DESC`)
+    .prepare(
+      `${baseContactQuery(whereClause)} ORDER BY COALESCE(c.last_interaction_at, c.updated_at, c.created_at) DESC`,
+    )
     .all(...params) as Array<Record<string, unknown>>;
 
   return hydrateContactsWithChannels(rows.map(mapContact));
 }
 
-export function listContactsPage(filters?: { query?: string; tag?: string; status?: string; page?: number; pageSize?: number }) {
+export function listContactsPage(filters?: {
+  query?: string;
+  tag?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}) {
   const db = getDb();
   const { whereClause, params } = buildContactFilters(filters);
   const pageSize = Math.max(1, Math.min(100, Number(filters?.pageSize ?? 20)));
   const page = Math.max(1, Number(filters?.page ?? 1));
-  const total = Number((db.prepare(`SELECT COUNT(*) AS count FROM contacts c ${whereClause}`).get(...params) as { count: number }).count ?? 0);
+  const total = Number(
+    (
+      db.prepare(`SELECT COUNT(*) AS count FROM contacts c ${whereClause}`).get(...params) as {
+        count: number;
+      }
+    ).count ?? 0,
+  );
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(page, totalPages);
   const offset = (safePage - 1) * pageSize;
 
   const rows = db
-    .prepare(`${baseContactQuery(whereClause)} ORDER BY COALESCE(c.last_interaction_at, c.updated_at, c.created_at) DESC LIMIT ? OFFSET ?`)
+    .prepare(
+      `${baseContactQuery(whereClause)} ORDER BY COALESCE(c.last_interaction_at, c.updated_at, c.created_at) DESC LIMIT ? OFFSET ?`,
+    )
     .all(...params, pageSize, offset) as Array<Record<string, unknown>>;
 
   return {
@@ -576,7 +659,7 @@ export function listContactsPage(filters?: { query?: string; tag?: string; statu
     total,
     page: safePage,
     pageSize,
-    totalPages
+    totalPages,
   };
 }
 
@@ -585,7 +668,7 @@ export function getContactById(contactId: string) {
   const row = db
     .prepare(baseContactQuery("WHERE c.id = ? AND c.deleted_at IS NULL"))
     .get(contactId) as Record<string, unknown> | undefined;
-  return row ? hydrateContactsWithChannels([mapContact(row)])[0] ?? null : null;
+  return row ? (hydrateContactsWithChannels([mapContact(row)])[0] ?? null) : null;
 }
 
 export function getContactByPhone(phone: string) {
@@ -615,7 +698,7 @@ export function getContactByPhone(phone: string) {
   const candidateRows = db
     .prepare(
       `${baseContactQuery("WHERE c.deleted_at IS NULL AND c.phone IS NOT NULL AND trim(c.phone) <> ''")}
-       ORDER BY datetime(c.updated_at) DESC`
+       ORDER BY datetime(c.updated_at) DESC`,
     )
     .all() as Array<Record<string, unknown>>;
 
@@ -623,7 +706,7 @@ export function getContactByPhone(phone: string) {
     .map(mapContact)
     .find((candidate) => normalizeWhatsAppValue(candidate.phone) === normalizedLookup);
 
-  return matched ? hydrateContactsWithChannels([matched])[0] ?? null : null;
+  return matched ? (hydrateContactsWithChannels([matched])[0] ?? null) : null;
 }
 
 export function getContactByInstagram(instagram: string) {
@@ -642,11 +725,11 @@ export function getContactByInstagram(instagram: string) {
     .prepare(
       `
         ${baseContactQuery("WHERE c.deleted_at IS NULL AND lower(trim(IFNULL(c.instagram, ''))) = ?")}
-      `
+      `,
     )
     .get(normalizedInstagram) as Record<string, unknown> | undefined;
 
-  return row ? hydrateContactsWithChannels([mapContact(row)])[0] ?? null : null;
+  return row ? (hydrateContactsWithChannels([mapContact(row)])[0] ?? null) : null;
 }
 
 export function listContactHistory(contactId: string, limit = 60) {
@@ -659,7 +742,7 @@ export function listContactHistory(contactId: string, limit = 60) {
         WHERE contact_id = ?
         ORDER BY datetime(created_at) DESC
         LIMIT ?
-      `
+      `,
     )
     .all(contactId, Math.max(1, Math.min(200, limit))) as Array<Record<string, unknown>>;
 
@@ -679,7 +762,7 @@ export function createContact(input: ContactInput, source = "manual") {
         id, name, phone, cpf, email, instagram, procedure_status, last_attendant, notes,
         status, last_interaction_at, last_outgoing_at, last_incoming_at, last_procedure_at, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `
+    `,
   ).run(
     id,
     input.name.trim(),
@@ -696,12 +779,12 @@ export function createContact(input: ContactInput, source = "manual") {
     null,
     input.lastProcedureAt ?? null,
     timestamp,
-    timestamp
+    timestamp,
   );
 
   syncPrimaryContactChannels(id, {
     whatsapp: storedPhone,
-    instagram: input.instagram
+    instagram: input.instagram,
   });
   replaceContactTags(id, finalTags);
   const created = getContactById(id);
@@ -712,7 +795,7 @@ export function createContact(input: ContactInput, source = "manual") {
       previousValue: null,
       nextValue: created.name || created.phone || created.instagram || id,
       source,
-      createdAt: timestamp
+      createdAt: timestamp,
     });
     recordAuditLog({
       entityType: "contact",
@@ -722,9 +805,9 @@ export function createContact(input: ContactInput, source = "manual") {
       metadata: {
         source,
         whatsapp: storedPhone,
-        instagram: input.instagram
+        instagram: input.instagram,
       },
-      createdAt: timestamp
+      createdAt: timestamp,
     });
   }
 
@@ -735,14 +818,17 @@ export function createAssistedContact(
   input: ContactInput & {
     syncWhatsAppChannel?: boolean;
   },
-  source = "instagram-assisted"
+  source = "instagram-assisted",
 ) {
   const db = getDb();
   const id = randomUUID();
   const timestamp = nowIso();
   const storedPhone = normalizePhoneForStorage(input.phone);
-  const syncWhatsAppChannel = input.syncWhatsAppChannel !== false && Boolean(normalizeWhatsAppValue(storedPhone));
-  const finalTags = syncWhatsAppChannel ? normalizeTagList(input.tags, storedPhone) : normalizeTagList(input.tags);
+  const syncWhatsAppChannel =
+    input.syncWhatsAppChannel !== false && Boolean(normalizeWhatsAppValue(storedPhone));
+  const finalTags = syncWhatsAppChannel
+    ? normalizeTagList(input.tags, storedPhone)
+    : normalizeTagList(input.tags);
 
   db.prepare(
     `
@@ -750,7 +836,7 @@ export function createAssistedContact(
         id, name, phone, cpf, email, instagram, procedure_status, last_attendant, notes,
         status, last_interaction_at, last_outgoing_at, last_incoming_at, last_procedure_at, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `
+    `,
   ).run(
     id,
     input.name.trim(),
@@ -767,12 +853,12 @@ export function createAssistedContact(
     null,
     input.lastProcedureAt ?? null,
     timestamp,
-    timestamp
+    timestamp,
   );
 
   syncPrimaryContactChannels(id, {
     whatsapp: syncWhatsAppChannel ? storedPhone : null,
-    instagram: input.instagram
+    instagram: input.instagram,
   });
   replaceContactTags(id, finalTags);
   const created = getContactById(id);
@@ -783,7 +869,7 @@ export function createAssistedContact(
       previousValue: null,
       nextValue: created.name || created.phone || created.instagram || id,
       source,
-      createdAt: timestamp
+      createdAt: timestamp,
     });
     recordAuditLog({
       entityType: "contact",
@@ -794,9 +880,9 @@ export function createAssistedContact(
       metadata: {
         source,
         whatsapp: syncWhatsAppChannel ? storedPhone : null,
-        instagram: input.instagram ?? null
+        instagram: input.instagram ?? null,
       },
-      createdAt: timestamp
+      createdAt: timestamp,
     });
   }
 
@@ -816,12 +902,12 @@ export function createAutoContact(input: { phone: string; title?: string | null 
         id, name, phone, cpf, email, instagram, procedure_status, last_attendant, notes,
         status, last_interaction_at, last_outgoing_at, last_incoming_at, last_procedure_at, created_at, updated_at
       ) VALUES (?, ?, ?, NULL, NULL, ?, 'unknown', NULL, NULL, 'novo', NULL, NULL, NULL, NULL, ?, ?)
-    `
+    `,
   ).run(id, normalizedName, input.phone.trim(), inferredInstagram, timestamp, timestamp);
 
   syncPrimaryContactChannels(id, {
     whatsapp: input.phone,
-    instagram: inferredInstagram
+    instagram: inferredInstagram,
   });
   replaceContactTags(id, [WHATSAPP_TAG_NAME]);
   recordContactHistory(id, {
@@ -830,7 +916,7 @@ export function createAutoContact(input: { phone: string; title?: string | null 
     previousValue: null,
     nextValue: normalizedName || input.phone,
     source: "whatsapp",
-    createdAt: timestamp
+    createdAt: timestamp,
   });
   recordAuditLog({
     entityType: "contact",
@@ -840,9 +926,9 @@ export function createAutoContact(input: { phone: string; title?: string | null 
     contactId: id,
     metadata: {
       phone: input.phone,
-      title: input.title ?? null
+      title: input.title ?? null,
     },
-    createdAt: timestamp
+    createdAt: timestamp,
   });
 
   return getContactById(id);
@@ -865,12 +951,12 @@ export function hydrateAutoContact(contactId: string, input: { title?: string | 
       UPDATE contacts
       SET name = ?, instagram = ?, updated_at = ?
       WHERE id = ?
-    `
+    `,
   ).run(nextName, nextInstagram, nowIso(), contactId);
 
   syncPrimaryContactChannels(contactId, {
     whatsapp: existing.phone,
-    instagram: nextInstagram
+    instagram: nextInstagram,
   });
   const tagsBefore = getTagNamesForContact(contactId);
   replaceContactTags(contactId, normalizeTagList(tagsBefore, existing.phone));
@@ -887,8 +973,8 @@ export function hydrateAutoContact(contactId: string, input: { title?: string | 
         previousName: existing.name,
         nextName: updated.name,
         previousInstagram: existing.instagram,
-        nextInstagram: updated.instagram
-      }
+        nextInstagram: updated.instagram,
+      },
     });
   }
 
@@ -923,7 +1009,7 @@ export function updateContact(contactId: string, input: ContactInput, source = "
         last_procedure_at = ?,
         updated_at = ?
       WHERE id = ?
-    `
+    `,
   ).run(
     input.name.trim(),
     storedPhone,
@@ -937,12 +1023,12 @@ export function updateContact(contactId: string, input: ContactInput, source = "
     input.lastInteractionAt ?? null,
     input.lastProcedureAt ?? null,
     timestamp,
-    contactId
+    contactId,
   );
 
   syncPrimaryContactChannels(contactId, {
     whatsapp: storedPhone,
-    instagram: input.instagram
+    instagram: input.instagram,
   });
   replaceContactTags(contactId, finalTags);
   const updated = getContactById(contactId);
@@ -956,9 +1042,9 @@ export function updateContact(contactId: string, input: ContactInput, source = "
       metadata: {
         source,
         phone: updated.phone,
-        instagram: updated.instagram
+        instagram: updated.instagram,
       },
-      createdAt: timestamp
+      createdAt: timestamp,
     });
   }
 
@@ -970,7 +1056,7 @@ export function updateAssistedContact(
   input: ContactInput & {
     syncWhatsAppChannel?: boolean;
   },
-  source = "instagram-assisted"
+  source = "instagram-assisted",
 ) {
   const db = getDb();
   const timestamp = nowIso();
@@ -985,9 +1071,15 @@ export function updateAssistedContact(
   const syncWhatsAppChannel =
     input.syncWhatsAppChannel === false
       ? Boolean(existingWhatsAppValue)
-      : Boolean(normalizeWhatsAppValue(nextCandidatePhone)) && Boolean(String(nextCandidatePhone ?? "").trim());
-  const whatsappValue = input.syncWhatsAppChannel === false ? existingWhatsAppValue : storedPhone ?? existingWhatsAppValue;
-  const finalTags = syncWhatsAppChannel ? normalizeTagList(input.tags, whatsappValue) : normalizeTagList(input.tags);
+      : Boolean(normalizeWhatsAppValue(nextCandidatePhone)) &&
+        Boolean(String(nextCandidatePhone ?? "").trim());
+  const whatsappValue =
+    input.syncWhatsAppChannel === false
+      ? existingWhatsAppValue
+      : (storedPhone ?? existingWhatsAppValue);
+  const finalTags = syncWhatsAppChannel
+    ? normalizeTagList(input.tags, whatsappValue)
+    : normalizeTagList(input.tags);
 
   db.prepare(
     `
@@ -1006,7 +1098,7 @@ export function updateAssistedContact(
         last_procedure_at = ?,
         updated_at = ?
       WHERE id = ?
-    `
+    `,
   ).run(
     input.name.trim(),
     storedPhone,
@@ -1020,12 +1112,12 @@ export function updateAssistedContact(
     input.lastInteractionAt ?? null,
     input.lastProcedureAt ?? null,
     timestamp,
-    contactId
+    contactId,
   );
 
   syncPrimaryContactChannels(contactId, {
     whatsapp: syncWhatsAppChannel ? whatsappValue : null,
-    instagram: input.instagram
+    instagram: input.instagram,
   });
   replaceContactTags(contactId, finalTags);
   const updated = getContactById(contactId);
@@ -1040,9 +1132,9 @@ export function updateAssistedContact(
       metadata: {
         source,
         phone: updated.phone,
-        instagram: updated.instagram
+        instagram: updated.instagram,
       },
-      createdAt: timestamp
+      createdAt: timestamp,
     });
   }
 
@@ -1051,7 +1143,11 @@ export function updateAssistedContact(
 
 export function deleteContact(contactId: string) {
   const db = getDb();
-  db.prepare("UPDATE contacts SET deleted_at = ?, updated_at = ? WHERE id = ?").run(nowIso(), nowIso(), contactId);
+  db.prepare("UPDATE contacts SET deleted_at = ?, updated_at = ? WHERE id = ?").run(
+    nowIso(),
+    nowIso(),
+    contactId,
+  );
 }
 
 export function touchContactTimestamps(
@@ -1060,7 +1156,7 @@ export function touchContactTimestamps(
     lastInteractionAt?: string | null;
     lastOutgoingAt?: string | null;
     lastIncomingAt?: string | null;
-  }
+  },
 ) {
   const db = getDb();
   const timestamp = nowIso();
@@ -1073,8 +1169,14 @@ export function touchContactTimestamps(
         last_incoming_at = COALESCE(?, last_incoming_at),
         updated_at = ?
       WHERE id = ?
-    `
-  ).run(input.lastInteractionAt ?? null, input.lastOutgoingAt ?? null, input.lastIncomingAt ?? null, timestamp, contactId);
+    `,
+  ).run(
+    input.lastInteractionAt ?? null,
+    input.lastOutgoingAt ?? null,
+    input.lastIncomingAt ?? null,
+    timestamp,
+    contactId,
+  );
 }
 
 export function applyTagToContact(contactId: string, tagName: string, source = "automation") {
@@ -1082,9 +1184,11 @@ export function applyTagToContact(contactId: string, tagName: string, source = "
   const before = getContactById(contactId);
   const tag = ensureTag(tagName, {
     type: normalizeTagName(tagName) === WHATSAPP_TAG_NAME ? "canal" : "manual",
-    active: true
+    active: true,
   });
-  db.prepare("INSERT OR IGNORE INTO contact_tags (contact_id, tag_id, created_at) VALUES (?, ?, ?)").run(contactId, tag.id, nowIso());
+  db.prepare(
+    "INSERT OR IGNORE INTO contact_tags (contact_id, tag_id, created_at) VALUES (?, ?, ?)",
+  ).run(contactId, tag.id, nowIso());
   const after = getContactById(contactId);
   if (before && after) {
     recordContactChanges(before, after, source);
@@ -1095,8 +1199,8 @@ export function applyTagToContact(contactId: string, tagName: string, source = "
       contactId,
       metadata: {
         source,
-        tagName
-      }
+        tagName,
+      },
     });
   }
 }
@@ -1109,7 +1213,7 @@ export function removeTagFromContact(contactId: string, tagName: string, source 
       DELETE FROM contact_tags
       WHERE contact_id = ?
         AND tag_id IN (SELECT id FROM tags WHERE normalized_name = ?)
-    `
+    `,
   ).run(contactId, normalizeTagName(tagName));
   const after = getContactById(contactId);
   if (before && after) {
@@ -1121,8 +1225,8 @@ export function removeTagFromContact(contactId: string, tagName: string, source 
       contactId,
       metadata: {
         source,
-        tagName
-      }
+        tagName,
+      },
     });
   }
 }
@@ -1132,7 +1236,7 @@ export function listContactsForAutomationEvaluation() {
   const rows = db
     .prepare(
       `${baseContactQuery("WHERE c.deleted_at IS NULL")}
-       ORDER BY COALESCE(c.last_interaction_at, c.updated_at, c.created_at) DESC`
+       ORDER BY COALESCE(c.last_interaction_at, c.updated_at, c.created_at) DESC`,
     )
     .all() as Array<Record<string, unknown>>;
 
@@ -1140,6 +1244,6 @@ export function listContactsForAutomationEvaluation() {
     ...mapContact(row),
     lastOutgoingAt: (row.last_outgoing_at as string | null) ?? null,
     lastIncomingAt: (row.last_incoming_at as string | null) ?? null,
-    lastAutomationAt: (row.last_automation_at as string | null) ?? null
+    lastAutomationAt: (row.last_automation_at as string | null) ?? null,
   }));
 }

@@ -92,7 +92,9 @@ function readCampaignReport(campaignId) {
     );
     const cutoffEventId = beforeProofEvent?.id ?? 0;
     const scopedEvents = events.filter((event) => event.id >= cutoffEventId);
-    const completedEvents = scopedEvents.filter((event) => event.type === "sender.campaign_step.completed");
+    const completedEvents = scopedEvents.filter(
+      (event) => event.type === "sender.campaign_step.completed",
+    );
     return {
       campaignId,
       events: scopedEvents,
@@ -113,7 +115,8 @@ function readCampaignReport(campaignId) {
           event.payload.verifiedDuration === "90d",
       ),
       completedSteps: completedEvents.length,
-      failedSteps: scopedEvents.filter((event) => event.type === "sender.campaign_step.failed").length,
+      failedSteps: scopedEvents.filter((event) => event.type === "sender.campaign_step.failed")
+        .length,
       activeJobs,
       beforeVisualProofPath: beforeProofEvent?.payload.visualProof?.screenshotPath ?? null,
       beforeVisualProofText: beforeProofEvent?.payload.visualProof?.textEvidence ?? "",
@@ -147,7 +150,9 @@ function assertM303Report(report) {
     throw new Error(`M303 failed: campaign has ${report.failedSteps} failed step event(s)`);
   }
   if (report.activeJobs > 0) {
-    throw new Error(`M303 failed: campaign still has ${report.activeJobs} active campaign_step job(s)`);
+    throw new Error(
+      `M303 failed: campaign still has ${report.activeJobs} active campaign_step job(s)`,
+    );
   }
   if (report.completedOutsideAllowlist > 0) {
     throw new Error(
@@ -165,8 +170,6 @@ async function assertBeforeSendVisualProof(report) {
 }
 
 main().catch((error) => {
-  console.error(
-    `m303-neferpeel-temporary-context|failed|ig=nao_aplicavel|error=${error.message}`,
-  );
+  console.error(`m303-neferpeel-temporary-context|failed|ig=nao_aplicavel|error=${error.message}`);
   process.exitCode = 1;
 });

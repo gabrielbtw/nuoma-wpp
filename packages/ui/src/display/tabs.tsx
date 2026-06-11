@@ -5,19 +5,18 @@ import { cn } from "../utils/cn.js";
 
 export const Tabs = RadixTabs.Root;
 
-export const TabsList = forwardRef<
-  HTMLDivElement,
-  ComponentPropsWithoutRef<typeof RadixTabs.List>
->(({ className, ...props }, ref) => (
-  <RadixTabs.List
-    ref={ref}
-    className={cn(
-      "inline-flex items-center gap-1 p-1.5 rounded-xl bg-surface-2/56 shadow-inset",
-      className,
-    )}
-    {...props}
-  />
-));
+export const TabsList = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<typeof RadixTabs.List>>(
+  ({ className, ...props }, ref) => (
+    <RadixTabs.List
+      ref={ref}
+      className={cn(
+        "inline-flex items-center gap-1 p-1.5 rounded-xl bg-surface-2/56 shadow-inset",
+        className,
+      )}
+      {...props}
+    />
+  ),
+);
 TabsList.displayName = "TabsList";
 
 export const TabsTrigger = forwardRef<
@@ -42,13 +41,6 @@ export const TabsContent = forwardRef<
   HTMLDivElement,
   ComponentPropsWithoutRef<typeof RadixTabs.Content>
 >(({ className, ...props }, ref) => (
-  <RadixTabs.Content
-    ref={ref}
-    className={cn(
-      "mt-5 outline-none",
-      className,
-    )}
-    {...props}
-  />
+  <RadixTabs.Content ref={ref} className={cn("mt-5 outline-none", className)} {...props} />
 ));
 TabsContent.displayName = "TabsContent";

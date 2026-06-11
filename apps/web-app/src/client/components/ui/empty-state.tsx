@@ -8,7 +8,7 @@ export function EmptyState({
   description,
   actionLabel,
   onAction,
-  className
+  className,
 }: {
   icon?: LucideIcon;
   title: string;

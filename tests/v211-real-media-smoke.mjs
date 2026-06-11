@@ -167,7 +167,14 @@ function seedConversation() {
          (user_id, name, phone, email, primary_channel, instagram_handle, status, notes, last_message_at, deleted_at, created_at, updated_at)
          VALUES (?, ?, ?, NULL, 'whatsapp', NULL, 'active', ?, NULL, NULL, ?, ?)`,
       )
-      .run(userId, `Smoke Canary ${phone}`, phone, "Contato canario para smoke real de midia.", now, now);
+      .run(
+        userId,
+        `Smoke Canary ${phone}`,
+        phone,
+        "Contato canario para smoke real de midia.",
+        now,
+        now,
+      );
     contact = { id: Number(result.lastInsertRowid), phone };
   }
 
@@ -338,12 +345,17 @@ async function captureWhatsAppProof(label, { tokensToFind = [], audioExternalId 
   const browser = await chromium.connectOverCDP(cdpUrl);
   try {
     const context = browser.contexts()[0] ?? (await browser.newContext());
-    const page = context.pages().find((item) => item.url().startsWith("https://web.whatsapp.com")) ?? (await context.newPage());
+    const page =
+      context.pages().find((item) => item.url().startsWith("https://web.whatsapp.com")) ??
+      (await context.newPage());
     const onTargetChat = await page
       .evaluate((expectedPhone) => {
         const normalized = String(expectedPhone || "").replace(/\D/g, "");
-        const hrefPhone = new URL(location.href).searchParams.get("phone")?.replace(/\D/g, "") ?? "";
-        const text = String(document.querySelector("#main header")?.textContent || document.body?.innerText || "");
+        const hrefPhone =
+          new URL(location.href).searchParams.get("phone")?.replace(/\D/g, "") ?? "";
+        const text = String(
+          document.querySelector("#main header")?.textContent || document.body?.innerText || "",
+        );
         return hrefPhone === normalized || text.replace(/\D/g, "").includes(normalized.slice(-8));
       }, phone)
       .catch(() => false);
@@ -353,7 +365,9 @@ async function captureWhatsAppProof(label, { tokensToFind = [], audioExternalId 
         timeout: 60_000,
       });
     }
-    await page.waitForFunction(() => Boolean(document.body?.innerText?.trim()), { timeout: 90_000 });
+    await page.waitForFunction(() => Boolean(document.body?.innerText?.trim()), {
+      timeout: 90_000,
+    });
     await page.keyboard.press("End").catch(() => null);
     await page.waitForTimeout(2_000);
     let proof = null;
@@ -365,11 +379,22 @@ async function captureWhatsAppProof(label, { tokensToFind = [], audioExternalId 
           function isVisible(node) {
             if (!node) return false;
             const rect = node.getBoundingClientRect();
-            return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.right > 0 && rect.top < window.innerHeight && rect.left < window.innerWidth;
+            return (
+              rect.width > 0 &&
+              rect.height > 0 &&
+              rect.bottom > 0 &&
+              rect.right > 0 &&
+              rect.top < window.innerHeight &&
+              rect.left < window.innerWidth
+            );
           }
-          const messageNodes = Array.from(document.querySelectorAll("#main .message-out, #main [data-id]"));
+          const messageNodes = Array.from(
+            document.querySelectorAll("#main .message-out, #main [data-id]"),
+          );
           const visibleTokens = expectedTokens.filter((token) =>
-            messageNodes.some((node) => isVisible(node) && String(node.textContent || "").includes(token)),
+            messageNodes.some(
+              (node) => isVisible(node) && String(node.textContent || "").includes(token),
+            ),
           );
           const audioNode =
             expectedAudioExternalId && window.CSS?.escape
@@ -377,18 +402,18 @@ async function captureWhatsAppProof(label, { tokensToFind = [], audioExternalId 
               : null;
           const audioEvidence = Boolean(
             audioNode &&
-              isVisible(audioNode) &&
-              (audioNode.querySelector(
-                [
-                  '[data-icon="audio-play"]',
-                  '[data-icon="ptt"]',
-                  '[data-icon="status-v3-ptt"]',
-                  'button[aria-label*="Play"]',
-                  'button[aria-label*="Reproduzir"]',
-                  '[aria-valuemax]',
-                ].join(","),
-              ) ||
-                /\\b\\d{1,2}:\\d{2}\\b/.test(String(audioNode.textContent || ""))),
+            isVisible(audioNode) &&
+            (audioNode.querySelector(
+              [
+                '[data-icon="audio-play"]',
+                '[data-icon="ptt"]',
+                '[data-icon="status-v3-ptt"]',
+                'button[aria-label*="Play"]',
+                'button[aria-label*="Reproduzir"]',
+                "[aria-valuemax]",
+              ].join(","),
+            ) ||
+              /\\b\\d{1,2}:\\d{2}\\b/.test(String(audioNode.textContent || ""))),
           );
           const bodyText = String(document.body?.innerText || "");
           return {
@@ -409,7 +434,9 @@ async function captureWhatsAppProof(label, { tokensToFind = [], audioExternalId 
       throw new Error(`${label} WhatsApp visual proof was not evaluated`);
     }
     if (proof.missingTokens.length > 0) {
-      throw new Error(`${label} WhatsApp visual proof missing tokens: ${proof.missingTokens.join(", ")}`);
+      throw new Error(
+        `${label} WhatsApp visual proof missing tokens: ${proof.missingTokens.join(", ")}`,
+      );
     }
     if (audioExternalId && !proof.audioEvidence) {
       throw new Error(`${label} WhatsApp visual proof missing audio bubble: ${audioExternalId}`);
@@ -441,7 +468,9 @@ async function captureApp() {
     }
     await page.goto(`${webUrl}/inbox`, { waitUntil: "domcontentloaded", timeout: 60_000 });
     await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => null);
-    const search = page.locator('input[type="search"], input[placeholder*="Buscar"], input[placeholder*="busca" i]').first();
+    const search = page
+      .locator('input[type="search"], input[placeholder*="Buscar"], input[placeholder*="busca" i]')
+      .first();
     if ((await search.count()) > 0) {
       await search.fill(phone);
       await page.waitForTimeout(1_000);
@@ -477,7 +506,11 @@ async function main() {
     session,
     "image",
     "messages.sendMedia",
-    { conversationId, mediaAssetId: imageAsset.id, caption: `Smoke real V2.11 imagem ${tokens.image}` },
+    {
+      conversationId,
+      mediaAssetId: imageAsset.id,
+      caption: `Smoke real V2.11 imagem ${tokens.image}`,
+    },
     "sender.media_message.completed",
   );
   const imageProof = await captureWhatsAppProof("image", { tokensToFind: [tokens.image] });
@@ -485,7 +518,11 @@ async function main() {
     session,
     "video",
     "messages.sendMedia",
-    { conversationId, mediaAssetId: videoAsset.id, caption: `Smoke real V2.11 video ${tokens.video}` },
+    {
+      conversationId,
+      mediaAssetId: videoAsset.id,
+      caption: `Smoke real V2.11 video ${tokens.video}`,
+    },
     "sender.media_message.completed",
   );
   const videoProof = await captureWhatsAppProof("video", { tokensToFind: [tokens.video] });
@@ -504,7 +541,9 @@ async function main() {
       `audio job completed without verified WhatsApp voice bubble: externalId=${audioPayload.externalId ?? "null"} nativeVoiceEvidence=${String(audioPayload.nativeVoiceEvidence)}`,
     );
   }
-  const audioProof = await captureWhatsAppProof("audio", { audioExternalId: audioPayload.externalId });
+  const audioProof = await captureWhatsAppProof("audio", {
+    audioExternalId: audioPayload.externalId,
+  });
   await captureApp();
 
   console.log(
@@ -541,6 +580,8 @@ main()
   })
   .catch((error) => {
     db.close();
-    console.error(`v211-real-media|failed|phone=${phone}|tokenRoot=${tokenRoot}|ig=nao_aplicavel|error=${error.message}`);
+    console.error(
+      `v211-real-media|failed|phone=${phone}|tokenRoot=${tokenRoot}|ig=nao_aplicavel|error=${error.message}`,
+    );
     process.exit(1);
   });

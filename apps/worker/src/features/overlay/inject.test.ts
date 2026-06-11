@@ -1469,9 +1469,11 @@ describe("Nuoma WhatsApp overlay injection", () => {
         const host = document.getElementById(rootId);
         host?.shadowRoot?.querySelector<HTMLButtonElement>("[data-nuoma-fab]")?.click();
         document.getElementById("native-send")?.click();
-        document.getElementById("composer")?.dispatchEvent(
-          new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
-        );
+        document
+          .getElementById("composer")
+          ?.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
+          );
         return {
           overlayState: host?.getAttribute("data-nuoma-state"),
           sendClicks,

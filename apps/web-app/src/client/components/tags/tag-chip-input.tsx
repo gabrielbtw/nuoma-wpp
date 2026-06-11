@@ -19,7 +19,7 @@ export function TagChipInput({
   value,
   onChange,
   options,
-  placeholder = "Adicionar tag"
+  placeholder = "Adicionar tag",
 }: {
   value: string[];
   onChange: (value: string[]) => void;
@@ -31,16 +31,19 @@ export function TagChipInput({
   const valueMap = useMemo(() => new Set(value.map((item) => normalizeTagName(item))), [value]);
   const suggested = useMemo(
     () =>
-      options.filter((option) => option.active !== false && !valueMap.has(normalizeTagName(option.name)) && option.name.toLowerCase().includes(inputValue.toLowerCase())),
-    [inputValue, options, valueMap]
+      options.filter(
+        (option) =>
+          option.active !== false &&
+          !valueMap.has(normalizeTagName(option.name)) &&
+          option.name.toLowerCase().includes(inputValue.toLowerCase()),
+      ),
+    [inputValue, options, valueMap],
   );
 
   const colorMap = useMemo(
     () =>
-      new Map(
-        options.map((option) => [normalizeTagName(option.name), option.color ?? "#38bdf8"])
-      ),
-    [options]
+      new Map(options.map((option) => [normalizeTagName(option.name), option.color ?? "#38bdf8"])),
+    [options],
   );
 
   function commitTag(rawValue: string) {
@@ -63,7 +66,13 @@ export function TagChipInput({
       <div className="rounded-[1.25rem] border border-white/10 bg-slate-950/50 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
         <div className="flex flex-wrap gap-2">
           {value.map((tag) => (
-            <TagPill key={tag} name={tag} color={colorMap.get(normalizeTagName(tag))} removable onRemove={() => onChange(value.filter((item) => item !== tag))} />
+            <TagPill
+              key={tag}
+              name={tag}
+              color={colorMap.get(normalizeTagName(tag))}
+              removable
+              onRemove={() => onChange(value.filter((item) => item !== tag))}
+            />
           ))}
           <div className="flex min-w-[14rem] flex-1 items-center gap-2">
             <Input
@@ -100,7 +109,9 @@ export function TagChipInput({
             <button
               key={option.id}
               type="button"
-              className={cn("rounded-full border border-white/10 px-3 py-1 text-xs text-slate-300 transition hover:border-primary/40 hover:bg-primary/10")}
+              className={cn(
+                "rounded-full border border-white/10 px-3 py-1 text-xs text-slate-300 transition hover:border-primary/40 hover:bg-primary/10",
+              )}
               onClick={() => commitTag(option.name)}
             >
               {option.name}

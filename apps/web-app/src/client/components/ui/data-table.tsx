@@ -18,7 +18,7 @@ export function DataTable<T extends Record<string, unknown>>({
   selectedId,
   idKey = "id",
   emptyMessage = "Nenhum resultado encontrado.",
-  className
+  className,
 }: {
   columns: DataTableColumn<T>[];
   data: T[];
@@ -39,13 +39,21 @@ export function DataTable<T extends Record<string, unknown>>({
   }, [data, safePage, pageSize]);
 
   return (
-    <div className={cn("rounded-2xl border border-white/5 bg-white/[0.01] overflow-hidden", className)}>
+    <div
+      className={cn("rounded-2xl border border-white/5 bg-white/[0.01] overflow-hidden", className)}
+    >
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-white/5 bg-white/[0.02]">
               {columns.map((col) => (
-                <th key={col.key} className={cn("px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-500", col.className)}>
+                <th
+                  key={col.key}
+                  className={cn(
+                    "px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-500",
+                    col.className,
+                  )}
+                >
                   {col.header}
                 </th>
               ))}
@@ -62,11 +70,14 @@ export function DataTable<T extends Record<string, unknown>>({
                   className={cn(
                     "transition-colors duration-200",
                     onRowClick && "cursor-pointer",
-                    isSelected ? "bg-cmm-blue/5" : "hover:bg-white/[0.02]"
+                    isSelected ? "bg-cmm-blue/5" : "hover:bg-white/[0.02]",
                   )}
                 >
                   {columns.map((col) => (
-                    <td key={col.key} className={cn("px-4 py-3 text-sm text-slate-300", col.className)}>
+                    <td
+                      key={col.key}
+                      className={cn("px-4 py-3 text-sm text-slate-300", col.className)}
+                    >
                       {col.render(row, (safePage - 1) * pageSize + index)}
                     </td>
                   ))}
@@ -75,7 +86,10 @@ export function DataTable<T extends Record<string, unknown>>({
             })}
             {pagedData.length === 0 && (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-12 text-center text-xs text-slate-600">
+                <td
+                  colSpan={columns.length}
+                  className="px-4 py-12 text-center text-xs text-slate-600"
+                >
                   {emptyMessage}
                 </td>
               </tr>
@@ -90,20 +104,32 @@ export function DataTable<T extends Record<string, unknown>>({
             {data.length} total | Pagina {safePage}/{totalPages}
           </span>
           <div className="flex items-center gap-1">
-            <button onClick={() => setPage(1)} disabled={safePage <= 1}
-              className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-500 hover:bg-white/[0.04] disabled:opacity-30">
+            <button
+              onClick={() => setPage(1)}
+              disabled={safePage <= 1}
+              className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-500 hover:bg-white/[0.04] disabled:opacity-30"
+            >
               <ChevronsLeft className="h-3.5 w-3.5" />
             </button>
-            <button onClick={() => setPage(safePage - 1)} disabled={safePage <= 1}
-              className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-500 hover:bg-white/[0.04] disabled:opacity-30">
+            <button
+              onClick={() => setPage(safePage - 1)}
+              disabled={safePage <= 1}
+              className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-500 hover:bg-white/[0.04] disabled:opacity-30"
+            >
               <ChevronLeft className="h-3.5 w-3.5" />
             </button>
-            <button onClick={() => setPage(safePage + 1)} disabled={safePage >= totalPages}
-              className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-500 hover:bg-white/[0.04] disabled:opacity-30">
+            <button
+              onClick={() => setPage(safePage + 1)}
+              disabled={safePage >= totalPages}
+              className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-500 hover:bg-white/[0.04] disabled:opacity-30"
+            >
               <ChevronRight className="h-3.5 w-3.5" />
             </button>
-            <button onClick={() => setPage(totalPages)} disabled={safePage >= totalPages}
-              className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-500 hover:bg-white/[0.04] disabled:opacity-30">
+            <button
+              onClick={() => setPage(totalPages)}
+              disabled={safePage >= totalPages}
+              className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-500 hover:bg-white/[0.04] disabled:opacity-30"
+            >
               <ChevronsRight className="h-3.5 w-3.5" />
             </button>
           </div>

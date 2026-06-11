@@ -19,11 +19,11 @@ Status prático: **VERDE para pipeline local IC-1** (payload + envio real nativo
 
 ### G.3a — Dry-run local
 
-| payload | duração alvo | ffprobe | erro | formato | sha256 |
-|---|---:|---:|---:|---|---|
-| `voice-3s` | 3s | 3.000000s | 0.000ms | 48000Hz mono 16-bit | `d0e423593a1c...` |
-| `voice-30s` | 30s | 30.000000s | 0.000ms | 48000Hz mono 16-bit | `33a8e5ed10bb...` |
-| `voice-120s` | 120s | 120.000000s | 0.000ms | 48000Hz mono 16-bit | `d83be644512a...` |
+| payload      | duração alvo |     ffprobe |    erro | formato             | sha256            |
+| ------------ | -----------: | ----------: | ------: | ------------------- | ----------------- |
+| `voice-3s`   |           3s |   3.000000s | 0.000ms | 48000Hz mono 16-bit | `d0e423593a1c...` |
+| `voice-30s`  |          30s |  30.000000s | 0.000ms | 48000Hz mono 16-bit | `33a8e5ed10bb...` |
+| `voice-120s` |         120s | 120.000000s | 0.000ms | 48000Hz mono 16-bit | `d83be644512a...` |
 
 Comandos executados:
 
@@ -43,11 +43,11 @@ Artefatos gerados localmente:
 
 Primeira tentativa provou voice nativo, mas ficou com duração inflada por causa do wait herdado do V1 (`duração + 2s`). O harness foi calibrado para parar próximo da duração real e a rodada final passou:
 
-| payload | delivered | voice nativo | duração exibida | erro |
-|---|---:|---:|---:|---:|
-| `voice-3s` | true | true | 3s | 0ms |
-| `voice-30s` | true | true | 30s | 0ms |
-| `voice-120s` | true | true | 120s | 0ms |
+| payload      | delivered | voice nativo | duração exibida | erro |
+| ------------ | --------: | -----------: | --------------: | ---: |
+| `voice-3s`   |      true |         true |              3s |  0ms |
+| `voice-30s`  |      true |         true |             30s |  0ms |
+| `voice-120s` |      true |         true |            120s |  0ms |
 
 Resultado salvo em `payloads/send-results.json`. Screenshots finais ficam em `screenshots/`.
 

@@ -80,7 +80,9 @@
     });
   }
 
-  function parseOverlayRequest(payload: unknown): ({ id: string } & Record<string, unknown>) | null {
+  function parseOverlayRequest(
+    payload: unknown,
+  ): ({ id: string } & Record<string, unknown>) | null {
     if (typeof payload !== "string") {
       return null;
     }

@@ -22,7 +22,9 @@ export function enqueueJob(input: {
     const transaction = db.transaction(() => {
       if (input.dedupeKey) {
         const existing = db
-          .prepare("SELECT id FROM jobs WHERE dedupe_key = ? AND status IN ('pending', 'processing')")
+          .prepare(
+            "SELECT id FROM jobs WHERE dedupe_key = ? AND status IN ('pending', 'processing')",
+          )
           .get(input.dedupeKey) as { id: string } | undefined;
         if (existing) return existing.id;
       }
@@ -30,10 +32,16 @@ export function enqueueJob(input: {
       db.prepare(
         `INSERT INTO jobs (
           id, type, status, dedupe_key, payload_json, scheduled_at, attempts, max_attempts, created_at, updated_at
-        ) VALUES (?, ?, 'pending', ?, ?, ?, 0, ?, ?, ?)`
+        ) VALUES (?, ?, 'pending', ?, ?, ?, 0, ?, ?, ?)`,
       ).run(
-        id, input.type, input.dedupeKey ?? null, JSON.stringify(input.payload),
-        input.scheduledAt ?? timestamp, input.maxAttempts ?? 3, timestamp, timestamp
+        id,
+        input.type,
+        input.dedupeKey ?? null,
+        JSON.stringify(input.payload),
+        input.scheduledAt ?? timestamp,
+        input.maxAttempts ?? 3,
+        timestamp,
+        timestamp,
       );
       return id;
     });
@@ -64,7 +72,7 @@ export function hasPendingJobsForTypes(allowedTypes: JobType[]): boolean {
           AND datetime(scheduled_at) <= datetime('now')
           AND type IN (${placeholders})
         LIMIT 1
-      `
+      `,
     )
     .get(...allowedTypes) as { hit: number } | undefined;
   return Boolean(row);
@@ -74,7 +82,9 @@ export function claimDueJobForTypes(workerId: string, allowedTypes: JobType[] | 
   const db = getDb();
   const timestamp = nowIso();
   const typeFilter =
-    allowedTypes && allowedTypes.length > 0 ? `AND type IN (${allowedTypes.map(() => "?").join(", ")})` : "";
+    allowedTypes && allowedTypes.length > 0
+      ? `AND type IN (${allowedTypes.map(() => "?").join(", ")})`
+      : "";
 
   // Use IMMEDIATE transaction to prevent double-claim (Arch fix #5)
   return withSqliteBusyRetry(() => {
@@ -95,9 +105,11 @@ export function claimDueJobForTypes(workerId: string, allowedTypes: JobType[] | 
             SET status = 'processing', locked_at = ?, locked_by = ?, attempts = attempts + 1, updated_at = ?
             WHERE id = (SELECT id FROM next_job)
             RETURNING *
-          `
+          `,
         )
-        .get(...(allowedTypes ?? []), timestamp, workerId, timestamp) as Record<string, unknown> | undefined;
+        .get(...(allowedTypes ?? []), timestamp, workerId, timestamp) as
+        | Record<string, unknown>
+        | undefined;
     });
     return claim.immediate() ?? null;
   });
@@ -112,7 +124,7 @@ export function completeJob(jobId: string) {
         UPDATE jobs
         SET status = 'done', error_message = NULL, finished_at = ?, updated_at = ?
         WHERE id = ?
-      `
+      `,
     ).run(timestamp, timestamp, jobId);
   });
 }
@@ -148,8 +160,17 @@ export function failJob(jobId: string, errorMessage: string, correlationId?: str
             ELSE ?
           END
         WHERE id = ?
-      `
-    ).run(shouldRetry ? "pending" : "failed", errorMessage, timestamp, shouldRetry ? 1 : 0, row.attempts, shouldRetry ? 1 : 0, timestamp, jobId);
+      `,
+    ).run(
+      shouldRetry ? "pending" : "failed",
+      errorMessage,
+      timestamp,
+      shouldRetry ? 1 : 0,
+      row.attempts,
+      shouldRetry ? 1 : 0,
+      timestamp,
+      jobId,
+    );
   });
 }
 
@@ -168,7 +189,7 @@ export function failJobPermanently(jobId: string, errorMessage: string, correlat
           finished_at = ?,
           updated_at = ?
         WHERE id = ?
-      `
+      `,
     ).run(errorMessage, timestamp, timestamp, jobId);
   });
 }
@@ -180,13 +201,15 @@ export function failJobPermanently(jobId: string, errorMessage: string, correlat
 export function releaseStaleJobLocks(staleMinutes = 5) {
   const db = getDb();
   return withSqliteBusyRetry(() => {
-    const result = db.prepare(
-      `UPDATE jobs
+    const result = db
+      .prepare(
+        `UPDATE jobs
        SET status = 'pending', locked_at = NULL, locked_by = NULL, updated_at = ?
        WHERE status = 'processing'
          AND locked_at IS NOT NULL
-         AND datetime(locked_at) < datetime('now', '-' || ? || ' minutes')`
-    ).run(nowIso(), staleMinutes);
+         AND datetime(locked_at) < datetime('now', '-' || ? || ' minutes')`,
+      )
+      .run(nowIso(), staleMinutes);
     return result.changes;
   });
 }

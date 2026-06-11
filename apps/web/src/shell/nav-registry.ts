@@ -144,7 +144,10 @@ export function canAccessShellRoute(
   return true;
 }
 
-export function getShellNavSections(input: { isAdmin: boolean; isDev?: boolean }): ShellNavSection[] {
+export function getShellNavSections(input: {
+  isAdmin: boolean;
+  isDev?: boolean;
+}): ShellNavSection[] {
   const items = SHELL_ROUTE_REGISTRY.filter(
     (route) => route.showInSidebar && canAccessShellRoute(route, input),
   );
@@ -166,7 +169,9 @@ export function getShellShortcutItems(isAdmin: boolean, isDev = import.meta.env.
 export function shellRouteByPath(pathname: string): ShellRouteEntry | null {
   return (
     SHELL_ROUTE_REGISTRY.find((route) =>
-      route.path === "/" ? pathname === "/" : pathname === route.path || pathname.startsWith(`${route.path}/`),
+      route.path === "/"
+        ? pathname === "/"
+        : pathname === route.path || pathname.startsWith(`${route.path}/`),
     ) ?? null
   );
 }

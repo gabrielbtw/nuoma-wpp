@@ -18,21 +18,24 @@ import {
   XCircle,
   Loader2,
   Users,
-  type LucideIcon
+  type LucideIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { CampaignStepDraft } from "@/lib/campaign-utils";
 
-type StepStats = Record<number, {
-  pending: number;
-  processing: number;
-  sent: number;
-  failed: number;
-  skipped: number;
-  total: number;
-}>;
+type StepStats = Record<
+  number,
+  {
+    pending: number;
+    processing: number;
+    sent: number;
+    failed: number;
+    skipped: number;
+    total: number;
+  }
+>;
 
 const stepIconMap: Record<string, LucideIcon> = {
   text: MessageSquareText,
@@ -43,7 +46,7 @@ const stepIconMap: Record<string, LucideIcon> = {
   link: Link2,
   wait: Clock3,
   ADD_TAG: Tag,
-  REMOVE_TAG: Tag
+  REMOVE_TAG: Tag,
 };
 
 const stepColorMap: Record<string, { bg: string; border: string; icon: string }> = {
@@ -55,57 +58,85 @@ const stepColorMap: Record<string, { bg: string; border: string; icon: string }>
   link: { bg: "bg-cyan-500/10", border: "border-cyan-500/30", icon: "text-cyan-400" },
   wait: { bg: "bg-orange-500/10", border: "border-orange-500/30", icon: "text-orange-400" },
   ADD_TAG: { bg: "bg-emerald-500/10", border: "border-emerald-500/30", icon: "text-emerald-400" },
-  REMOVE_TAG: { bg: "bg-slate-500/10", border: "border-slate-500/30", icon: "text-slate-400" }
+  REMOVE_TAG: { bg: "bg-slate-500/10", border: "border-slate-500/30", icon: "text-slate-400" },
 };
 
 const stepLabelMap: Record<string, string> = {
-  text: "Mensagem", audio: "Audio", image: "Imagem", video: "Video",
-  document: "Documento", link: "Link", wait: "Espera",
-  ADD_TAG: "Adicionar Tag", REMOVE_TAG: "Remover Tag"
+  text: "Mensagem",
+  audio: "Audio",
+  image: "Imagem",
+  video: "Video",
+  document: "Documento",
+  link: "Link",
+  wait: "Espera",
+  ADD_TAG: "Adicionar Tag",
+  REMOVE_TAG: "Remover Tag",
 };
 
 function StepNode({
-  step, index, stats, isLast, hasCondition
+  step,
+  index,
+  stats,
+  isLast,
+  hasCondition,
 }: {
   step: CampaignStepDraft;
   index: number;
-  stats?: { pending: number; processing: number; sent: number; failed: number; skipped: number; total: number };
+  stats?: {
+    pending: number;
+    processing: number;
+    sent: number;
+    failed: number;
+    skipped: number;
+    total: number;
+  };
   isLast: boolean;
   hasCondition: boolean;
 }) {
   const Icon = stepIconMap[step.type] ?? MessageSquareText;
-  const colors = stepColorMap[step.type] ?? stepColorMap.text ?? { bg: "bg-slate-500/10", border: "border-slate-500/30", icon: "text-slate-400" };
+  const colors = stepColorMap[step.type] ??
+    stepColorMap.text ?? {
+      bg: "bg-slate-500/10",
+      border: "border-slate-500/30",
+      icon: "text-slate-400",
+    };
   const label = stepLabelMap[step.type] ?? step.type;
 
-  const successRate = stats && stats.total > 0
-    ? Math.round((stats.sent / stats.total) * 100)
-    : null;
-  const failRate = stats && stats.total > 0
-    ? Math.round((stats.failed / stats.total) * 100)
-    : null;
+  const successRate =
+    stats && stats.total > 0 ? Math.round((stats.sent / stats.total) * 100) : null;
+  const failRate = stats && stats.total > 0 ? Math.round((stats.failed / stats.total) * 100) : null;
 
-  const previewText = step.type === "wait"
-    ? `${step.waitMinutes ?? 0} minutos`
-    : step.type === "ADD_TAG" || step.type === "REMOVE_TAG"
-      ? step.tagName ?? ""
-      : (step.content || "").substring(0, 80) + ((step.content || "").length > 80 ? "..." : "");
+  const previewText =
+    step.type === "wait"
+      ? `${step.waitMinutes ?? 0} minutos`
+      : step.type === "ADD_TAG" || step.type === "REMOVE_TAG"
+        ? (step.tagName ?? "")
+        : (step.content || "").substring(0, 80) + ((step.content || "").length > 80 ? "..." : "");
 
   return (
     <div className="flex flex-col items-center">
       {/* Node card */}
-      <div className={cn(
-        "relative w-full max-w-[360px] rounded-2xl border p-4 transition-all",
-        colors.bg, colors.border
-      )}>
+      <div
+        className={cn(
+          "relative w-full max-w-[360px] rounded-2xl border p-4 transition-all",
+          colors.bg,
+          colors.border,
+        )}
+      >
         {/* Header */}
         <div className="flex items-center gap-3 mb-3">
-          <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", colors.bg)}>
+          <div
+            className={cn(
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+              colors.bg,
+            )}
+          >
             <Icon className={cn("h-5 w-5", colors.icon)} />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                {String(index + 1).padStart(2, '0')}
+                {String(index + 1).padStart(2, "0")}
               </span>
               <h4 className="text-sm font-bold text-white truncate">{label}</h4>
             </div>
@@ -132,19 +163,34 @@ function StepNode({
             {/* Progress bar */}
             <div className="h-2 w-full rounded-full bg-black/30 overflow-hidden flex">
               {stats.sent > 0 && (
-                <div className="h-full bg-cmm-emerald transition-all" style={{ width: `${(stats.sent / stats.total) * 100}%` }} />
+                <div
+                  className="h-full bg-cmm-emerald transition-all"
+                  style={{ width: `${(stats.sent / stats.total) * 100}%` }}
+                />
               )}
               {stats.processing > 0 && (
-                <div className="h-full bg-cmm-blue animate-pulse transition-all" style={{ width: `${(stats.processing / stats.total) * 100}%` }} />
+                <div
+                  className="h-full bg-cmm-blue animate-pulse transition-all"
+                  style={{ width: `${(stats.processing / stats.total) * 100}%` }}
+                />
               )}
               {stats.pending > 0 && (
-                <div className="h-full bg-slate-600 transition-all" style={{ width: `${(stats.pending / stats.total) * 100}%` }} />
+                <div
+                  className="h-full bg-slate-600 transition-all"
+                  style={{ width: `${(stats.pending / stats.total) * 100}%` }}
+                />
               )}
               {stats.failed > 0 && (
-                <div className="h-full bg-red-500 transition-all" style={{ width: `${(stats.failed / stats.total) * 100}%` }} />
+                <div
+                  className="h-full bg-red-500 transition-all"
+                  style={{ width: `${(stats.failed / stats.total) * 100}%` }}
+                />
               )}
               {stats.skipped > 0 && (
-                <div className="h-full bg-yellow-600 transition-all" style={{ width: `${(stats.skipped / stats.total) * 100}%` }} />
+                <div
+                  className="h-full bg-yellow-600 transition-all"
+                  style={{ width: `${(stats.skipped / stats.total) * 100}%` }}
+                />
               )}
             </div>
 
@@ -176,7 +222,8 @@ function StepNode({
                 </span>
               )}
               <span className="ml-auto text-[10px] font-bold text-slate-500">
-                <Users className="h-3 w-3 inline mr-1" />{stats.total}
+                <Users className="h-3 w-3 inline mr-1" />
+                {stats.total}
               </span>
             </div>
 
@@ -184,10 +231,14 @@ function StepNode({
             {(successRate !== null || failRate !== null) && (
               <div className="flex gap-3 pt-1">
                 {successRate !== null && successRate > 0 && (
-                  <Badge tone="success" className="text-[9px] px-2 py-0.5">{successRate}% sucesso</Badge>
+                  <Badge tone="success" className="text-[9px] px-2 py-0.5">
+                    {successRate}% sucesso
+                  </Badge>
                 )}
                 {failRate !== null && failRate > 0 && (
-                  <Badge tone="danger" className="text-[9px] px-2 py-0.5">{failRate}% falha</Badge>
+                  <Badge tone="danger" className="text-[9px] px-2 py-0.5">
+                    {failRate}% falha
+                  </Badge>
                 )}
               </div>
             )}
@@ -220,7 +271,7 @@ function StepNode({
 export function WorkflowViewer({
   campaignId,
   steps,
-  campaignName
+  campaignName,
 }: {
   campaignId: string;
   steps: CampaignStepDraft[];
@@ -229,7 +280,7 @@ export function WorkflowViewer({
   const statsQuery = useQuery({
     queryKey: ["campaign-step-stats", campaignId],
     queryFn: () => apiFetch<StepStats>(`/campaigns/${campaignId}/step-stats`),
-    refetchInterval: 10_000
+    refetchInterval: 10_000,
   });
 
   const stats = statsQuery.data ?? {};
@@ -245,14 +296,32 @@ export function WorkflowViewer({
       {/* Header with aggregate stats */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="font-display text-xl font-bold text-white tracking-tight">{campaignName}</h2>
+          <h2 className="font-display text-xl font-bold text-white tracking-tight">
+            {campaignName}
+          </h2>
           <p className="text-sm text-slate-400">{steps.length} etapas no fluxo</p>
         </div>
         <div className="flex gap-2">
-          {totalSent > 0 && <Badge tone="success" className="text-xs px-3 py-1">{totalSent} enviados</Badge>}
-          {totalProcessing > 0 && <Badge tone="info" className="text-xs px-3 py-1">{totalProcessing} processando</Badge>}
-          {totalPending > 0 && <Badge tone="default" className="text-xs px-3 py-1">{totalPending} pendentes</Badge>}
-          {totalFailed > 0 && <Badge tone="danger" className="text-xs px-3 py-1">{totalFailed} falhas</Badge>}
+          {totalSent > 0 && (
+            <Badge tone="success" className="text-xs px-3 py-1">
+              {totalSent} enviados
+            </Badge>
+          )}
+          {totalProcessing > 0 && (
+            <Badge tone="info" className="text-xs px-3 py-1">
+              {totalProcessing} processando
+            </Badge>
+          )}
+          {totalPending > 0 && (
+            <Badge tone="default" className="text-xs px-3 py-1">
+              {totalPending} pendentes
+            </Badge>
+          )}
+          {totalFailed > 0 && (
+            <Badge tone="danger" className="text-xs px-3 py-1">
+              {totalFailed} falhas
+            </Badge>
+          )}
         </div>
       </div>
 

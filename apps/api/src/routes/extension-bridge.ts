@@ -6,10 +6,7 @@ import { normalizePhone, normalizeWaJid } from "@nuoma/contracts";
 import type { Repositories } from "@nuoma/db";
 
 import { buildExtensionOverlaySnapshot } from "../services/extension-overlay.js";
-import {
-  isWithin24hWindow,
-  runOverlayAutomationNow,
-} from "../services/overlay-automations.js";
+import { isWithin24hWindow, runOverlayAutomationNow } from "../services/overlay-automations.js";
 import { runOverlayCampaignNow } from "../services/overlay-campaigns.js";
 import {
   applyOverlayQuickAction,
@@ -487,7 +484,9 @@ export async function registerExtensionBridgeRoutes(
               ...snapshot,
               apiStatus: result.ok ? "online" : "error",
               apiLastMethod: overlayRequest.method,
-              apiLastError: result.ok ? null : (result.rejected[0]?.reason ?? "quick_action_blocked"),
+              apiLastError: result.ok
+                ? null
+                : (result.rejected[0]?.reason ?? "quick_action_blocked"),
             },
           },
           ...(result.ok

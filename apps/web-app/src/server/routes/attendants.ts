@@ -5,7 +5,7 @@ import {
   deleteAttendant,
   getAttendantById,
   listAttendants,
-  updateAttendant
+  updateAttendant,
 } from "@nuoma/core";
 import { saveAttendantSampleUpload } from "../lib/uploads.js";
 
@@ -65,7 +65,7 @@ export async function registerAttendantRoutes(app: FastifyInstance) {
 
     const storagePath = await saveAttendantSampleUpload(file, id);
     const updated = updateAttendant(id, {
-      voiceSamples: [...attendant.voiceSamples, storagePath]
+      voiceSamples: [...attendant.voiceSamples, storagePath],
     });
 
     return reply.code(201).send(updated);
@@ -80,7 +80,7 @@ export async function registerAttendantRoutes(app: FastifyInstance) {
     }
     const { samplePath } = request.body as { samplePath: string };
     const updated = updateAttendant(id, {
-      voiceSamples: attendant.voiceSamples.filter((s) => s !== samplePath)
+      voiceSamples: attendant.voiceSamples.filter((s) => s !== samplePath),
     });
     return updated;
   });

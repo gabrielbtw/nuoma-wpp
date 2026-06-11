@@ -90,7 +90,7 @@ export function CampaignStepStatsPanel({
       <div className="flex flex-wrap items-center justify-between gap-2 px-2 pb-2">
         <div>
           <div className="font-mono text-[0.62rem] uppercase tracking-widest text-fg-dim">
-            Per-step stats
+            Estatísticas por Step
           </div>
           <div className="mt-0.5 text-xs text-fg-muted">
             {stats.length} step(s) com conclusão, falha, navegação e último evento.
@@ -115,7 +115,7 @@ export function CampaignStepStatsPanel({
                   {step.order}. {step.label}
                 </div>
                 <div className="mt-0.5 font-mono text-[0.65rem] text-fg-dim">
-                  {step.type} · delay {step.delaySeconds}s
+                  {step.type} · espera {step.delaySeconds}s
                 </div>
               </div>
               <Badge variant={step.failedRecipients > 0 ? "warning" : "success"}>
@@ -124,7 +124,7 @@ export function CampaignStepStatsPanel({
             </div>
             <div className="mt-3 grid grid-cols-4 gap-1.5">
               <MiniMetric label="ok" value={step.completedRecipients} />
-              <MiniMetric label="fail" value={step.failedRecipients} />
+              <MiniMetric label="falha" value={step.failedRecipients} />
               <MiniMetric label="atual" value={step.currentRecipients} />
               <MiniMetric label="eventos" value={step.eventsCount} />
             </div>
@@ -164,10 +164,10 @@ export function CampaignRecipientsVirtualTable({
       <div className="flex flex-wrap items-center justify-between gap-2 px-2 pb-2">
         <div>
           <div className="font-mono text-[0.62rem] uppercase tracking-widest text-fg-dim">
-            Recipients virtualizados
+            Destinatários virtualizados
           </div>
           <div className="mt-0.5 text-xs text-fg-muted">
-            {recipients.length} recipient(s) · {virtualItems.length} visíveis
+            {recipients.length} destinatário(s) · {virtualItems.length} visíveis
           </div>
         </div>
         <Badge variant="cyan">virtual</Badge>
@@ -180,7 +180,7 @@ export function CampaignRecipientsVirtualTable({
         data-visible-count={virtualItems.length}
         data-virtualized="true"
         role="region"
-        aria-label={`Recipients da campanha ${campaignId}`}
+        aria-label={`Destinatários da campanha ${campaignId}`}
         tabIndex={0}
         className="max-h-[26rem] overflow-y-auto rounded-md"
         style={{ height: Math.min(416, Math.max(156, recipients.length * 150)) }}
@@ -243,9 +243,9 @@ export function CampaignEvergreenPanel({
       </div>
       <div className="grid gap-1.5 sm:grid-cols-4">
         <MiniMetric label="contatos" value={summary?.contactsScanned ?? 0} />
-        <MiniMetric label="plan." value={summary?.recipientsPlanned ?? 0} />
+        <MiniMetric label="planej." value={summary?.recipientsPlanned ?? 0} />
         <MiniMetric label="criados" value={summary?.recipientsCreated ?? 0} />
-        <MiniMetric label="skip" value={summary?.recipientsSkipped ?? 0} />
+        <MiniMetric label="pulados" value={summary?.recipientsSkipped ?? 0} />
       </div>
     </div>
   );
@@ -269,7 +269,7 @@ export function CampaignAbVariantsPanel({
       <div className="flex flex-wrap items-center justify-between gap-2 px-2 pb-2">
         <div>
           <div className="font-mono text-[0.62rem] uppercase tracking-widest text-fg-dim">
-            A/B variants
+            Variantes A/B
           </div>
           <div className="mt-0.5 text-xs text-fg-muted">
             {abTest.variants.length} variante(s) · {abTest.totalAssigned} atribuídos ·{" "}
@@ -304,7 +304,7 @@ export function CampaignAbVariantsPanel({
             <div className="mt-3 grid grid-cols-4 gap-1.5">
               <MiniMetric label="atr." value={variant.assignedRecipients} />
               <MiniMetric label="ok" value={variant.completedRecipients} />
-              <MiniMetric label="fail" value={variant.failedRecipients} />
+              <MiniMetric label="falha" value={variant.failedRecipients} />
               <MiniMetric label="eventos" value={variant.eventsCount} />
             </div>
             <div className="mt-3 truncate font-mono text-[0.65rem] text-fg-dim">
@@ -343,7 +343,9 @@ function RecipientTimelineItem({
               {recipient.lastError ? ` · ${recipient.lastError}` : ""}
             </div>
           </div>
-          <Badge variant={recipientStatusVariant(recipient.status)}>{recipient.status}</Badge>
+          <Badge variant={recipientStatusVariant(recipient.status)}>
+            {recipientStatusLabel(recipient.status)}
+          </Badge>
         </div>
         {recipient.timeline.length > 0 ? (
           <ol className="mt-3 grid gap-1.5">
@@ -362,7 +364,7 @@ function RecipientTimelineItem({
                 <div className="flex flex-wrap items-center justify-end gap-1">
                   {navigationBadge(event.payload)}
                   <Badge variant={event.severity === "warn" ? "warning" : "neutral"}>
-                    {event.severity}
+                    {event.severity === "warn" ? "aviso" : event.severity}
                   </Badge>
                 </div>
               </li>
@@ -391,6 +393,16 @@ function recipientStatusVariant(status: string) {
   if (status === "skipped") return "warning";
   if (status === "running") return "info";
   return "neutral";
+}
+
+function recipientStatusLabel(status: string): string {
+  if (status === "queued") return "na fila";
+  if (status === "running") return "em execução";
+  if (status === "completed") return "concluído";
+  if (status === "failed") return "com falha";
+  if (status === "skipped") return "pulado";
+  if (status === "waiting") return "aguardando";
+  return status;
 }
 
 function eventTitle(type: string) {

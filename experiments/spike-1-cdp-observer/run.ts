@@ -208,9 +208,7 @@ function ensureDb(): Database.Database {
 
 async function findWhatsAppTarget() {
   const targets = await CDP.List({ host: HOST, port: PORT });
-  return targets.find(
-    (t) => t.type === "page" && WA_HOST_PATTERN.test(t.url)
-  );
+  return targets.find((t) => t.type === "page" && WA_HOST_PATTERN.test(t.url));
 }
 
 async function readOpenChatState(Runtime: CDP.Client["Runtime"]) {
@@ -255,7 +253,11 @@ async function scrollOpenChatToBottom(Runtime: CDP.Client["Runtime"]) {
   });
 }
 
-async function waitForMessageHydration(Runtime: CDP.Client["Runtime"], minCount: number, timeoutMs: number) {
+async function waitForMessageHydration(
+  Runtime: CDP.Client["Runtime"],
+  minCount: number,
+  timeoutMs: number,
+) {
   const startedAt = Date.now();
   let lastCount = 0;
   while (Date.now() - startedAt < timeoutMs) {
@@ -290,8 +292,10 @@ function findTimestampCandidates(text: string | null | undefined): string[] {
   const value = String(text || "");
   return Array.from(
     new Set(
-      value.match(/\b\d{1,2}:\d{2}:\d{2}\b|\b\d{1,2}:\d{2}\b|\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b/g) || []
-    )
+      value.match(
+        /\b\d{1,2}:\d{2}:\d{2}\b|\b\d{1,2}:\d{2}\b|\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b/g,
+      ) || [],
+    ),
   );
 }
 
@@ -300,15 +304,37 @@ function hasSecondPrecision(text: string | null | undefined): boolean {
 }
 
 async function dispatchEscape(Input: CDP.Client["Input"]) {
-  await Input.dispatchKeyEvent({ type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
-  await Input.dispatchKeyEvent({ type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+  await Input.dispatchKeyEvent({
+    type: "keyDown",
+    key: "Escape",
+    code: "Escape",
+    windowsVirtualKeyCode: 27,
+  });
+  await Input.dispatchKeyEvent({
+    type: "keyUp",
+    key: "Escape",
+    code: "Escape",
+    windowsVirtualKeyCode: 27,
+  });
 }
 
-async function clickPoint(Input: CDP.Client["Input"], x: number, y: number, button: "left" | "right" = "left") {
+async function clickPoint(
+  Input: CDP.Client["Input"],
+  x: number,
+  y: number,
+  button: "left" | "right" = "left",
+) {
   const buttons = button === "right" ? 2 : 1;
   await Input.dispatchMouseEvent({ type: "mouseMoved", x, y });
   await Input.dispatchMouseEvent({ type: "mousePressed", x, y, button, buttons, clickCount: 1 });
-  await Input.dispatchMouseEvent({ type: "mouseReleased", x, y, button, buttons: 0, clickCount: 1 });
+  await Input.dispatchMouseEvent({
+    type: "mouseReleased",
+    x,
+    y,
+    button,
+    buttons: 0,
+    clickCount: 1,
+  });
 }
 
 async function inspectMessageDetails(
@@ -321,7 +347,9 @@ async function inspectMessageDetails(
   });
   await sleep(350);
 
-  const base = await evaluateJson<DetailProbeResult & { rect?: { x: number; y: number; width: number; height: number } }>(
+  const base = await evaluateJson<
+    DetailProbeResult & { rect?: { x: number; y: number; width: number; height: number } }
+  >(
     Runtime,
     `(() => {
       const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
@@ -359,7 +387,7 @@ async function inspectMessageDetails(
         probeDirection,
         rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
       };
-    })()`
+    })()`,
   );
 
   if (!base.ok || !base.rect) {
@@ -371,7 +399,13 @@ async function inspectMessageDetails(
   await Input.dispatchMouseEvent({ type: "mouseMoved", x: centerX, y: centerY });
   await sleep(350);
 
-  const menuButton = await evaluateJson<{ ok: boolean; label?: string | null; reason?: string; x?: number; y?: number }>(
+  const menuButton = await evaluateJson<{
+    ok: boolean;
+    label?: string | null;
+    reason?: string;
+    x?: number;
+    y?: number;
+  }>(
     Runtime,
     `(() => {
       const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
@@ -404,7 +438,7 @@ async function inspectMessageDetails(
         x: Math.round(target.rect.x + target.rect.width / 2),
         y: Math.round(target.rect.y + target.rect.height / 2)
       };
-    })()`
+    })()`,
   );
 
   if (menuButton.ok && typeof menuButton.x === "number" && typeof menuButton.y === "number") {
@@ -415,7 +449,11 @@ async function inspectMessageDetails(
 
   await sleep(500);
 
-  const menuState = await evaluateJson<{ menuText: string | null; clicked: boolean; clickedText?: string | null }>(
+  const menuState = await evaluateJson<{
+    menuText: string | null;
+    clicked: boolean;
+    clickedText?: string | null;
+  }>(
     Runtime,
     `(() => {
       const normalize = (value) => String(value || '').replace(/\\s+/g, ' ').trim();
@@ -433,7 +471,7 @@ async function inspectMessageDetails(
       if (!target) return { menuText, clicked: false };
       target.el.click();
       return { menuText, clicked: true, clickedText: target.text };
-    })()`
+    })()`,
   );
 
   await sleep(menuState.clicked ? 900 : 250);
@@ -490,10 +528,12 @@ async function inspectMessageDetails(
         detailPanels,
         activeText: normalize(document.body.textContent).slice(0, 4000)
       };
-    })()`
+    })()`,
   );
 
-  const combined = [base.preText, base.bubbleText, menuState.menuText, detailState.detailText].filter(Boolean).join("\n");
+  const combined = [base.preText, base.bubbleText, menuState.menuText, detailState.detailText]
+    .filter(Boolean)
+    .join("\n");
   return {
     ok: true,
     stage: menuState.clicked ? "details-clicked" : "menu-opened-no-details-item",
@@ -553,7 +593,11 @@ async function main() {
     await Page.navigate({ url: targetUrl });
     const opened = await waitForOpenChat(Runtime, 20_000);
     await scrollOpenChatToBottom(Runtime);
-    const hydratedBubbles = await waitForMessageHydration(Runtime, INSPECT_DETAILS ? 5 : 1, INSPECT_DETAILS ? 8_000 : 2_000);
+    const hydratedBubbles = await waitForMessageHydration(
+      Runtime,
+      INSPECT_DETAILS ? 5 : 1,
+      INSPECT_DETAILS ? 8_000 : 2_000,
+    );
     log("info", "target chat open check", { ...opened, hydratedBubbles });
   }
 
@@ -619,14 +663,22 @@ async function main() {
     const probedAt = Date.now();
     const result = await inspectMessageDetails(Runtime, Input);
     const payloadJson = JSON.stringify(result);
-    jsonl.write(JSON.stringify({
-      type: "message-detail-probe",
-      payload: result,
-      ts: probedAt,
-      dbTs: Date.now(),
-      v: "spike-1-0.1.0",
-    }) + "\n");
-    insertObserverEvent.run("message-detail-probe", probedAt, Date.now(), payloadJson, "spike-1-0.1.0");
+    jsonl.write(
+      JSON.stringify({
+        type: "message-detail-probe",
+        payload: result,
+        ts: probedAt,
+        dbTs: Date.now(),
+        v: "spike-1-0.1.0",
+      }) + "\n",
+    );
+    insertObserverEvent.run(
+      "message-detail-probe",
+      probedAt,
+      Date.now(),
+      payloadJson,
+      "spike-1-0.1.0",
+    );
     insertLifecycle.run(probedAt, "message-detail-probe", payloadJson);
     insertDetailProbe.run({
       dataId: result.dataId ?? null,

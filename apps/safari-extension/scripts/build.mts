@@ -147,7 +147,9 @@ async function writeSummary(input: {
     safariExtensionVersion,
     source: path.relative(repoRoot, chromeDistDir),
     webExtensionDir: path.relative(repoRoot, webExtensionDir),
-    xcodeProjectPath: input.xcodeProjectPath ? path.relative(repoRoot, input.xcodeProjectPath) : null,
+    xcodeProjectPath: input.xcodeProjectPath
+      ? path.relative(repoRoot, input.xcodeProjectPath)
+      : null,
     manifestVersion: input.manifest.manifest_version,
     manifestName: input.manifest.name,
     manifestPackageVersion: input.manifest.version,
@@ -185,7 +187,9 @@ async function findXcodeProject(baseDir: string): Promise<string | null> {
     }
     const nestedDir = path.join(baseDir, entry.name);
     const nested = await fs.readdir(nestedDir, { withFileTypes: true }).catch(() => []);
-    const project = nested.find((nestedEntry) => nestedEntry.isDirectory() && nestedEntry.name.endsWith(".xcodeproj"));
+    const project = nested.find(
+      (nestedEntry) => nestedEntry.isDirectory() && nestedEntry.name.endsWith(".xcodeproj"),
+    );
     if (project) {
       return path.join(nestedDir, project.name);
     }

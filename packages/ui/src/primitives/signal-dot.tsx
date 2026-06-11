@@ -55,9 +55,7 @@ export const SignalDot = forwardRef<HTMLSpanElement, SignalDotProps>(
               : undefined
           }
           transition={
-            status === "active"
-              ? { duration: 1.8, repeat: Infinity, ease: "easeInOut" }
-              : undefined
+            status === "active" ? { duration: 1.8, repeat: Infinity, ease: "easeInOut" } : undefined
           }
         />
       </span>

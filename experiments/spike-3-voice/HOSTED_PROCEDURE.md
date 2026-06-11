@@ -129,11 +129,11 @@ Open `screenshots/` to see what the spike captured during send. Compare with the
 
 ## Decision tree
 
-| Result | Action |
-|---|---|
+| Result                                                  | Action                                                                                   |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | 3/3 native voice + 0ms duration error + matching SHA256 | Mark Spike 3 hosted **VERDE**, update `REPORT.md`, close ADR 0010 IC-1 acceptance for V2 |
-| 3/3 native voice but duration > 0ms drift | Investigate ffprobe inside container; do not regress |
-| Any sent as attachment | **STOP** — IC-1 broken in container. Investigate before V2 hosted launch |
+| 3/3 native voice but duration > 0ms drift               | Investigate ffprobe inside container; do not regress                                     |
+| Any sent as attachment                                  | **STOP** — IC-1 broken in container. Investigate before V2 hosted launch                 |
 
 ## Skill
 

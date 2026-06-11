@@ -57,7 +57,9 @@ const OperationsPage = lazy(() =>
   import("./pages/OperationsPage.js").then((module) => ({ default: module.OperationsPage })),
 );
 const ImplementationPage = lazy(() =>
-  import("./pages/ImplementationPage.js").then((module) => ({ default: module.ImplementationPage })),
+  import("./pages/ImplementationPage.js").then((module) => ({
+    default: module.ImplementationPage,
+  })),
 );
 const EvidencePage = lazy(() =>
   import("./pages/EvidencePage.js").then((module) => ({ default: module.EvidencePage })),

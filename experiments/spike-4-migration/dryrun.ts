@@ -3,7 +3,14 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import "./schema-v2-candidate.js";
-import { inspectV1, openReadOnly, OPERATIONAL_TABLES, REPORTS_DIR, type ReadSummary, type TableSummary } from "./read-v1.js";
+import {
+  inspectV1,
+  openReadOnly,
+  OPERATIONAL_TABLES,
+  REPORTS_DIR,
+  type ReadSummary,
+  type TableSummary,
+} from "./read-v1.js";
 
 const EXPERIMENT_ROOT = path.dirname(fileURLToPath(import.meta.url));
 
@@ -69,7 +76,7 @@ const CRITICAL_TABLES = new Set([
   "chatbots",
   "chatbot_rules",
   "media_assets",
-  "reminders"
+  "reminders",
 ]);
 
 function q(identifier: string) {
@@ -98,7 +105,7 @@ function loadReferenceSet(db: Database.Database, table: string) {
   return new Set(
     (db.prepare(`SELECT id FROM ${q(table)}`).all() as Array<{ id: string | null }>)
       .map((row) => row.id)
-      .filter((id): id is string => typeof id === "string" && id.length > 0)
+      .filter((id): id is string => typeof id === "string" && id.length > 0),
   );
 }
 
@@ -110,11 +117,16 @@ function loadReferenceSets(db: Database.Database): ReferenceSets {
     automations: loadReferenceSet(db, "automations"),
     campaigns: loadReferenceSet(db, "campaigns"),
     mediaAssets: loadReferenceSet(db, "media_assets"),
-    chatbots: loadReferenceSet(db, "chatbots")
+    chatbots: loadReferenceSet(db, "chatbots"),
   };
 }
 
-function transformRow(table: string, row: Record<string, unknown>, refs: ReferenceSets, warnings: Record<string, number>): TransformDecision {
+function transformRow(
+  table: string,
+  row: Record<string, unknown>,
+  refs: ReferenceSets,
+  warnings: Record<string, number>,
+): TransformDecision {
   if (table === "jobs") {
     const status = rowString(row, "status");
     if (status !== "pending" && status !== "processing") {
@@ -234,7 +246,11 @@ function transformRow(table: string, row: Record<string, unknown>, refs: Referen
   return { importable: true };
 }
 
-function collectWarnings(table: string, row: Record<string, unknown>, warnings: Record<string, number>) {
+function collectWarnings(
+  table: string,
+  row: Record<string, unknown>,
+  warnings: Record<string, number>,
+) {
   if (table === "messages" && !rowString(row, "external_id")) {
     increment(warnings, "messages-without-external-id");
   }
@@ -252,7 +268,11 @@ function collectWarnings(table: string, row: Record<string, unknown>, warnings: 
   }
 }
 
-function runTableDryRun(db: Database.Database, table: TableSummary, refs: ReferenceSets): DryRunTableResult {
+function runTableDryRun(
+  db: Database.Database,
+  table: TableSummary,
+  refs: ReferenceSets,
+): DryRunTableResult {
   if (!table.exists) {
     return {
       table: table.name,
@@ -261,7 +281,7 @@ function runTableDryRun(db: Database.Database, table: TableSummary, refs: Refere
       importableRows: 0,
       skippedRows: 0,
       skippedByReason: {},
-      warnings: {}
+      warnings: {},
     };
   }
 
@@ -271,7 +291,9 @@ function runTableDryRun(db: Database.Database, table: TableSummary, refs: Refere
   const skippedByReason: Record<string, number> = {};
   const warnings: Record<string, number> = {};
 
-  const rows = db.prepare(`SELECT * FROM ${q(table.name)}`).iterate() as Iterable<Record<string, unknown>>;
+  const rows = db.prepare(`SELECT * FROM ${q(table.name)}`).iterate() as Iterable<
+    Record<string, unknown>
+  >;
   for (const row of rows) {
     scannedRows += 1;
     collectWarnings(table.name, row, warnings);
@@ -291,7 +313,7 @@ function runTableDryRun(db: Database.Database, table: TableSummary, refs: Refere
     importableRows,
     skippedRows,
     skippedByReason,
-    warnings
+    warnings,
   };
 }
 
@@ -308,12 +330,16 @@ function buildDecisions(summary: ReadSummary, tables: DryRunTableResult[]) {
   const byName = new Map(tables.map((table) => [table.table, table]));
   const messageWarnings = byName.get("messages")?.warnings["messages-without-external-id"] ?? 0;
   if (messageWarnings > 0) {
-    decisions.push(`${messageWarnings} messages sem external_id: manter NULL permitido e confiar no reconcile V2 para dedupe futuro.`);
+    decisions.push(
+      `${messageWarnings} messages sem external_id: manter NULL permitido e confiar no reconcile V2 para dedupe futuro.`,
+    );
   }
 
   const contactsWithoutPhone = byName.get("contacts")?.warnings["contacts-without-phone"] ?? 0;
   if (contactsWithoutPhone > 0) {
-    decisions.push(`${contactsWithoutPhone} contacts sem phone: aceito. V2 permite phone NULL porque contatos podem existir só por Instagram.`);
+    decisions.push(
+      `${contactsWithoutPhone} contacts sem phone: aceito. V2 permite phone NULL porque contatos podem existir só por Instagram.`,
+    );
   }
 
   const orphanSkippedRows = tables.reduce(
@@ -322,48 +348,67 @@ function buildDecisions(summary: ReadSummary, tables: DryRunTableResult[]) {
       Object.entries(table.skippedByReason)
         .filter(([reason]) => reason.startsWith("orphan-"))
         .reduce((subtotal, [, count]) => subtotal + count, 0),
-    0
+    0,
   );
   if (orphanSkippedRows > 0) {
-    decisions.push(`${orphanSkippedRows} linhas dependentes de contatos/parents apagados serao puladas no import operacional.`);
+    decisions.push(
+      `${orphanSkippedRows} linhas dependentes de contatos/parents apagados serao puladas no import operacional.`,
+    );
   }
 
   const setNullWarnings = tables.reduce(
     (total, table) =>
       total +
       Object.entries(table.warnings)
-        .filter(([warning]) => warning.startsWith("set-null-orphan-") || warning.startsWith("drop-orphan-"))
+        .filter(
+          ([warning]) =>
+            warning.startsWith("set-null-orphan-") || warning.startsWith("drop-orphan-"),
+        )
         .reduce((subtotal, [, count]) => subtotal + count, 0),
-    0
+    0,
   );
   if (setNullWarnings > 0) {
-    decisions.push(`${setNullWarnings} referencias orfas serao preservadas com FK nula/removida, principalmente em recipients e audit_logs.`);
+    decisions.push(
+      `${setNullWarnings} referencias orfas serao preservadas com FK nula/removida, principalmente em recipients e audit_logs.`,
+    );
   }
 
   const campaignExecutions = byName.get("campaign_executions");
   if (campaignExecutions?.exists && campaignExecutions.scannedRows > 0) {
-    decisions.push(`${campaignExecutions.scannedRows} campaign_executions legacy: reconciliar com campaign_recipients antes de import final.`);
+    decisions.push(
+      `${campaignExecutions.scannedRows} campaign_executions legacy: reconciliar com campaign_recipients antes de import final.`,
+    );
   }
 
   const historicalOrphans = summary.tables
     .filter((table) => !CRITICAL_TABLES.has(table.name))
     .reduce((total, table) => total + tableOrphanCount(table), 0);
   if (historicalOrphans > 0) {
-    decisions.push(`${historicalOrphans} orphans em tabelas historicas/auditoria: preservar sem FK forte ou com FK nula, sem bloquear o import.`);
+    decisions.push(
+      `${historicalOrphans} orphans em tabelas historicas/auditoria: preservar sem FK forte ou com FK nula, sem bloquear o import.`,
+    );
   }
 
-  decisions.push("Etapa de estabilizacao V2 deve rodar resync geral para reconstruir estado operacional recente apos o import.");
+  decisions.push(
+    "Etapa de estabilizacao V2 deve rodar resync geral para reconstruir estado operacional recente apos o import.",
+  );
 
-  const missingOptional = summary.tables.filter((table) => !table.exists && !table.required).map((table) => table.name);
+  const missingOptional = summary.tables
+    .filter((table) => !table.exists && !table.required)
+    .map((table) => table.name);
   if (missingOptional.length > 0) {
-    decisions.push(`Tabelas opcionais ausentes (${missingOptional.join(", ")}): mapper deve tratar como zero linhas.`);
+    decisions.push(
+      `Tabelas opcionais ausentes (${missingOptional.join(", ")}): mapper deve tratar como zero linhas.`,
+    );
   }
 
   return decisions;
 }
 
 function classifyStatus(summary: ReadSummary) {
-  const missingRequired = summary.tables.filter((table) => table.required && !table.exists).map((table) => table.name);
+  const missingRequired = summary.tables
+    .filter((table) => table.required && !table.exists)
+    .map((table) => table.name);
   const invalidJson = summary.tables.reduce((total, table) => total + invalidJsonCount(table), 0);
 
   if (missingRequired.length > 0 || invalidJson > 0) {
@@ -391,8 +436,8 @@ function markdownReport(report: DryRunReport) {
         .filter((fk) => fk.orphanCount > 0)
         .map(
           (fk) =>
-            `| \`${fk.childTable}\` | \`${fk.parentTable}\` | ${fk.columns.map((column) => `${column.from}->${column.to}`).join(", ")} | ${formatNumber(fk.orphanCount)} |`
-        )
+            `| \`${fk.childTable}\` | \`${fk.parentTable}\` | ${fk.columns.map((column) => `${column.from}->${column.to}`).join(", ")} | ${formatNumber(fk.orphanCount)} |`,
+        ),
     )
     .join("\n");
 
@@ -409,7 +454,9 @@ function markdownReport(report: DryRunReport) {
     })
     .join("\n");
 
-  const decisionRows = report.decisions.map((decision) => `- ${decision}`).join("\n") || "- Nenhuma decisao pendente detectada.";
+  const decisionRows =
+    report.decisions.map((decision) => `- ${decision}`).join("\n") ||
+    "- Nenhuma decisao pendente detectada.";
 
   return `# Spike 4 — Migration dry-run V1 SQLite
 
@@ -481,7 +528,9 @@ async function main() {
       .filter((table) => CRITICAL_TABLES.has(table.name))
       .reduce((total, table) => total + tableOrphanCount(table), 0),
     invalidJsonCount: summary.tables.reduce((total, table) => total + invalidJsonCount(table), 0),
-    missingRequiredTables: summary.tables.filter((table) => table.required && !table.exists).map((table) => table.name)
+    missingRequiredTables: summary.tables
+      .filter((table) => table.required && !table.exists)
+      .map((table) => table.name),
   };
 
   const report: DryRunReport = {
@@ -491,11 +540,15 @@ async function main() {
     summary,
     tables,
     totals,
-    decisions: buildDecisions(summary, tables)
+    decisions: buildDecisions(summary, tables),
   };
 
   await fs.mkdir(REPORTS_DIR, { recursive: true });
-  await fs.writeFile(path.join(REPORTS_DIR, "dryrun.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
+  await fs.writeFile(
+    path.join(REPORTS_DIR, "dryrun.json"),
+    `${JSON.stringify(report, null, 2)}\n`,
+    "utf8",
+  );
   await fs.writeFile(path.join(EXPERIMENT_ROOT, "REPORT.md"), markdownReport(report), "utf8");
 
   console.log(`status=${report.status}`);

@@ -18,21 +18,21 @@ A proposta original ("greenfield com Bun + Hono + tRPC + Drizzle + Tailwind 4 + 
 
 Stack revisada (versão conservadora):
 
-| Camada | V1 atual | V2 proposto agora | Por quê |
-|---|---|---|---|
-| Runtime | Node 22 | **Node 22** (mantém) | Bun não resolve risco real |
-| HTTP | Fastify 5 | **Fastify 5** (mantém) | Já estável, sem ganho concreto em trocar |
-| DB driver | better-sqlite3 | **better-sqlite3** (mantém) | Mesma engine, sem migração |
-| Schema/queries | SQL puro | **Drizzle ORM** (validar via Spike 4) | Ganho real: type-safety + migrations versionadas — *gated* |
-| Validation | Zod | **Zod** (mantém) | — |
-| API contract | REST + Zod duplicado | **REST + Zod compartilhado em package** (default); tRPC só se Spike 4 mostrar drift recorrente como problema mensurável | Reduz mudança simultânea |
-| Frontend | React 19 + Vite 7 + Tailwind 3 + Radix + RR7 | **mesmo** (mantém) | Trocar sem motivo é AI slop |
-| Auth | (não tem) | **Argon2id + JWT cookie + refresh** (novo, mas sem herança a quebrar) | Necessário pra hosted |
-| Worker browser | Playwright puro | **Playwright + CDP híbrido** | CDP só pra observers/screencast; Playwright continua dono de navegação/ações |
-| Multi-user | (não tem) | **Schema com user_id desde dia 1** | Single-user inicial = `user_id=1` |
-| Streaming visual | (não tem) | **CDP `Page.startScreencast` → canvas via WS** (gated Spike 2) | Só se latência aceitável |
-| Real-time | Polling | **SSE Fastify + polling fallback** | Hono não foi escolhido |
-| Backup | (manual) | **S3 `nuoma-files/nuoma-wpp-v2/` daily, retain 30d** | — |
+| Camada           | V1 atual                                     | V2 proposto agora                                                                                                       | Por quê                                                                      |
+| ---------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Runtime          | Node 22                                      | **Node 22** (mantém)                                                                                                    | Bun não resolve risco real                                                   |
+| HTTP             | Fastify 5                                    | **Fastify 5** (mantém)                                                                                                  | Já estável, sem ganho concreto em trocar                                     |
+| DB driver        | better-sqlite3                               | **better-sqlite3** (mantém)                                                                                             | Mesma engine, sem migração                                                   |
+| Schema/queries   | SQL puro                                     | **Drizzle ORM** (validar via Spike 4)                                                                                   | Ganho real: type-safety + migrations versionadas — _gated_                   |
+| Validation       | Zod                                          | **Zod** (mantém)                                                                                                        | —                                                                            |
+| API contract     | REST + Zod duplicado                         | **REST + Zod compartilhado em package** (default); tRPC só se Spike 4 mostrar drift recorrente como problema mensurável | Reduz mudança simultânea                                                     |
+| Frontend         | React 19 + Vite 7 + Tailwind 3 + Radix + RR7 | **mesmo** (mantém)                                                                                                      | Trocar sem motivo é AI slop                                                  |
+| Auth             | (não tem)                                    | **Argon2id + JWT cookie + refresh** (novo, mas sem herança a quebrar)                                                   | Necessário pra hosted                                                        |
+| Worker browser   | Playwright puro                              | **Playwright + CDP híbrido**                                                                                            | CDP só pra observers/screencast; Playwright continua dono de navegação/ações |
+| Multi-user       | (não tem)                                    | **Schema com user_id desde dia 1**                                                                                      | Single-user inicial = `user_id=1`                                            |
+| Streaming visual | (não tem)                                    | **CDP `Page.startScreencast` → canvas via WS** (gated Spike 2)                                                          | Só se latência aceitável                                                     |
+| Real-time        | Polling                                      | **SSE Fastify + polling fallback**                                                                                      | Hono não foi escolhido                                                       |
+| Backup           | (manual)                                     | **S3 `nuoma-files/nuoma-wpp-v2/` daily, retain 30d**                                                                    | —                                                                            |
 
 ## Gate técnico — 4 spikes obrigatórios antes de criar `nuoma-wpp-v2/`
 
@@ -59,7 +59,7 @@ V2.1 Foundations**, porque Foundations nao executa envio produtivo; ele continua
 
 Crítica aceita: "multi-user precisa ser definido contra o WhatsApp real". Sessão WPP é **por número**, não por user. Decisão pré-V2:
 
-- **V2 inicial**: 1 número WPP, 1 sessão Chromium, **N atendentes humanos** (roles: admin, attendant, viewer) compartilhando a inbox. `user_id` em tabelas operacionais traceia *quem fez* (audit), não *de quem é o dado*.
+- **V2 inicial**: 1 número WPP, 1 sessão Chromium, **N atendentes humanos** (roles: admin, attendant, viewer) compartilhando a inbox. `user_id` em tabelas operacionais traceia _quem fez_ (audit), não _de quem é o dado_.
 - **V2 futuro (Fase 11+)**: multi-tenant real (cada cliente teu produto = um número WPP + uma sessão Chromium isolada). Esquema preparado mas **não implementado** até produto provar valor.
 - **Schema reflete os dois**: `tenant_id` opcional (default 1) + `user_id` NOT NULL. Permite escalar sem migration.
 

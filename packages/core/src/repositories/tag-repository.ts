@@ -21,7 +21,7 @@ function mapTag(row: Record<string, unknown>): TagRecord {
     active: Boolean(row.active ?? 1),
     contactCount: Number(row.contact_count ?? 0),
     createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at)
+    updatedAt: String(row.updated_at),
   };
 }
 
@@ -44,7 +44,7 @@ export function listTags() {
         LEFT JOIN contact_tags ct ON ct.tag_id = t.id
         GROUP BY t.id
         ORDER BY t.active DESC, t.type ASC, t.name ASC
-      `
+      `,
     )
     .all() as Array<Record<string, unknown>>;
   return rows.map(mapTag);
@@ -62,7 +62,7 @@ export function getTagById(tagId: string) {
         LEFT JOIN contact_tags ct ON ct.tag_id = t.id
         WHERE t.id = ?
         GROUP BY t.id
-      `
+      `,
     )
     .get(tagId) as Record<string, unknown> | undefined;
   return row ? mapTag(row) : null;
@@ -80,7 +80,7 @@ export function getTagByName(tagName: string) {
         LEFT JOIN contact_tags ct ON ct.tag_id = t.id
         WHERE t.normalized_name = ?
         GROUP BY t.id
-      `
+      `,
     )
     .get(normalizeTagName(tagName)) as Record<string, unknown> | undefined;
   return row ? mapTag(row) : null;
@@ -92,7 +92,9 @@ export function createTag(input: TagInput) {
   const id = randomUUID();
   assertUniqueNameConflict(input);
 
-  db.prepare("INSERT INTO tags (id, name, normalized_name, color, type, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(
+  db.prepare(
+    "INSERT INTO tags (id, name, normalized_name, color, type, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+  ).run(
     id,
     input.name.trim().replace(/\s+/g, " "),
     normalizeTagName(input.name),
@@ -100,7 +102,7 @@ export function createTag(input: TagInput) {
     input.type,
     input.active ? 1 : 0,
     timestamp,
-    timestamp
+    timestamp,
   );
 
   return getTagById(id);
@@ -111,14 +113,16 @@ export function updateTag(tagId: string, input: TagInput) {
   const timestamp = nowIso();
   assertUniqueNameConflict(input, tagId);
 
-  db.prepare("UPDATE tags SET name = ?, normalized_name = ?, color = ?, type = ?, active = ?, updated_at = ? WHERE id = ?").run(
+  db.prepare(
+    "UPDATE tags SET name = ?, normalized_name = ?, color = ?, type = ?, active = ?, updated_at = ? WHERE id = ?",
+  ).run(
     input.name.trim().replace(/\s+/g, " "),
     normalizeTagName(input.name),
     input.color,
     input.type,
     input.active ? 1 : 0,
     timestamp,
-    tagId
+    tagId,
   );
 
   return getTagById(tagId);
@@ -129,7 +133,10 @@ export function deleteTag(tagId: string) {
   db.prepare("DELETE FROM tags WHERE id = ?").run(tagId);
 }
 
-export function ensureTag(tagName: string, options?: { color?: string; type?: TagType; active?: boolean }) {
+export function ensureTag(
+  tagName: string,
+  options?: { color?: string; type?: TagType; active?: boolean },
+) {
   const existing = getTagByName(tagName);
   if (existing) {
     if (options?.active === true && !existing.active) {
@@ -138,7 +145,7 @@ export function ensureTag(tagName: string, options?: { color?: string; type?: Ta
           name: existing.name,
           color: options.color ?? existing.color,
           type: options.type ?? existing.type,
-          active: true
+          active: true,
         }) ?? existing
       );
     }
@@ -150,7 +157,7 @@ export function ensureTag(tagName: string, options?: { color?: string; type?: Ta
     name: tagName,
     color: options?.color ?? "#3ddc97",
     type: options?.type ?? "manual",
-    active: options?.active ?? true
+    active: options?.active ?? true,
   });
 
   if (!created) {

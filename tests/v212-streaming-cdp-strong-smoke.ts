@@ -29,7 +29,9 @@ interface DispatchResult {
 }
 
 async function main() {
-  const cdpPort = Number(process.env.API_STREAMING_CDP_PORT ?? process.env.CHROMIUM_CDP_PORT ?? 9223);
+  const cdpPort = Number(
+    process.env.API_STREAMING_CDP_PORT ?? process.env.CHROMIUM_CDP_PORT ?? 9223,
+  );
   const cdpHost = process.env.API_STREAMING_CDP_HOST ?? "127.0.0.1";
   const targetMatch = process.env.API_STREAMING_TARGET_URL_MATCH ?? "web.whatsapp.com";
   await assertCdpHasTarget(cdpHost, cdpPort, targetMatch);

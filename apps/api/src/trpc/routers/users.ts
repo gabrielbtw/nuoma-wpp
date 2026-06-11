@@ -35,30 +35,26 @@ export const usersRouter = router({
       return { user: user ? publicUser(user) : null };
     }),
 
-  create: adminCsrfProcedure
-    .input(createUserInputSchema)
-    .mutation(async ({ ctx, input }) => {
-      const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
-      const created = await ctx.repos.users.create({
-        email: input.email,
-        passwordHash,
-        role: input.role,
-        displayName: input.displayName ?? null,
-      });
-      return { user: publicUser(created) };
-    }),
+  create: adminCsrfProcedure.input(createUserInputSchema).mutation(async ({ ctx, input }) => {
+    const passwordHash = await argon2.hash(input.password, { type: argon2.argon2id });
+    const created = await ctx.repos.users.create({
+      email: input.email,
+      passwordHash,
+      role: input.role,
+      displayName: input.displayName ?? null,
+    });
+    return { user: publicUser(created) };
+  }),
 
-  update: adminCsrfProcedure
-    .input(updateUserInputSchema)
-    .mutation(async ({ ctx, input }) => {
-      const updated = await ctx.repos.users.update(input.id, {
-        email: input.email,
-        role: input.role,
-        displayName: input.displayName,
-        isActive: input.isActive,
-      });
-      return { user: updated ? publicUser(updated) : null };
-    }),
+  update: adminCsrfProcedure.input(updateUserInputSchema).mutation(async ({ ctx, input }) => {
+    const updated = await ctx.repos.users.update(input.id, {
+      email: input.email,
+      role: input.role,
+      displayName: input.displayName,
+      isActive: input.isActive,
+    });
+    return { user: updated ? publicUser(updated) : null };
+  }),
 
   deactivate: adminCsrfProcedure
     .input(z.object({ id: z.number().int().positive() }))

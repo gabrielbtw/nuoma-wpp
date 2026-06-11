@@ -24,19 +24,23 @@ function mapAttendant(row: Record<string, unknown>): AttendantRecord {
     xttsModelPath: (row.xtts_model_path as string | null) ?? null,
     status: String(row.status ?? "active") as AttendantStatus,
     createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at)
+    updatedAt: String(row.updated_at),
   };
 }
 
 export function listAttendants(): AttendantRecord[] {
   const db = getDb();
-  const rows = db.prepare("SELECT * FROM attendants ORDER BY name ASC").all() as Array<Record<string, unknown>>;
+  const rows = db.prepare("SELECT * FROM attendants ORDER BY name ASC").all() as Array<
+    Record<string, unknown>
+  >;
   return rows.map(mapAttendant);
 }
 
 export function getAttendantById(id: string): AttendantRecord | null {
   const db = getDb();
-  const row = db.prepare("SELECT * FROM attendants WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  const row = db.prepare("SELECT * FROM attendants WHERE id = ?").get(id) as
+    | Record<string, unknown>
+    | undefined;
   return row ? mapAttendant(row) : null;
 }
 
@@ -47,7 +51,7 @@ export function createAttendant(input: AttendantInput): AttendantRecord {
 
   db.prepare(
     `INSERT INTO attendants (id, name, voice_samples_json, xtts_model_path, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     input.name,
@@ -55,13 +59,16 @@ export function createAttendant(input: AttendantInput): AttendantRecord {
     input.xttsModelPath ?? null,
     input.status ?? "active",
     timestamp,
-    timestamp
+    timestamp,
   );
 
   return getAttendantById(id)!;
 }
 
-export function updateAttendant(id: string, input: Partial<AttendantInput>): AttendantRecord | null {
+export function updateAttendant(
+  id: string,
+  input: Partial<AttendantInput>,
+): AttendantRecord | null {
   const existing = getAttendantById(id);
   if (!existing) return null;
 
@@ -70,14 +77,14 @@ export function updateAttendant(id: string, input: Partial<AttendantInput>): Att
 
   db.prepare(
     `UPDATE attendants SET name = ?, voice_samples_json = ?, xtts_model_path = ?, status = ?, updated_at = ?
-     WHERE id = ?`
+     WHERE id = ?`,
   ).run(
     input.name ?? existing.name,
     JSON.stringify(input.voiceSamples ?? existing.voiceSamples),
     input.xttsModelPath !== undefined ? input.xttsModelPath : existing.xttsModelPath,
     input.status ?? existing.status,
     timestamp,
-    id
+    id,
   );
 
   return getAttendantById(id);
@@ -90,5 +97,9 @@ export function deleteAttendant(id: string): void {
 
 export function setAttendantStatus(id: string, status: AttendantStatus): void {
   const db = getDb();
-  db.prepare("UPDATE attendants SET status = ?, updated_at = ? WHERE id = ?").run(status, nowIso(), id);
+  db.prepare("UPDATE attendants SET status = ?, updated_at = ? WHERE id = ?").run(
+    status,
+    nowIso(),
+    id,
+  );
 }

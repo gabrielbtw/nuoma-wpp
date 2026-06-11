@@ -13,7 +13,9 @@ export function assertAttendantReady(attendantId: string) {
     throw new Error(`Atendente ${attendantId} não encontrado.`);
   }
   if (attendant.voiceSamples.length === 0) {
-    throw new Error(`Atendente "${attendant.name}" não possui amostras de voz. Envie ao menos uma amostra.`);
+    throw new Error(
+      `Atendente "${attendant.name}" não possui amostras de voz. Envie ao menos uma amostra.`,
+    );
   }
   return attendant;
 }

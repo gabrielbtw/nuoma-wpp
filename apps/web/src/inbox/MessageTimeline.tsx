@@ -208,8 +208,12 @@ export function MessageTimeline({
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
+      if (event.defaultPrevented) return;
       const target = event.target as HTMLElement | null;
       const isTypingTarget = isTimelineShortcutTarget(target);
+      if (isTypingTarget || conversationId == null) {
+        return;
+      }
       const isMod = event.metaKey || event.ctrlKey;
       if (isMod && event.key === "f" && conversationId != null) {
         event.preventDefault();
@@ -222,9 +226,6 @@ export function MessageTimeline({
         setSearchOpen(false);
         setSearch("");
         setSelectedMessage(null);
-        return;
-      }
-      if (isTypingTarget || conversationId == null) {
         return;
       }
       const activeMessage = selectedMessage ?? filtered.at(-1) ?? null;
@@ -344,16 +345,16 @@ export function MessageTimeline({
               <Search className="h-3.5 w-3.5" />
             </button>
             {onForceSync && (
-                <Button
-                  size="xs"
-                  variant="soft"
-                  loading={forceSyncing}
-                  leftIcon={<RefreshCw className="h-3 w-3" />}
-                  onClick={onForceSync}
-                  data-testid="timeline-force-sync"
-                >
-                  Ressincronizar
-                </Button>
+              <Button
+                size="xs"
+                variant="soft"
+                loading={forceSyncing}
+                leftIcon={<RefreshCw className="h-3 w-3" />}
+                onClick={onForceSync}
+                data-testid="timeline-force-sync"
+              >
+                Ressincronizar
+              </Button>
             )}
             {onForceHistorySync && (
               <>
@@ -607,15 +608,9 @@ function MessageBubble({
       className={cn("flex", outgoing ? "justify-end" : "justify-start")}
     >
       <motion.div
-        role="button"
-        tabIndex={0}
+        role="group"
+        aria-label={`Mensagem ${outgoing ? "enviada" : "recebida"} #${message.id}`}
         onClick={onSelect}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            onSelect();
-          }
-        }}
         whileHover={{ y: -1 }}
         transition={{ type: "spring", stiffness: 300, damping: 22 }}
         className={cn(
@@ -697,7 +692,9 @@ function MessageBubble({
             {message.contentType}
           </div>
         )}
-        {messageHasMedia(message) ? <MediaPreviewCard message={message} outgoing={outgoing} /> : null}
+        {messageHasMedia(message) ? (
+          <MediaPreviewCard message={message} outgoing={outgoing} />
+        ) : null}
         {message.body ? (
           <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
             {message.body}

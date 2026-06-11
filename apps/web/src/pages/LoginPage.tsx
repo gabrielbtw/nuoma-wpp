@@ -55,8 +55,8 @@ export function LoginPage() {
               Operação escura, limpa e pronta para rotina real.
             </h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-ink-base">
-              WhatsApp, Instagram e automações em uma cabine compacta, com foco em leitura,
-              resposta e evidência operacional.
+              WhatsApp, Instagram e automações em uma cabine compacta, com foco em leitura, resposta
+              e evidência operacional.
             </p>
           </div>
 

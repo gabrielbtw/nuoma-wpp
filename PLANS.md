@@ -15,6 +15,7 @@ Melhorar o projeto priorizando legibilidade, simplicidade e manutencao, com muda
 ## Resumo de prioridade
 
 ### Prioridade 0. Baseline ja concluido
+
 - [x] remover imports nao usados e simbolos mortos mais evidentes
 - [x] remover codigo morto obvio
 - [x] adicionar gate de higiene estatica
@@ -22,6 +23,7 @@ Melhorar o projeto priorizando legibilidade, simplicidade e manutencao, com muda
 - [x] consolidar duplicacoes pequenas e de baixo risco no frontend
 
 ### Prioridade 1. Refatoracao segura de consistencia
+
 Tipo: refatoracao segura
 Impacto tecnico: alto
 Risco: baixo
@@ -32,6 +34,7 @@ Risco: baixo
 - [ ] revisar nomes ambiguos de funcoes, variaveis e helpers locais
 
 ### Prioridade 2. Refatoracao segura de legibilidade
+
 Tipo: refatoracao segura
 Impacto tecnico: alto
 Risco: baixo a medio
@@ -42,6 +45,7 @@ Risco: baixo a medio
 - [ ] remover condicionais e ramificacoes desnecessarias onde a regra ja esta clara
 
 ### Prioridade 3. Dependencias e manutencao do workspace
+
 Tipo: refatoracao com cuidado
 Impacto tecnico: medio
 Risco: medio
@@ -52,6 +56,7 @@ Risco: medio
 - [ ] evitar substituir dependencias estaveis por novas bibliotecas
 
 ### Prioridade 4. Fronteiras e acoplamento entre camadas
+
 Tipo: refatoracao com cuidado
 Impacto tecnico: alto
 Risco: alto
@@ -62,6 +67,7 @@ Risco: alto
 - [ ] diminuir o numero de arquivos com responsabilidade excessiva
 
 ### Prioridade 5. Manutencao operacional e performance
+
 Tipo: refatoracao com cuidado
 Impacto tecnico: medio a alto
 Risco: medio a alto
@@ -72,6 +78,7 @@ Risco: medio a alto
 - [ ] atacar gargalos de manutencao antes de micro-otimizacoes de performance
 
 ### Prioridade 6. Documentacao e governanca
+
 Tipo: refatoracao segura
 Impacto tecnico: medio
 Risco: baixo
@@ -89,28 +96,28 @@ Risco: baixo
 ### Revisar com prioridade media
 
 - [ ] `pm2` duplicado entre raiz e `apps/scheduler`
-  Acao sugerida: avaliar centralizacao no workspace root ou encapsular o restart do worker em um ponto unico.
-  Observacao: exige cuidado porque o scheduler importa `pm2` em runtime.
+      Acao sugerida: avaliar centralizacao no workspace root ou encapsular o restart do worker em um ponto unico.
+      Observacao: exige cuidado porque o scheduler importa `pm2` em runtime.
 
 ### Revisar apenas quando o escopo abrir
 
 - [ ] superficie de dependencias do `data lake`
-  Acao sugerida: isolar melhor a trilha de `Whisper`, `Ollama` e `OpenAI` em fase dedicada.
-  Observacao: nao remover agora; depende de iniciativa separada.
+      Acao sugerida: isolar melhor a trilha de `Whisper`, `Ollama` e `OpenAI` em fase dedicada.
+      Observacao: nao remover agora; depende de iniciativa separada.
 
 ### Manter por enquanto
 
 - [ ] `@dnd-kit/*`
-  Motivo: ha uso direto no builder de campanhas; so revisar se o fluxo de edicao for simplificado.
+      Motivo: ha uso direto no builder de campanhas; so revisar se o fluxo de edicao for simplificado.
 
 - [ ] `@fastify/middie`
-  Motivo: hoje suporta o `vite` em `middlewareMode`; so substituir se o bootstrap do dev server mudar.
+      Motivo: hoje suporta o `vite` em `middlewareMode`; so substituir se o bootstrap do dev server mudar.
 
 - [ ] `csv-parse`
-  Motivo: continua sendo usado pelo fluxo de importacao CSV.
+      Motivo: continua sendo usado pelo fluxo de importacao CSV.
 
 - [ ] `playwright`
-  Motivo: dependencia estrutural do `wa-worker`; nao ha substituicao de baixo risco nesta arquitetura.
+      Motivo: dependencia estrutural do `wa-worker`; nao ha substituicao de baixo risco nesta arquitetura.
 
 ## Ordem ideal de execucao
 
@@ -124,6 +131,7 @@ Risco: baixo
 ## Plano em fases
 
 ### Fase 0. Baseline tecnico
+
 Tipo: refatoracao segura
 Impacto tecnico: alto
 Status: concluida
@@ -136,6 +144,7 @@ Status: concluida
 - [x] consolidar duplicacoes pequenas de exibicao no frontend
 
 ### Fase 1. Consistencia de dominio e contratos internos
+
 Tipo: refatoracao segura
 Impacto tecnico: alto
 Status: pendente
@@ -149,11 +158,13 @@ Status: pendente
 - [ ] validar `npm test`
 
 Resultado esperado:
+
 - menos drift entre camadas
 - leitura mais previsivel do dominio
 - menor custo de manutencao em ajustes simples
 
 ### Fase 2. Legibilidade e modularizacao local
+
 Tipo: refatoracao segura
 Impacto tecnico: alto
 Status: pendente
@@ -168,11 +179,13 @@ Status: pendente
 - [ ] validar `npm test`
 
 Resultado esperado:
+
 - arquivos menores
 - menor carga cognitiva
 - revisao de codigo mais simples
 
 ### Fase 3. Dependencias e ownership do workspace
+
 Tipo: refatoracao com cuidado
 Impacto tecnico: medio
 Status: pendente
@@ -186,11 +199,13 @@ Status: pendente
 - [ ] validar `npm test`
 
 Resultado esperado:
+
 - ownership mais claro das dependencias
 - menos ruido nos manifests
 - menos risco de drift entre runtime e workspace
 
 ### Fase 4. Fronteiras entre camadas
+
 Tipo: refatoracao com cuidado
 Impacto tecnico: alto
 Status: pendente
@@ -205,11 +220,13 @@ Status: pendente
 - [ ] validar `npm run build`
 
 Resultado esperado:
+
 - fronteiras mais claras
 - menor acoplamento
 - base mais segura para refactors futuros
 
 ### Fase 5. Manutencao operacional e performance
+
 Tipo: refatoracao com cuidado
 Impacto tecnico: medio a alto
 Status: pendente
@@ -223,11 +240,13 @@ Status: pendente
 - [ ] validar `npm test`
 
 Resultado esperado:
+
 - menor custo de operacao
 - menos comportamento surprendente em runtime
 - melhor previsibilidade para manutencao
 
 ### Fase 6. Documentacao e backlog continuo
+
 Tipo: refatoracao segura
 Impacto tecnico: medio
 Status: em andamento
@@ -243,6 +262,7 @@ Status: em andamento
 - [ ] revisar documentacao ao fim de cada fase concluida
 
 Resultado esperado:
+
 - execucao mais rastreavel
 - contexto compartilhado entre time tecnico e operacional
 - menor dependencia de conhecimento tacito

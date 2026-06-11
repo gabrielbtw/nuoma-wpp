@@ -53,7 +53,9 @@ export function DataTable<T>({
 
   if (rows.length === 0) {
     return (
-      <div className={cn("rounded-lg border border-line-hairline/40 bg-surface-deep/40", className)}>
+      <div
+        className={cn("rounded-lg border border-line-hairline/40 bg-surface-deep/40", className)}
+      >
         <EmptyState title={emptyTitle} description={emptyDescription} className="py-12" />
       </div>
     );

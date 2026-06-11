@@ -3,7 +3,16 @@ export type ConditionAction = "skip" | "exit" | "jump_to_step" | "wait" | null;
 
 export type CampaignStepDraft = {
   id?: string;
-  type: "text" | "audio" | "image" | "video" | "document" | "link" | "wait" | "ADD_TAG" | "REMOVE_TAG";
+  type:
+    | "text"
+    | "audio"
+    | "image"
+    | "video"
+    | "document"
+    | "link"
+    | "wait"
+    | "ADD_TAG"
+    | "REMOVE_TAG";
   content: string;
   mediaPath?: string | null;
   waitMinutes?: number | null;
@@ -55,7 +64,7 @@ export const campaignStatusOptions = [
   { value: "paused", label: "Pausada" },
   { value: "completed", label: "Concluida" },
   { value: "cancelled", label: "Cancelada" },
-  { value: "failed", label: "Com falha" }
+  { value: "failed", label: "Com falha" },
 ] as const;
 
 export const campaignStepOptions = [
@@ -66,22 +75,30 @@ export const campaignStepOptions = [
   { value: "document", label: "Documento", description: "Envio de PDF ou documento." },
   { value: "link", label: "Link", description: "Envio de link com texto descritivo." },
   { value: "wait", label: "Espera", description: "Pausa controlada antes da proxima etapa." },
-  { value: "ADD_TAG", label: "Adicionar tag", description: "Inclui uma tag no cadastro vinculado." },
-  { value: "REMOVE_TAG", label: "Remover tag", description: "Remove uma tag do cadastro vinculado." }
+  {
+    value: "ADD_TAG",
+    label: "Adicionar tag",
+    description: "Inclui uma tag no cadastro vinculado.",
+  },
+  {
+    value: "REMOVE_TAG",
+    label: "Remover tag",
+    description: "Remove uma tag do cadastro vinculado.",
+  },
 ] as const;
 
 export const conditionTypeOptions = [
   { value: "replied", label: "Se respondeu", description: "Contato respondeu alguma mensagem" },
   { value: "has_tag", label: "Se tem tag", description: "Contato possui uma tag especifica" },
   { value: "channel_is", label: "Se canal e", description: "Contato esta num canal especifico" },
-  { value: "outside_window", label: "Fora da janela", description: "Fora do horario de envio" }
+  { value: "outside_window", label: "Fora da janela", description: "Fora do horario de envio" },
 ] as const;
 
 export const conditionActionOptions = [
   { value: "skip", label: "Pular step", description: "Pula esta etapa e vai pra proxima" },
   { value: "exit", label: "Sair da campanha", description: "Remove o contato da campanha" },
   { value: "jump_to_step", label: "Ir para step", description: "Desvia para uma etapa especifica" },
-  { value: "wait", label: "Aguardar", description: "Aguarda ate a condicao mudar" }
+  { value: "wait", label: "Aguardar", description: "Aguarda ate a condicao mudar" },
 ] as const;
 
 export const emptyCampaignStep = (): CampaignStepDraft => ({
@@ -96,7 +113,7 @@ export const emptyCampaignStep = (): CampaignStepDraft => ({
   conditionType: null,
   conditionValue: null,
   conditionAction: null,
-  conditionJumpTo: null
+  conditionJumpTo: null,
 });
 
 export const emptyCampaignDraft = (): CampaignDraft => ({
@@ -114,7 +131,7 @@ export const emptyCampaignDraft = (): CampaignDraft => ({
   evergreenCriteria: {},
   steps: [emptyCampaignStep()],
   totalRecipients: 0,
-  processedRecipients: 0
+  processedRecipients: 0,
 });
 
 export function statusLabel(status: string) {
@@ -143,11 +160,14 @@ export function formatCampaignDateTime(value?: string | null) {
 
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
-    timeStyle: "short"
+    timeStyle: "short",
   }).format(new Date(value));
 }
 
-export function normalizeCampaignStepForType(step: CampaignStepDraft, type: CampaignStepDraft["type"]): CampaignStepDraft {
+export function normalizeCampaignStepForType(
+  step: CampaignStepDraft,
+  type: CampaignStepDraft["type"],
+): CampaignStepDraft {
   if (type === "wait") {
     return {
       ...step,
@@ -155,7 +175,7 @@ export function normalizeCampaignStepForType(step: CampaignStepDraft, type: Camp
       waitMinutes: step.waitMinutes ?? 5,
       mediaPath: null,
       caption: "",
-      tagName: null
+      tagName: null,
     };
   }
 
@@ -167,7 +187,7 @@ export function normalizeCampaignStepForType(step: CampaignStepDraft, type: Camp
       mediaPath: null,
       waitMinutes: null,
       caption: "",
-      tagName: step.tagName ?? ""
+      tagName: step.tagName ?? "",
     };
   }
 
@@ -177,7 +197,7 @@ export function normalizeCampaignStepForType(step: CampaignStepDraft, type: Camp
       type,
       waitMinutes: null,
       tagName: null,
-      mediaPath: null
+      mediaPath: null,
     };
   }
 
@@ -186,7 +206,7 @@ export function normalizeCampaignStepForType(step: CampaignStepDraft, type: Camp
     type,
     waitMinutes: null,
     tagName: null,
-    attendantId: type === "audio" ? (step.attendantId ?? null) : null
+    attendantId: type === "audio" ? (step.attendantId ?? null) : null,
   };
 }
 
@@ -198,16 +218,21 @@ export function normalizeCampaignDraft(draft: CampaignDraft): CampaignDraft {
       draft.steps.length > 0
         ? draft.steps.map((step) => {
             if (step.type === "wait" && step.waitMinutes == null) {
-              return { ...step, waitMinutes: 5, tagName: null, channelScope: step.channelScope ?? "any" };
+              return {
+                ...step,
+                waitMinutes: 5,
+                tagName: null,
+                channelScope: step.channelScope ?? "any",
+              };
             }
 
             return {
               ...step,
               tagName: step.tagName ?? null,
-              channelScope: step.channelScope ?? "any"
+              channelScope: step.channelScope ?? "any",
             };
           })
-        : [emptyCampaignStep()]
+        : [emptyCampaignStep()],
   };
 }
 

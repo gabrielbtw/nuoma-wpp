@@ -4,7 +4,7 @@ import type { ChannelAccountRecord, ChannelAccountStatus, ChannelType } from "..
 import {
   defaultChannelAccountDisplayName,
   defaultChannelAccountKey,
-  defaultChannelAccountStatus
+  defaultChannelAccountStatus,
 } from "../utils/channels.js";
 
 function nowIso() {
@@ -33,27 +33,31 @@ function mapChannelAccount(row: Record<string, unknown>): ChannelAccountRecord {
     status: String(row.status) as ChannelAccountStatus,
     metadata: parseJsonObject(row.metadata_json as string | null),
     createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at)
+    updatedAt: String(row.updated_at),
   };
 }
 
 export function listChannelAccounts() {
   const db = getDb();
-  const rows = db.prepare("SELECT * FROM channel_accounts ORDER BY type ASC, display_name ASC").all() as Array<Record<string, unknown>>;
+  const rows = db
+    .prepare("SELECT * FROM channel_accounts ORDER BY type ASC, display_name ASC")
+    .all() as Array<Record<string, unknown>>;
   return rows.map(mapChannelAccount);
 }
 
 export function getChannelAccountById(channelAccountId: string) {
   const db = getDb();
-  const row = db.prepare("SELECT * FROM channel_accounts WHERE id = ?").get(channelAccountId) as Record<string, unknown> | undefined;
+  const row = db.prepare("SELECT * FROM channel_accounts WHERE id = ?").get(channelAccountId) as
+    | Record<string, unknown>
+    | undefined;
   return row ? mapChannelAccount(row) : null;
 }
 
 export function getChannelAccountByKey(type: ChannelType, accountKey: string) {
   const db = getDb();
-  const row = db.prepare("SELECT * FROM channel_accounts WHERE type = ? AND account_key = ?").get(type, accountKey) as
-    | Record<string, unknown>
-    | undefined;
+  const row = db
+    .prepare("SELECT * FROM channel_accounts WHERE type = ? AND account_key = ?")
+    .get(type, accountKey) as Record<string, unknown> | undefined;
   return row ? mapChannelAccount(row) : null;
 }
 
@@ -65,7 +69,10 @@ export function ensureChannelAccount(input: {
   status?: ChannelAccountStatus;
   metadata?: Record<string, unknown>;
 }) {
-  const existing = getChannelAccountByKey(input.type, input.accountKey ?? defaultChannelAccountKey(input.type));
+  const existing = getChannelAccountByKey(
+    input.type,
+    input.accountKey ?? defaultChannelAccountKey(input.type),
+  );
   if (existing) {
     return existing;
   }
@@ -77,7 +84,7 @@ export function ensureChannelAccount(input: {
     `
       INSERT INTO channel_accounts (id, type, provider, account_key, display_name, status, metadata_json, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `
+    `,
   ).run(
     id,
     input.type,
@@ -87,7 +94,7 @@ export function ensureChannelAccount(input: {
     input.status ?? defaultChannelAccountStatus(input.type),
     JSON.stringify(input.metadata ?? {}),
     timestamp,
-    timestamp
+    timestamp,
   );
 
   return getChannelAccountById(id);
@@ -102,8 +109,8 @@ export function ensureDefaultChannelAccounts() {
       displayName: defaultChannelAccountDisplayName("whatsapp"),
       status: defaultChannelAccountStatus("whatsapp"),
       metadata: {
-        workerKey: "wa-worker"
-      }
+        workerKey: "wa-worker",
+      },
     }),
     instagram: ensureChannelAccount({
       type: "instagram",
@@ -112,8 +119,8 @@ export function ensureDefaultChannelAccounts() {
       displayName: defaultChannelAccountDisplayName("instagram"),
       status: defaultChannelAccountStatus("instagram"),
       metadata: {
-        mode: "assisted"
-      }
-    })
+        mode: "assisted",
+      },
+    }),
   };
 }

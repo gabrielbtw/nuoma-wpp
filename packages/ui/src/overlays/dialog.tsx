@@ -18,9 +18,7 @@ export const DialogContent = forwardRef<
   }
 >(({ className, children, showClose = true, ...props }, ref) => (
   <RadixDialog.Portal>
-    <RadixDialog.Overlay
-      className="fixed inset-0 z-overlay bg-surface-deep/80 data-[state=open]:animate-in data-[state=closed]:animate-out"
-    />
+    <RadixDialog.Overlay className="fixed inset-0 z-overlay bg-surface-deep/80 data-[state=open]:animate-in data-[state=closed]:animate-out" />
     <RadixDialog.Content
       ref={ref}
       className={cn(

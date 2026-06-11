@@ -8,6 +8,11 @@ Aceita. **Contratos não-negociáveis**.
 
 Usuário declarou explicitamente que dois aspectos do V1 estão "PERFEITOS" e não podem regredir:
 
+> Nota Fase 2: `apps/wa-worker` é referencia historica de `legacy-maintenance`.
+> A implementacao e a validacao operacional atuais devem mirar a stack canonica
+> `apps/worker`, com sessao/CDP/PM2 revisados por `worker-runtime` e
+> `platform-workspace`.
+
 1. **Áudio (voice recording)**: implementação atual em [`apps/wa-worker/src/worker.ts:1474+`](../../apps/wa-worker/src/worker.ts) usando Web Audio API injection + ffprobe pra duração + WAV 48kHz mono 16-bit. Resultado: voice messages aparecem no WhatsApp como **voice nativas**, não como anexo de áudio. Resolvida nos commits `25c075c` e `73d4322`.
 2. **Multi-step sender**: otimização que evita `goto()`/click no chat entre steps consecutivos do mesmo destinatário. Resolvida no commit `910615f` ("speed up photo send after audio - skip re-navigation").
 

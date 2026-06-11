@@ -521,7 +521,10 @@ describe("WhatsApp observer script", () => {
       const summary = await page.evaluate(() => {
         return (
           globalThis as unknown as {
-            __nuomaSyncReconcile: (reason: string, details: Record<string, unknown>) => {
+            __nuomaSyncReconcile: (
+              reason: string,
+              details: Record<string, unknown>,
+            ) => {
               lastExternalId: string | null;
               visibleExternalIds: string[];
             };
@@ -544,8 +547,7 @@ describe("WhatsApp observer script", () => {
     expect(
       events.some(
         (event) =>
-          isMessageEvent(event) &&
-          event.message.externalId.startsWith("grouped-sticker--"),
+          isMessageEvent(event) && event.message.externalId.startsWith("grouped-sticker--"),
       ),
     ).toBe(false);
   }, 30_000);
@@ -728,8 +730,7 @@ describe("WhatsApp observer script", () => {
     expect(
       events.some(
         (event) =>
-          isMessageEvent(event) &&
-          event.message.externalId === "false_5531982066263@c.us_OLD1",
+          isMessageEvent(event) && event.message.externalId === "false_5531982066263@c.us_OLD1",
       ),
     ).toBe(true);
   }, 30_000);

@@ -13,7 +13,10 @@ export function parseJsonObject(input: string | null | undefined): Record<string
   }
 }
 
-export function parseJsonArray<T = string>(input: string | null | undefined, fallback: T[] = []): T[] {
+export function parseJsonArray<T = string>(
+  input: string | null | undefined,
+  fallback: T[] = [],
+): T[] {
   if (!input) return fallback;
   try {
     const parsed = JSON.parse(input);

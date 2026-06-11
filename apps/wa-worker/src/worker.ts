@@ -36,17 +36,25 @@ import {
   setWorkerState,
   updateMessageStatus,
   upsertConversation,
-  getConversationByChatId
+  getConversationByChatId,
 } from "@nuoma/core";
 
-type WorkerStatus = "starting" | "authenticated" | "disconnected" | "restarting" | "degraded" | "error";
+type WorkerStatus =
+  | "starting"
+  | "authenticated"
+  | "disconnected"
+  | "restarting"
+  | "degraded"
+  | "error";
 
 function nowIso() {
   return new Date().toISOString();
 }
 
 /** Maps send job content types to message storage content types */
-function toMessageContentType(ct: string): "text" | "audio" | "image" | "video" | "file" | "summary" {
+function toMessageContentType(
+  ct: string,
+): "text" | "audio" | "image" | "video" | "file" | "summary" {
   if (ct === "document") return "file";
   if (ct === "link") return "text";
   return ct as "text" | "audio" | "image" | "video";
@@ -64,7 +72,8 @@ function rssMb() {
 }
 
 function classifyError(error: unknown) {
-  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  const message =
+    error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
 
   if (message.includes("locator") || message.includes("timeout")) {
     return "locator_failure";
@@ -75,7 +84,11 @@ function classifyError(error: unknown) {
   if (message.includes("upload") || message.includes("file")) {
     return "upload_failure";
   }
-  if (message.includes("voice_conversion") || message.includes("xtts") || message.includes("synthesis failed")) {
+  if (
+    message.includes("voice_conversion") ||
+    message.includes("xtts") ||
+    message.includes("synthesis failed")
+  ) {
     return "voice_conversion_failure";
   }
   if (message.includes("browser") || message.includes("target closed")) {
@@ -85,7 +98,8 @@ function classifyError(error: unknown) {
 }
 
 function shouldDeactivateInstagramChannel(error: unknown) {
-  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  const message =
+    error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
   return (
     message.includes("nao esta disponivel") ||
     message.includes("usuario nao encontrado") ||
@@ -160,15 +174,20 @@ type VisibleBubble = {
 };
 
 function sanitizeFileName(input: string) {
-  return input
-    .normalize("NFKD")
-    .replace(/[^\w.\-]+/g, "-")
-    .replace(/-{2,}/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 120) || "attachment";
+  return (
+    input
+      .normalize("NFKD")
+      .replace(/[^\w.\-]+/g, "-")
+      .replace(/-{2,}/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 120) || "attachment"
+  );
 }
 
-function mimeForVisibleAttachment(contentType: VisibleAttachmentCandidate["contentType"], sourceUrl: string | null) {
+function mimeForVisibleAttachment(
+  contentType: VisibleAttachmentCandidate["contentType"],
+  sourceUrl: string | null,
+) {
   const lower = (sourceUrl ?? "").toLowerCase();
   if (contentType === "image") {
     if (lower.includes(".webp")) return "image/webp";
@@ -221,17 +240,21 @@ function buildVisibleAttachmentCandidate(input: {
   const sourceUrl = normalizeVisibleSourceUrl(input.sourceUrl);
   const mimeType = mimeForVisibleAttachment(input.contentType, sourceUrl);
   const sha256 = createHash("sha256")
-    .update(JSON.stringify({
-      body: input.body.slice(0, 240),
-      contentType: input.contentType,
-      direction: input.direction,
-      fileName: input.fileName ?? "",
-      preText: input.preText ?? "",
-      sourceUrl: sourceUrl ?? ""
-    }))
+    .update(
+      JSON.stringify({
+        body: input.body.slice(0, 240),
+        contentType: input.contentType,
+        direction: input.direction,
+        fileName: input.fileName ?? "",
+        preText: input.preText ?? "",
+        sourceUrl: sourceUrl ?? "",
+      }),
+    )
     .digest("hex");
   const extension = extensionForMime(mimeType);
-  const originalName = sanitizeFileName(input.fileName ?? `${input.contentType}-${sha256.slice(0, 12)}.${extension}`);
+  const originalName = sanitizeFileName(
+    input.fileName ?? `${input.contentType}-${sha256.slice(0, 12)}.${extension}`,
+  );
   const safeName = sanitizeFileName(originalName);
 
   return {
@@ -249,8 +272,8 @@ function buildVisibleAttachmentCandidate(input: {
       source: "wa-dom-visible",
       direction: input.direction,
       preText: input.preText,
-      hasSourceUrl: Boolean(sourceUrl)
-    }
+      hasSourceUrl: Boolean(sourceUrl),
+    },
   } satisfies VisibleAttachmentCandidate;
 }
 
@@ -276,7 +299,8 @@ export class WhatsAppWorker {
    * true so the walk aborts at its next safe checkpoint, freeing the browser.
    */
   private syncCancelToken: { cancelled: boolean } | null = null;
-  private pendingBackfill: Array<{ title: string; phone: string | null; conversationId: string }> = [];
+  private pendingBackfill: Array<{ title: string; phone: string | null; conversationId: string }> =
+    [];
   private sessionManifestCache = "";
   private state: {
     status: WorkerStatus;
@@ -299,7 +323,7 @@ export class WhatsAppWorker {
     lastFailureSummary: null,
     lastErrorType: null,
     consecutiveFailures: 0,
-    memoryMb: rssMb()
+    memoryMb: rssMb(),
   };
 
   async start() {
@@ -308,8 +332,11 @@ export class WhatsAppWorker {
     await this.launchBrowser();
     await this.refreshAuthState();
     await this.refreshInstagramSessionState({
-      openPage: this.env.IG_ENABLE_INBOX_SYNC && this.env.IG_USE_SHARED_BROWSER && this.env.IG_OPEN_ON_STARTUP,
-      reason: "startup"
+      openPage:
+        this.env.IG_ENABLE_INBOX_SYNC &&
+        this.env.IG_USE_SHARED_BROWSER &&
+        this.env.IG_OPEN_ON_STARTUP,
+      reason: "startup",
     });
     await this.focusPreferredStartupTab();
 
@@ -320,7 +347,7 @@ export class WhatsAppWorker {
         if (this.env.IG_ENABLE_INBOX_SYNC) {
           await this.refreshInstagramSessionState({
             openPage: false,
-            reason: "heartbeat"
+            reason: "heartbeat",
           });
         }
         await this.restartIfNeeded();
@@ -360,7 +387,12 @@ export class WhatsAppWorker {
   }
 
   async stop() {
-    for (const timer of [this.heartbeatTimer, this.syncTimer, this.instagramSyncTimer, this.jobTimer]) {
+    for (const timer of [
+      this.heartbeatTimer,
+      this.syncTimer,
+      this.instagramSyncTimer,
+      this.jobTimer,
+    ]) {
       if (timer) {
         clearInterval(timer);
       }
@@ -387,7 +419,7 @@ export class WhatsAppWorker {
         this.logger.warn({ label, message }, "SQLite busy during worker loop");
         recordSystemEvent("wa-worker", "warn", "SQLite busy during worker loop", {
           label,
-          message
+          message,
         });
         return;
       }
@@ -395,14 +427,14 @@ export class WhatsAppWorker {
       this.logger.error({ label, err: error }, "Unexpected worker loop failure");
       recordSystemEvent("wa-worker", "error", "Unexpected worker loop failure", {
         label,
-        message
+        message,
       });
     }
   }
 
   private async launchBrowser(audioCapturePath?: string | null) {
     this.updateState({
-      status: "starting"
+      status: "starting",
     });
 
     const existingManifest = await this.readSessionManifest();
@@ -424,14 +456,18 @@ export class WhatsAppWorker {
       "--window-size=1512,920",
       "--force-device-scale-factor=1",
       `--remote-debugging-address=${this.env.CHROMIUM_CDP_HOST}`,
-      `--remote-debugging-port=${this.env.CHROMIUM_CDP_PORT}`
+      `--remote-debugging-port=${this.env.CHROMIUM_CDP_PORT}`,
     ];
 
     if (audioCapturePath === "__fake_mic_only__") {
       // Auto-accept mic permission + fake device (no file) — audio injected via JS getUserMedia override
       extraArgs.push("--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream");
     } else if (audioCapturePath) {
-      extraArgs.push("--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", `--use-file-for-fake-audio-capture=${audioCapturePath}`);
+      extraArgs.push(
+        "--use-fake-ui-for-media-stream",
+        "--use-fake-device-for-media-stream",
+        `--use-file-for-fake-audio-capture=${audioCapturePath}`,
+      );
     }
 
     this.context = await chromium.launchPersistentContext(this.env.CHROMIUM_PROFILE_DIR, {
@@ -440,22 +476,24 @@ export class WhatsAppWorker {
       slowMo: this.env.PLAYWRIGHT_SLOW_MO,
       viewport: null,
       permissions: audioCapturePath ? ["microphone"] : [],
-      args: extraArgs
+      args: extraArgs,
     });
-    await this.context.grantPermissions(["microphone"], {
-      origin: this.env.WA_URL
-    }).catch(() => null);
+    await this.context
+      .grantPermissions(["microphone"], {
+        origin: this.env.WA_URL,
+      })
+      .catch(() => null);
 
     this.page = this.context.pages()[0] ?? (await this.context.newPage());
     await this.page.goto(this.env.WA_URL, {
-      waitUntil: "domcontentloaded"
+      waitUntil: "domcontentloaded",
     });
     await this.ensureWorkspaceTabs();
     await this.persistSessionManifest().catch(() => null);
 
     recordSystemEvent("wa-worker", "info", "Chromium context launched", {
       profileDir: this.env.CHROMIUM_PROFILE_DIR,
-      sessionKey: this.browserSessionKey
+      sessionKey: this.browserSessionKey,
     });
   }
 
@@ -466,8 +504,11 @@ export class WhatsAppWorker {
     // to minimize delay between browser launch and mic click (timing-critical)
     if (!audioCapturePath) {
       await this.refreshInstagramSessionState({
-        openPage: this.env.IG_ENABLE_INBOX_SYNC && this.env.IG_USE_SHARED_BROWSER && this.env.IG_OPEN_ON_STARTUP,
-        reason: "relaunch"
+        openPage:
+          this.env.IG_ENABLE_INBOX_SYNC &&
+          this.env.IG_USE_SHARED_BROWSER &&
+          this.env.IG_OPEN_ON_STARTUP,
+        reason: "relaunch",
       });
     }
     await this.focusPreferredStartupTab();
@@ -478,7 +519,7 @@ export class WhatsAppWorker {
     this.state = {
       ...this.state,
       ...partial,
-      memoryMb: rssMb()
+      memoryMb: rssMb(),
     };
   }
 
@@ -494,10 +535,10 @@ export class WhatsAppWorker {
       browserTabs: {
         whatsapp: this.page?.url() ?? null,
         instagram: this.instagramPage?.url() ?? null,
-        webapp: this.webAppPage?.url() ?? null
+        webapp: this.webAppPage?.url() ?? null,
       },
       updatedAt: nowIso(),
-      ...extra
+      ...extra,
     });
   }
 
@@ -511,7 +552,8 @@ export class WhatsAppWorker {
       return configured;
     }
 
-    const host = this.env.APP_HOST && this.env.APP_HOST !== "0.0.0.0" ? this.env.APP_HOST : "127.0.0.1";
+    const host =
+      this.env.APP_HOST && this.env.APP_HOST !== "0.0.0.0" ? this.env.APP_HOST : "127.0.0.1";
     return `http://${host}:${this.env.APP_PORT}`;
   }
 
@@ -540,8 +582,13 @@ export class WhatsAppWorker {
     return (
       this.context
         .pages()
-        .find((candidate) => candidate !== this.page && candidate !== this.instagramPage && !candidate.isClosed() && this.resolveOrigin(candidate.url()) === webAppOrigin) ??
-      null
+        .find(
+          (candidate) =>
+            candidate !== this.page &&
+            candidate !== this.instagramPage &&
+            !candidate.isClosed() &&
+            this.resolveOrigin(candidate.url()) === webAppOrigin,
+        ) ?? null
     );
   }
 
@@ -553,7 +600,12 @@ export class WhatsAppWorker {
     try {
       const raw = await fs.readFile(this.getSessionManifestPath(), "utf8");
       const parsed = JSON.parse(raw) as Partial<BrowserSessionManifest>;
-      if (!parsed || typeof parsed !== "object" || typeof parsed.sessionKey !== "string" || !parsed.sessionKey.trim()) {
+      if (
+        !parsed ||
+        typeof parsed !== "object" ||
+        typeof parsed.sessionKey !== "string" ||
+        !parsed.sessionKey.trim()
+      ) {
         return null;
       }
 
@@ -577,30 +629,30 @@ export class WhatsAppWorker {
       tabs: [
         {
           role: "whatsapp",
-          url: this.page?.url() ?? null
+          url: this.page?.url() ?? null,
         },
         {
           role: "instagram",
-          url: this.instagramPage?.url() ?? null
+          url: this.instagramPage?.url() ?? null,
         },
         {
           role: "webapp",
-          url: this.webAppPage?.url() ?? null
-        }
+          url: this.webAppPage?.url() ?? null,
+        },
       ],
       whatsapp: {
         status: this.state.authStatus,
         sessionPhone: this.state.sessionPhone,
         pageUrl: this.page?.url() ?? null,
-        lastCheckedAt: this.state.lastActivityAt
+        lastCheckedAt: this.state.lastActivityAt,
       },
       instagram: {
         status: instagramState.status,
         authenticated: instagramState.authenticated,
         username: instagramState.username ?? null,
         pageUrl: this.instagramPage?.url() ?? instagramState.pageUrl ?? null,
-        lastCheckedAt: instagramState.lastCheckedAt ?? null
-      }
+        lastCheckedAt: instagramState.lastCheckedAt ?? null,
+      },
     };
   }
 
@@ -623,14 +675,18 @@ export class WhatsAppWorker {
     }
 
     if (this.env.WEB_APP_OPEN_ON_STARTUP) {
-      const existingWebAppPage = this.isPageOpen(this.webAppPage) ? this.webAppPage : this.resolveWebAppPage();
+      const existingWebAppPage = this.isPageOpen(this.webAppPage)
+        ? this.webAppPage
+        : this.resolveWebAppPage();
       if (existingWebAppPage) {
         this.webAppPage = existingWebAppPage;
       } else {
         const webAppPage = await this.context.newPage();
-        await webAppPage.goto(this.resolveWebAppUrl(), {
-          waitUntil: "domcontentloaded"
-        }).catch(() => null);
+        await webAppPage
+          .goto(this.resolveWebAppUrl(), {
+            waitUntil: "domcontentloaded",
+          })
+          .catch(() => null);
         this.webAppPage = webAppPage;
       }
     } else {
@@ -671,7 +727,9 @@ export class WhatsAppWorker {
       mode: "browser",
       status: "assisted",
       authenticated: false,
-      profileDir: this.env.IG_USE_SHARED_BROWSER ? this.env.CHROMIUM_PROFILE_DIR : this.env.IG_CHROMIUM_PROFILE_DIR,
+      profileDir: this.env.IG_USE_SHARED_BROWSER
+        ? this.env.CHROMIUM_PROFILE_DIR
+        : this.env.IG_CHROMIUM_PROFILE_DIR,
       username: null,
       lastSyncAt: null,
       threadCount: 0,
@@ -680,7 +738,7 @@ export class WhatsAppWorker {
       sharedBrowser: this.env.IG_USE_SHARED_BROWSER,
       browserEndpoint: this.env.IG_USE_SHARED_BROWSER ? this.buildCdpEndpoint() : null,
       pageUrl: null,
-      lastCheckedAt: null
+      lastCheckedAt: null,
     };
 
     if (!stored?.value || typeof stored.value !== "object") {
@@ -689,7 +747,7 @@ export class WhatsAppWorker {
 
     return {
       ...fallback,
-      ...(stored.value as Partial<InstagramAssistedSessionState>)
+      ...(stored.value as Partial<InstagramAssistedSessionState>),
     };
   }
 
@@ -700,14 +758,21 @@ export class WhatsAppWorker {
 
     const pages = this.context.pages();
     return (
-      pages.find((candidate) => candidate !== this.page && candidate.url().includes("instagram.com/direct/")) ??
-      pages.find((candidate) => candidate !== this.page && candidate.url().includes("instagram.com")) ??
+      pages.find(
+        (candidate) => candidate !== this.page && candidate.url().includes("instagram.com/direct/"),
+      ) ??
+      pages.find(
+        (candidate) => candidate !== this.page && candidate.url().includes("instagram.com"),
+      ) ??
       null
     );
   }
 
   private async ensureInstagramPage(openPage: boolean) {
-    const existingPage = this.instagramPage && !this.instagramPage.isClosed() ? this.instagramPage : this.resolveInstagramPage();
+    const existingPage =
+      this.instagramPage && !this.instagramPage.isClosed()
+        ? this.instagramPage
+        : this.resolveInstagramPage();
     if (existingPage) {
       this.instagramPage = existingPage;
       return existingPage;
@@ -720,7 +785,7 @@ export class WhatsAppWorker {
 
     const page = await this.context.newPage();
     await page.goto(this.env.IG_URL, {
-      waitUntil: "domcontentloaded"
+      waitUntil: "domcontentloaded",
     });
     await page.waitForTimeout(1200);
     this.instagramPage = page;
@@ -729,14 +794,25 @@ export class WhatsAppWorker {
   }
 
   private async detectInstagramAuthenticated(page: Page) {
-    const loginFieldCount = await page.locator("input[name='username']").count().catch(() => 0);
+    const loginFieldCount = await page
+      .locator("input[name='username']")
+      .count()
+      .catch(() => 0);
     return loginFieldCount === 0 && !page.url().includes("/accounts/login");
   }
 
   private async detectInstagramUsername(page: Page) {
     try {
       const username = await page.evaluate(() => {
-        const blockedRoots = new Set(["accounts", "direct", "explore", "reels", "stories", "about", "legal"]);
+        const blockedRoots = new Set([
+          "accounts",
+          "direct",
+          "explore",
+          "reels",
+          "stories",
+          "about",
+          "legal",
+        ]);
         const normalizeCandidate = (value?: string | null) => {
           const normalized = String(value ?? "")
             .replace(/^@+/, "")
@@ -753,7 +829,9 @@ export class WhatsAppWorker {
 
         const browserGlobal = globalThis as unknown as {
           document?: {
-            querySelectorAll(selector: string): Iterable<{ getAttribute(name: string): string | null }>;
+            querySelectorAll(
+              selector: string,
+            ): Iterable<{ getAttribute(name: string): string | null }>;
           };
         };
 
@@ -790,7 +868,7 @@ export class WhatsAppWorker {
         browserEndpoint: null,
         pageUrl: null,
         lastCheckedAt: nowIso(),
-        errorMessage: null
+        errorMessage: null,
       });
       await this.persistSessionManifest().catch(() => null);
       return;
@@ -806,7 +884,7 @@ export class WhatsAppWorker {
           browserEndpoint: this.buildCdpEndpoint(),
           pageUrl: null,
           lastCheckedAt: nowIso(),
-          errorMessage: null
+          errorMessage: null,
         });
         await this.persistSessionManifest().catch(() => null);
         return;
@@ -825,18 +903,23 @@ export class WhatsAppWorker {
         sharedBrowser: true,
         browserEndpoint: this.buildCdpEndpoint(),
         pageUrl: page.url(),
-        lastCheckedAt: nowIso()
+        lastCheckedAt: nowIso(),
       };
       setWorkerState("instagram-assisted", nextState);
       await this.persistSessionManifest().catch(() => null);
 
       if (options.reason !== "heartbeat" && options.openPage) {
-        recordSystemEvent("instagram-assisted", authenticated ? "info" : "warn", "Instagram shared tab ready", {
-          authenticated,
-          browserEndpoint: nextState.browserEndpoint,
-          pageUrl: nextState.pageUrl,
-          profileDir: nextState.profileDir
-        });
+        recordSystemEvent(
+          "instagram-assisted",
+          authenticated ? "info" : "warn",
+          "Instagram shared tab ready",
+          {
+            authenticated,
+            browserEndpoint: nextState.browserEndpoint,
+            pageUrl: nextState.pageUrl,
+            profileDir: nextState.profileDir,
+          },
+        );
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -850,13 +933,13 @@ export class WhatsAppWorker {
         sharedBrowser: true,
         browserEndpoint: this.buildCdpEndpoint(),
         pageUrl: null,
-        lastCheckedAt: nowIso()
+        lastCheckedAt: nowIso(),
       });
       await this.persistSessionManifest().catch(() => null);
       if (options.reason !== "heartbeat") {
         recordSystemEvent("instagram-assisted", "error", "Instagram shared tab failed", {
           reason: options.reason,
-          message
+          message,
         });
       }
     }
@@ -868,8 +951,14 @@ export class WhatsAppWorker {
     }
 
     const timestamp = Date.now();
-    const screenshotPath = path.join(this.env.SCREENSHOTS_DIR, `${timestamp}-${kind}-${correlationId}.png`);
-    const htmlPath = path.join(this.env.SCREENSHOTS_DIR, `${timestamp}-${kind}-${correlationId}.html`);
+    const screenshotPath = path.join(
+      this.env.SCREENSHOTS_DIR,
+      `${timestamp}-${kind}-${correlationId}.png`,
+    );
+    const htmlPath = path.join(
+      this.env.SCREENSHOTS_DIR,
+      `${timestamp}-${kind}-${correlationId}.html`,
+    );
 
     await this.page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => null);
     if (this.env.SAVE_HTML_ON_CRITICAL_ERROR) {
@@ -884,12 +973,12 @@ export class WhatsAppWorker {
       kind,
       message: error instanceof Error ? error.message : String(error),
       screenshotPath,
-      htmlPath: this.env.SAVE_HTML_ON_CRITICAL_ERROR ? htmlPath : null
+      htmlPath: this.env.SAVE_HTML_ON_CRITICAL_ERROR ? htmlPath : null,
     });
 
     return {
       screenshotPath,
-      htmlPath: this.env.SAVE_HTML_ON_CRITICAL_ERROR ? htmlPath : null
+      htmlPath: this.env.SAVE_HTML_ON_CRITICAL_ERROR ? htmlPath : null,
     };
   }
 
@@ -901,19 +990,23 @@ export class WhatsAppWorker {
     try {
       if (!this.page.url().startsWith(this.env.WA_URL)) {
         await this.page.goto(this.env.WA_URL, {
-          waitUntil: "domcontentloaded"
+          waitUntil: "domcontentloaded",
         });
       }
 
       const paneSide = this.page.locator("#pane-side");
-      const qrMarkers = this.page.locator("canvas[aria-label*='QR'], [data-ref] canvas, [aria-label*='código QR']");
-      const loadingText = this.page.locator("text=Não feche esta janela. Suas mensagens estão sendo baixadas.");
+      const qrMarkers = this.page.locator(
+        "canvas[aria-label*='QR'], [data-ref] canvas, [aria-label*='código QR']",
+      );
+      const loadingText = this.page.locator(
+        "text=Não feche esta janela. Suas mensagens estão sendo baixadas.",
+      );
 
       try {
         await Promise.race([
           paneSide.waitFor({ timeout: 45_000 }),
           loadingText.waitFor({ timeout: 45_000 }),
-          qrMarkers.first().waitFor({ timeout: 45_000 })
+          qrMarkers.first().waitFor({ timeout: 45_000 }),
         ]);
       } catch {
         // Fall through to DOM inspection below.
@@ -925,7 +1018,7 @@ export class WhatsAppWorker {
           status: this.state.status === "degraded" ? "degraded" : "authenticated",
           authStatus: "authenticated",
           sessionPhone: sessionPhone ?? this.state.sessionPhone,
-          lastActivityAt: nowIso()
+          lastActivityAt: nowIso(),
         });
         await this.persistSessionManifest().catch(() => null);
         return;
@@ -935,7 +1028,7 @@ export class WhatsAppWorker {
         this.updateState({
           status: "disconnected",
           authStatus: "disconnected",
-          sessionPhone: null
+          sessionPhone: null,
         });
         await this.persistSessionManifest().catch(() => null);
         return;
@@ -947,7 +1040,7 @@ export class WhatsAppWorker {
           status: this.state.status === "degraded" ? "degraded" : "authenticated",
           authStatus: "authenticated",
           sessionPhone: sessionPhone ?? this.state.sessionPhone,
-          lastActivityAt: nowIso()
+          lastActivityAt: nowIso(),
         });
         await this.persistSessionManifest().catch(() => null);
         return;
@@ -956,7 +1049,7 @@ export class WhatsAppWorker {
       this.updateState({
         status: "disconnected",
         authStatus: "disconnected",
-        sessionPhone: null
+        sessionPhone: null,
       });
       await this.persistSessionManifest().catch(() => null);
     } catch (error) {
@@ -966,7 +1059,7 @@ export class WhatsAppWorker {
         sessionPhone: null,
         lastFailureAt: nowIso(),
         lastFailureSummary: error instanceof Error ? error.message : String(error),
-        lastErrorType: classifyError(error)
+        lastErrorType: classifyError(error),
       });
       await this.persistSessionManifest().catch(() => null);
     }
@@ -1049,7 +1142,7 @@ export class WhatsAppWorker {
           win.Store?.Conn?.wid?._serialized,
           maybeMe?.user,
           maybeMe?._serialized,
-          ...localStorageValues
+          ...localStorageValues,
         ];
 
         for (const candidate of candidates) {
@@ -1072,16 +1165,19 @@ export class WhatsAppWorker {
     }
 
     const correlationId = randomUUID();
-    this.logger.warn({ correlationId, rssMb: rssMb() }, "Worker restarting because of memory threshold");
+    this.logger.warn(
+      { correlationId, rssMb: rssMb() },
+      "Worker restarting because of memory threshold",
+    );
     this.updateState({
       status: "restarting",
-      lastActivityAt: nowIso()
+      lastActivityAt: nowIso(),
     });
     await this.publishState();
     await this.launchBrowser();
     await this.refreshAuthState();
     await this.publishState({
-      correlationId
+      correlationId,
     });
   }
 
@@ -1100,9 +1196,11 @@ export class WhatsAppWorker {
       // checkpoint. The job itself will be claimed on a subsequent tick once
       // syncInbox has released browserTask.
       if (this.browserTask === "sync" && this.syncCancelToken && !this.syncCancelToken.cancelled) {
-        if (hasPendingJobsForTypes(["send-message", "send-assisted-message", "validate-recipient"])) {
+        if (
+          hasPendingJobsForTypes(["send-message", "send-assisted-message", "validate-recipient"])
+        ) {
           recordSystemEvent("wa-worker", "info", "Sync cancellation requested by pending job", {
-            runningForMs: this.browserTaskStartedAt ? Date.now() - this.browserTaskStartedAt : 0
+            runningForMs: this.browserTaskStartedAt ? Date.now() - this.browserTaskStartedAt : 0,
           });
           this.syncCancelToken.cancelled = true;
         }
@@ -1111,12 +1209,17 @@ export class WhatsAppWorker {
       // budget (forward + backfill + margin). Stricter threshold causes the
       // guard to fire during legitimate cold-start syncs and corrupt
       // durationMs calculations.
-      const syncStuckThresholdMs = this.env.WA_SYNC_FORWARD_BUDGET_MS + this.env.WA_SYNC_BACKFILL_BUDGET_MS + 60_000;
-      if (this.browserTask === "sync" && this.browserTaskStartedAt > 0 && Date.now() - this.browserTaskStartedAt > syncStuckThresholdMs) {
+      const syncStuckThresholdMs =
+        this.env.WA_SYNC_FORWARD_BUDGET_MS + this.env.WA_SYNC_BACKFILL_BUDGET_MS + 60_000;
+      if (
+        this.browserTask === "sync" &&
+        this.browserTaskStartedAt > 0 &&
+        Date.now() - this.browserTaskStartedAt > syncStuckThresholdMs
+      ) {
         recordSystemEvent("wa-worker", "warn", "Stuck inbox sync released for pending job", {
           browserTask: this.browserTask,
           runningForMs: Date.now() - this.browserTaskStartedAt,
-          thresholdMs: syncStuckThresholdMs
+          thresholdMs: syncStuckThresholdMs,
         });
         this.browserTask = "idle";
         this.browserTaskStartedAt = 0;
@@ -1127,12 +1230,20 @@ export class WhatsAppWorker {
 
       let job: Record<string, unknown> | null = null;
       try {
-        job = claimDueJobForTypes(`${os.hostname()}-${process.pid}`, ["send-message", "send-assisted-message", "validate-recipient", "sync-inbox"]);
+        job = claimDueJobForTypes(`${os.hostname()}-${process.pid}`, [
+          "send-message",
+          "send-assisted-message",
+          "validate-recipient",
+          "sync-inbox",
+        ]);
       } catch (error) {
         if (isSqliteBusyError(error)) {
-          this.logger.warn({ message: error instanceof Error ? error.message : String(error) }, "Skipping job claim because database is busy");
+          this.logger.warn(
+            { message: error instanceof Error ? error.message : String(error) },
+            "Skipping job claim because database is busy",
+          );
           recordSystemEvent("wa-worker", "warn", "Job claim skipped because database is busy", {
-            message: error instanceof Error ? error.message : String(error)
+            message: error instanceof Error ? error.message : String(error),
           });
           return;
         }
@@ -1150,120 +1261,233 @@ export class WhatsAppWorker {
       const logger = this.logger.child({
         correlationId,
         jobId: String(job.id),
-        type: String(job.type)
+        type: String(job.type),
       });
 
       try {
-      if (String(job.type) === "validate-recipient") {
-        const payload = JSON.parse(String(job.payload_json)) as {
-          campaignId?: string;
-          recipientId?: string;
-          phone?: string;
-        };
+        if (String(job.type) === "validate-recipient") {
+          const payload = JSON.parse(String(job.payload_json)) as {
+            campaignId?: string;
+            recipientId?: string;
+            phone?: string;
+          };
 
-        if (!payload.recipientId || !payload.phone) {
-          throw new Error("validation_failure: invalid recipient validation payload");
+          if (!payload.recipientId || !payload.phone) {
+            throw new Error("validation_failure: invalid recipient validation payload");
+          }
+
+          logger.info({ payload }, "Processing WhatsApp recipient validation");
+          await this.ensureAuthenticated();
+          const validation = await this.validateRecipientPhone(payload.phone, correlationId);
+
+          if (!validation.valid) {
+            markCampaignRecipientFailed(payload.recipientId, validation.reason, "blocked_by_rule");
+            completeJob(String(job.id));
+            recordSystemEvent("wa-worker", "warn", "Recipient blocked during WhatsApp validation", {
+              correlationId,
+              jobId: String(job.id),
+              recipientId: payload.recipientId,
+              phone: payload.phone,
+              reason: validation.reason,
+            });
+          } else {
+            markCampaignRecipientValidated(payload.recipientId);
+            completeJob(String(job.id));
+            recordSystemEvent("wa-worker", "info", "Recipient validated on WhatsApp", {
+              correlationId,
+              jobId: String(job.id),
+              recipientId: payload.recipientId,
+              phone: payload.phone,
+            });
+          }
+
+          this.updateState({
+            status: "authenticated",
+            authStatus: "authenticated",
+            lastActivityAt: nowIso(),
+            consecutiveFailures: 0,
+          });
+          await this.publishState({
+            lastCorrelationId: correlationId,
+          });
+          return;
         }
 
-        logger.info({ payload }, "Processing WhatsApp recipient validation");
-        await this.ensureAuthenticated();
-        const validation = await this.validateRecipientPhone(payload.phone, correlationId);
+        if (String(job.type) === "send-assisted-message") {
+          const payload = sendJobPayloadSchema.parse(JSON.parse(String(job.payload_json)));
+          if (payload.channel !== "instagram") {
+            throw new Error(`unsupported_channel: ${payload.channel}`);
+          }
 
-        if (!validation.valid) {
-          markCampaignRecipientFailed(payload.recipientId, validation.reason, "blocked_by_rule");
+          const { getInstagramAssistedService } =
+            await import("../../web-app/src/server/lib/instagram-assisted.js");
+          const instagramService = getInstagramAssistedService();
+          const sent = await instagramService.sendMessage({
+            threadId: payload.externalThreadId,
+            username: payload.recipientNormalizedValue ?? payload.recipientDisplayValue ?? null,
+            text: payload.text,
+            mediaPath: payload.mediaPath,
+            contentType: toInstagramContentType(payload.contentType),
+            caption: payload.caption,
+          });
+
+          const conversationExternalThreadId =
+            sent.threadId ??
+            payload.externalThreadId ??
+            payload.recipientNormalizedValue ??
+            payload.recipientDisplayValue ??
+            String(job.id);
+          const conversation = upsertConversation({
+            channel: "instagram",
+            channelAccountId: payload.channelAccountId,
+            externalThreadId: conversationExternalThreadId,
+            title: payload.recipientDisplayValue || payload.recipientNormalizedValue || "Instagram",
+            contactId: payload.contactId,
+            contactInstagram: payload.recipientNormalizedValue,
+            unreadCount: 0,
+            inboxCategory: "primary",
+            internalStatus: "open",
+          });
+
+          if (conversation) {
+            addMessage({
+              conversationId: conversation.id,
+              contactId: conversation.contactId,
+              direction: "outgoing",
+              contentType: toMessageContentType(payload.contentType),
+              body: payload.text || payload.caption || "",
+              sentAt: sent.sentAt,
+              externalId: sent.externalId,
+              mediaPath: payload.mediaPath ?? null,
+              meta: {
+                source: payload.source,
+                correlationId,
+                mediaPath: payload.mediaPath ?? null,
+              },
+            });
+          }
+
+          if (payload.source === "campaign" && payload.recipientId && payload.campaignId) {
+            handleCampaignJobSuccess({
+              recipientId: payload.recipientId,
+              campaignId: payload.campaignId,
+            });
+          }
+
+          if (
+            (payload.source === "automation" || payload.source === "rule") &&
+            payload.runId &&
+            payload.automationId &&
+            payload.contactId
+          ) {
+            handleAutomationJobSuccess({
+              runId: payload.runId,
+              automationId: payload.automationId,
+              contactId: payload.contactId,
+              jobId: String(job.id),
+            });
+          }
+
           completeJob(String(job.id));
-          recordSystemEvent("wa-worker", "warn", "Recipient blocked during WhatsApp validation", {
+          this.updateState({
+            status: "authenticated",
+            authStatus: "authenticated",
+            lastActivityAt: nowIso(),
+            consecutiveFailures: 0,
+          });
+          await this.publishState({
+            lastCorrelationId: correlationId,
+          });
+          recordSystemEvent("instagram-assisted", "info", "Instagram assisted job completed", {
             correlationId,
             jobId: String(job.id),
-            recipientId: payload.recipientId,
-            phone: payload.phone,
-            reason: validation.reason
+            source: payload.source,
+            contentType: payload.contentType,
           });
-        } else {
-          markCampaignRecipientValidated(payload.recipientId);
-          completeJob(String(job.id));
-          recordSystemEvent("wa-worker", "info", "Recipient validated on WhatsApp", {
-            correlationId,
-            jobId: String(job.id),
-            recipientId: payload.recipientId,
-            phone: payload.phone
-          });
+          return;
         }
 
-        this.updateState({
-          status: "authenticated",
-          authStatus: "authenticated",
-          lastActivityAt: nowIso(),
-          consecutiveFailures: 0
-        });
-        await this.publishState({
-          lastCorrelationId: correlationId
-        });
-        return;
-      }
+        if (String(job.type) === "sync-inbox") {
+          const syncPayload = JSON.parse(String(job.payload_json)) as { full?: boolean };
+          completeJob(String(job.id));
+          const syncReason = syncPayload.full ? "full" : "interval";
+          this.logger.info({ syncReason }, "Processing sync-inbox job");
+          recordSystemEvent("wa-worker", "info", `Sync-inbox job triggered (${syncReason})`);
+          await this.syncInbox(syncReason);
+          return;
+        }
 
-      if (String(job.type) === "send-assisted-message") {
+        if (String(job.type) !== "send-message") {
+          completeJob(String(job.id));
+          return;
+        }
+
         const payload = sendJobPayloadSchema.parse(JSON.parse(String(job.payload_json)));
-        if (payload.channel !== "instagram") {
+        if (payload.channel !== "whatsapp") {
           throw new Error(`unsupported_channel: ${payload.channel}`);
         }
+        if (!payload.phone) {
+          throw new Error("validation_failure: WhatsApp payload missing phone");
+        }
+        const phone = payload.phone;
+        logger.info({ payload }, "Processing WhatsApp send job");
+        await this.ensureAuthenticated();
+        await this.sendPayload(payload, correlationId);
 
-        const { getInstagramAssistedService } = await import("../../web-app/src/server/lib/instagram-assisted.js");
-        const instagramService = getInstagramAssistedService();
-        const sent = await instagramService.sendMessage({
-          threadId: payload.externalThreadId,
-          username: payload.recipientNormalizedValue ?? payload.recipientDisplayValue ?? null,
-          text: payload.text,
-          mediaPath: payload.mediaPath,
-          contentType: toInstagramContentType(payload.contentType),
-          caption: payload.caption
-        });
-
-        const conversationExternalThreadId =
-          sent.threadId ?? payload.externalThreadId ?? payload.recipientNormalizedValue ?? payload.recipientDisplayValue ?? String(job.id);
         const conversation = upsertConversation({
-          channel: "instagram",
+          channel: "whatsapp",
           channelAccountId: payload.channelAccountId,
-          externalThreadId: conversationExternalThreadId,
-          title: payload.recipientDisplayValue || payload.recipientNormalizedValue || "Instagram",
-          contactId: payload.contactId,
-          contactInstagram: payload.recipientNormalizedValue,
+          externalThreadId: payload.externalThreadId ?? phone,
+          waChatId: phone,
+          title: payload.recipientDisplayValue || phone,
+          contactPhone: phone,
           unreadCount: 0,
-          inboxCategory: "primary",
-          internalStatus: "open"
         });
 
         if (conversation) {
-          addMessage({
-            conversationId: conversation.id,
-            contactId: conversation.contactId,
-            direction: "outgoing",
-            contentType: toMessageContentType(payload.contentType),
-            body: payload.text || payload.caption || "",
-            sentAt: sent.sentAt,
-            externalId: sent.externalId,
-            mediaPath: payload.mediaPath ?? null,
-            meta: {
-              source: payload.source,
-              correlationId,
-              mediaPath: payload.mediaPath ?? null
-            }
-          });
+          if (payload.pendingMessageId) {
+            // Update the pending message that was pre-stored by the API
+            updateMessageStatus(payload.pendingMessageId, {
+              status: "sent",
+              sentAt: nowIso(),
+            });
+          } else {
+            // Fallback: create message if no pending message exists (e.g. campaign/automation sends)
+            addMessage({
+              conversationId: conversation.id,
+              contactId: conversation.contactId,
+              direction: "outgoing",
+              contentType: toMessageContentType(payload.contentType),
+              body: payload.text || payload.caption || "",
+              sentAt: nowIso(),
+              mediaPath: payload.mediaPath ?? null,
+              meta: {
+                source: payload.source,
+                correlationId,
+                mediaPath: payload.mediaPath ?? null,
+              },
+            });
+          }
         }
 
         if (payload.source === "campaign" && payload.recipientId && payload.campaignId) {
           handleCampaignJobSuccess({
             recipientId: payload.recipientId,
-            campaignId: payload.campaignId
+            campaignId: payload.campaignId,
           });
         }
 
-        if ((payload.source === "automation" || payload.source === "rule") && payload.runId && payload.automationId && payload.contactId) {
+        if (
+          (payload.source === "automation" || payload.source === "rule") &&
+          payload.runId &&
+          payload.automationId &&
+          payload.contactId
+        ) {
           handleAutomationJobSuccess({
             runId: payload.runId,
             automationId: payload.automationId,
             contactId: payload.contactId,
-            jobId: String(job.id)
+            jobId: String(job.id),
           });
         }
 
@@ -1272,201 +1496,130 @@ export class WhatsAppWorker {
           status: "authenticated",
           authStatus: "authenticated",
           lastActivityAt: nowIso(),
-          consecutiveFailures: 0
+          consecutiveFailures: 0,
         });
         await this.publishState({
-          lastCorrelationId: correlationId
+          lastCorrelationId: correlationId,
         });
-        recordSystemEvent("instagram-assisted", "info", "Instagram assisted job completed", {
+        recordSystemEvent("wa-worker", "info", "WhatsApp job completed", {
           correlationId,
           jobId: String(job.id),
           source: payload.source,
-          contentType: payload.contentType
         });
-        return;
-      }
-
-      if (String(job.type) === "sync-inbox") {
-        const syncPayload = JSON.parse(String(job.payload_json)) as { full?: boolean };
-        completeJob(String(job.id));
-        const syncReason = syncPayload.full ? "full" : "interval";
-        this.logger.info({ syncReason }, "Processing sync-inbox job");
-        recordSystemEvent("wa-worker", "info", `Sync-inbox job triggered (${syncReason})`);
-        await this.syncInbox(syncReason);
-        return;
-      }
-
-      if (String(job.type) !== "send-message") {
-        completeJob(String(job.id));
-        return;
-      }
-
-      const payload = sendJobPayloadSchema.parse(JSON.parse(String(job.payload_json)));
-      if (payload.channel !== "whatsapp") {
-        throw new Error(`unsupported_channel: ${payload.channel}`);
-      }
-      if (!payload.phone) {
-        throw new Error("validation_failure: WhatsApp payload missing phone");
-      }
-      const phone = payload.phone;
-      logger.info({ payload }, "Processing WhatsApp send job");
-      await this.ensureAuthenticated();
-      await this.sendPayload(payload, correlationId);
-
-      const conversation = upsertConversation({
-        channel: "whatsapp",
-        channelAccountId: payload.channelAccountId,
-        externalThreadId: payload.externalThreadId ?? phone,
-        waChatId: phone,
-        title: payload.recipientDisplayValue || phone,
-        contactPhone: phone,
-        unreadCount: 0
-      });
-
-      if (conversation) {
-        if (payload.pendingMessageId) {
-          // Update the pending message that was pre-stored by the API
-          updateMessageStatus(payload.pendingMessageId, {
-            status: "sent",
-            sentAt: nowIso()
-          });
+      } catch (error) {
+        this.lastOpenPhone = null; // page state unknown after failure
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorType = classifyError(error);
+        const artifacts = await this.captureArtifacts(correlationId, errorType, error);
+        if (errorType === "authentication_failure") {
+          failJobPermanently(String(job.id), errorMessage);
         } else {
-          // Fallback: create message if no pending message exists (e.g. campaign/automation sends)
-          addMessage({
-            conversationId: conversation.id,
-            contactId: conversation.contactId,
-            direction: "outgoing",
-            contentType: toMessageContentType(payload.contentType),
-            body: payload.text || payload.caption || "",
-            sentAt: nowIso(),
-            mediaPath: payload.mediaPath ?? null,
-            meta: {
-              source: payload.source,
-              correlationId,
-              mediaPath: payload.mediaPath ?? null
-            }
-          });
+          failJob(String(job.id), errorMessage);
         }
-      }
 
-      if (payload.source === "campaign" && payload.recipientId && payload.campaignId) {
-        handleCampaignJobSuccess({
-          recipientId: payload.recipientId,
-          campaignId: payload.campaignId
+        const nextFailures = this.state.consecutiveFailures + 1;
+        this.updateState({
+          status:
+            errorType === "authentication_failure"
+              ? "disconnected"
+              : nextFailures >= this.env.WORKER_FAILURE_THRESHOLD && errorType === "locator_failure"
+                ? "degraded"
+                : "error",
+          authStatus:
+            errorType === "authentication_failure" ? "disconnected" : this.state.authStatus,
+          lastFailureAt: nowIso(),
+          lastFailureSummary: errorMessage,
+          lastErrorType: errorType,
+          consecutiveFailures: nextFailures,
         });
-      }
 
-      if ((payload.source === "automation" || payload.source === "rule") && payload.runId && payload.automationId && payload.contactId) {
-        handleAutomationJobSuccess({
-          runId: payload.runId,
-          automationId: payload.automationId,
-          contactId: payload.contactId,
-          jobId: String(job.id)
-        });
-      }
-
-      completeJob(String(job.id));
-      this.updateState({
-        status: "authenticated",
-        authStatus: "authenticated",
-        lastActivityAt: nowIso(),
-        consecutiveFailures: 0
-      });
-      await this.publishState({
-        lastCorrelationId: correlationId
-      });
-      recordSystemEvent("wa-worker", "info", "WhatsApp job completed", {
-        correlationId,
-        jobId: String(job.id),
-        source: payload.source
-      });
-    } catch (error) {
-      this.lastOpenPhone = null; // page state unknown after failure
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorType = classifyError(error);
-      const artifacts = await this.captureArtifacts(correlationId, errorType, error);
-      if (errorType === "authentication_failure") {
-        failJobPermanently(String(job.id), errorMessage);
-      } else {
-        failJob(String(job.id), errorMessage);
-      }
-
-      const nextFailures = this.state.consecutiveFailures + 1;
-      this.updateState({
-        status:
-          errorType === "authentication_failure"
-            ? "disconnected"
-            : nextFailures >= this.env.WORKER_FAILURE_THRESHOLD && errorType === "locator_failure"
-              ? "degraded"
-              : "error",
-        authStatus: errorType === "authentication_failure" ? "disconnected" : this.state.authStatus,
-        lastFailureAt: nowIso(),
-        lastFailureSummary: errorMessage,
-        lastErrorType: errorType,
-        consecutiveFailures: nextFailures
-      });
-
-      const payloadRaw = JSON.parse(String(job.payload_json)) as Record<string, unknown>;
-      if (payloadRaw.channel === "instagram" && payloadRaw.contactId && shouldDeactivateInstagramChannel(error)) {
-        try {
-          const recipientDisplayValue = typeof payloadRaw.recipientDisplayValue === "string" ? payloadRaw.recipientDisplayValue : null;
-          const recipientNormalizedValue = typeof payloadRaw.recipientNormalizedValue === "string" ? payloadRaw.recipientNormalizedValue : null;
-          const channel = deactivateContactChannel({
-            contactId: String(payloadRaw.contactId),
-            type: "instagram",
-            displayValue: recipientDisplayValue,
-            normalizedValue: recipientNormalizedValue,
-            externalId: recipientNormalizedValue,
-            reason: errorMessage,
-            source: "instagram-profile-validation"
-          });
-
-          if (channel) {
-            recordSystemEvent("instagram-assisted", "warn", "Instagram contact channel marked inactive", {
-              correlationId,
-              jobId: String(job.id),
+        const payloadRaw = JSON.parse(String(job.payload_json)) as Record<string, unknown>;
+        if (
+          payloadRaw.channel === "instagram" &&
+          payloadRaw.contactId &&
+          shouldDeactivateInstagramChannel(error)
+        ) {
+          try {
+            const recipientDisplayValue =
+              typeof payloadRaw.recipientDisplayValue === "string"
+                ? payloadRaw.recipientDisplayValue
+                : null;
+            const recipientNormalizedValue =
+              typeof payloadRaw.recipientNormalizedValue === "string"
+                ? payloadRaw.recipientNormalizedValue
+                : null;
+            const channel = deactivateContactChannel({
               contactId: String(payloadRaw.contactId),
-              instagram: channel.normalizedValue,
-              reason: errorMessage
+              type: "instagram",
+              displayValue: recipientDisplayValue,
+              normalizedValue: recipientNormalizedValue,
+              externalId: recipientNormalizedValue,
+              reason: errorMessage,
+              source: "instagram-profile-validation",
             });
+
+            if (channel) {
+              recordSystemEvent(
+                "instagram-assisted",
+                "warn",
+                "Instagram contact channel marked inactive",
+                {
+                  correlationId,
+                  jobId: String(job.id),
+                  contactId: String(payloadRaw.contactId),
+                  instagram: channel.normalizedValue,
+                  reason: errorMessage,
+                },
+              );
+            }
+          } catch (deactivateError) {
+            logger.error(
+              {
+                error:
+                  deactivateError instanceof Error
+                    ? deactivateError.message
+                    : String(deactivateError),
+                contactId: payloadRaw.contactId,
+              },
+              "Failed to mark Instagram contact channel inactive",
+            );
           }
-        } catch (deactivateError) {
-          logger.error(
-            {
-              error: deactivateError instanceof Error ? deactivateError.message : String(deactivateError),
-              contactId: payloadRaw.contactId
-            },
-            "Failed to mark Instagram contact channel inactive"
-          );
         }
-      }
-      if ((payloadRaw.source === "campaign" || payloadRaw.source === "automation" || payloadRaw.source === "rule") && payloadRaw.recipientId) {
-        handleCampaignJobFailure(String(payloadRaw.recipientId), errorMessage);
-      }
-      if ((payloadRaw.source === "automation" || payloadRaw.source === "rule") && payloadRaw.runId) {
-        handleAutomationJobFailure(String(payloadRaw.runId), errorMessage);
-      }
+        if (
+          (payloadRaw.source === "campaign" ||
+            payloadRaw.source === "automation" ||
+            payloadRaw.source === "rule") &&
+          payloadRaw.recipientId
+        ) {
+          handleCampaignJobFailure(String(payloadRaw.recipientId), errorMessage);
+        }
+        if (
+          (payloadRaw.source === "automation" || payloadRaw.source === "rule") &&
+          payloadRaw.runId
+        ) {
+          handleAutomationJobFailure(String(payloadRaw.runId), errorMessage);
+        }
 
-      logger.error(
-        {
+        logger.error(
+          {
+            errorType,
+            artifacts,
+            error: errorMessage,
+          },
+          "WhatsApp job failed",
+        );
+
+        recordSystemEvent("wa-worker", "error", "WhatsApp job failed", {
+          correlationId,
+          jobId: String(job.id),
           errorType,
-          artifacts,
-          error: errorMessage
-        },
-        "WhatsApp job failed"
-      );
-
-      recordSystemEvent("wa-worker", "error", "WhatsApp job failed", {
-        correlationId,
-        jobId: String(job.id),
-        errorType,
-        screenshotPath: artifacts.screenshotPath,
-        htmlPath: artifacts.htmlPath,
-        summary: errorMessage
-      });
-      await this.publishState({
-        lastCorrelationId: correlationId
-      });
+          screenshotPath: artifacts.screenshotPath,
+          htmlPath: artifacts.htmlPath,
+          summary: errorMessage,
+        });
+        await this.publishState({
+          lastCorrelationId: correlationId,
+        });
       } finally {
         this.browserTask = "idle";
         this.browserTaskStartedAt = 0;
@@ -1479,7 +1632,10 @@ export class WhatsAppWorker {
     }
   }
 
-  private async sendPayload(payload: ReturnType<typeof sendJobPayloadSchema.parse>, correlationId: string) {
+  private async sendPayload(
+    payload: ReturnType<typeof sendJobPayloadSchema.parse>,
+    correlationId: string,
+  ) {
     if (!this.page) {
       throw new Error("browser_failure: page not initialized");
     }
@@ -1499,10 +1655,18 @@ export class WhatsAppWorker {
 
       let resolvedAudioPath = payload.mediaPath;
       if (payload.attendantId) {
-        resolvedAudioPath = await this.convertVoiceWithAttendant(payload.mediaPath, payload.attendantId, correlationId);
+        resolvedAudioPath = await this.convertVoiceWithAttendant(
+          payload.mediaPath,
+          payload.attendantId,
+          correlationId,
+        );
       }
 
-      const uploadedAudioPath = await this.prepareMediaForUpload(resolvedAudioPath, payload.contentType, correlationId);
+      const uploadedAudioPath = await this.prepareMediaForUpload(
+        resolvedAudioPath,
+        payload.contentType,
+        correlationId,
+      );
       await this.sendVoiceRecording(phone, uploadedAudioPath, correlationId);
       this.lastOpenPhone = phone; // browser is already on this chat after voice recording
       return;
@@ -1516,32 +1680,54 @@ export class WhatsAppWorker {
       this.lastOpenPhone = phone;
     } else {
       // Already on correct conversation — verify composer is visible, navigate only if not
-      const composerVisible = await this.page.locator("footer [contenteditable='true']").isVisible().catch(() => false);
+      const composerVisible = await this.page
+        .locator("footer [contenteditable='true']")
+        .isVisible()
+        .catch(() => false);
       if (!composerVisible) {
         await this.page.goto(targetUrl, { waitUntil: "domcontentloaded" });
         await this.waitForChatReady();
       }
     }
 
-    const textSendButton = this.page.locator("footer button[aria-label='Enviar'], footer div[aria-label='Enviar'], footer span[data-icon='send'], footer button span[data-icon='send']").last();
-    const mediaSendButton = this.page.locator("div[role='button'][aria-label*='Enviar'], div[aria-label*='Enviar'], span[data-icon='send'], button[aria-label*='Enviar']").last();
+    const textSendButton = this.page
+      .locator(
+        "footer button[aria-label='Enviar'], footer div[aria-label='Enviar'], footer span[data-icon='send'], footer button span[data-icon='send']",
+      )
+      .last();
+    const mediaSendButton = this.page
+      .locator(
+        "div[role='button'][aria-label*='Enviar'], div[aria-label*='Enviar'], span[data-icon='send'], button[aria-label*='Enviar']",
+      )
+      .last();
     const composer = this.page.locator("footer [contenteditable='true']").first();
 
-    const isMultiImage = payload.contentType === "images" && Array.isArray(payload.mediaPaths) && payload.mediaPaths.length > 0;
+    const isMultiImage =
+      payload.contentType === "images" &&
+      Array.isArray(payload.mediaPaths) &&
+      payload.mediaPaths.length > 0;
     let uploadedMediaPath = payload.mediaPath;
     if (isMultiImage || payload.mediaPath) {
       let filesToUpload: string | string[];
       if (isMultiImage) {
         filesToUpload = await Promise.all(
-          (payload.mediaPaths as string[]).map((p) => this.prepareMediaForUpload(p, "image", correlationId))
+          (payload.mediaPaths as string[]).map((p) =>
+            this.prepareMediaForUpload(p, "image", correlationId),
+          ),
         );
       } else {
-        uploadedMediaPath = await this.prepareMediaForUpload(payload.mediaPath!, payload.contentType, correlationId);
+        uploadedMediaPath = await this.prepareMediaForUpload(
+          payload.mediaPath!,
+          payload.contentType,
+          correlationId,
+        );
         filesToUpload = uploadedMediaPath;
       }
 
       const attachmentButton = this.page
-        .locator("button[title='Anexar'], div[title='Anexar'], span[data-icon='plus-rounded'], span[data-icon='attach-menu-plus']")
+        .locator(
+          "button[title='Anexar'], div[title='Anexar'], span[data-icon='plus-rounded'], span[data-icon='attach-menu-plus']",
+        )
         .first();
       await attachmentButton.waitFor({ timeout: 15_000 });
       const fileChooserPromise = this.page.waitForEvent("filechooser", { timeout: 15_000 });
@@ -1586,7 +1772,7 @@ export class WhatsAppWorker {
     recordSystemEvent("wa-worker", "info", "Send action completed", {
       correlationId,
       phone: payload.phone,
-      contentType: payload.contentType
+      contentType: payload.contentType,
     });
   }
 
@@ -1597,17 +1783,23 @@ export class WhatsAppWorker {
     for (const ffprobeBin of ffprobePaths) {
       try {
         const { stdout } = await execFileAsync(ffprobeBin, [
-          "-i", audioPath,
-          "-show_entries", "format=duration",
-          "-v", "quiet",
-          "-of", "csv=p=0"
+          "-i",
+          audioPath,
+          "-show_entries",
+          "format=duration",
+          "-v",
+          "quiet",
+          "-of",
+          "csv=p=0",
         ]);
         const parsed = parseFloat(stdout.trim());
         if (!isNaN(parsed) && parsed > 0) {
           durationSecs = parsed;
           break;
         }
-      } catch { /* try next path */ }
+      } catch {
+        /* try next path */
+      }
     }
     if (durationSecs === 8) {
       // Fallback: try afinfo (macOS built-in)
@@ -1623,7 +1815,9 @@ export class WhatsAppWorker {
         try {
           const stat = await fs.stat(audioPath);
           durationSecs = Math.max(8, stat.size / 1024 / 4);
-        } catch { /* use default */ }
+        } catch {
+          /* use default */
+        }
       }
     }
 
@@ -1634,15 +1828,24 @@ export class WhatsAppWorker {
     if (ext !== ".wav") {
       try {
         wavPath = path.join(this.env.TEMP_DIR, `${Date.now()}-voice-${randomUUID()}.wav`);
-        await execFileAsync("/opt/homebrew/bin/ffmpeg", [
-          "-y", "-i", audioPath,
-          "-ar", "48000", "-ac", "1",
-          wavPath
-        ], { timeout: 30_000 });
+        await execFileAsync(
+          "/opt/homebrew/bin/ffmpeg",
+          ["-y", "-i", audioPath, "-ar", "48000", "-ac", "1", wavPath],
+          { timeout: 30_000 },
+        );
       } catch {
         try {
           wavPath = path.join(this.env.TEMP_DIR, `${Date.now()}-voice-${randomUUID()}.wav`);
-          await execFileAsync("afconvert", ["-f", "WAVE", "-d", "LEI16@48000", "-c", "1", audioPath, wavPath]);
+          await execFileAsync("afconvert", [
+            "-f",
+            "WAVE",
+            "-d",
+            "LEI16@48000",
+            "-c",
+            "1",
+            audioPath,
+            wavPath,
+          ]);
         } catch {
           wavPath = audioPath;
         }
@@ -1654,7 +1857,10 @@ export class WhatsAppWorker {
     const wavBase64 = wavBuffer.toString("base64");
 
     const recordingMs = Math.round(durationSecs * 1000) + 2000;
-    this.logger.info({ durationSecs: Math.round(durationSecs * 10) / 10, recordingMs, wavPath }, "Voice recording: starting with getUserMedia override");
+    this.logger.info(
+      { durationSecs: Math.round(durationSecs * 10) / 10, recordingMs, wavPath },
+      "Voice recording: starting with getUserMedia override",
+    );
 
     // Relaunch browser with fake-ui flag so mic permission is auto-accepted,
     // but WITHOUT --use-file-for-fake-audio-capture (we inject audio via JS).
@@ -1711,7 +1917,7 @@ export class WhatsAppWorker {
     await this.page.goto("about:blank");
     await this.page.waitForTimeout(500);
     await this.page.goto(`${this.env.WA_URL}/send?phone=${encodeURIComponent(phone)}`, {
-      waitUntil: "domcontentloaded"
+      waitUntil: "domcontentloaded",
     });
     await this.waitForChatReady();
     await this.page.waitForTimeout(2_000);
@@ -1726,7 +1932,9 @@ export class WhatsAppWorker {
 
     // Screenshot: before mic click
     const ssDir = this.env.SCREENSHOTS_DIR;
-    await this.page.screenshot({ path: path.join(ssDir, "voice-01-before-mic-click.png") }).catch(() => null);
+    await this.page
+      .screenshot({ path: path.join(ssDir, "voice-01-before-mic-click.png") })
+      .catch(() => null);
 
     // Click mic button to START recording
     const micButton = this.page.getByRole("button", { name: /mensagem de voz/i }).last();
@@ -1737,14 +1945,23 @@ export class WhatsAppWorker {
     await this.page.waitForTimeout(2_000);
 
     // Screenshot: after mic click
-    await this.page.screenshot({ path: path.join(ssDir, "voice-02-after-mic-click.png") }).catch(() => null);
+    await this.page
+      .screenshot({ path: path.join(ssDir, "voice-02-after-mic-click.png") })
+      .catch(() => null);
 
     // Detect recording UI — WhatsApp Web shows a recording bar with timer, pause and delete buttons.
     // DO NOT retry mic click — a second click would CANCEL the active recording.
-    const hasRecordingUI = await this.page.locator(
-      "button[aria-label='Pausar'], button[aria-label='Pause'], span[data-icon='audio-cancel'], span[data-icon='delete'], [data-testid='ptt-cancel']"
-    ).first().isVisible().catch(() => false);
-    this.logger.info({ hasRecordingUI }, "Voice recording: recording UI check (no retry — second click cancels)");
+    const hasRecordingUI = await this.page
+      .locator(
+        "button[aria-label='Pausar'], button[aria-label='Pause'], span[data-icon='audio-cancel'], span[data-icon='delete'], [data-testid='ptt-cancel']",
+      )
+      .first()
+      .isVisible()
+      .catch(() => false);
+    this.logger.info(
+      { hasRecordingUI },
+      "Voice recording: recording UI check (no retry — second click cancels)",
+    );
 
     this.logger.info({ recordingMs }, "Voice recording: started, waiting for duration...");
 
@@ -1752,11 +1969,15 @@ export class WhatsAppWorker {
     await this.page.waitForTimeout(recordingMs);
 
     // Screenshot: before send click
-    await this.page.screenshot({ path: path.join(ssDir, "voice-03-before-send.png") }).catch(() => null);
+    await this.page
+      .screenshot({ path: path.join(ssDir, "voice-03-before-send.png") })
+      .catch(() => null);
 
     // Click send button
     const sendButton = this.page
-      .locator("button[aria-label*='Enviar'], span[data-icon='send'], div[role='button'][aria-label*='Enviar']")
+      .locator(
+        "button[aria-label*='Enviar'], span[data-icon='send'], div[role='button'][aria-label*='Enviar']",
+      )
       .last();
     await sendButton.waitFor({ timeout: 10_000 });
     await sendButton.click({ force: true });
@@ -1769,16 +1990,18 @@ export class WhatsAppWorker {
     let delivered = false;
     for (let poll = 0; poll < 15; poll++) {
       await this.page.waitForTimeout(2_000);
-      const status = await this.page.evaluate(() => {
-        const doc = (globalThis as any).document; // eslint-disable-line @typescript-eslint/no-explicit-any
-        const msgs = doc.querySelectorAll(".message-out");
-        const last = msgs[msgs.length - 1];
-        if (!last) return "no-message";
-        if (last.querySelector("span[data-icon='msg-dblcheck']")) return "delivered";
-        if (last.querySelector("span[data-icon='msg-check']")) return "sent";
-        if (last.querySelector("span[data-icon='msg-time']")) return "pending";
-        return "unknown";
-      }).catch(() => "error");
+      const status = await this.page
+        .evaluate(() => {
+          const doc = (globalThis as any).document; // eslint-disable-line @typescript-eslint/no-explicit-any
+          const msgs = doc.querySelectorAll(".message-out");
+          const last = msgs[msgs.length - 1];
+          if (!last) return "no-message";
+          if (last.querySelector("span[data-icon='msg-dblcheck']")) return "delivered";
+          if (last.querySelector("span[data-icon='msg-check']")) return "sent";
+          if (last.querySelector("span[data-icon='msg-time']")) return "pending";
+          return "unknown";
+        })
+        .catch(() => "error");
       this.logger.info({ poll, status }, "Voice recording: delivery poll");
       if (status === "delivered") {
         delivered = true;
@@ -1787,21 +2010,30 @@ export class WhatsAppWorker {
     }
 
     // Screenshot: after delivery wait
-    await this.page.screenshot({ path: path.join(ssDir, "voice-04-after-send.png") }).catch(() => null);
+    await this.page
+      .screenshot({ path: path.join(ssDir, "voice-04-after-send.png") })
+      .catch(() => null);
 
     if (!delivered) {
-      this.logger.warn("Voice recording: message not confirmed delivered after 30s, proceeding anyway");
+      this.logger.warn(
+        "Voice recording: message not confirmed delivered after 30s, proceeding anyway",
+      );
     }
 
     // Get bubble info for logging
-    const bubbleInfo = await this.page.evaluate(() => {
-      const doc = (globalThis as any).document; // eslint-disable-line @typescript-eslint/no-explicit-any
-      const msgs = doc.querySelectorAll(".message-out");
-      const last = msgs[msgs.length - 1];
-      if (!last) return { found: false, text: "" };
-      return { found: true, text: (last.textContent || "").trim().slice(0, 100) };
-    }).catch(() => ({ found: false, text: "evaluate-failed" }));
-    this.logger.info({ bubbleInfo, delivered, expectedDurationSecs: durationSecs }, "Voice recording: bubble verification");
+    const bubbleInfo = await this.page
+      .evaluate(() => {
+        const doc = (globalThis as any).document; // eslint-disable-line @typescript-eslint/no-explicit-any
+        const msgs = doc.querySelectorAll(".message-out");
+        const last = msgs[msgs.length - 1];
+        if (!last) return { found: false, text: "" };
+        return { found: true, text: (last.textContent || "").trim().slice(0, 100) };
+      })
+      .catch(() => ({ found: false, text: "evaluate-failed" }));
+    this.logger.info(
+      { bubbleInfo, delivered, expectedDurationSecs: durationSecs },
+      "Voice recording: bubble verification",
+    );
 
     // Screenshot: final state
     await this.page.screenshot({ path: path.join(ssDir, "voice-05-final.png") }).catch(() => null);
@@ -1815,7 +2047,7 @@ export class WhatsAppWorker {
       phone,
       audioPath,
       recordingMs,
-      durationSecs: Math.round(durationSecs * 10) / 10
+      durationSecs: Math.round(durationSecs * 10) / 10,
     });
   }
 
@@ -1851,7 +2083,9 @@ export class WhatsAppWorker {
       }
       // For media, try broader selectors — use last() as send button may be in preview modal
       // Note: for multi-file, WA shows "Enviar N arquivos" so use contains (*=)
-      const fallbackBtn = this.page.locator("span[data-icon='send'], [aria-label*='Enviar'], [data-testid='send']").last();
+      const fallbackBtn = this.page
+        .locator("span[data-icon='send'], [aria-label*='Enviar'], [data-testid='send']")
+        .last();
       await fallbackBtn.waitFor({ timeout: 15_000 });
       await fallbackBtn.click({ force: true });
       return;
@@ -1872,7 +2106,7 @@ export class WhatsAppWorker {
       async () => {
         await sendButton.focus();
         await this.page?.keyboard.press("Enter");
-      }
+      },
     ];
 
     let lastError: unknown = null;
@@ -1884,7 +2118,9 @@ export class WhatsAppWorker {
           return;
         }
 
-        const sendLocator = this.page.locator("button[aria-label*='Enviar'], div[aria-label*='Enviar']").last();
+        const sendLocator = this.page
+          .locator("button[aria-label*='Enviar'], div[aria-label*='Enviar']")
+          .last();
         try {
           await sendLocator.waitFor({ state: "detached", timeout: 5_000 });
         } catch {
@@ -1900,26 +2136,37 @@ export class WhatsAppWorker {
       }
     }
 
-    throw lastError instanceof Error ? lastError : new Error("locator_failure: unable to trigger WhatsApp send action");
+    throw lastError instanceof Error
+      ? lastError
+      : new Error("locator_failure: unable to trigger WhatsApp send action");
   }
 
   private async convertVoiceWithAttendant(
     originalPath: string,
     attendantId: string,
-    correlationId: string
+    correlationId: string,
   ): Promise<string> {
     const attendant = getAttendantById(attendantId);
     if (!attendant || attendant.voiceSamples.length === 0) {
-      recordSystemEvent("wa-worker", "warn", "Attendant not found or has no voice samples — using original audio", {
-        correlationId,
-        attendantId
-      });
+      recordSystemEvent(
+        "wa-worker",
+        "warn",
+        "Attendant not found or has no voice samples — using original audio",
+        {
+          correlationId,
+          attendantId,
+        },
+      );
       return originalPath;
     }
 
     const samplesDir = getAttendantSamplesDir(attendantId);
     const outputPath = path.join(this.env.TEMP_DIR, `${Date.now()}-xtts-${randomUUID()}.wav`);
-    const scriptPath = path.join(path.dirname(new URL(import.meta.url).pathname), "scripts", "voice_convert.py");
+    const scriptPath = path.join(
+      path.dirname(new URL(import.meta.url).pathname),
+      "scripts",
+      "voice_convert.py",
+    );
     const pythonBin = this.env.PYTHON_BIN;
     const timeoutMs = this.env.XTTS_TIMEOUT_SECONDS * 1000;
 
@@ -1928,54 +2175,67 @@ export class WhatsAppWorker {
       attendantId,
       attendantName: attendant.name,
       originalPath,
-      outputPath
+      outputPath,
     });
 
     await execFileAsync(
       pythonBin,
       [
         scriptPath,
-        "--input", originalPath,
-        "--samples-dir", samplesDir,
-        "--output", outputPath,
-        "--whisper-model", this.env.WHISPER_MODEL_PATH
+        "--input",
+        originalPath,
+        "--samples-dir",
+        samplesDir,
+        "--output",
+        outputPath,
+        "--whisper-model",
+        this.env.WHISPER_MODEL_PATH,
       ],
       {
         timeout: timeoutMs,
         env: {
           ...process.env,
           WHISPER_BIN: this.env.WHISPER_BIN,
-          WHISPER_MODEL_PATH: this.env.WHISPER_MODEL_PATH
-        }
-      }
+          WHISPER_MODEL_PATH: this.env.WHISPER_MODEL_PATH,
+        },
+      },
     );
 
     recordSystemEvent("wa-worker", "info", "Voice conversion complete", {
       correlationId,
       attendantName: attendant.name,
-      outputPath
+      outputPath,
     });
 
     return outputPath;
   }
 
-  private async prepareMediaForUpload(filePath: string, contentType: string, correlationId: string) {
+  private async prepareMediaForUpload(
+    filePath: string,
+    contentType: string,
+    correlationId: string,
+  ) {
     // Resolve relative media paths against known storage directories
     if (!path.isAbsolute(filePath)) {
       const candidates = [
         path.join(this.env.UPLOADS_DIR, "media", filePath),
         path.join(this.env.MEDIA_DIR, filePath),
-        path.join(this.env.UPLOADS_DIR, filePath)
+        path.join(this.env.UPLOADS_DIR, filePath),
       ];
       let resolved = false;
       for (const candidate of candidates) {
         try {
           await fs.access(candidate);
-          this.logger.info({ original: filePath, resolved: candidate }, "Resolved relative media path");
+          this.logger.info(
+            { original: filePath, resolved: candidate },
+            "Resolved relative media path",
+          );
           filePath = candidate;
           resolved = true;
           break;
-        } catch { /* try next */ }
+        } catch {
+          /* try next */
+        }
       }
       if (!resolved) {
         throw new Error(`upload_failure: media file not found at any known path (${filePath})`);
@@ -2004,14 +2264,14 @@ export class WhatsAppWorker {
       recordSystemEvent("wa-worker", "info", "Image converted to jpeg before WhatsApp upload", {
         correlationId,
         sourcePath: filePath,
-        outputPath
+        outputPath,
       });
       return outputPath;
     } catch (error) {
       recordSystemEvent("wa-worker", "warn", "Image conversion failed, keeping original upload", {
         correlationId,
         sourcePath: filePath,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
       return filePath;
     }
@@ -2023,11 +2283,15 @@ export class WhatsAppWorker {
     }
 
     await this.page.goto(`${this.env.WA_URL}/send?phone=${encodeURIComponent(phone)}`, {
-      waitUntil: "domcontentloaded"
+      waitUntil: "domcontentloaded",
     });
 
     const composer = this.page.locator("footer [contenteditable='true']").first();
-    const sendButton = this.page.locator("button span[data-icon='send'], button[aria-label*='Enviar'], div[aria-label*='Enviar']").first();
+    const sendButton = this.page
+      .locator(
+        "button span[data-icon='send'], button[aria-label*='Enviar'], div[aria-label*='Enviar']",
+      )
+      .first();
     const attachmentButton = this.page
       .locator("button[title='Anexar'], div[title='Anexar'], span[data-icon='plus-rounded']")
       .first();
@@ -2040,25 +2304,34 @@ export class WhatsAppWorker {
       "isn't on whatsapp",
       "não existe no whatsapp",
       "not on whatsapp",
-      "o número não está no whatsapp"
+      "o número não está no whatsapp",
     ];
 
     const startedAt = Date.now();
     while (Date.now() - startedAt < 20_000) {
-      if ((await composer.count().catch(() => 0)) > 0 || (await sendButton.count().catch(() => 0)) > 0 || (await attachmentButton.count().catch(() => 0)) > 0) {
+      if (
+        (await composer.count().catch(() => 0)) > 0 ||
+        (await sendButton.count().catch(() => 0)) > 0 ||
+        (await attachmentButton.count().catch(() => 0)) > 0
+      ) {
         recordSystemEvent("wa-worker", "debug", "Recipient validation passed", {
           correlationId,
-          phone
+          phone,
         });
         return { valid: true as const, reason: null };
       }
 
-      const bodyText = ((await this.page.locator("body").innerText().catch(() => "")) || "").toLowerCase();
+      const bodyText = (
+        (await this.page
+          .locator("body")
+          .innerText()
+          .catch(() => "")) || ""
+      ).toLowerCase();
       const invalidText = invalidFragments.find((fragment) => bodyText.includes(fragment));
       if (invalidText) {
         return {
           valid: false as const,
-          reason: `Número sem WhatsApp ativo: ${phone}`
+          reason: `Número sem WhatsApp ativo: ${phone}`,
         };
       }
 
@@ -2074,12 +2347,12 @@ export class WhatsAppWorker {
       "[data-testid='icon-unread-count']",
       "[aria-label*='não lida']",
       "[aria-label*='não lidas']",
-      "[aria-label*='unread']"
+      "[aria-label*='unread']",
     ];
 
     for (const selector of badgeSelectors) {
       const candidate = row.locator(selector).last();
-      if (!await candidate.isVisible({ timeout: 500 }).catch(() => false)) continue;
+      if (!(await candidate.isVisible({ timeout: 500 }).catch(() => false))) continue;
       const text = ((await candidate.innerText({ timeout: 2000 }).catch(() => "")) || "").trim();
       const parsed = parseUnreadCountFromText(text);
       if (parsed > 0) {
@@ -2104,7 +2377,7 @@ export class WhatsAppWorker {
       "#pane-side [data-testid='cell-frame-container']",
       "#pane-side [data-testid='cell-frame-title']",
       "#pane-side div[aria-selected]",
-      "#pane-side div[tabindex='-1']"
+      "#pane-side div[tabindex='-1']",
     ];
 
     const deadline = Date.now() + 60_000;
@@ -2127,11 +2400,18 @@ export class WhatsAppWorker {
    * Scrolls back to top first, then scans down. Returns the Locator or null.
    * Used by Tier 2 processing for non-phone conversations after sidebar may have reordered.
    */
-  private async findSidebarRowByTitle(title: string, isCancelled?: () => boolean): Promise<Locator | null> {
+  private async findSidebarRowByTitle(
+    title: string,
+    isCancelled?: () => boolean,
+  ): Promise<Locator | null> {
     if (!this.page) return null;
     const pane = this.page.locator("#pane-side").first();
     // Scroll sidebar to top so we always start from the beginning
-    await pane.evaluate((el) => { el.scrollTop = 0; }).catch(() => null);
+    await pane
+      .evaluate((el) => {
+        el.scrollTop = 0;
+      })
+      .catch(() => null);
     await this.page.waitForTimeout(500);
 
     // Up to 300 attempts × 70% screen height each = covers thousands of conversations
@@ -2145,8 +2425,14 @@ export class WhatsAppWorker {
         if (isCancelled?.()) return null;
         const row = rows.nth(i);
         const text = (await row.innerText({ timeout: 2000 }).catch(() => "")) || "";
-        let parts = text.split("\n").map((p) => p.trim()).filter(Boolean);
-        while (parts.length > 1 && (/^\d+\s+mensage/i.test(parts[0] ?? "") || /^\d+\s+unread/i.test(parts[0] ?? ""))) {
+        let parts = text
+          .split("\n")
+          .map((p) => p.trim())
+          .filter(Boolean);
+        while (
+          parts.length > 1 &&
+          (/^\d+\s+mensage/i.test(parts[0] ?? "") || /^\d+\s+unread/i.test(parts[0] ?? ""))
+        ) {
           parts = parts.slice(1);
         }
         const firstPart = parts[0];
@@ -2159,7 +2445,9 @@ export class WhatsAppWorker {
       // Scroll down a bit and search again
       if (isCancelled?.()) return null;
       const prevTop = await pane.evaluate((el) => el.scrollTop).catch(() => 0);
-      await pane.evaluate((el) => el.scrollBy(0, Math.floor(el.clientHeight * 0.7))).catch(() => null);
+      await pane
+        .evaluate((el) => el.scrollBy(0, Math.floor(el.clientHeight * 0.7)))
+        .catch(() => null);
       await this.page.waitForTimeout(350);
       const newTop = await pane.evaluate((el) => el.scrollTop).catch(() => 0);
       // If scroll didn't move, we've reached the bottom — conversation not found
@@ -2181,45 +2469,49 @@ export class WhatsAppWorker {
       await this.page.waitForTimeout(1200);
 
       // Extract phone from the details drawer — look for text matching Brazilian/intl phone pattern
-      const phone = await this.page.evaluate(() => {
-        const doc = (globalThis as any).document;
-        // WA Web renders the details drawer as a right panel / aside
-        // Phone numbers appear as copyable-text spans
-        const phoneRegex = /^[\+\d][\d\s\-\(\)]{7,20}$/;
-        // Try multiple panel containers WA uses
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const containers: any[] = Array.from(doc.querySelectorAll(
-          "aside, [data-testid='contact-info-drawer'], [data-testid='contact-info']," +
-          " #app div[style*='transform'] > div, div[role='complementary']"
-        ));
-        for (const container of containers) {
+      const phone = await this.page
+        .evaluate(() => {
+          const doc = (globalThis as any).document;
+          // WA Web renders the details drawer as a right panel / aside
+          // Phone numbers appear as copyable-text spans
+          const phoneRegex = /^[\+\d][\d\s\-\(\)]{7,20}$/;
+          // Try multiple panel containers WA uses
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const spans: any[] = Array.from(container.querySelectorAll("span, div"));
-          for (const el of spans) {
-            const t = ((el.innerText as string) || "").trim();
-            if (phoneRegex.test(t)) {
-              const digits = t.replace(/\D/g, "");
+          const containers: any[] = Array.from(
+            doc.querySelectorAll(
+              "aside, [data-testid='contact-info-drawer'], [data-testid='contact-info']," +
+                " #app div[style*='transform'] > div, div[role='complementary']",
+            ),
+          );
+          for (const container of containers) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const spans: any[] = Array.from(container.querySelectorAll("span, div"));
+            for (const el of spans) {
+              const t = ((el.innerText as string) || "").trim();
+              if (phoneRegex.test(t)) {
+                const digits = t.replace(/\D/g, "");
+                if (digits.length >= 8) return digits;
+              }
+            }
+          }
+          // Fallback: scan full page for phone-shaped text next to a phone icon
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const phoneIcons: any[] = Array.from(
+            doc.querySelectorAll("[data-icon='cell'], [data-icon='phone'], [data-icon='cel']"),
+          );
+          for (const icon of phoneIcons) {
+            const section = icon.closest("div")?.parentElement;
+            if (!section) continue;
+            const t = ((section.innerText as string) || "").trim();
+            const m = t.match(/[\+\d][\d\s\-\(\)]{7,20}/);
+            if (m) {
+              const digits = m[0].replace(/\D/g, "");
               if (digits.length >= 8) return digits;
             }
           }
-        }
-        // Fallback: scan full page for phone-shaped text next to a phone icon
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const phoneIcons: any[] = Array.from(doc.querySelectorAll(
-          "[data-icon='cell'], [data-icon='phone'], [data-icon='cel']"
-        ));
-        for (const icon of phoneIcons) {
-          const section = icon.closest("div")?.parentElement;
-          if (!section) continue;
-          const t = ((section.innerText as string) || "").trim();
-          const m = t.match(/[\+\d][\d\s\-\(\)]{7,20}/);
-          if (m) {
-            const digits = m[0].replace(/\D/g, "");
-            if (digits.length >= 8) return digits;
-          }
-        }
-        return null;
-      }).catch(() => null);
+          return null;
+        })
+        .catch(() => null);
 
       // Close the details panel
       await this.page.keyboard.press("Escape").catch(() => null);
@@ -2244,76 +2536,84 @@ export class WhatsAppWorker {
   private async scrollSidebarToTop(): Promise<void> {
     if (!this.page) return;
     const pane = this.page.locator("#pane-side").first();
-    await pane.evaluate((el) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const win = (el.ownerDocument as any).defaultView;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const findScrollable = (root: any): any => {
-        const style = win.getComputedStyle(root);
-        const ov = style.overflowY;
-        if ((ov === "scroll" || ov === "auto") && root.scrollHeight > root.clientHeight + 50) return root;
-        for (const child of Array.from(root.children)) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const found = findScrollable(child as any);
-          if (found) return found;
-        }
-        return null;
-      };
-      const target = findScrollable(el) || el;
-      target.scrollTop = 0;
-    }).catch(() => null);
+    await pane
+      .evaluate((el) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const win = (el.ownerDocument as any).defaultView;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const findScrollable = (root: any): any => {
+          const style = win.getComputedStyle(root);
+          const ov = style.overflowY;
+          if ((ov === "scroll" || ov === "auto") && root.scrollHeight > root.clientHeight + 50)
+            return root;
+          for (const child of Array.from(root.children)) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const found = findScrollable(child as any);
+            if (found) return found;
+          }
+          return null;
+        };
+        const target = findScrollable(el) || el;
+        target.scrollTop = 0;
+      })
+      .catch(() => null);
   }
 
   private async scrollSidebarDown(ratio: number): Promise<boolean> {
     if (!this.page) return false;
     const pane = this.page.locator("#pane-side").first();
-    const result = await pane.evaluate((el, r) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const win = (el.ownerDocument as any).defaultView;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const findScrollable = (root: any): any => {
-        const style = win.getComputedStyle(root);
-        const ov = style.overflowY;
-        if ((ov === "scroll" || ov === "auto") && root.scrollHeight > root.clientHeight + 50) return root;
-        for (const child of Array.from(root.children)) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const found = findScrollable(child as any);
-          if (found) return found;
-        }
-        return null;
-      };
-      const target = findScrollable(el) || el;
-      const before = target.scrollTop;
-      target.scrollTop += Math.floor(target.clientHeight * r);
-      return { before, after: target.scrollTop };
-    }, ratio).catch(() => ({ before: 0, after: 0 }));
+    const result = await pane
+      .evaluate((el, r) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const win = (el.ownerDocument as any).defaultView;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const findScrollable = (root: any): any => {
+          const style = win.getComputedStyle(root);
+          const ov = style.overflowY;
+          if ((ov === "scroll" || ov === "auto") && root.scrollHeight > root.clientHeight + 50)
+            return root;
+          for (const child of Array.from(root.children)) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const found = findScrollable(child as any);
+            if (found) return found;
+          }
+          return null;
+        };
+        const target = findScrollable(el) || el;
+        const before = target.scrollTop;
+        target.scrollTop += Math.floor(target.clientHeight * r);
+        return { before, after: target.scrollTop };
+      }, ratio)
+      .catch(() => ({ before: 0, after: 0 }));
     return result.after > result.before;
   }
 
   private async isPinnedRow(row: Locator): Promise<boolean> {
     // Match any data-icon whose name contains 'pin' (pinned, pinned2,
     // pinned-filled, pin-chat, etc.) plus Portuguese/English aria labels.
-    const pinned = await row.evaluate((el) => {
-      const icons = el.querySelectorAll("[data-icon]");
-      for (let i = 0; i < icons.length; i++) {
-        const v = (icons[i].getAttribute("data-icon") || "").toLowerCase();
-        if (v.includes("pin")) return true;
-      }
-      const aria = el.querySelectorAll("[aria-label]");
-      for (let i = 0; i < aria.length; i++) {
-        const v = (aria[i].getAttribute("aria-label") || "").toLowerCase();
-        if (v.includes("fixad") || v.includes("pinned")) return true;
-      }
-      return false;
-    }).catch(() => false);
+    const pinned = await row
+      .evaluate((el) => {
+        const icons = el.querySelectorAll("[data-icon]");
+        for (let i = 0; i < icons.length; i++) {
+          const v = (icons[i].getAttribute("data-icon") || "").toLowerCase();
+          if (v.includes("pin")) return true;
+        }
+        const aria = el.querySelectorAll("[aria-label]");
+        for (let i = 0; i < aria.length; i++) {
+          const v = (aria[i].getAttribute("aria-label") || "").toLowerCase();
+          if (v.includes("fixad") || v.includes("pinned")) return true;
+        }
+        return false;
+      })
+      .catch(() => false);
     return pinned;
   }
 
   private isSpecialRowTitle(title: string): boolean {
     return (
-      /^(Status|Atualizações|Transmissão|Broadcast|Não lida|Não lidas|Unread)$/i.test(title)
-      || /^arquivad/i.test(title)
-      || /^archived/i.test(title)
+      /^(Status|Atualizações|Transmissão|Broadcast|Não lida|Não lidas|Unread)$/i.test(title) ||
+      /^arquivad/i.test(title) ||
+      /^archived/i.test(title)
     );
   }
 
@@ -2325,7 +2625,14 @@ export class WhatsAppWorker {
     if (todayTimeMatch) {
       const [, hh, mm] = todayTimeMatch;
       const now = new Date();
-      return new Date(now.getFullYear(), now.getMonth(), now.getDate(), Number(hh), Number(mm), 0).toISOString();
+      return new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        Number(hh),
+        Number(mm),
+        0,
+      ).toISOString();
     }
     if (/^ontem$/i.test(sidebarTime) || /^yesterday$/i.test(sidebarTime)) {
       const y = new Date();
@@ -2333,9 +2640,22 @@ export class WhatsAppWorker {
       y.setHours(12, 0, 0, 0);
       return y.toISOString();
     }
-    const dayMap: Record<string, number> = { dom: 0, seg: 1, ter: 2, qua: 3, qui: 4, sex: 5, sab: 6, "sáb": 6 };
+    const dayMap: Record<string, number> = {
+      dom: 0,
+      seg: 1,
+      ter: 2,
+      qua: 3,
+      qui: 4,
+      sex: 5,
+      sab: 6,
+      sáb: 6,
+    };
     if (/^(dom|seg|ter|qua|qui|sex|s[áa]b)\./i.test(sidebarTime)) {
-      const abbr = sidebarTime.slice(0, 3).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const abbr = sidebarTime
+        .slice(0, 3)
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
       const targetDay = dayMap[abbr];
       if (targetDay !== undefined) {
         const now = new Date();
@@ -2351,7 +2671,11 @@ export class WhatsAppWorker {
     if (dateMatch) {
       const [, dd, mo, yyOrYyyy] = dateMatch;
       const now = new Date();
-      const yyyy = yyOrYyyy ? (yyOrYyyy.length === 2 ? 2000 + Number(yyOrYyyy) : Number(yyOrYyyy)) : now.getFullYear();
+      const yyyy = yyOrYyyy
+        ? yyOrYyyy.length === 2
+          ? 2000 + Number(yyOrYyyy)
+          : Number(yyOrYyyy)
+        : now.getFullYear();
       return new Date(yyyy, Number(mo) - 1, Number(dd), 12, 0, 0).toISOString();
     }
     return null;
@@ -2368,8 +2692,14 @@ export class WhatsAppWorker {
   } | null> {
     const rawText = (await row.innerText({ timeout: 3000 }).catch(() => "")) || "";
     if (!rawText) return null;
-    let parts = rawText.split("\n").map((p) => p.trim()).filter(Boolean);
-    while (parts.length > 1 && (/^\d+\s+mensage/i.test(parts[0] ?? "") || /^\d+\s+unread/i.test(parts[0] ?? ""))) {
+    let parts = rawText
+      .split("\n")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    while (
+      parts.length > 1 &&
+      (/^\d+\s+mensage/i.test(parts[0] ?? "") || /^\d+\s+unread/i.test(parts[0] ?? ""))
+    ) {
       parts = parts.slice(1);
     }
     const title = (parts[0] ?? "").trim();
@@ -2396,30 +2726,41 @@ export class WhatsAppWorker {
     if (!this.page) return false;
     if (isCancelled()) return false;
 
-    const headerBefore = ((await this.page.locator("#main header").first().innerText({ timeout: 1000 }).catch(() => "")) || "").trim();
+    const headerBefore = (
+      (await this.page
+        .locator("#main header")
+        .first()
+        .innerText({ timeout: 1000 })
+        .catch(() => "")) || ""
+    ).trim();
 
     await row.click({ timeout: 4000 }).catch(() => null);
     if (isCancelled()) return false;
 
-    await this.page.waitForFunction(
-      (prev) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const doc = (globalThis as any).document;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const header = (doc.querySelector("#main header") as any);
-        const h = ((header?.innerText as string) || "").trim();
-        const bubbles = doc.querySelectorAll("#main [data-pre-plain-text]").length;
-        if (!prev && bubbles > 0) return true;
-        if (prev && h && h !== prev) return true;
-        return bubbles > 0;
-      },
-      headerBefore,
-      { timeout: 10_000 }
-    ).catch(() => null);
+    await this.page
+      .waitForFunction(
+        (prev) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const doc = (globalThis as any).document;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const header = doc.querySelector("#main header") as any;
+          const h = ((header?.innerText as string) || "").trim();
+          const bubbles = doc.querySelectorAll("#main [data-pre-plain-text]").length;
+          if (!prev && bubbles > 0) return true;
+          if (prev && h && h !== prev) return true;
+          return bubbles > 0;
+        },
+        headerBefore,
+        { timeout: 10_000 },
+      )
+      .catch(() => null);
     if (isCancelled()) return false;
 
-    await this.page.locator("#main [data-pre-plain-text]").first()
-      .waitFor({ state: "attached", timeout: 8_000 }).catch(() => null);
+    await this.page
+      .locator("#main [data-pre-plain-text]")
+      .first()
+      .waitFor({ state: "attached", timeout: 8_000 })
+      .catch(() => null);
     return true;
   }
 
@@ -2427,89 +2768,123 @@ export class WhatsAppWorker {
     if (!this.page) return null;
     if (isCancelled()) return null;
 
-    const raw = await this.page.evaluate(() => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const doc = (globalThis as any).document;
-      const main = doc.querySelector("#main") ?? doc;
-      const bubbles = main.querySelectorAll("[data-pre-plain-text]");
-      const results: Array<{
-        body: string;
-        preText: string | null;
-        outgoing: boolean;
-        mediaType: string | null;
-        sourceUrl: string | null;
-        fileName: string | null;
-      }> = [];
+    const raw = await this.page
+      .evaluate(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const doc = (globalThis as any).document;
+        const main = doc.querySelector("#main") ?? doc;
+        const bubbles = main.querySelectorAll("[data-pre-plain-text]");
+        const results: Array<{
+          body: string;
+          preText: string | null;
+          outgoing: boolean;
+          mediaType: string | null;
+          sourceUrl: string | null;
+          fileName: string | null;
+        }> = [];
 
-      for (const el of bubbles) {
-        const preText = el.getAttribute("data-pre-plain-text");
-        const msgContainer = el.closest(".message-out, .message-in");
-        const outgoing = msgContainer?.classList.contains("message-out") ?? false;
+        for (const el of bubbles) {
+          const preText = el.getAttribute("data-pre-plain-text");
+          const msgContainer = el.closest(".message-out, .message-in");
+          const outgoing = msgContainer?.classList.contains("message-out") ?? false;
 
-        let mediaType: string | null = null;
-        let sourceUrl: string | null = null;
-        let fileName: string | null = null;
-        if (el.querySelector("[data-icon='audio-play'], [data-icon='ptt'], [data-testid='audio-play'], [data-testid='ptt']")) {
-          mediaType = "audio";
-          const audio = el.querySelector("audio[src], audio source[src]");
-          sourceUrl = audio?.getAttribute("src") ?? null;
-        } else if (el.querySelector("img[src*='blob:'], img[src*='media'], [data-testid='image-thumb']")) {
-          mediaType = "image";
-          const image = el.querySelector("img[src*='blob:'], img[src*='media'], img[src^='data:'], img[src]");
-          sourceUrl = image?.getAttribute("src") ?? null;
-        } else if (el.querySelector("video, [data-testid='video-thumb'], [data-icon='video-pip']")) {
-          mediaType = "video";
-          const video = el.querySelector("video[src], video source[src]");
-          sourceUrl = video?.getAttribute("src") ?? video?.getAttribute("poster") ?? null;
-        } else if (el.querySelector("[data-icon='audio-download'], [data-icon='document'], [data-testid='document-thumb']")) {
-          mediaType = "file";
-          const link = el.querySelector("a[href]");
-          sourceUrl = link?.getAttribute("href") ?? null;
-        } else if (
-          el.querySelector("[data-icon='call'], [data-icon='video-call'], [data-icon='phone-missed'], [data-testid='call-log']") ||
-          el.closest("[data-testid='call-log']")
-        ) {
-          mediaType = "call";
-        }
-
-        if (mediaType && mediaType !== "call") {
-          const named = el.querySelector("[title], [download], [aria-label]");
-          fileName = named?.getAttribute("title") ?? named?.getAttribute("download") ?? named?.getAttribute("aria-label") ?? null;
-        }
-
-        let body = "";
-        const copyable = el.querySelector(".copyable-text [class*='selectable']");
-        if (copyable) {
-          body = ((copyable.textContent ?? "").trim()).replace(/\s*\d{1,2}:\d{2}\s*$/, "").trim();
-        }
-        if (!body) {
-          const selectables = el.querySelectorAll("[class*='selectable']");
-          for (const s of selectables) {
-            const t = ((s.textContent ?? "").trim()).replace(/\s*\d{1,2}:\d{2}\s*$/, "").trim();
-            if (t) { body = t; break; }
+          let mediaType: string | null = null;
+          let sourceUrl: string | null = null;
+          let fileName: string | null = null;
+          if (
+            el.querySelector(
+              "[data-icon='audio-play'], [data-icon='ptt'], [data-testid='audio-play'], [data-testid='ptt']",
+            )
+          ) {
+            mediaType = "audio";
+            const audio = el.querySelector("audio[src], audio source[src]");
+            sourceUrl = audio?.getAttribute("src") ?? null;
+          } else if (
+            el.querySelector("img[src*='blob:'], img[src*='media'], [data-testid='image-thumb']")
+          ) {
+            mediaType = "image";
+            const image = el.querySelector(
+              "img[src*='blob:'], img[src*='media'], img[src^='data:'], img[src]",
+            );
+            sourceUrl = image?.getAttribute("src") ?? null;
+          } else if (
+            el.querySelector("video, [data-testid='video-thumb'], [data-icon='video-pip']")
+          ) {
+            mediaType = "video";
+            const video = el.querySelector("video[src], video source[src]");
+            sourceUrl = video?.getAttribute("src") ?? video?.getAttribute("poster") ?? null;
+          } else if (
+            el.querySelector(
+              "[data-icon='audio-download'], [data-icon='document'], [data-testid='document-thumb']",
+            )
+          ) {
+            mediaType = "file";
+            const link = el.querySelector("a[href]");
+            sourceUrl = link?.getAttribute("href") ?? null;
+          } else if (
+            el.querySelector(
+              "[data-icon='call'], [data-icon='video-call'], [data-icon='phone-missed'], [data-testid='call-log']",
+            ) ||
+            el.closest("[data-testid='call-log']")
+          ) {
+            mediaType = "call";
           }
-        }
-        if (!body && !mediaType) {
-          body = ((el.textContent ?? "").trim()).replace(/\s*\d{1,2}:\d{2}\s*$/, "").trim();
-        }
 
-        if (!body && !mediaType) continue;
+          if (mediaType && mediaType !== "call") {
+            const named = el.querySelector("[title], [download], [aria-label]");
+            fileName =
+              named?.getAttribute("title") ??
+              named?.getAttribute("download") ??
+              named?.getAttribute("aria-label") ??
+              null;
+          }
 
-        if (!body && mediaType) {
-          const labels: Record<string, string> = {
-            audio: "🎤 Áudio",
-            image: "📷 Foto",
-            video: "🎥 Vídeo",
-            file: "📎 Arquivo",
-            call: "📞 Ligação"
-          };
-          body = labels[mediaType] ?? "Mídia";
+          let body = "";
+          const copyable = el.querySelector(".copyable-text [class*='selectable']");
+          if (copyable) {
+            body = (copyable.textContent ?? "")
+              .trim()
+              .replace(/\s*\d{1,2}:\d{2}\s*$/, "")
+              .trim();
+          }
+          if (!body) {
+            const selectables = el.querySelectorAll("[class*='selectable']");
+            for (const s of selectables) {
+              const t = (s.textContent ?? "")
+                .trim()
+                .replace(/\s*\d{1,2}:\d{2}\s*$/, "")
+                .trim();
+              if (t) {
+                body = t;
+                break;
+              }
+            }
+          }
+          if (!body && !mediaType) {
+            body = (el.textContent ?? "")
+              .trim()
+              .replace(/\s*\d{1,2}:\d{2}\s*$/, "")
+              .trim();
+          }
+
+          if (!body && !mediaType) continue;
+
+          if (!body && mediaType) {
+            const labels: Record<string, string> = {
+              audio: "🎤 Áudio",
+              image: "📷 Foto",
+              video: "🎥 Vídeo",
+              file: "📎 Arquivo",
+              call: "📞 Ligação",
+            };
+            body = labels[mediaType] ?? "Mídia";
+          }
+
+          results.push({ body, preText, outgoing, mediaType, sourceUrl, fileName });
         }
-
-        results.push({ body, preText, outgoing, mediaType, sourceUrl, fileName });
-      }
-      return results;
-    }).catch(() => null);
+        return results;
+      })
+      .catch(() => null);
 
     if (!raw) return null;
 
@@ -2528,27 +2903,30 @@ export class WhatsAppWorker {
             // Build ISO-8601 local-time (no Z) so V8 parses in system local
             // timezone — matches what WA Web shows on screen. Prevents off-by-one
             // day errors around midnight when converting BRT → UTC.
-            sentAt = new Date(`${yyyy}-${pad(mo)}-${pad(dd)}T${pad(hh)}:${pad(mm)}:00`).toISOString();
+            sentAt = new Date(
+              `${yyyy}-${pad(mo)}-${pad(dd)}T${pad(hh)}:${pad(mm)}:00`,
+            ).toISOString();
           }
         }
       }
       const contentType: "text" | "audio" | "image" | "video" | "file" =
-        (r.mediaType && r.mediaType !== "call" && validContentTypes.has(r.mediaType))
+        r.mediaType && r.mediaType !== "call" && validContentTypes.has(r.mediaType)
           ? (r.mediaType as "audio" | "image" | "video" | "file")
           : "text";
       const direction: "incoming" | "outgoing" = r.outgoing ? "outgoing" : "incoming";
       const fingerprint = `${r.preText ?? ""}|${direction}|${r.body.slice(0, 40)}`;
-      const attachmentCandidate = contentType === "text"
-        ? null
-        : buildVisibleAttachmentCandidate({
-          body: r.body,
-          contentType,
-          direction,
-          fileName: r.fileName,
-          preText: r.preText,
-          sourceUrl: r.sourceUrl,
-          sentAt
-        });
+      const attachmentCandidate =
+        contentType === "text"
+          ? null
+          : buildVisibleAttachmentCandidate({
+              body: r.body,
+              contentType,
+              direction,
+              fileName: r.fileName,
+              preText: r.preText,
+              sourceUrl: r.sourceUrl,
+              sentAt,
+            });
       out.push({ body: r.body, direction, contentType, sentAt, fingerprint, attachmentCandidate });
     }
     return out;
@@ -2563,17 +2941,23 @@ export class WhatsAppWorker {
   private async scrollChatUp(isCancelled: () => boolean): Promise<boolean> {
     if (!this.page) return false;
     if (isCancelled()) return false;
-    const prevCount = await this.page.locator("#main [data-pre-plain-text]").count().catch(() => 0);
+    const prevCount = await this.page
+      .locator("#main [data-pre-plain-text]")
+      .count()
+      .catch(() => 0);
     await this.page.mouse.wheel(0, -3000).catch(() => null);
     await this.page.waitForTimeout(900);
-    const newCount = await this.page.locator("#main [data-pre-plain-text]").count().catch(() => prevCount);
+    const newCount = await this.page
+      .locator("#main [data-pre-plain-text]")
+      .count()
+      .catch(() => prevCount);
     return newCount > prevCount;
   }
 
   private async backfillChat(
     target: { title: string; phone: string | null; conversationId: string },
     isCancelled: () => boolean,
-    budgetExceeded?: () => boolean
+    budgetExceeded?: () => boolean,
   ): Promise<{ inserted: number; attachmentCandidates: number }> {
     if (!this.page) return { inserted: 0, attachmentCandidates: 0 };
     if (isCancelled()) return { inserted: 0, attachmentCandidates: 0 };
@@ -2597,8 +2981,14 @@ export class WhatsAppWorker {
 
     for (let pass = 0; pass <= scrollCap; pass++) {
       passes = pass + 1;
-      if (isCancelled()) { stopReason = "cancelled"; break; }
-      if (budgetExceeded?.()) { stopReason = "budget"; break; }
+      if (isCancelled()) {
+        stopReason = "cancelled";
+        break;
+      }
+      if (budgetExceeded?.()) {
+        stopReason = "budget";
+        break;
+      }
 
       let bubbles = await this.extractVisibleBubbles(isCancelled);
       // On first pass, WA may still be rendering; give it one retry window.
@@ -2606,7 +2996,10 @@ export class WhatsAppWorker {
         await this.page?.waitForTimeout(1500);
         bubbles = await this.extractVisibleBubbles(isCancelled);
       }
-      if (!bubbles || bubbles.length === 0) { stopReason = "empty"; break; }
+      if (!bubbles || bubbles.length === 0) {
+        stopReason = "empty";
+        break;
+      }
 
       const fresh: VisibleBubble[] = [];
       for (const b of bubbles) {
@@ -2616,7 +3009,10 @@ export class WhatsAppWorker {
       }
       if (fresh.length === 0) {
         const scrolled = await this.scrollChatUp(isCancelled);
-        if (!scrolled) { stopReason = "top"; break; }
+        if (!scrolled) {
+          stopReason = "top";
+          break;
+        }
         continue;
       }
 
@@ -2636,7 +3032,7 @@ export class WhatsAppWorker {
           minuteKey,
           direction: bubble.direction,
           body: bubble.body,
-          mediaType
+          mediaType,
         });
         if (hit) {
           foundOverlap = true;
@@ -2650,10 +3046,16 @@ export class WhatsAppWorker {
       const chronological = batchReverseChrono.slice().reverse();
       pending.unshift(...chronological);
 
-      if (foundOverlap) { stopReason = "overlap"; break; }
+      if (foundOverlap) {
+        stopReason = "overlap";
+        break;
+      }
 
       const scrolled = await this.scrollChatUp(isCancelled);
-      if (!scrolled) { stopReason = "top"; break; }
+      if (!scrolled) {
+        stopReason = "top";
+        break;
+      }
     }
 
     // Persist whatever we collected even on cancel/budget — losing scraped
@@ -2669,7 +3071,7 @@ export class WhatsAppWorker {
           contentType: b.contentType,
           body: b.body,
           sentAt: b.sentAt ?? nowIso(),
-          meta: { source: "snapshot" }
+          meta: { source: "snapshot" },
         });
         inserted++;
         if (b.attachmentCandidate) {
@@ -2682,29 +3084,35 @@ export class WhatsAppWorker {
               ...b.attachmentCandidate.metadata,
               syncFingerprint: b.fingerprint,
               chatTitle: target.title,
-              contactPhone: target.phone
-            }
+              contactPhone: target.phone,
+            },
           });
           if (candidate) {
             attachmentCandidates++;
           }
         }
       } catch (err) {
-        this.logger.warn({
-          title: target.title,
-          error: err instanceof Error ? err.message : String(err)
-        }, "backfill: addMessage failed");
+        this.logger.warn(
+          {
+            title: target.title,
+            error: err instanceof Error ? err.message : String(err),
+          },
+          "backfill: addMessage failed",
+        );
       }
     }
 
-    this.logger.info({
-      title: target.title,
-      passes,
-      bubblesSeen: bubblesSeen.size,
-      inserted,
-      attachmentCandidates,
-      stopReason
-    }, "Backfill chat complete");
+    this.logger.info(
+      {
+        title: target.title,
+        passes,
+        bubblesSeen: bubblesSeen.size,
+        inserted,
+        attachmentCandidates,
+        stopReason,
+      },
+      "Backfill chat complete",
+    );
 
     return { inserted, attachmentCandidates };
   }
@@ -2742,7 +3150,9 @@ export class WhatsAppWorker {
 
     try {
       if (this.env.DEBUG_MODE && this.page) {
-        await this.page.screenshot({ path: path.join(this.env.SCREENSHOTS_DIR, `sync-sidebar-${reason}.png`) }).catch(() => null);
+        await this.page
+          .screenshot({ path: path.join(this.env.SCREENSHOTS_DIR, `sync-sidebar-${reason}.png`) })
+          .catch(() => null);
       }
       await this.ensureAuthenticated();
       if (!this.page) return;
@@ -2762,7 +3172,10 @@ export class WhatsAppWorker {
       // re-detecting chat #1 as boundary and orphaning #4..#N.
       const resuming = this.pendingBackfill.length > 0;
       if (resuming) {
-        this.logger.info({ pending: this.pendingBackfill.length }, "Sync resuming pending backfill");
+        this.logger.info(
+          { pending: this.pendingBackfill.length },
+          "Sync resuming pending backfill",
+        );
       }
 
       await this.scrollSidebarToTop();
@@ -2775,34 +3188,55 @@ export class WhatsAppWorker {
           status: "authenticated",
           authStatus: "authenticated",
           lastActivityAt: nowIso(),
-          lastSyncAt: nowIso()
+          lastSyncAt: nowIso(),
         });
-        await this.publishState({ lastSyncReason: reason, note: "WhatsApp chat list not found yet" });
+        await this.publishState({
+          lastSyncReason: reason,
+          note: "WhatsApp chat list not found yet",
+        });
         return;
       }
 
       forwardStartedAt = Date.now();
       let cursor = 0;
       let stallScrolls = 0;
-      let forwardStopReason: "boundary" | "cancelled" | "budget" | "bottom" | "no-rows" | "skipped-resume" = "bottom";
+      let forwardStopReason:
+        | "boundary"
+        | "cancelled"
+        | "budget"
+        | "bottom"
+        | "no-rows"
+        | "skipped-resume" = "bottom";
 
       while (!resuming) {
-        if (isCancelled()) { forwardStopReason = "cancelled"; break; }
-        if (forwardBudgetExceeded()) { forwardStopReason = "budget"; break; }
+        if (isCancelled()) {
+          forwardStopReason = "cancelled";
+          break;
+        }
+        if (forwardBudgetExceeded()) {
+          forwardStopReason = "budget";
+          break;
+        }
 
         const count = await rows.count().catch(() => 0);
         if (cursor >= count) {
           const advanced = await this.scrollSidebarDown(0.85);
           if (!advanced) {
             stallScrolls++;
-            if (stallScrolls >= 3) { forwardStopReason = "bottom"; break; }
+            if (stallScrolls >= 3) {
+              forwardStopReason = "bottom";
+              break;
+            }
             await this.page.waitForTimeout(1200);
           } else {
             stallScrolls = 0;
             await this.page.waitForTimeout(500);
           }
           rows = await this.resolveChatRows();
-          if (!rows) { forwardStopReason = "no-rows"; break; }
+          if (!rows) {
+            forwardStopReason = "no-rows";
+            break;
+          }
           continue;
         }
 
@@ -2822,8 +3256,14 @@ export class WhatsAppWorker {
         if (visitedTitles.has(meta.title)) continue; // already processed higher up
 
         const opened = await this.openChatFromRow(row, isCancelled);
-        if (isCancelled()) { forwardStopReason = "cancelled"; break; }
-        if (forwardBudgetExceeded()) { forwardStopReason = "budget"; break; }
+        if (isCancelled()) {
+          forwardStopReason = "cancelled";
+          break;
+        }
+        if (forwardBudgetExceeded()) {
+          forwardStopReason = "budget";
+          break;
+        }
         if (!opened) {
           openFailures++;
           this.logger.debug({ title: meta.title }, "forward: open failed, skipping");
@@ -2838,13 +3278,19 @@ export class WhatsAppWorker {
           lastMessagePreview: meta.preview,
           lastMessageAt: meta.sidebarLastMsgAt,
           lastMessageDirection: null,
-          contactPhone: meta.phone
+          contactPhone: meta.phone,
         });
         if (!convo) continue;
 
         const last = await this.readLastBubble(isCancelled);
-        if (isCancelled()) { forwardStopReason = "cancelled"; break; }
-        if (forwardBudgetExceeded()) { forwardStopReason = "budget"; break; }
+        if (isCancelled()) {
+          forwardStopReason = "cancelled";
+          break;
+        }
+        if (forwardBudgetExceeded()) {
+          forwardStopReason = "budget";
+          break;
+        }
 
         let matched = false;
         if (last && last.sentAt) {
@@ -2854,21 +3300,24 @@ export class WhatsAppWorker {
             minuteKey,
             direction: last.direction,
             body: last.body,
-            mediaType
+            mediaType,
           });
           if (hit) matched = true;
         }
 
-        this.logger[matched ? "info" : "debug"]({
-          title: meta.title,
-          convId: convo.id,
-          hasLastBubble: !!last,
-          bubbleSentAt: last?.sentAt ?? null,
-          bubbleDirection: last?.direction ?? null,
-          bubbleContentType: last?.contentType ?? null,
-          bubbleBodyPrefix: last?.body?.slice(0, 40) ?? null,
-          matched
-        }, "forward: chat probed");
+        this.logger[matched ? "info" : "debug"](
+          {
+            title: meta.title,
+            convId: convo.id,
+            hasLastBubble: !!last,
+            bubbleSentAt: last?.sentAt ?? null,
+            bubbleDirection: last?.direction ?? null,
+            bubbleContentType: last?.contentType ?? null,
+            bubbleBodyPrefix: last?.body?.slice(0, 40) ?? null,
+            matched,
+          },
+          "forward: chat probed",
+        );
 
         if (matched) {
           boundary = { title: meta.title, phone: meta.phone, conversationId: convo.id };
@@ -2888,16 +3337,19 @@ export class WhatsAppWorker {
       }
 
       const forwardDurationMs = Date.now() - forwardStartedAt;
-      this.logger.info({
-        reason,
-        forwardVisited,
-        boundaryFound,
-        pinnedSkipped,
-        specialSkipped,
-        openFailures,
-        forwardDurationMs,
-        forwardStopReason
-      }, "Forward walk complete");
+      this.logger.info(
+        {
+          reason,
+          forwardVisited,
+          boundaryFound,
+          pinnedSkipped,
+          specialSkipped,
+          openFailures,
+          forwardDurationMs,
+          forwardStopReason,
+        },
+        "Forward walk complete",
+      );
 
       // ─── BACKWARD BACKFILL ────────────────────────────────────────────
       // Boundary first (oldest target), then visited reversed so the most
@@ -2905,7 +3357,9 @@ export class WhatsAppWorker {
       // will set conversation.last_message_at to the newest bubble.
       const backfillTargets = resuming
         ? this.pendingBackfill.slice()
-        : (boundary ? [boundary, ...visited.slice().reverse()] : visited.slice().reverse());
+        : boundary
+          ? [boundary, ...visited.slice().reverse()]
+          : visited.slice().reverse();
 
       backfillStartedAt = Date.now();
       let backfillStopReason: "done" | "cancelled" | "budget" = "done";
@@ -2916,18 +3370,27 @@ export class WhatsAppWorker {
         if (!target) {
           continue;
         }
-        if (isCancelled()) { backfillStopReason = "cancelled"; break; }
-        if (backfillBudgetExceeded()) { backfillStopReason = "budget"; break; }
+        if (isCancelled()) {
+          backfillStopReason = "cancelled";
+          break;
+        }
+        if (backfillBudgetExceeded()) {
+          backfillStopReason = "budget";
+          break;
+        }
         try {
           const added = await this.backfillChat(target, isCancelled, backfillBudgetExceeded);
           insertedMsgs += added.inserted;
           attachmentCandidates += added.attachmentCandidates;
           backfilledChats++;
         } catch (err) {
-          this.logger.warn({
-            title: target.title,
-            error: err instanceof Error ? err.message : String(err)
-          }, "Backfill failed for chat");
+          this.logger.warn(
+            {
+              title: target.title,
+              error: err instanceof Error ? err.message : String(err),
+            },
+            "Backfill failed for chat",
+          );
         }
       }
 
@@ -2936,27 +3399,33 @@ export class WhatsAppWorker {
         this.pendingBackfill = [];
       } else {
         this.pendingBackfill = backfillTargets.slice(idx);
-        this.logger.info({ remaining: this.pendingBackfill.length, reason: backfillStopReason }, "Sync saved pending backfill for next cycle");
+        this.logger.info(
+          { remaining: this.pendingBackfill.length, reason: backfillStopReason },
+          "Sync saved pending backfill for next cycle",
+        );
       }
 
       const backfillDurationMs = Date.now() - backfillStartedAt;
       const syncDurationMs = Date.now() - startTs;
       const cancelled = isCancelled();
 
-      this.logger.info({
-        reason,
-        forwardVisited,
-        boundaryFound,
-        backfilledChats,
-        insertedMsgs,
-        attachmentCandidates,
-        forwardDurationMs,
-        backfillDurationMs,
-        durationMs: syncDurationMs,
-        cancelled,
-        forwardStopReason,
-        backfillStopReason
-      }, "Sync cycle complete");
+      this.logger.info(
+        {
+          reason,
+          forwardVisited,
+          boundaryFound,
+          backfilledChats,
+          insertedMsgs,
+          attachmentCandidates,
+          forwardDurationMs,
+          backfillDurationMs,
+          durationMs: syncDurationMs,
+          cancelled,
+          forwardStopReason,
+          backfillStopReason,
+        },
+        "Sync cycle complete",
+      );
 
       this.updateState({
         status: this.state.status === "degraded" ? "degraded" : "authenticated",
@@ -2965,7 +3434,7 @@ export class WhatsAppWorker {
         // Advance lastSyncAt on any cycle that completed its forward walk and
         // wasn't cancelled mid-flight. "Budget exceeded" is expected during
         // cold-start and shouldn't block the timestamp from advancing.
-        ...(cancelled ? {} : { lastSyncAt: nowIso() })
+        ...(cancelled ? {} : { lastSyncAt: nowIso() }),
       });
       await this.publishState({ lastSyncReason: reason });
       recordSystemEvent("wa-worker", "info", "Inbox synchronized", {
@@ -2979,20 +3448,23 @@ export class WhatsAppWorker {
         cancelled,
         forwardStopReason,
         backfillStopReason,
-        durationMs: syncDurationMs
+        durationMs: syncDurationMs,
       });
     } catch (error) {
       const errorType = classifyError(error);
       const nextFailures = this.state.consecutiveFailures + 1;
       this.updateState({
-        status: errorType === "authentication_failure"
-          ? "disconnected"
-          : nextFailures >= this.env.WORKER_FAILURE_THRESHOLD ? "degraded" : "error",
+        status:
+          errorType === "authentication_failure"
+            ? "disconnected"
+            : nextFailures >= this.env.WORKER_FAILURE_THRESHOLD
+              ? "degraded"
+              : "error",
         authStatus: errorType === "authentication_failure" ? "disconnected" : this.state.authStatus,
         lastFailureAt: nowIso(),
         lastFailureSummary: error instanceof Error ? error.message : String(error),
         lastErrorType: errorType,
-        consecutiveFailures: nextFailures
+        consecutiveFailures: nextFailures,
       });
       await this.publishState({ lastCorrelationId: correlationId });
     } finally {
@@ -3022,11 +3494,12 @@ export class WhatsAppWorker {
     const correlationId = randomUUID();
 
     try {
-      const { syncInstagramInboxToDatabase } = await import("../../web-app/src/server/lib/instagram-sync.js");
+      const { syncInstagramInboxToDatabase } =
+        await import("../../web-app/src/server/lib/instagram-sync.js");
       const result = await syncInstagramInboxToDatabase({
         threadLimit: this.env.IG_SYNC_THREADS_LIMIT,
         messagesLimit: this.env.IG_SYNC_MESSAGES_LIMIT,
-        scrollPasses: this.env.IG_SYNC_SCROLL_PASSES
+        scrollPasses: this.env.IG_SYNC_SCROLL_PASSES,
       });
 
       recordSystemEvent("instagram-assisted", "info", "Instagram inbox synchronized", {
@@ -3034,13 +3507,13 @@ export class WhatsAppWorker {
         reason,
         syncedThreads: result.syncedThreads,
         importedMessages: result.importedMessages,
-        automationsQueued: result.automationsQueued
+        automationsQueued: result.automationsQueued,
       });
     } catch (error) {
       recordSystemEvent("instagram-assisted", "error", "Instagram inbox sync failed", {
         correlationId,
         reason,
-        message: error instanceof Error ? error.message : String(error)
+        message: error instanceof Error ? error.message : String(error),
       });
     } finally {
       this.browserTask = "idle";

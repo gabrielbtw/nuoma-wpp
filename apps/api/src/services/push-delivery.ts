@@ -97,9 +97,9 @@ export function createPushDeliveryService(input: {
   };
 }
 
-function webPushVapid(env: ApiEnv):
-  | { publicKey: string; privateKey: string; subject: string }
-  | null {
+function webPushVapid(
+  env: ApiEnv,
+): { publicKey: string; privateKey: string; subject: string } | null {
   if (!env.API_WEB_PUSH_VAPID_PUBLIC_KEY || !env.API_WEB_PUSH_VAPID_PRIVATE_KEY) {
     return null;
   }

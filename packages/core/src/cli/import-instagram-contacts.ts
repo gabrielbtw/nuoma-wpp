@@ -12,20 +12,24 @@ import {
   listPendingIncompleteInstagramDownloads,
   loadWhatsAppCsvLookup,
   reconcileInstagramContactNamesWithWhatsAppCsv,
-  removeImportedInstagramSource
+  removeImportedInstagramSource,
 } from "../services/instagram-contact-import-service.js";
 
 const inputPath = process.argv[2];
 
 if (!inputPath) {
-  console.error("Uso: npm run import:instagram --workspace @nuoma/core -- /caminho/para/export-ou-pasta [csv-whatsapp]");
+  console.error(
+    "Uso: npm run import:instagram --workspace @nuoma/core -- /caminho/para/export-ou-pasta [csv-whatsapp]",
+  );
   process.exit(1);
 }
 
 const csvPathArg = process.argv[3];
 const resolvedInputPath = path.resolve(inputPath);
 const fallbackCsvPath = path.join(homedir(), "Downloads", "Contacts CSV Results.csv");
-const whatsappLookup = loadWhatsAppCsvLookup(csvPathArg ? path.resolve(csvPathArg) : fallbackCsvPath);
+const whatsappLookup = loadWhatsAppCsvLookup(
+  csvPathArg ? path.resolve(csvPathArg) : fallbackCsvPath,
+);
 const whatsappCsvImport = importWhatsAppCsvContacts(whatsappLookup);
 
 type ImportedFileSummary = ReturnType<typeof importInstagramContacts> & {
@@ -49,7 +53,7 @@ while (true) {
     break;
   }
   const summary = importInstagramContacts(nextFile, {
-    whatsappLookup
+    whatsappLookup,
   });
   const dataLake = ingestInstagramArchiveToDataLake(nextFile);
   removeImportedInstagramSource(nextFile);
@@ -59,8 +63,8 @@ while (true) {
     deletedSource: true,
     dataLake: {
       indexedThreads: dataLake.indexedThreads,
-      indexedMessages: dataLake.indexedMessages
-    }
+      indexedMessages: dataLake.indexedMessages,
+    },
   };
 
   fileSummaries.push(fileSummary);
@@ -69,7 +73,7 @@ while (true) {
     sourcePath: nextFile,
     deletedSource: true,
     csvPath: whatsappLookup?.csvPath ?? null,
-    summary: fileSummary
+    summary: fileSummary,
   });
 }
 
@@ -87,14 +91,18 @@ const aggregate = fileSummaries.reduce(
     processedThreads: accumulator.processedThreads + Number(item.processedThreads ?? 0),
     processedFollowers: accumulator.processedFollowers + Number(item.processedFollowers ?? 0),
     processedFollowing: accumulator.processedFollowing + Number(item.processedFollowing ?? 0),
-    skippedNoSupportedData: accumulator.skippedNoSupportedData + Number(item.skippedNoSupportedData ?? 0),
-    relationshipSignalsUpdated: accumulator.relationshipSignalsUpdated + Number(item.relationshipSignalsUpdated ?? 0),
-    messageSignalsUpdated: accumulator.messageSignalsUpdated + Number(item.messageSignalsUpdated ?? 0),
+    skippedNoSupportedData:
+      accumulator.skippedNoSupportedData + Number(item.skippedNoSupportedData ?? 0),
+    relationshipSignalsUpdated:
+      accumulator.relationshipSignalsUpdated + Number(item.relationshipSignalsUpdated ?? 0),
+    messageSignalsUpdated:
+      accumulator.messageSignalsUpdated + Number(item.messageSignalsUpdated ?? 0),
     phonesDiscovered: accumulator.phonesDiscovered + Number(item.phonesDiscovered ?? 0),
     whatsappCsvMatches: accumulator.whatsappCsvMatches + Number(item.whatsappCsvMatches ?? 0),
-    whatsappCsvNamesApplied: accumulator.whatsappCsvNamesApplied + Number(item.whatsappCsvNamesApplied ?? 0),
+    whatsappCsvNamesApplied:
+      accumulator.whatsappCsvNamesApplied + Number(item.whatsappCsvNamesApplied ?? 0),
     namesFromPhones: accumulator.namesFromPhones + Number(item.namesFromPhones ?? 0),
-    deletedSources: accumulator.deletedSources + Number(Boolean(item.deletedSource))
+    deletedSources: accumulator.deletedSources + Number(Boolean(item.deletedSource)),
   }),
   {
     processedFiles: 0,
@@ -111,12 +119,13 @@ const aggregate = fileSummaries.reduce(
     whatsappCsvMatches: 0,
     whatsappCsvNamesApplied: 0,
     namesFromPhones: 0,
-    deletedSources: 0
-  }
+    deletedSources: 0,
+  },
 );
 
 const batchMessage =
-  whatsappCsvImport && (whatsappCsvImport.created > 0 || whatsappCsvImport.updated > 0 || aggregate.processedFiles === 0)
+  whatsappCsvImport &&
+  (whatsappCsvImport.created > 0 || whatsappCsvImport.updated > 0 || aggregate.processedFiles === 0)
     ? `Lote de importação finalizado com ${aggregate.processedFiles} arquivo(s) e CSV de WhatsApp`
     : `Lote de importação finalizado com ${aggregate.processedFiles} arquivo(s)`;
 
@@ -133,8 +142,8 @@ recordSystemEvent(
     whatsappConversationEnrichment,
     whatsappMessageEnrichment,
     backfill,
-    pendingIncompleteFiles
-  }
+    pendingIncompleteFiles,
+  },
 );
 
 console.log(
@@ -148,9 +157,9 @@ console.log(
       whatsappMessageEnrichment,
       backfill,
       ...aggregate,
-      fileSummaries
+      fileSummaries,
     },
     null,
-    2
-  )
+    2,
+  ),
 );

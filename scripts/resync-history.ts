@@ -10,7 +10,9 @@ const DB_PATH = process.env.DATABASE_PATH || "./storage/database/nuoma.db";
 const db = new Database(path.resolve(DB_PATH));
 
 // Count before deletion
-const before = db.prepare(`
+const before = db
+  .prepare(
+    `
   SELECT
     COUNT(DISTINCT c.id) as conversations,
     COUNT(m.id) as messages
@@ -19,7 +21,9 @@ const before = db.prepare(`
   WHERE c.channel = 'whatsapp'
     AND m.external_id IS NULL
     AND json_extract(m.meta_json, '$.source') = 'snapshot'
-`).get() as { conversations: number; messages: number };
+`,
+  )
+  .get() as { conversations: number; messages: number };
 
 if (before.messages === 0) {
   console.log("\nNo snapshot messages found. Nothing to delete.\n");
@@ -27,10 +31,14 @@ if (before.messages === 0) {
   process.exit(0);
 }
 
-console.log(`\nFound ${before.messages} snapshot messages across ${before.conversations} WhatsApp conversations.`);
+console.log(
+  `\nFound ${before.messages} snapshot messages across ${before.conversations} WhatsApp conversations.`,
+);
 console.log("Deleting...");
 
-const result = db.prepare(`
+const result = db
+  .prepare(
+    `
   DELETE FROM messages
   WHERE id IN (
     SELECT m.id FROM messages m
@@ -39,16 +47,22 @@ const result = db.prepare(`
       AND m.external_id IS NULL
       AND json_extract(m.meta_json, '$.source') = 'snapshot'
   )
-`).run();
+`,
+  )
+  .run();
 
 console.log(`Deleted ${result.changes} snapshot messages.`);
 
 // Count remaining
-const remaining = db.prepare(`
+const remaining = db
+  .prepare(
+    `
   SELECT COUNT(*) as cnt FROM messages m
   JOIN conversations c ON c.id = m.conversation_id
   WHERE c.channel = 'whatsapp'
-`).get() as { cnt: number };
+`,
+  )
+  .get() as { cnt: number };
 
 console.log(`Remaining WhatsApp messages (automation/campaign/manual): ${remaining.cnt}`);
 console.log("Next sync cycle will re-read all conversations via Tier 2.\n");

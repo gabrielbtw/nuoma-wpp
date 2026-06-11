@@ -55,14 +55,7 @@ import {
   Video,
   ZoomIn,
 } from "lucide-react";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import {
   Badge,
@@ -149,7 +142,7 @@ type DraftSaveState = "dirty" | "saving" | "saved" | "error";
 export function CampaignFlowBuilder({
   onOpenCampaignTab,
 }: {
-  onOpenCampaignTab?: (tab: CampaignWorkspaceTab) => void;
+  onOpenCampaignTab?: (tab: CampaignWorkspaceTab, campaignId?: number) => void;
 } = {}) {
   const toast = useToast();
   const utils = trpc.useUtils();
@@ -279,7 +272,7 @@ export function CampaignFlowBuilder({
     return stepBuildResult;
   }
 
-  function createDraft(options: { afterSuccess?: () => void } = {}) {
+  function createDraft(options: { afterSuccess?: (campaignId: number) => void } = {}) {
     const validSteps = validateDraft();
     if (!validSteps) return;
     const abVariants = buildAbVariantsMetadata({
@@ -316,9 +309,9 @@ export function CampaignFlowBuilder({
     };
     setSaveState("saving");
     createCampaign.mutate(payload, {
-      onSuccess() {
+      onSuccess(result) {
         setSaveState("saved");
-        options.afterSuccess?.();
+        options.afterSuccess?.(result.campaign.id);
       },
       onError() {
         setSaveState("error");
@@ -332,7 +325,10 @@ export function CampaignFlowBuilder({
   }
 
   function reviewAndActivate() {
-    createDraft({ afterSuccess: () => onOpenCampaignTab?.("dispatch") ?? setActiveTab("preview") });
+    createDraft({
+      afterSuccess: (campaignId) =>
+        onOpenCampaignTab?.("dispatch", campaignId) ?? setActiveTab("preview"),
+    });
   }
 
   function focusNameInput() {
@@ -417,29 +413,29 @@ export function CampaignFlowBuilder({
       <div className="nuoma-flow-studio" data-testid="campaign-flow-studio-v2">
         <header className="nuoma-flow-topbar">
           <div className="nuoma-flow-title">
-	            <div className="nuoma-flow-title-line">
-	              <span>Flow Studio</span>
-	              <span className="nuoma-flow-title-slash">/</span>
-	              <span>{name || "Campanha sem nome"}</span>
-	              <button type="button" aria-label="Editar nome do fluxo" onClick={focusNameInput}>
-	                <Pencil className="h-3.5 w-3.5" />
-	              </button>
-	            </div>
-	            <div className="nuoma-flow-status">
-	              <span />
-	              {draftStatusText}
-	            </div>
-	          </div>
+            <div className="nuoma-flow-title-line">
+              <span>Flow Studio</span>
+              <span className="nuoma-flow-title-slash">/</span>
+              <span>{name || "Campanha sem nome"}</span>
+              <button type="button" aria-label="Editar nome do fluxo" onClick={focusNameInput}>
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="nuoma-flow-status">
+              <span />
+              {draftStatusText}
+            </div>
+          </div>
 
-	          <div className="nuoma-flow-account">
-	            <Badge variant={channel === "instagram" ? "warning" : "success"}>
-	              {channel === "instagram" ? "Instagram" : "WhatsApp"}
-	            </Badge>
-	            <Badge variant={readyChecks.some((check) => !check.ok) ? "warning" : "success"}>
-	              {readyChecks.filter((check) => !check.ok).length} pendência(s)
-	            </Badge>
-	          </div>
-	        </header>
+          <div className="nuoma-flow-account">
+            <Badge variant={channel === "instagram" ? "warning" : "success"}>
+              {channel === "instagram" ? "Instagram" : "WhatsApp"}
+            </Badge>
+            <Badge variant={readyChecks.some((check) => !check.ok) ? "warning" : "success"}>
+              {readyChecks.filter((check) => !check.ok).length} pendência(s)
+            </Badge>
+          </div>
+        </header>
 
         <div className="nuoma-flow-actionbar">
           <button
@@ -458,10 +454,7 @@ export function CampaignFlowBuilder({
             Revisar disparo
           </button>
           <div className="nuoma-flow-activate-group">
-            <button
-              type="button"
-              onClick={reviewAndActivate}
-            >
+            <button type="button" onClick={reviewAndActivate}>
               Revisar e ativar
             </button>
           </div>
@@ -767,18 +760,20 @@ function CampaignFlowCanvasBoard({
       }),
     [abEnabled, channel, csvPreview, evergreen, onOpenSteps, segmentEnabled, steps],
   );
-	  const [nodes, setNodes, onNodesChange] = useNodesState<CampaignCanvasNode>(graph.nodes);
-	  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(graph.edges);
-	  const [flowInstance, setFlowInstance] =
-	    useState<ReactFlowInstance<CampaignCanvasNode, Edge> | null>(null);
-	  const [zoomPercent, setZoomPercent] = useState(100);
+  const [nodes, setNodes, onNodesChange] = useNodesState<CampaignCanvasNode>(graph.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(graph.edges);
+  const [flowInstance, setFlowInstance] = useState<ReactFlowInstance<
+    CampaignCanvasNode,
+    Edge
+  > | null>(null);
+  const [zoomPercent, setZoomPercent] = useState(100);
 
   useEffect(() => {
     setNodes(graph.nodes);
     setEdges(graph.edges);
   }, [graph.edges, graph.nodes, setEdges, setNodes]);
 
-	  const handleNodeDragStop = useCallback<OnNodeDrag<CampaignCanvasNode>>(
+  const handleNodeDragStop = useCallback<OnNodeDrag<CampaignCanvasNode>>(
     (_event, _node, currentNodes) => {
       const orderedStepIds = currentNodes
         .filter((node) => node.data.kind === "step" || node.data.kind === "branch")
@@ -787,23 +782,23 @@ function CampaignFlowCanvasBoard({
       onReorderSteps(orderedStepIds);
     },
     [onReorderSteps],
-	  );
-	  const fitCanvas = useCallback(() => {
-	    void flowInstance?.fitView({ padding: 0.24, includeHiddenNodes: false, duration: 180 });
-	  }, [flowInstance]);
-	  const zoomCanvasIn = useCallback(() => {
-	    void flowInstance?.zoomIn({ duration: 140 });
-	  }, [flowInstance]);
-	  const zoomCanvasOut = useCallback(() => {
-	    void flowInstance?.zoomOut({ duration: 140 });
-	  }, [flowInstance]);
+  );
+  const fitCanvas = useCallback(() => {
+    void flowInstance?.fitView({ padding: 0.24, includeHiddenNodes: false, duration: 180 });
+  }, [flowInstance]);
+  const zoomCanvasIn = useCallback(() => {
+    void flowInstance?.zoomIn({ duration: 140 });
+  }, [flowInstance]);
+  const zoomCanvasOut = useCallback(() => {
+    void flowInstance?.zoomOut({ duration: 140 });
+  }, [flowInstance]);
 
   return (
     <div className="nuoma-flow-board" data-testid="campaign-flow-canvas-board">
       <div className="nuoma-flow-board-toolbar" aria-label="Ferramentas do canvas">
-	        <button type="button" aria-label="Selecionar" className="is-active" title="Selecionar">
-	          <MousePointer2 className="h-4 w-4" />
-	        </button>
+        <button type="button" aria-label="Selecionar" className="is-active" title="Selecionar">
+          <MousePointer2 className="h-4 w-4" />
+        </button>
         <button
           type="button"
           aria-label="Editar passos"
@@ -812,24 +807,34 @@ function CampaignFlowCanvasBoard({
         >
           <Route className="h-4 w-4" />
         </button>
-	        <button type="button" aria-label="Ajustar tela" title="Ajustar tela" onClick={fitCanvas}>
-	          <Maximize2 className="h-4 w-4" />
-	        </button>
-	        <span className="nuoma-flow-toolbar-divider" />
-	        <button type="button" aria-label="Reduzir zoom" title="Reduzir zoom" onClick={zoomCanvasOut}>
-	          <Minimize2 className="h-4 w-4" />
-	        </button>
-	        <button
-	          type="button"
-	          aria-label="Zoom atual"
-	          className="nuoma-flow-zoom-label"
-	          onClick={fitCanvas}
-	        >
-	          {zoomPercent}%
-	        </button>
-	        <button type="button" aria-label="Aumentar zoom" title="Aumentar zoom" onClick={zoomCanvasIn}>
-	          <ZoomIn className="h-4 w-4" />
-	        </button>
+        <button type="button" aria-label="Ajustar tela" title="Ajustar tela" onClick={fitCanvas}>
+          <Maximize2 className="h-4 w-4" />
+        </button>
+        <span className="nuoma-flow-toolbar-divider" />
+        <button
+          type="button"
+          aria-label="Reduzir zoom"
+          title="Reduzir zoom"
+          onClick={zoomCanvasOut}
+        >
+          <Minimize2 className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          aria-label="Zoom atual"
+          className="nuoma-flow-zoom-label"
+          onClick={fitCanvas}
+        >
+          {zoomPercent}%
+        </button>
+        <button
+          type="button"
+          aria-label="Aumentar zoom"
+          title="Aumentar zoom"
+          onClick={zoomCanvasIn}
+        >
+          <ZoomIn className="h-4 w-4" />
+        </button>
         <span className="nuoma-flow-toolbar-divider" />
         <button
           type="button"
@@ -853,15 +858,15 @@ function CampaignFlowCanvasBoard({
           nodes={nodes}
           edges={edges}
           nodeTypes={campaignFlowNodeTypes}
-	          onNodesChange={onNodesChange}
-	          onEdgesChange={onEdgesChange}
-	          onNodeDragStop={handleNodeDragStop}
-	          onInit={(instance) => {
-	            setFlowInstance(instance);
-	            setZoomPercent(Math.round(instance.getZoom() * 100));
-	          }}
-	          onMoveEnd={(_event, viewport) => setZoomPercent(Math.round(viewport.zoom * 100))}
-	          fitView
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeDragStop={handleNodeDragStop}
+          onInit={(instance) => {
+            setFlowInstance(instance);
+            setZoomPercent(Math.round(instance.getZoom() * 100));
+          }}
+          onMoveEnd={(_event, viewport) => setZoomPercent(Math.round(viewport.zoom * 100))}
+          fitView
           fitViewOptions={{ padding: 0.24, includeHiddenNodes: false }}
           minZoom={0.45}
           maxZoom={1.35}
@@ -927,11 +932,7 @@ function CampaignFlowNode({ data }: NodeProps<CampaignCanvasNode>) {
           </button>
         </div>
       ) : data.conditionCount ? (
-        <button
-          type="button"
-          className="nuoma-flow-xy-condition nodrag"
-          onClick={data.onOpenSteps}
-        >
+        <button type="button" className="nuoma-flow-xy-condition nodrag" onClick={data.onOpenSteps}>
           {data.conditionCount} regra(s)
         </button>
       ) : null}
@@ -972,7 +973,7 @@ function FlowStudioInspector({
   createPending: boolean;
   onCreateDraft: () => void;
   onReviewAndActivate: () => void;
-  onOpenCampaignTab?: (tab: CampaignWorkspaceTab) => void;
+  onOpenCampaignTab?: (tab: CampaignWorkspaceTab, campaignId?: number) => void;
 }) {
   const readyCount = readyChecks.filter((check) => check.ok).length;
   const failedChecks = readyChecks.filter((check) => !check.ok);
@@ -992,9 +993,7 @@ function FlowStudioInspector({
         data-status={validationStatus}
       >
         <div className="nuoma-flow-card-head">
-          <span
-            className={cn("nuoma-flow-card-icon", isFlowValid ? "is-success" : "is-warning")}
-          >
+          <span className={cn("nuoma-flow-card-icon", isFlowValid ? "is-success" : "is-warning")}>
             {isFlowValid ? (
               <CheckCircle2 className="h-4 w-4" />
             ) : (
@@ -1046,7 +1045,9 @@ function FlowStudioInspector({
         <div className="nuoma-flow-safe-grid">
           <div>
             <span>Checks ok</span>
-            <strong>{readyCount}/{readyChecks.length}</strong>
+            <strong>
+              {readyCount}/{readyChecks.length}
+            </strong>
           </div>
           <div>
             <span>Pendências</span>
@@ -1128,7 +1129,12 @@ function FlowStudioInspector({
           <Send className="h-4 w-4" />
           {createPending ? "Salvando..." : "Revisar e ativar fluxo"}
         </button>
-        <button type="button" className="nuoma-flow-save" disabled={createPending} onClick={onCreateDraft}>
+        <button
+          type="button"
+          className="nuoma-flow-save"
+          disabled={createPending}
+          onClick={onCreateDraft}
+        >
           Salvar rascunho
         </button>
       </div>
@@ -1514,10 +1520,7 @@ function WorkflowViewer({
           return (
             <div key={node.id} className="relative">
               {index > 0 && (
-                <div
-                  className="absolute -top-3 left-5 h-3 w-px bg-accent/35"
-                  aria-hidden="true"
-                />
+                <div className="absolute -top-3 left-5 h-3 w-px bg-accent/35" aria-hidden="true" />
               )}
               <div
                 data-workflow-node="true"

@@ -39,7 +39,9 @@ async function main() {
     await page.goto(`${webUrl}/inbox`, { waitUntil: "domcontentloaded" });
     await page.getByTestId("inbox-message-timeline").waitFor({ state: "visible" });
     await page.locator('input[placeholder^="Buscar conversa"]').fill("V2.9.13");
-    await page.locator(`[data-testid="inbox-conversation-row"][data-conv="${conversationId}"]`).click();
+    await page
+      .locator(`[data-testid="inbox-conversation-row"][data-conv="${conversationId}"]`)
+      .click();
 
     const recordButton = page.getByTestId("composer-voice-record-button");
     await recordButton.click();
@@ -49,7 +51,9 @@ async function main() {
     await page.waitForTimeout(1_250);
     await recordButton.click();
 
-    const preview = page.locator('[data-testid="composer-voice-preview"][data-recording-state="recorded"]');
+    const preview = page.locator(
+      '[data-testid="composer-voice-preview"][data-recording-state="recorded"]',
+    );
     await preview.waitFor({ state: "visible", timeout: 10_000 });
     await page.getByTestId("composer-voice-audio").waitFor({ state: "visible", timeout: 10_000 });
     const sendButton = page.getByTestId("composer-voice-send-button");
@@ -68,7 +72,11 @@ async function main() {
         sendText: send?.textContent?.trim() ?? "",
       };
     });
-    if (diagnostics.state !== "recorded" || !diagnostics.hasAudio || !diagnostics.audioSrc.startsWith("blob:")) {
+    if (
+      diagnostics.state !== "recorded" ||
+      !diagnostics.hasAudio ||
+      !diagnostics.audioSrc.startsWith("blob:")
+    ) {
       throw new Error(`voice recorder preview not ready: ${JSON.stringify(diagnostics)}`);
     }
     if (!diagnostics.sendText.includes("Enviar áudio")) {

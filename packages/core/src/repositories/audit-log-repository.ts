@@ -30,7 +30,7 @@ function mapAuditLog(row: Record<string, unknown>): AuditLogRecord {
     messageId: (row.message_id as string | null) ?? null,
     campaignId: (row.campaign_id as string | null) ?? null,
     metadata: parseJsonObject(row.metadata_json as string | null),
-    createdAt: String(row.created_at)
+    createdAt: String(row.created_at),
   };
 }
 
@@ -52,7 +52,7 @@ export function recordAuditLog(input: {
       INSERT INTO audit_logs (
         id, entity_type, entity_id, action, channel, contact_id, conversation_id, message_id, campaign_id, metadata_json, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `
+    `,
   ).run(
     randomUUID(),
     input.entityType,
@@ -64,7 +64,7 @@ export function recordAuditLog(input: {
     input.messageId ?? null,
     input.campaignId ?? null,
     JSON.stringify(input.metadata ?? {}),
-    input.createdAt ?? nowIso()
+    input.createdAt ?? nowIso(),
   );
 }
 

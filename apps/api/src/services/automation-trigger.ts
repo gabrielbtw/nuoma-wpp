@@ -52,10 +52,7 @@ export async function triggerAutomationForPhone(
   const channel = input.triggerChannel ?? (instagramHandle && !phone ? "instagram" : "whatsapp");
   const targetKey = channel === "instagram" ? `ig:${instagramHandle ?? ""}` : (phone ?? "");
   const sendPolicyMode = input.sendPolicyMode ?? "test";
-  const allowedPhones = parsePhoneList(null, [
-    ...(input.allowedPhones ?? []),
-    input.allowedPhone ?? (sendPolicyMode === "test" ? "5531982066263" : undefined),
-  ]);
+  const allowedPhones = parsePhoneList(null, [...(input.allowedPhones ?? []), input.allowedPhone]);
   const automation = await input.repos.automations.findById({
     userId: input.userId,
     id: input.automationId,

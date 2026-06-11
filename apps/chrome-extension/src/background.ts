@@ -8,7 +8,11 @@
   });
 
   chrome.runtime.onMessage?.addListener((message, _sender, sendResponse) => {
-    if (!isRecord(message) || message.source !== contentSource || message.type !== "overlay-api-request") {
+    if (
+      !isRecord(message) ||
+      message.source !== contentSource ||
+      message.type !== "overlay-api-request"
+    ) {
       return false;
     }
     void handleOverlayRequest(message.request).then(sendResponse);
@@ -76,7 +80,8 @@
           ok: false,
           error: {
             code: `http_${response.status}`,
-            message: response.status === 401 ? "Login local Nuoma nao encontrado." : response.statusText,
+            message:
+              response.status === 401 ? "Login local Nuoma nao encontrado." : response.statusText,
           },
         };
       }

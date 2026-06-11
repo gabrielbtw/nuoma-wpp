@@ -218,7 +218,11 @@ export function ChatbotsPage() {
       return;
     }
     if (regexStatus.state === "invalid") {
-      toast.push({ title: "Padrão inválido", description: regexStatus.message, variant: "warning" });
+      toast.push({
+        title: "Padrão inválido",
+        description: regexStatus.message,
+        variant: "warning",
+      });
       setRuleErrors({ match: regexStatus.message });
       return;
     }
@@ -414,7 +418,8 @@ export function ChatbotsPage() {
                   <div>
                     <CardTitle>Builder de regras</CardTitle>
                     <CardDescription>
-                      Correspondência, teste de padrão, fallback, ações e variantes sem disparar envio.
+                      Correspondência, teste de padrão, fallback, ações e variantes sem disparar
+                      envio.
                     </CardDescription>
                   </div>
                   <Badge variant="cyan">V2.10.26-34</Badge>
@@ -436,7 +441,11 @@ export function ChatbotsPage() {
                       </SelectContent>
                     </Select>
                   </LabeledField>
-                  <LabeledField label="Nome" error={ruleErrors.name} errorId="chatbot-rule-name-error">
+                  <LabeledField
+                    label="Nome"
+                    error={ruleErrors.name}
+                    errorId="chatbot-rule-name-error"
+                  >
                     <Input
                       value={ruleName}
                       invalid={Boolean(ruleErrors.name)}
@@ -472,7 +481,11 @@ export function ChatbotsPage() {
                       </SelectContent>
                     </Select>
                   </LabeledField>
-                  <LabeledField label="Valor" error={ruleErrors.match} errorId="chatbot-rule-match-error">
+                  <LabeledField
+                    label="Valor"
+                    error={ruleErrors.match}
+                    errorId="chatbot-rule-match-error"
+                  >
                     <Input
                       value={matchValue}
                       disabled={matchType === "fallback"}
@@ -528,13 +541,16 @@ export function ChatbotsPage() {
                     onResponseTextChange={setResponseText}
                     onTagIdChange={setTagId}
                     onStatusValueChange={setStatusValue}
-                      onNotifyMessageChange={setNotifyMessage}
-                      onAutomationIdChange={setAutomationId}
-                      tags={tags.data?.tags ?? []}
-                      automations={automations.data?.automations ?? []}
-                    />
+                    onNotifyMessageChange={setNotifyMessage}
+                    onAutomationIdChange={setAutomationId}
+                    tags={tags.data?.tags ?? []}
+                    automations={automations.data?.automations ?? []}
+                  />
                   {ruleErrors.action ? (
-                    <p className="text-xs text-semantic-danger" data-testid="chatbot-rule-action-error">
+                    <p
+                      className="text-xs text-semantic-danger"
+                      data-testid="chatbot-rule-action-error"
+                    >
                       {ruleErrors.action}
                     </p>
                   ) : null}
@@ -622,7 +638,7 @@ export function ChatbotsPage() {
                             </p>
                           </div>
                           <Badge variant={chatbot.status === "active" ? "success" : "neutral"}>
-                            {chatbot.status}
+                            {chatbotStatusLabel(chatbot.status)}
                           </Badge>
                         </div>
                         <ChatbotRulesPanel chatbotId={chatbot.id} />
@@ -713,10 +729,10 @@ function ChatbotRulesPanel({ chatbotId }: { chatbotId: number }) {
             data-testid="chatbot-rule-item"
             data-rule-id={rule.id}
             draggable
-	                  onDragStart={() => setDragRuleId(rule.id)}
-	                  onDragOver={(event) => event.preventDefault()}
-	                  onDrop={() => swapPriority(rule.id)}
-	                >
+            onDragStart={() => setDragRuleId(rule.id)}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={() => swapPriority(rule.id)}
+          >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex min-w-0 items-start gap-2">
                 <GripVertical
@@ -726,31 +742,31 @@ function ChatbotRulesPanel({ chatbotId }: { chatbotId: number }) {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{rule.name}</p>
                   <p className="text-xs font-mono text-fg-dim">
-                    prioridade {rule.priority} · {rule.match.type}
+                    prioridade {rule.priority} · {chatbotMatchTypeLabel(rule.match.type)}
                     {rule.match.value ? ` "${rule.match.value}"` : ""}
                   </p>
                 </div>
               </div>
-	              <div className="flex flex-wrap items-center gap-2">
-	                <Button
-	                  variant="ghost"
-	                  size="xs"
-	                  aria-label={`Subir prioridade de ${rule.name}`}
-	                  disabled={index === 0 || updateRule.isPending}
-	                  onClick={() => moveRule(rule.id, "up")}
-	                >
-	                  <ChevronUp className="h-3.5 w-3.5" />
-	                </Button>
-	                <Button
-	                  variant="ghost"
-	                  size="xs"
-	                  aria-label={`Descer prioridade de ${rule.name}`}
-	                  disabled={index === rules.data.rules.length - 1 || updateRule.isPending}
-	                  onClick={() => moveRule(rule.id, "down")}
-	                >
-	                  <ChevronDown className="h-3.5 w-3.5" />
-	                </Button>
-	                <Badge variant={rule.match.type === "fallback" ? "warning" : "neutral"}>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  aria-label={`Subir prioridade de ${rule.name}`}
+                  disabled={index === 0 || updateRule.isPending}
+                  onClick={() => moveRule(rule.id, "up")}
+                >
+                  <ChevronUp className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  aria-label={`Descer prioridade de ${rule.name}`}
+                  disabled={index === rules.data.rules.length - 1 || updateRule.isPending}
+                  onClick={() => moveRule(rule.id, "down")}
+                >
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </Button>
+                <Badge variant={rule.match.type === "fallback" ? "warning" : "neutral"}>
                   {rule.match.type === "fallback" ? "fallback" : "correspondência"}
                 </Badge>
                 <Badge variant={abTest?.enabled ? "cyan" : "neutral"}>
@@ -842,9 +858,15 @@ function ChatbotActionEditor({
   if (actionKind === "apply_tag") {
     return (
       <LabeledField label="Tag">
-        <Select value={tagId || undefined} onValueChange={onTagIdChange} disabled={tags.length === 0}>
+        <Select
+          value={tagId || undefined}
+          onValueChange={onTagIdChange}
+          disabled={tags.length === 0}
+        >
           <SelectTrigger aria-label="Tag para aplicar">
-            <SelectValue placeholder={tags.length === 0 ? "Nenhuma tag cadastrada" : "Selecione a tag"} />
+            <SelectValue
+              placeholder={tags.length === 0 ? "Nenhuma tag cadastrada" : "Selecione a tag"}
+            />
           </SelectTrigger>
           <SelectContent>
             {tags.map((tag) => (
@@ -1012,17 +1034,20 @@ function buildChatbotVariantsMetadata(
 
 function testRegex(matchType: ChatbotRuleMatch["type"], pattern: string, probe: string) {
   if (matchType !== "regex") {
-    return { state: "idle" as const, message: "Regex tester ativo apenas para match regex." };
+    return {
+      state: "idle" as const,
+      message: "Teste de padrão ativo apenas para tipo padrão (regex).",
+    };
   }
   try {
     const regex = new RegExp(pattern, "i");
     return regex.test(probe)
-      ? { state: "matched" as const, message: "Regex válida e casou com o texto de teste." }
-      : { state: "miss" as const, message: "Regex válida, mas não casou com o texto de teste." };
+      ? { state: "matched" as const, message: "Padrão válido e com correspondência." }
+      : { state: "miss" as const, message: "Padrão válido, mas sem correspondência." };
   } catch (error) {
     return {
       state: "invalid" as const,
-      message: error instanceof Error ? error.message : "Regex inválida.",
+      message: error instanceof Error ? error.message : "Padrão inválido.",
     };
   }
 }
@@ -1037,9 +1062,21 @@ function chatbotExecutionMeta(payload: unknown) {
     stringPart("var", payload.selectedVariantId),
     stringPart("ações", payload.actionsCount),
     payload.fallbackUsed === true ? "fallback" : null,
-    payload.matched === false ? "sem match" : null,
+    payload.matched === false ? "sem correspondência" : null,
   ].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : "execução registrada";
+}
+
+function chatbotMatchTypeLabel(type: ChatbotRuleMatch["type"]): string {
+  return matchTypes.find((item) => item.value === type)?.label ?? type;
+}
+
+function chatbotStatusLabel(status: string): string {
+  if (status === "active") return "ativo";
+  if (status === "paused") return "pausado";
+  if (status === "draft") return "rascunho";
+  if (status === "inactive") return "inativo";
+  return status;
 }
 
 function stringPart(label: string, value: unknown) {

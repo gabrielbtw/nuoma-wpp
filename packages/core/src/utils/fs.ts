@@ -22,7 +22,7 @@ export function ensureRuntimeDirectories() {
     path.dirname(env.WHISPER_MODEL_PATH),
     env.CHROMIUM_PROFILE_DIR,
     env.IG_CHROMIUM_PROFILE_DIR,
-    path.join(env.UPLOADS_DIR, "media", "attendant", "samples")
+    path.join(env.UPLOADS_DIR, "media", "attendant", "samples"),
   ].forEach(ensureDir);
 }
 

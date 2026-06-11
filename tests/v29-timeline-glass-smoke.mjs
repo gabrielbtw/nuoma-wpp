@@ -33,8 +33,12 @@ async function main() {
       throw new Error("timeline smoke needs one conversation with inbound and outbound bubbles");
     }
 
-    const incoming = page.locator('[data-testid="inbox-message-bubble"][data-direction="inbound"]').first();
-    const outgoing = page.locator('[data-testid="inbox-message-bubble"][data-direction="outbound"]').first();
+    const incoming = page
+      .locator('[data-testid="inbox-message-bubble"][data-direction="inbound"]')
+      .first();
+    const outgoing = page
+      .locator('[data-testid="inbox-message-bubble"][data-direction="outbound"]')
+      .first();
     await incoming.waitFor({ state: "visible", timeout: 10_000 });
     await outgoing.waitFor({ state: "visible", timeout: 10_000 });
 
@@ -70,13 +74,13 @@ async function main() {
       throw new Error(`outgoing bubble did not render gradient: ${JSON.stringify(diagnostics)}`);
     }
     if (diagnostics.outgoingGradient !== "outgoing") {
-      throw new Error(`outgoing bubble did not expose gradient marker: ${JSON.stringify(diagnostics)}`);
+      throw new Error(
+        `outgoing bubble did not expose gradient marker: ${JSON.stringify(diagnostics)}`,
+      );
     }
 
     await page.screenshot({ path: screenshotPath, fullPage: true });
-    const result = await new AxeBuilder({ page })
-      .withTags(["wcag2a", "wcag2aa"])
-      .analyze();
+    const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
     const blocking = result.violations.filter(
       (violation) => violation.impact === "critical" || violation.impact === "serious",
     );

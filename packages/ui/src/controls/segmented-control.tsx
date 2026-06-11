@@ -42,20 +42,23 @@ export function SegmentedControl({
 }: SegmentedControlProps) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  const focusAt = useCallback((index: number) => {
-    const count = options.length;
-    let next = index;
-    for (let step = 0; step < count; step += 1) {
-      const candidate = options[((next % count) + count) % count];
-      if (candidate && !candidate.disabled) {
-        const node = refs.current[((next % count) + count) % count];
-        node?.focus();
-        onValueChange(candidate.value);
-        return;
+  const focusAt = useCallback(
+    (index: number) => {
+      const count = options.length;
+      let next = index;
+      for (let step = 0; step < count; step += 1) {
+        const candidate = options[((next % count) + count) % count];
+        if (candidate && !candidate.disabled) {
+          const node = refs.current[((next % count) + count) % count];
+          node?.focus();
+          onValueChange(candidate.value);
+          return;
+        }
+        next += 1;
       }
-      next += 1;
-    }
-  }, [options, onValueChange]);
+    },
+    [options, onValueChange],
+  );
 
   const onKeyDown = useCallback(
     (event: KeyboardEvent<HTMLButtonElement>, index: number) => {

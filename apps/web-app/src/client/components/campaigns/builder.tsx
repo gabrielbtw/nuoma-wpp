@@ -1,7 +1,12 @@
 import { type ChangeEvent, useId, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
-import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
   ChevronDown,
@@ -29,7 +34,7 @@ import {
   Upload,
   Video,
   Workflow,
-  type LucideIcon
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,7 +52,7 @@ import {
   type CampaignDraft,
   type CampaignStepDraft,
   type ConditionType,
-  type ConditionAction
+  type ConditionAction,
 } from "@/lib/campaign-utils";
 import { cn } from "@/lib/utils";
 
@@ -69,20 +74,20 @@ const channelOptions = [
     value: "whatsapp" as const,
     label: "WhatsApp",
     icon: MessageCircleMore,
-    color: "text-emerald-400"
+    color: "text-emerald-400",
   },
   {
     value: "instagram" as const,
     label: "Instagram assistido",
     icon: Instagram,
-    color: "text-cmm-orange"
-  }
+    color: "text-cmm-orange",
+  },
 ] as const;
 
 const stepChannelOptions = [
   { value: "any" as const, label: "Todos os canais", icon: Globe2 },
   { value: "whatsapp" as const, label: "So WhatsApp", icon: MessageCircleMore },
-  { value: "instagram" as const, label: "So Instagram", icon: Instagram }
+  { value: "instagram" as const, label: "So Instagram", icon: Instagram },
 ] as const;
 
 const stepIconMap = {
@@ -94,7 +99,7 @@ const stepIconMap = {
   link: Link2,
   wait: Clock3,
   ADD_TAG: Tag,
-  REMOVE_TAG: Tag
+  REMOVE_TAG: Tag,
 } as const;
 
 const stepColorMap = {
@@ -106,7 +111,7 @@ const stepColorMap = {
   link: "text-cyan-400",
   wait: "text-cmm-orange",
   ADD_TAG: "text-cmm-emerald",
-  REMOVE_TAG: "text-slate-400"
+  REMOVE_TAG: "text-slate-400",
 } as const;
 
 const stepShortLabelMap: Record<CampaignStepDraft["type"], string> = {
@@ -118,7 +123,7 @@ const stepShortLabelMap: Record<CampaignStepDraft["type"], string> = {
   link: "Link",
   wait: "Espera",
   ADD_TAG: "+Tag",
-  REMOVE_TAG: "-Tag"
+  REMOVE_TAG: "-Tag",
 };
 
 function stepSortableId(step: CampaignStepDraft, index: number) {
@@ -130,7 +135,12 @@ function isTagStep(step: CampaignStepDraft) {
 }
 
 function isMediaStep(step: CampaignStepDraft) {
-  return step.type === "audio" || step.type === "image" || step.type === "video" || step.type === "document";
+  return (
+    step.type === "audio" ||
+    step.type === "image" ||
+    step.type === "video" ||
+    step.type === "document"
+  );
 }
 
 function mediaAcceptForType(type: CampaignStepDraft["type"]) {
@@ -169,7 +179,7 @@ function SectionHeading({ title, icon: Icon }: { title: string; icon?: LucideIco
 
 function StepTypeSelector({
   value,
-  onChange
+  onChange,
 }: {
   value: CampaignStepDraft["type"];
   onChange: (type: CampaignStepDraft["type"]) => void;
@@ -190,14 +200,24 @@ function StepTypeSelector({
               "flex h-10 min-w-[80px] items-center gap-2 rounded-xl border px-3 text-left transition-all duration-300",
               active
                 ? "bg-white/10 border-white/20 shadow-xl"
-                : "bg-n-surface border-transparent hover:bg-white/5"
+                : "bg-n-surface border-transparent hover:bg-white/5",
             )}
             title={option.description}
           >
-            <div className={cn("rounded-full border border-n-border bg-white/5 p-1.5", active ? colorClass : "text-slate-500")}>
+            <div
+              className={cn(
+                "rounded-full border border-n-border bg-white/5 p-1.5",
+                active ? colorClass : "text-slate-500",
+              )}
+            >
               <Icon className="h-3.5 w-3.5" />
             </div>
-            <span className={cn("text-[10px] font-bold tracking-tight", active ? "text-white" : "text-slate-400")}>
+            <span
+              className={cn(
+                "text-[10px] font-bold tracking-tight",
+                active ? "text-white" : "text-slate-400",
+              )}
+            >
               {stepShortLabelMap[option.value as CampaignStepDraft["type"]]}
             </span>
           </button>
@@ -211,7 +231,7 @@ function ConditionEditor({
   step,
   stepCount,
   tagOptions,
-  onChange
+  onChange,
 }: {
   step: CampaignStepDraft;
   stepCount: number;
@@ -247,7 +267,7 @@ function ConditionEditor({
               conditionType: null,
               conditionValue: null,
               conditionAction: null,
-              conditionJumpTo: null
+              conditionJumpTo: null,
             });
           }}
           className="text-[10px] font-bold text-red-400 hover:text-red-300"
@@ -258,7 +278,9 @@ function ConditionEditor({
 
       <div className="grid gap-2 md:grid-cols-2">
         <div>
-          <p className="mb-1 text-[9px] font-bold uppercase tracking-widest text-slate-500">Se...</p>
+          <p className="mb-1 text-[9px] font-bold uppercase tracking-widest text-slate-500">
+            Se...
+          </p>
           <select
             className="h-9 w-full rounded-lg border border-n-border bg-black/30 px-2 text-xs font-semibold text-white outline-none"
             value={step.conditionType ?? ""}
@@ -266,32 +288,42 @@ function ConditionEditor({
               onChange({
                 ...step,
                 conditionType: (e.target.value || null) as ConditionType,
-                conditionValue: null
+                conditionValue: null,
               })
             }
           >
-            <option value="" className="bg-slate-900">Selecione...</option>
+            <option value="" className="bg-slate-900">
+              Selecione...
+            </option>
             {conditionTypeOptions.map((opt) => (
-              <option key={opt.value} value={opt.value} className="bg-slate-900">{opt.label}</option>
+              <option key={opt.value} value={opt.value} className="bg-slate-900">
+                {opt.label}
+              </option>
             ))}
           </select>
         </div>
 
         <div>
-          <p className="mb-1 text-[9px] font-bold uppercase tracking-widest text-slate-500">Entao...</p>
+          <p className="mb-1 text-[9px] font-bold uppercase tracking-widest text-slate-500">
+            Entao...
+          </p>
           <select
             className="h-9 w-full rounded-lg border border-n-border bg-black/30 px-2 text-xs font-semibold text-white outline-none"
             value={step.conditionAction ?? ""}
             onChange={(e) =>
               onChange({
                 ...step,
-                conditionAction: (e.target.value || null) as ConditionAction
+                conditionAction: (e.target.value || null) as ConditionAction,
               })
             }
           >
-            <option value="" className="bg-slate-900">Selecione...</option>
+            <option value="" className="bg-slate-900">
+              Selecione...
+            </option>
             {conditionActionOptions.map((opt) => (
-              <option key={opt.value} value={opt.value} className="bg-slate-900">{opt.label}</option>
+              <option key={opt.value} value={opt.value} className="bg-slate-900">
+                {opt.label}
+              </option>
             ))}
           </select>
         </div>
@@ -305,9 +337,13 @@ function ConditionEditor({
             value={step.conditionValue ?? ""}
             onChange={(e) => onChange({ ...step, conditionValue: e.target.value || null })}
           >
-            <option value="" className="bg-slate-900">Selecione tag...</option>
+            <option value="" className="bg-slate-900">
+              Selecione tag...
+            </option>
             {tagOptions.map((t) => (
-              <option key={t.id} value={t.name} className="bg-slate-900">{t.name}</option>
+              <option key={t.id} value={t.name} className="bg-slate-900">
+                {t.name}
+              </option>
             ))}
           </select>
         </div>
@@ -315,30 +351,46 @@ function ConditionEditor({
 
       {step.conditionType === "channel_is" && (
         <div>
-          <p className="mb-1 text-[9px] font-bold uppercase tracking-widest text-slate-500">Canal</p>
+          <p className="mb-1 text-[9px] font-bold uppercase tracking-widest text-slate-500">
+            Canal
+          </p>
           <select
             className="h-9 w-full rounded-lg border border-n-border bg-black/30 px-2 text-xs font-semibold text-white outline-none"
             value={step.conditionValue ?? ""}
             onChange={(e) => onChange({ ...step, conditionValue: e.target.value || null })}
           >
-            <option value="" className="bg-slate-900">Selecione...</option>
-            <option value="whatsapp" className="bg-slate-900">WhatsApp</option>
-            <option value="instagram" className="bg-slate-900">Instagram</option>
+            <option value="" className="bg-slate-900">
+              Selecione...
+            </option>
+            <option value="whatsapp" className="bg-slate-900">
+              WhatsApp
+            </option>
+            <option value="instagram" className="bg-slate-900">
+              Instagram
+            </option>
           </select>
         </div>
       )}
 
       {step.conditionAction === "jump_to_step" && (
         <div>
-          <p className="mb-1 text-[9px] font-bold uppercase tracking-widest text-slate-500">Ir para etapa</p>
+          <p className="mb-1 text-[9px] font-bold uppercase tracking-widest text-slate-500">
+            Ir para etapa
+          </p>
           <select
             className="h-9 w-full rounded-lg border border-n-border bg-black/30 px-2 text-xs font-semibold text-white outline-none"
             value={step.conditionJumpTo ?? ""}
-            onChange={(e) => onChange({ ...step, conditionJumpTo: e.target.value ? Number(e.target.value) : null })}
+            onChange={(e) =>
+              onChange({ ...step, conditionJumpTo: e.target.value ? Number(e.target.value) : null })
+            }
           >
-            <option value="" className="bg-slate-900">Selecione...</option>
+            <option value="" className="bg-slate-900">
+              Selecione...
+            </option>
             {Array.from({ length: stepCount }, (_, i) => (
-              <option key={i} value={i} className="bg-slate-900">Etapa {i + 1}</option>
+              <option key={i} value={i} className="bg-slate-900">
+                Etapa {i + 1}
+              </option>
             ))}
           </select>
         </div>
@@ -352,7 +404,7 @@ function MediaDropzone({
   uploading,
   error,
   onFile,
-  onInputChange
+  onInputChange,
 }: {
   stepType: CampaignStepDraft["type"];
   uploading: boolean;
@@ -363,32 +415,58 @@ function MediaDropzone({
   const inputId = useId();
   const [dragging, setDragging] = useState(false);
 
-  const formatHint = stepType === "audio" ? "Formatos .mp3, .ogg"
-    : stepType === "document" ? "PDF, Word, Excel, etc."
-    : "Formatos .jpg, .png, .mp4";
+  const formatHint =
+    stepType === "audio"
+      ? "Formatos .mp3, .ogg"
+      : stepType === "document"
+        ? "PDF, Word, Excel, etc."
+        : "Formatos .jpg, .png, .mp4";
 
   return (
     <div className="space-y-2">
       <label
         htmlFor={inputId}
-        onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragging(true);
+        }}
         onDragLeave={() => setDragging(false)}
-        onDrop={(event) => { event.preventDefault(); setDragging(false); onFile(event.dataTransfer.files?.[0]); }}
+        onDrop={(event) => {
+          event.preventDefault();
+          setDragging(false);
+          onFile(event.dataTransfer.files?.[0]);
+        }}
         className={cn(
           "flex min-h-[8rem] cursor-pointer flex-col justify-between rounded-[1.25rem] border border-dashed p-4 transition-all duration-300",
-          dragging ? "border-cmm-blue bg-cmm-blue/5" : "border-n-border bg-n-surface hover:bg-n-surface-2"
+          dragging
+            ? "border-cmm-blue bg-cmm-blue/5"
+            : "border-n-border bg-n-surface hover:bg-n-surface-2",
         )}
       >
         <div className="flex flex-col items-center gap-3 text-center">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/5 shadow-inner">
-            <Upload className={cn("h-5 w-5 transition-colors", dragging ? "text-cmm-blue" : "text-slate-500")} />
+            <Upload
+              className={cn(
+                "h-5 w-5 transition-colors",
+                dragging ? "text-cmm-blue" : "text-slate-500",
+              )}
+            />
           </div>
           <p className="text-xs font-bold text-slate-300">
             {uploading ? "Enviando arquivo..." : "Arraste ou selecione"}
           </p>
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">{formatHint}</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+            {formatHint}
+          </p>
         </div>
-        <input id={inputId} className="hidden" type="file" accept={mediaAcceptForType(stepType)} disabled={uploading} onChange={onInputChange} />
+        <input
+          id={inputId}
+          className="hidden"
+          type="file"
+          accept={mediaAcceptForType(stepType)}
+          disabled={uploading}
+          onChange={onInputChange}
+        />
       </label>
       {error ? <div className="text-xs font-bold text-red-400 text-center">{error}</div> : null}
     </div>
@@ -405,7 +483,7 @@ function SortableStep({
   attendants,
   onChange,
   onDuplicate,
-  onRemove
+  onRemove,
 }: {
   campaignId?: string;
   step: CampaignStepDraft;
@@ -419,7 +497,9 @@ function SortableStep({
   onRemove: () => void;
 }) {
   const sortableId = stepSortableId(step, index);
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: sortableId });
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
+    id: sortableId,
+  });
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showCondition, setShowCondition] = useState(Boolean(step.conditionType));
@@ -428,20 +508,30 @@ function SortableStep({
   const colorClass = stepColorMap[step.type as keyof typeof stepColorMap];
 
   const contentFieldLabel =
-    step.type === "text" ? "Mensagem"
-    : step.type === "link" ? "URL + Texto"
-    : step.type === "audio" ? "Texto do audio"
-    : step.type === "image" ? "Legenda da imagem"
-    : step.type === "video" ? "Legenda do video"
-    : step.type === "document" ? "Descricao do documento"
-    : "Conteudo";
+    step.type === "text"
+      ? "Mensagem"
+      : step.type === "link"
+        ? "URL + Texto"
+        : step.type === "audio"
+          ? "Texto do audio"
+          : step.type === "image"
+            ? "Legenda da imagem"
+            : step.type === "video"
+              ? "Legenda do video"
+              : step.type === "document"
+                ? "Descricao do documento"
+                : "Conteudo";
 
   const contentPlaceholder =
-    step.type === "text" ? "Digite a mensagem... Use *negrito*, _italico_, {{nome}} para variaveis"
-    : step.type === "link" ? "Cole a URL e adicione uma descricao"
-    : step.type === "audio" ? "Texto opcional para acompanhar o audio"
-    : step.type === "document" ? "Descricao opcional do documento"
-    : "Legenda opcional";
+    step.type === "text"
+      ? "Digite a mensagem... Use *negrito*, _italico_, {{nome}} para variaveis"
+      : step.type === "link"
+        ? "Cole a URL e adicione uma descricao"
+        : step.type === "audio"
+          ? "Texto opcional para acompanhar o audio"
+          : step.type === "document"
+            ? "Descricao opcional do documento"
+            : "Legenda opcional";
 
   const hasSidePanel = step.type === "wait" || isMediaStep(step);
 
@@ -455,7 +545,10 @@ function SortableStep({
     setUploading(true);
     setUploadError(null);
     try {
-      const media = await apiFetch<Record<string, unknown>>("/uploads/media", { method: "POST", body: formData });
+      const media = await apiFetch<Record<string, unknown>>("/uploads/media", {
+        method: "POST",
+        body: formData,
+      });
       onChange({ ...step, mediaPath: String(media.storage_path ?? media.storagePath ?? "") });
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : "Falha ao enviar midia.");
@@ -469,25 +562,44 @@ function SortableStep({
     event.target.value = "";
   }
 
-  const mediaIcon = step.type === "document" ? FileText
-    : step.type === "video" ? Video
-    : step.type === "image" ? ImageIcon
-    : Mic;
+  const mediaIcon =
+    step.type === "document"
+      ? FileText
+      : step.type === "video"
+        ? Video
+        : step.type === "image"
+          ? ImageIcon
+          : Mic;
 
   return (
-    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className="relative pl-9">
-      {!isLast && <div className="absolute left-[1rem] top-10 h-[calc(100%-0.75rem)] w-px bg-white/[0.06]" />}
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className="relative pl-9"
+    >
+      {!isLast && (
+        <div className="absolute left-[1rem] top-10 h-[calc(100%-0.75rem)] w-px bg-white/[0.06]" />
+      )}
 
-      <div className={cn(
-        "absolute left-0 top-2 flex h-8 w-8 items-center justify-center rounded-xl border border-n-border bg-[#16161a] text-white shadow-xl"
-      )}>
-        <span className="text-[10px] font-bold tracking-widest">{String(index + 1).padStart(2, '0')}</span>
+      <div
+        className={cn(
+          "absolute left-0 top-2 flex h-8 w-8 items-center justify-center rounded-xl border border-n-border bg-[#16161a] text-white shadow-xl",
+        )}
+      >
+        <span className="text-[10px] font-bold tracking-widest">
+          {String(index + 1).padStart(2, "0")}
+        </span>
       </div>
 
       <div className="glass-card mb-2.5 overflow-hidden rounded-[1.4rem] border-n-border bg-n-surface p-0 shadow-sm transition-all hover:bg-n-surface-2">
         <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-n-border bg-n-surface px-3.5 py-2.5">
           <div className="flex items-center gap-3">
-            <button type="button" className="rounded-xl p-1.5 text-slate-500 transition-colors hover:bg-white/5 hover:text-white" {...attributes} {...listeners}>
+            <button
+              type="button"
+              className="rounded-xl p-1.5 text-slate-500 transition-colors hover:bg-white/5 hover:text-white"
+              {...attributes}
+              {...listeners}
+            >
               <GripVertical className="h-4 w-4" />
             </button>
             <div className="flex items-center gap-2.5">
@@ -495,7 +607,9 @@ function SortableStep({
                 <Icon className="h-3.5 w-3.5" />
               </div>
               <div>
-                <h4 className="text-[13px] font-bold text-white tracking-tight">{campaignStepOptions.find((opt) => opt.value === step.type)?.label}</h4>
+                <h4 className="text-[13px] font-bold text-white tracking-tight">
+                  {campaignStepOptions.find((opt) => opt.value === step.type)?.label}
+                </h4>
               </div>
             </div>
             {step.conditionType && (
@@ -507,10 +621,22 @@ function SortableStep({
           </div>
 
           <div className="flex items-center gap-2">
-            <Button type="button" variant="ghost" size="sm" onClick={onDuplicate} className="text-slate-500 hover:text-white">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onDuplicate}
+              className="text-slate-500 hover:text-white"
+            >
               <Copy className="h-4 w-4" />
             </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={onRemove} className="text-slate-500 hover:text-red-400">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onRemove}
+              className="text-slate-500 hover:text-red-400"
+            >
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
@@ -518,7 +644,10 @@ function SortableStep({
 
         <div className="space-y-3 p-3.5">
           <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between">
-            <StepTypeSelector value={step.type} onChange={(type) => onChange(normalizeCampaignStepForType(step, type))} />
+            <StepTypeSelector
+              value={step.type}
+              onChange={(type) => onChange(normalizeCampaignStepForType(step, type))}
+            />
             <div className="flex items-center gap-2 rounded-full border border-n-border bg-black/20 px-2 py-1.5">
               {stepChannelOptions.map((opt) => (
                 <button
@@ -527,7 +656,9 @@ function SortableStep({
                   onClick={() => onChange({ ...step, channelScope: opt.value })}
                   className={cn(
                     "flex h-8 w-8 items-center justify-center rounded-full border transition-all",
-                    step.channelScope === opt.value ? "border-cmm-blue bg-cmm-blue/10 text-cmm-blue" : "border-transparent bg-white/5 text-slate-500 hover:bg-white/10"
+                    step.channelScope === opt.value
+                      ? "border-cmm-blue bg-cmm-blue/10 text-cmm-blue"
+                      : "border-transparent bg-white/5 text-slate-500 hover:bg-white/10",
                   )}
                   title={opt.label}
                 >
@@ -537,11 +668,18 @@ function SortableStep({
             </div>
           </div>
 
-          <div className={cn("grid gap-3", hasSidePanel ? "lg:grid-cols-[minmax(0,1fr)_220px]" : "grid-cols-1")}>
+          <div
+            className={cn(
+              "grid gap-3",
+              hasSidePanel ? "lg:grid-cols-[minmax(0,1fr)_220px]" : "grid-cols-1",
+            )}
+          >
             <div className="space-y-3">
               {step.type === "wait" ? (
                 <div className="space-y-1.5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Minutos de espera</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                    Minutos de espera
+                  </p>
                   <Input
                     type="number"
                     className="h-10 rounded-xl border-n-border bg-black/20 font-semibold"
@@ -551,7 +689,9 @@ function SortableStep({
                 </div>
               ) : isTagStep(step) ? (
                 <div className="space-y-1.5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Tag</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                    Tag
+                  </p>
                   <Input
                     list={tagListId}
                     className="h-10 rounded-xl border-n-border bg-black/20 font-semibold"
@@ -560,16 +700,29 @@ function SortableStep({
                     placeholder="ex: Lead Quente"
                   />
                   <datalist id={tagListId}>
-                    {tagOptions.map((t) => <option key={t.id} value={t.name} />)}
+                    {tagOptions.map((t) => (
+                      <option key={t.id} value={t.name} />
+                    ))}
                   </datalist>
                 </div>
               ) : (
                 <div className="space-y-1.5">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{contentFieldLabel}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                    {contentFieldLabel}
+                  </p>
                   <Textarea
                     className="min-h-[80px] rounded-2xl border-n-border bg-n-surface-2 px-3.5 py-3 text-sm leading-relaxed"
                     value={step.content}
-                    onChange={(e) => onChange({ ...step, content: e.target.value, caption: step.type === "text" || step.type === "link" ? step.caption : e.target.value })}
+                    onChange={(e) =>
+                      onChange({
+                        ...step,
+                        content: e.target.value,
+                        caption:
+                          step.type === "text" || step.type === "link"
+                            ? step.caption
+                            : e.target.value,
+                      })
+                    }
                     placeholder={contentPlaceholder}
                   />
                   {(step.type === "text" || step.type === "link") && (
@@ -593,13 +746,20 @@ function SortableStep({
               <div className="flex flex-col gap-3">
                 {!isTagStep(step) && step.type !== "wait" && isMediaStep(step) && (
                   <div className="flex-1">
-                    <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">Midia</p>
+                    <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                      Midia
+                    </p>
                     {step.mediaPath ? (
                       <div className="glass-card relative rounded-[1.25rem] border-n-border bg-cmm-blue/5 p-3.5 text-center">
                         <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-2xl bg-white/5 shadow-inner">
-                          {(() => { const MI = mediaIcon; return <MI className="h-6 w-6 text-cmm-blue" />; })()}
+                          {(() => {
+                            const MI = mediaIcon;
+                            return <MI className="h-6 w-6 text-cmm-blue" />;
+                          })()}
                         </div>
-                        <p className="text-xs font-bold text-white truncate">{fileNameFromPath(step.mediaPath)}</p>
+                        <p className="text-xs font-bold text-white truncate">
+                          {fileNameFromPath(step.mediaPath)}
+                        </p>
                         <button
                           onClick={() => onChange({ ...step, mediaPath: null })}
                           className="mt-3 text-[10px] font-bold uppercase tracking-widest text-red-400 transition-colors hover:text-red-300"
@@ -608,13 +768,21 @@ function SortableStep({
                         </button>
                       </div>
                     ) : (
-                      <MediaDropzone stepType={step.type} uploading={uploading} error={uploadError} onFile={uploadMedia} onInputChange={handleMediaUpload} />
+                      <MediaDropzone
+                        stepType={step.type}
+                        uploading={uploading}
+                        error={uploadError}
+                        onFile={uploadMedia}
+                        onInputChange={handleMediaUpload}
+                      />
                     )}
                   </div>
                 )}
                 {step.type === "audio" && (
                   <div className="space-y-1.5">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Voz</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                      Voz
+                    </p>
                     <select
                       className="h-10 w-full rounded-xl border border-n-border bg-black/20 px-3 text-sm text-white outline-none focus:border-cmm-purple/40"
                       value={step.attendantId ?? ""}
@@ -630,7 +798,9 @@ function SortableStep({
                         ))}
                     </select>
                     {step.attendantId && (
-                      <p className="text-[9px] text-cmm-purple">Audio sera convertido para a voz do atendente.</p>
+                      <p className="text-[9px] text-cmm-purple">
+                        Audio sera convertido para a voz do atendente.
+                      </p>
                     )}
                   </div>
                 )}
@@ -649,17 +819,26 @@ function SortableStep({
   );
 }
 
-export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onChange: (next: CampaignDraft) => void }) {
+export function CampaignBuilder({
+  value,
+  onChange,
+}: {
+  value: CampaignDraft;
+  onChange: (next: CampaignDraft) => void;
+}) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
-  const sortableIds = useMemo(() => value.steps.map((step, index) => stepSortableId(step, index)), [value.steps]);
+  const sortableIds = useMemo(
+    () => value.steps.map((step, index) => stepSortableId(step, index)),
+    [value.steps],
+  );
   const tagsQuery = useQuery({
     queryKey: ["tags"],
-    queryFn: () => apiFetch<TagRecord[]>("/tags")
+    queryFn: () => apiFetch<TagRecord[]>("/tags"),
   });
 
   const attendantsQuery = useQuery({
     queryKey: ["attendants"],
-    queryFn: () => apiFetch<AttendantRecord[]>("/attendants")
+    queryFn: () => apiFetch<AttendantRecord[]>("/attendants"),
   });
 
   const duration = estimateCampaignDuration(value.steps);
@@ -672,7 +851,8 @@ export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onC
       ? value.eligibleChannels.filter((item): item is "whatsapp" | "instagram" => item !== channel)
       : [...value.eligibleChannels, channel];
 
-    const normalizedChannels: Array<"whatsapp" | "instagram"> = nextChannels.length > 0 ? nextChannels : ["whatsapp"];
+    const normalizedChannels: Array<"whatsapp" | "instagram"> =
+      nextChannels.length > 0 ? nextChannels : ["whatsapp"];
     const nextSteps: CampaignStepDraft[] = value.steps.map((step) => {
       if (step.channelScope !== "any" && !normalizedChannels.includes(step.channelScope)) {
         return { ...step, channelScope: normalizedChannels[0] ?? "whatsapp" };
@@ -692,7 +872,9 @@ export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onC
             <SectionHeading icon={Target} title="Configuracao base" />
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_200px]">
               <div className="space-y-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Nome da campanha</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                  Nome da campanha
+                </p>
                 <Input
                   className="h-11 rounded-2xl border-n-border bg-n-surface-2 text-sm font-semibold focus:border-cmm-blue/30"
                   value={value.name}
@@ -701,21 +883,27 @@ export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onC
                 />
               </div>
               <div className="space-y-2">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Status</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                  Status
+                </p>
                 <select
                   className="h-11 w-full rounded-2xl border border-n-border bg-n-surface-2 px-4 text-sm font-semibold text-white outline-none focus:border-cmm-blue/30"
                   value={value.status}
                   onChange={(e) => onChange({ ...value, status: e.target.value })}
                 >
                   {campaignStatusOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">{opt.label}</option>
+                    <option key={opt.value} value={opt.value} className="bg-slate-900 text-white">
+                      {opt.label}
+                    </option>
                   ))}
                 </select>
               </div>
             </div>
 
             <div className="space-y-2">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Descricao</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                Descricao
+              </p>
               <Textarea
                 className="min-h-[84px] rounded-2xl border-n-border bg-n-surface-2 px-4 py-3 text-sm focus:border-cmm-blue/30"
                 value={value.description}
@@ -739,7 +927,7 @@ export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onC
                       ? opt.value === "instagram"
                         ? "border-cmm-orange/40 bg-cmm-orange/10 text-cmm-orange"
                         : "border-cmm-emerald/40 bg-cmm-emerald/10 text-cmm-emerald"
-                      : "border-n-border bg-n-surface text-slate-600 hover:bg-white/[0.05]"
+                      : "border-n-border bg-n-surface text-slate-600 hover:bg-white/[0.05]",
                   )}
                   title={opt.label}
                 >
@@ -757,12 +945,24 @@ export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onC
                   "flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-left transition-all",
                   value.isEvergreen
                     ? "border-cmm-emerald/30 bg-cmm-emerald/10"
-                    : "border-n-border bg-n-surface hover:bg-n-surface-2"
+                    : "border-n-border bg-n-surface hover:bg-n-surface-2",
                 )}
               >
-                <InfinityIcon className={cn("h-4 w-4", value.isEvergreen ? "text-cmm-emerald" : "text-slate-500")} />
+                <InfinityIcon
+                  className={cn(
+                    "h-4 w-4",
+                    value.isEvergreen ? "text-cmm-emerald" : "text-slate-500",
+                  )}
+                />
                 <div>
-                  <p className={cn("text-[11px] font-bold", value.isEvergreen ? "text-cmm-emerald" : "text-slate-400")}>Evergreen</p>
+                  <p
+                    className={cn(
+                      "text-[11px] font-bold",
+                      value.isEvergreen ? "text-cmm-emerald" : "text-slate-400",
+                    )}
+                  >
+                    Evergreen
+                  </p>
                   <p className="text-[9px] text-slate-500">Auto-adiciona novos contatos</p>
                 </div>
               </button>
@@ -777,19 +977,49 @@ export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onC
 
         <div className="mt-4 grid gap-2.5 md:grid-cols-2 xl:grid-cols-4">
           {[
-            { label: "Inicio Janela", value: value.sendWindowStart, field: "sendWindowStart", placeholder: "08:00" },
-            { label: "Fim Janela", value: value.sendWindowEnd, field: "sendWindowEnd", placeholder: "20:00" },
-            { label: "Limite (Envios)", value: value.rateLimitCount, field: "rateLimitCount", type: "number" },
-            { label: "Janela (Min)", value: value.rateLimitWindowMinutes, field: "rateLimitWindowMinutes", type: "number" }
+            {
+              label: "Inicio Janela",
+              value: value.sendWindowStart,
+              field: "sendWindowStart",
+              placeholder: "08:00",
+            },
+            {
+              label: "Fim Janela",
+              value: value.sendWindowEnd,
+              field: "sendWindowEnd",
+              placeholder: "20:00",
+            },
+            {
+              label: "Limite (Envios)",
+              value: value.rateLimitCount,
+              field: "rateLimitCount",
+              type: "number",
+            },
+            {
+              label: "Janela (Min)",
+              value: value.rateLimitWindowMinutes,
+              field: "rateLimitWindowMinutes",
+              type: "number",
+            },
           ].map((f) => (
-            <div key={f.field} className="rounded-[1.25rem] border border-n-border bg-n-surface-2 p-3">
-              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500">{f.label}</p>
+            <div
+              key={f.field}
+              className="rounded-[1.25rem] border border-n-border bg-n-surface-2 p-3"
+            >
+              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                {f.label}
+              </p>
               <Input
                 type={f.type || "text"}
                 className="h-10 rounded-xl border-n-border bg-black/20 font-semibold text-center"
                 value={f.value}
                 placeholder={f.placeholder}
-                onChange={(e) => onChange({ ...value, [f.field]: f.type === "number" ? Number(e.target.value) : e.target.value })}
+                onChange={(e) =>
+                  onChange({
+                    ...value,
+                    [f.field]: f.type === "number" ? Number(e.target.value) : e.target.value,
+                  })
+                }
               />
             </div>
           ))}
@@ -797,12 +1027,25 @@ export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onC
 
         <div className="mt-2.5 grid gap-2.5 md:grid-cols-2">
           {[
-            { label: "Delay Minimo (s)", value: value.randomDelayMinSeconds, field: "randomDelayMinSeconds" },
-            { label: "Delay Maximo (s)", value: value.randomDelayMaxSeconds, field: "randomDelayMaxSeconds" }
+            {
+              label: "Delay Minimo (s)",
+              value: value.randomDelayMinSeconds,
+              field: "randomDelayMinSeconds",
+            },
+            {
+              label: "Delay Maximo (s)",
+              value: value.randomDelayMaxSeconds,
+              field: "randomDelayMaxSeconds",
+            },
           ].map((f) => (
-            <div key={f.field} className="flex items-center justify-between rounded-[1.25rem] border border-n-border bg-n-surface-2 p-3">
+            <div
+              key={f.field}
+              className="flex items-center justify-between rounded-[1.25rem] border border-n-border bg-n-surface-2 p-3"
+            >
               <div>
-                <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 leading-none">{f.label}</p>
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-slate-500 leading-none">
+                  {f.label}
+                </p>
                 <p className="text-xs text-slate-400 font-medium">Delay aleatorio</p>
               </div>
               <Input
@@ -852,12 +1095,16 @@ export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onC
           </div>
         </div>
 
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => {
-          if (!e.over || e.active.id === e.over.id) return;
-          const oldIdx = sortableIds.indexOf(String(e.active.id));
-          const newIdx = sortableIds.indexOf(String(e.over.id));
-          onChange({ ...value, steps: arrayMove(value.steps, oldIdx, newIdx) });
-        }}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={(e) => {
+            if (!e.over || e.active.id === e.over.id) return;
+            const oldIdx = sortableIds.indexOf(String(e.active.id));
+            const newIdx = sortableIds.indexOf(String(e.over.id));
+            onChange({ ...value, steps: arrayMove(value.steps, oldIdx, newIdx) });
+          }}
+        >
           <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
             <div className="space-y-3">
               {value.steps.map((step, index) => (
@@ -870,9 +1117,31 @@ export function CampaignBuilder({ value, onChange }: { value: CampaignDraft; onC
                   stepCount={stepCount}
                   tagOptions={tagsQuery.data ?? []}
                   attendants={attendantsQuery.data ?? []}
-                  onChange={(next) => onChange({ ...value, steps: value.steps.map((c, i) => i === index ? next : c) })}
-                  onDuplicate={() => onChange({ ...value, steps: [...value.steps.slice(0, index + 1), { ...step, id: undefined }, ...value.steps.slice(index + 1)] })}
-                  onRemove={() => onChange({ ...value, steps: value.steps.length === 1 ? [emptyCampaignStep()] : value.steps.filter((_, i) => i !== index) })}
+                  onChange={(next) =>
+                    onChange({
+                      ...value,
+                      steps: value.steps.map((c, i) => (i === index ? next : c)),
+                    })
+                  }
+                  onDuplicate={() =>
+                    onChange({
+                      ...value,
+                      steps: [
+                        ...value.steps.slice(0, index + 1),
+                        { ...step, id: undefined },
+                        ...value.steps.slice(index + 1),
+                      ],
+                    })
+                  }
+                  onRemove={() =>
+                    onChange({
+                      ...value,
+                      steps:
+                        value.steps.length === 1
+                          ? [emptyCampaignStep()]
+                          : value.steps.filter((_, i) => i !== index),
+                    })
+                  }
                 />
               ))}
             </div>

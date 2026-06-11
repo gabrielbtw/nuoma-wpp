@@ -190,9 +190,7 @@ async function hasInstagramComposer(page: Page): Promise<boolean> {
 }
 
 async function hasInstagramMediaUploadInput(page: Page): Promise<boolean> {
-  return page.evaluate<boolean>(
-    `(() => Boolean(document.querySelector("input[type='file']")))()`,
-  );
+  return page.evaluate<boolean>(`(() => Boolean(document.querySelector("input[type='file']")))()`);
 }
 
 async function waitForInstagramComposer(

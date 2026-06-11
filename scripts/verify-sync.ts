@@ -14,7 +14,9 @@ interface Row {
   placeholder_count: number;
 }
 
-const rows = db.prepare(`
+const rows = db
+  .prepare(
+    `
   SELECT
     c.title,
     c.last_message_at,
@@ -25,7 +27,9 @@ const rows = db.prepare(`
   WHERE c.channel = 'whatsapp'
   ORDER BY datetime(COALESCE(c.last_message_at, c.updated_at)) DESC
   LIMIT 200
-`).all() as Row[];
+`,
+  )
+  .all() as Row[];
 
 const now = new Date();
 const today = now.toISOString().slice(0, 10);
@@ -34,7 +38,11 @@ function formatTime(iso: string | null): string {
   if (!iso) return "—";
   const d = new Date(iso);
   const dateStr = d.toISOString().slice(0, 10);
-  const timeStr = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
+  const timeStr = d.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  });
   if (dateStr === today) return `${timeStr} hoje`;
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
@@ -47,12 +55,18 @@ function truncate(s: string | null, max: number): string {
   return s.length > max ? s.slice(0, max - 1) + "…" : s;
 }
 
-console.log(`\nWhatsApp Sync Verification — ${now.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`);
+console.log(
+  `\nWhatsApp Sync Verification — ${now.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`,
+);
 console.log("─".repeat(90));
-console.log(` ${"#".padStart(3)} │ ${"Contato".padEnd(22)} │ ${"Msgs".padStart(5)} │ ${"Última msg".padEnd(16)} │ Preview`);
+console.log(
+  ` ${"#".padStart(3)} │ ${"Contato".padEnd(22)} │ ${"Msgs".padStart(5)} │ ${"Última msg".padEnd(16)} │ Preview`,
+);
 console.log("─".repeat(90));
 
-let withMsgs = 0, placeholders = 0, withoutMsgs = 0;
+let withMsgs = 0,
+  placeholders = 0,
+  withoutMsgs = 0;
 
 for (let i = 0; i < rows.length; i++) {
   const r = rows[i];
@@ -60,9 +74,10 @@ for (let i = 0; i < rows.length; i++) {
   const title = truncate(r.title, 22).padEnd(22);
   const msgs = String(r.msg_count).padStart(5);
   const time = formatTime(r.last_message_at).padEnd(16);
-  const previewText = r.placeholder_count > 0 && r.msg_count === r.placeholder_count
-    ? "(placeholder)"
-    : truncate(r.last_message_preview, 25);
+  const previewText =
+    r.placeholder_count > 0 && r.msg_count === r.placeholder_count
+      ? "(placeholder)"
+      : truncate(r.last_message_preview, 25);
 
   console.log(` ${num} │ ${title} │ ${msgs} │ ${time} │ ${previewText}`);
 
@@ -72,7 +87,9 @@ for (let i = 0; i < rows.length; i++) {
 }
 
 console.log("─".repeat(90));
-console.log(`Total: ${rows.length} convs | Com msgs: ${withMsgs} | Placeholders: ${placeholders} | Sem msgs: ${withoutMsgs}`);
+console.log(
+  `Total: ${rows.length} convs | Com msgs: ${withMsgs} | Placeholders: ${placeholders} | Sem msgs: ${withoutMsgs}`,
+);
 console.log();
 
 db.close();

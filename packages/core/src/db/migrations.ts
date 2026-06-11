@@ -284,7 +284,7 @@ export const migrations = [
       CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders(status, due_at);
       CREATE INDEX IF NOT EXISTS idx_system_logs_created_at ON system_logs(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_worker_state_updated_at ON worker_state(updated_at DESC);
-    `
+    `,
   },
   {
     id: "0002_contact_history_and_tag_metadata",
@@ -380,7 +380,7 @@ export const migrations = [
       CREATE INDEX IF NOT EXISTS idx_contact_tags_contact ON contact_tags(contact_id);
       CREATE INDEX IF NOT EXISTS idx_contact_tags_tag ON contact_tags(tag_id);
       CREATE INDEX IF NOT EXISTS idx_contact_history_contact_created ON contact_history(contact_id, created_at DESC);
-    `
+    `,
   },
   {
     id: "0003_omnichannel_foundation",
@@ -578,7 +578,7 @@ export const migrations = [
       CREATE INDEX IF NOT EXISTS idx_campaign_executions_due ON campaign_executions(status, next_run_at);
       CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_audit_logs_contact ON audit_logs(contact_id, created_at DESC);
-    `
+    `,
   },
   {
     id: "0004_contact_phone_nullable_for_omnichannel",
@@ -633,7 +633,7 @@ export const migrations = [
         ON contacts(instagram);
 
       PRAGMA foreign_keys = ON;
-    `
+    `,
   },
   {
     id: "0005_campaign_recipients_omnichannel",
@@ -653,7 +653,7 @@ export const migrations = [
 
       CREATE INDEX IF NOT EXISTS idx_campaign_recipients_channel_due
         ON campaign_recipients(channel, status, next_run_at);
-    `
+    `,
   },
   {
     id: "0006_contact_instagram_relationship_signals",
@@ -662,7 +662,7 @@ export const migrations = [
       ALTER TABLE contacts ADD COLUMN instagram_followed_by_me INTEGER;
       ALTER TABLE contacts ADD COLUMN instagram_incoming_messages_count INTEGER NOT NULL DEFAULT 0;
       ALTER TABLE contacts ADD COLUMN instagram_sent_more_than_three_messages INTEGER NOT NULL DEFAULT 0;
-    `
+    `,
   },
   {
     id: "0007_data_lake",
@@ -730,7 +730,7 @@ export const migrations = [
       CREATE INDEX IF NOT EXISTS idx_data_lake_assets_source ON data_lake_assets(source_type, enrichment_status);
       CREATE INDEX IF NOT EXISTS idx_data_lake_assets_contact ON data_lake_assets(contact_id, captured_at DESC);
       CREATE INDEX IF NOT EXISTS idx_data_lake_reports_created_at ON data_lake_reports(created_at DESC);
-    `
+    `,
   },
   {
     id: "0008_templates_conditions_evergreen",
@@ -760,7 +760,7 @@ export const migrations = [
       ALTER TABLE campaigns ADD COLUMN is_evergreen INTEGER NOT NULL DEFAULT 0;
       ALTER TABLE campaigns ADD COLUMN evergreen_criteria_json TEXT NOT NULL DEFAULT '{}';
       ALTER TABLE campaigns ADD COLUMN evergreen_last_evaluated_at TEXT;
-    `
+    `,
   },
   {
     id: "0009_events_chatbot_dashboard",
@@ -804,7 +804,7 @@ export const migrations = [
       -- Chatbot fallback config
       ALTER TABLE chatbots ADD COLUMN fallback_action TEXT NOT NULL DEFAULT 'silence_and_flag';
       ALTER TABLE chatbots ADD COLUMN fallback_tag TEXT NOT NULL DEFAULT 'chatbot_nao_entendeu';
-    `
+    `,
   },
   {
     id: "0010_performance_indices",
@@ -815,7 +815,7 @@ export const migrations = [
         ON campaign_recipients(campaign_id, status, step_index);
       CREATE INDEX IF NOT EXISTS idx_contacts_status_last_interaction
         ON contacts(status, last_interaction_at);
-    `
+    `,
   },
   {
     id: "0011_attendants",
@@ -833,7 +833,7 @@ export const migrations = [
       ALTER TABLE campaign_steps ADD COLUMN attendant_id TEXT REFERENCES attendants(id) ON DELETE SET NULL;
 
       CREATE INDEX IF NOT EXISTS idx_attendants_status ON attendants(status);
-    `
+    `,
   },
   {
     id: "0012_message_dedup_index",
@@ -841,14 +841,14 @@ export const migrations = [
       CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_conv_external_id
         ON messages(conversation_id, external_id)
         WHERE external_id IS NOT NULL;
-    `
+    `,
   },
   {
     id: "0013_chatbot_rule_automation_trigger",
     sql: `
       ALTER TABLE chatbot_rules ADD COLUMN trigger_automation_id TEXT;
       ALTER TABLE chatbot_rules ADD COLUMN phone_ddd_filter TEXT;
-    `
+    `,
   },
   {
     id: "0014_automation_runs_batch",
@@ -856,7 +856,7 @@ export const migrations = [
       ALTER TABLE automation_runs ADD COLUMN batch_id TEXT;
       ALTER TABLE automation_runs ADD COLUMN batch_position INTEGER;
       CREATE INDEX IF NOT EXISTS idx_automation_runs_batch ON automation_runs(batch_id, batch_position);
-    `
+    `,
   },
   {
     id: "0015_attachment_candidates",
@@ -897,6 +897,6 @@ export const migrations = [
       CREATE UNIQUE INDEX IF NOT EXISTS idx_attachment_candidates_source_asset
         ON attachment_candidates(conversation_id, media_asset_id, source_url)
         WHERE source_url IS NOT NULL;
-    `
-  }
+    `,
+  },
 ] as const;

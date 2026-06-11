@@ -12,7 +12,7 @@ export function browserSupportsPush(): boolean {
 
 export async function registerNuomaServiceWorker(): Promise<ServiceWorkerRegistration> {
   if (!("serviceWorker" in navigator)) {
-    throw new Error("Service worker indisponivel neste navegador.");
+    throw new Error("Serviço de notificações indisponível neste navegador.");
   }
   return navigator.serviceWorker.register("/sw.js", { scope: "/" });
 }
@@ -27,11 +27,11 @@ export async function subscribeBrowserPush(
   vapidPublicKey: string,
 ): Promise<BrowserPushSubscription> {
   if (!browserSupportsPush()) {
-    throw new Error("Push nao suportado neste navegador.");
+    throw new Error("Notificações push não são suportadas neste navegador.");
   }
   const permission = await Notification.requestPermission();
   if (permission !== "granted") {
-    throw new Error("Permissao de notificacao negada.");
+    throw new Error("Permissão de notificação negada.");
   }
 
   const registration = await registerNuomaServiceWorker();

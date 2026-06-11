@@ -2,10 +2,24 @@ import { z } from "zod";
 import { isValidCpf, normalizeCpf } from "../utils/cpf.js";
 
 export const contactProcedureStatusValues = ["yes", "no", "unknown"] as const;
-export const contactStatusValues = ["novo", "aguardando_resposta", "em_atendimento", "cliente", "sem_retorno", "perdido"] as const;
+export const contactStatusValues = [
+  "novo",
+  "aguardando_resposta",
+  "em_atendimento",
+  "cliente",
+  "sem_retorno",
+  "perdido",
+] as const;
 export const conversationStatusValues = ["open", "waiting", "closed"] as const;
 export const messageDirectionValues = ["incoming", "outgoing", "system"] as const;
-export const messageContentTypeValues = ["text", "audio", "image", "video", "file", "summary"] as const;
+export const messageContentTypeValues = [
+  "text",
+  "audio",
+  "image",
+  "video",
+  "file",
+  "summary",
+] as const;
 export const automationCategoryValues = [
   "follow-up",
   "reativacao",
@@ -13,14 +27,52 @@ export const automationCategoryValues = [
   "lista-fria",
   "pos-procedimento",
   "remarketing",
-  "instagram-incoming"
+  "instagram-incoming",
 ] as const;
-export const campaignStatusValues = ["draft", "ready", "active", "paused", "completed", "cancelled", "failed"] as const;
-export const campaignStepTypeValues = ["text", "audio", "image", "video", "document", "link", "wait", "ADD_TAG", "REMOVE_TAG"] as const;
-export const recipientStatusValues = ["pending", "processing", "sent", "failed", "skipped", "blocked_by_rule"] as const;
+export const campaignStatusValues = [
+  "draft",
+  "ready",
+  "active",
+  "paused",
+  "completed",
+  "cancelled",
+  "failed",
+] as const;
+export const campaignStepTypeValues = [
+  "text",
+  "audio",
+  "image",
+  "video",
+  "document",
+  "link",
+  "wait",
+  "ADD_TAG",
+  "REMOVE_TAG",
+] as const;
+export const recipientStatusValues = [
+  "pending",
+  "processing",
+  "sent",
+  "failed",
+  "skipped",
+  "blocked_by_rule",
+] as const;
 export const jobStatusValues = ["pending", "processing", "done", "failed"] as const;
-export const jobTypeValues = ["send-message", "send-assisted-message", "sync-inbox", "restart-worker", "validate-recipient"] as const;
-export const workerStatusValues = ["starting", "authenticated", "disconnected", "restarting", "degraded", "error"] as const;
+export const jobTypeValues = [
+  "send-message",
+  "send-assisted-message",
+  "sync-inbox",
+  "restart-worker",
+  "validate-recipient",
+] as const;
+export const workerStatusValues = [
+  "starting",
+  "authenticated",
+  "disconnected",
+  "restarting",
+  "degraded",
+  "error",
+] as const;
 export const automationActionTypeValues = [
   "send-text",
   "send-audio",
@@ -29,7 +81,7 @@ export const automationActionTypeValues = [
   "wait",
   "apply-tag",
   "remove-tag",
-  "create-reminder"
+  "create-reminder",
 ] as const;
 export const tagTypeValues = ["manual", "canal", "automacao", "sistema"] as const;
 export const channelTypeValues = ["whatsapp", "instagram"] as const;
@@ -57,7 +109,14 @@ const hhmmSchema = z.string().trim().regex(hhmmPattern, "Horário inválido. Use
 export const campaignChannelScopeValues = ["any", "whatsapp", "instagram"] as const;
 
 // -- Template & condition types (declared early for use in schemas below) --
-export const templateContentTypeValues = ["text", "audio", "image", "video", "document", "link"] as const;
+export const templateContentTypeValues = [
+  "text",
+  "audio",
+  "image",
+  "video",
+  "document",
+  "link",
+] as const;
 export type TemplateContentType = (typeof templateContentTypeValues)[number];
 
 export const conditionTypeValues = ["replied", "has_tag", "channel_is", "outside_window"] as const;
@@ -71,7 +130,7 @@ export const templateInputSchema = z.object({
   contentType: z.enum(templateContentTypeValues).default("text"),
   body: z.string().trim().default(""),
   mediaPath: z.string().trim().optional().nullable().default(null),
-  category: z.string().trim().default("general")
+  category: z.string().trim().default("general"),
 });
 export type TemplateInput = z.infer<typeof templateInputSchema>;
 
@@ -84,7 +143,14 @@ const baseContactInputSchema = z.object({
     .nullable()
     .transform((value) => normalizeCpf(value))
     .refine((value) => value == null || isValidCpf(value), "CPF inválido"),
-  email: z.string().trim().email("Email inválido").optional().or(z.literal("")).nullable().default(null),
+  email: z
+    .string()
+    .trim()
+    .email("Email inválido")
+    .optional()
+    .or(z.literal(""))
+    .nullable()
+    .default(null),
   instagram: z.string().trim().optional().nullable().default(null),
   procedureStatus: z.enum(contactProcedureStatusValues).default("unknown"),
   lastAttendant: z.string().trim().optional().nullable().default(null),
@@ -92,13 +158,13 @@ const baseContactInputSchema = z.object({
   status: z.enum(contactStatusValues).default("novo"),
   tags: z.array(z.string().trim().min(1)).default([]),
   lastInteractionAt: z.string().datetime().optional().nullable().default(null),
-  lastProcedureAt: z.string().datetime().optional().nullable().default(null)
+  lastProcedureAt: z.string().datetime().optional().nullable().default(null),
 });
 
 function refineContactChannels(
   value: Pick<z.infer<typeof baseContactInputSchema>, "phone" | "instagram">,
   ctx: z.RefinementCtx,
-  mode: "create" | "patch"
+  mode: "create" | "patch",
 ) {
   const phone = (value.phone ?? "").trim();
   const instagram = (value.instagram ?? "").trim();
@@ -109,7 +175,7 @@ function refineContactChannels(
     ctx.addIssue({
       code: "custom",
       path: ["phone"],
-      message: "Telefone inválido"
+      message: "Telefone inválido",
     });
   }
 
@@ -117,7 +183,7 @@ function refineContactChannels(
     ctx.addIssue({
       code: "custom",
       path: ["phone"],
-      message: "Informe telefone ou Instagram."
+      message: "Informe telefone ou Instagram.",
     });
   }
 }
@@ -130,10 +196,10 @@ export const contactPatchSchema = baseContactInputSchema.partial().superRefine((
   refineContactChannels(
     {
       phone: value.phone ?? null,
-      instagram: value.instagram ?? null
+      instagram: value.instagram ?? null,
     },
     ctx,
-    "patch"
+    "patch",
   );
 });
 
@@ -150,25 +216,44 @@ export const automationRuleInputSchema = z.object({
   procedureOnly: z.boolean().default(false),
   requireLastOutgoing: z.boolean().default(false),
   requireNoReply: z.boolean().default(false),
-  timeWindowHours: z.coerce.number().int().min(1).max(24 * 30).default(24),
-  minimumIntervalHours: z.coerce.number().int().min(1).max(24 * 60).default(72),
+  timeWindowHours: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(24 * 30)
+    .default(24),
+  minimumIntervalHours: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(24 * 60)
+    .default(72),
   randomDelayMinSeconds: z.coerce.number().int().min(0).max(3600).default(10),
   randomDelayMaxSeconds: z.coerce.number().int().min(0).max(3600).default(45),
   sendWindowStart: z.string().trim().default("08:00"),
   sendWindowEnd: z.string().trim().default("20:00"),
   templateKey: z.string().trim().optional().nullable().default(null),
-  actions: z.array(
-    z.object({
-      id: z.string().trim().optional(),
-      type: z.enum(automationActionTypeValues),
-      content: z.string().trim().optional().default(""),
-      mediaPath: z.string().trim().optional().nullable().default(null),
-      waitSeconds: z.coerce.number().int().min(1).max(24 * 60 * 60).optional().nullable().default(null),
-      tagName: z.string().trim().optional().nullable().default(null),
-      reminderText: z.string().trim().optional().nullable().default(null),
-      metadata: z.record(z.string(), z.unknown()).optional().default({})
-    })
-  ).min(1)
+  actions: z
+    .array(
+      z.object({
+        id: z.string().trim().optional(),
+        type: z.enum(automationActionTypeValues),
+        content: z.string().trim().optional().default(""),
+        mediaPath: z.string().trim().optional().nullable().default(null),
+        waitSeconds: z.coerce
+          .number()
+          .int()
+          .min(1)
+          .max(24 * 60 * 60)
+          .optional()
+          .nullable()
+          .default(null),
+        tagName: z.string().trim().optional().nullable().default(null),
+        reminderText: z.string().trim().optional().nullable().default(null),
+        metadata: z.record(z.string(), z.unknown()).optional().default({}),
+      }),
+    )
+    .min(1),
 });
 
 export type AutomationRuleInput = z.infer<typeof automationRuleInputSchema>;
@@ -177,7 +262,7 @@ export const tagInputSchema = z.object({
   name: z.string().trim().min(1),
   color: z.string().trim().default("#3ddc97"),
   type: z.enum(tagTypeValues).default("manual"),
-  active: z.boolean().default(true)
+  active: z.boolean().default(true),
 });
 
 export type TagInput = z.infer<typeof tagInputSchema>;
@@ -188,7 +273,14 @@ export const campaignStepInputSchema = z
     type: z.enum(campaignStepTypeValues),
     content: z.string().trim().optional().default(""),
     mediaPath: z.string().trim().optional().nullable().default(null),
-    waitMinutes: z.coerce.number().int().min(1).max(24 * 60).optional().nullable().default(null),
+    waitMinutes: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(24 * 60)
+      .optional()
+      .nullable()
+      .default(null),
     caption: z.string().trim().optional().default(""),
     tagName: z.string().trim().optional().nullable().default(null),
     channelScope: z.enum(campaignChannelScopeValues).default("any"),
@@ -197,14 +289,14 @@ export const campaignStepInputSchema = z
     conditionValue: z.string().trim().optional().nullable().default(null),
     conditionAction: z.enum(conditionActionValues).optional().nullable().default(null),
     conditionJumpTo: z.coerce.number().int().min(0).optional().nullable().default(null),
-    attendantId: z.string().trim().optional().nullable()
+    attendantId: z.string().trim().optional().nullable(),
   })
   .superRefine((value, ctx) => {
     if (value.type === "wait" && value.waitMinutes == null) {
       ctx.addIssue({
         code: "custom",
         path: ["waitMinutes"],
-        message: "Etapas de espera precisam informar os minutos."
+        message: "Etapas de espera precisam informar os minutos.",
       });
     }
 
@@ -212,7 +304,7 @@ export const campaignStepInputSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["tagName"],
-        message: "Etapas de tag precisam informar qual tag será alterada."
+        message: "Etapas de tag precisam informar qual tag será alterada.",
       });
     }
   });
@@ -228,19 +320,24 @@ export const campaignInputSchema = z
     sendWindowStart: hhmmSchema.default("08:00"),
     sendWindowEnd: hhmmSchema.default("20:00"),
     rateLimitCount: z.coerce.number().int().min(1).max(1000).default(30),
-    rateLimitWindowMinutes: z.coerce.number().int().min(1).max(24 * 60).default(60),
+    rateLimitWindowMinutes: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(24 * 60)
+      .default(60),
     randomDelayMinSeconds: z.coerce.number().int().min(0).max(3600).default(15),
     randomDelayMaxSeconds: z.coerce.number().int().min(0).max(3600).default(60),
     isEvergreen: z.boolean().default(false),
     evergreenCriteria: z.record(z.string(), z.unknown()).optional().default({}),
-    steps: z.array(campaignStepInputSchema).min(1)
+    steps: z.array(campaignStepInputSchema).min(1),
   })
   .superRefine((value, ctx) => {
     if (value.sendWindowStart === value.sendWindowEnd) {
       ctx.addIssue({
         code: "custom",
         path: ["sendWindowEnd"],
-        message: "A janela de envio precisa ter início e fim diferentes."
+        message: "A janela de envio precisa ter início e fim diferentes.",
       });
     }
 
@@ -248,7 +345,7 @@ export const campaignInputSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["randomDelayMaxSeconds"],
-        message: "O delay máximo precisa ser maior ou igual ao delay mínimo."
+        message: "O delay máximo precisa ser maior ou igual ao delay mínimo.",
       });
     }
   });
@@ -263,7 +360,7 @@ export const attendantInputSchema = z.object({
   name: z.string().trim().min(1, "Informe um nome para o atendente."),
   voiceSamples: z.array(z.string().trim().min(1)).default([]),
   xttsModelPath: z.string().trim().optional().nullable().default(null),
-  status: z.enum(attendantStatusValues).default("active")
+  status: z.enum(attendantStatusValues).default("active"),
 });
 export type AttendantInput = z.infer<typeof attendantInputSchema>;
 
@@ -277,16 +374,15 @@ export interface AttendantRecord {
   updatedAt: string;
 }
 
-export const sendJobPayloadSchema = z.object({
-  source: z.enum(["rule", "automation", "campaign", "manual"]),
-  channel: z.enum(channelTypeValues).default("whatsapp"),
-  channelAccountId: z.string().optional().nullable().default(null),
-  externalThreadId: z.string().optional().nullable().default(null),
-  recipientDisplayValue: z.string().optional().nullable().default(null),
-  recipientNormalizedValue: z.string().optional().nullable().default(null),
-  phone: z
-    .union([z.string(), z.null(), z.undefined()])
-    .transform((value) => {
+export const sendJobPayloadSchema = z
+  .object({
+    source: z.enum(["rule", "automation", "campaign", "manual"]),
+    channel: z.enum(channelTypeValues).default("whatsapp"),
+    channelAccountId: z.string().optional().nullable().default(null),
+    externalThreadId: z.string().optional().nullable().default(null),
+    recipientDisplayValue: z.string().optional().nullable().default(null),
+    recipientNormalizedValue: z.string().optional().nullable().default(null),
+    phone: z.union([z.string(), z.null(), z.undefined()]).transform((value) => {
       if (typeof value !== "string") {
         return null;
       }
@@ -294,39 +390,44 @@ export const sendJobPayloadSchema = z.object({
       const normalized = value.trim();
       return normalized.length > 0 ? normalized : null;
     }),
-  contactId: z.string().optional().nullable().default(null),
-  conversationId: z.string().optional().nullable().default(null),
-  runId: z.string().optional().nullable().default(null),
-  recipientId: z.string().optional().nullable().default(null),
-  campaignId: z.string().optional().nullable().default(null),
-  automationId: z.string().optional().nullable().default(null),
-  ruleId: z.string().optional().nullable().default(null),
-  stepId: z.string().optional().nullable().default(null),
-  contentType: z.enum(["text", "audio", "image", "images", "video", "document", "link"]),
-  text: z.string().default(""),
-  mediaPath: z.string().optional().nullable().default(null),
-  mediaPaths: z.array(z.string()).optional().nullable().default(null),
-  caption: z.string().default(""),
-  sendFileFirst: z.boolean().default(false),
-  attendantId: z.string().optional().nullable().default(null),
-  pendingMessageId: z.string().optional().nullable().default(null)
-}).superRefine((value, ctx) => {
-  if (value.channel === "whatsapp" && (!value.phone?.trim() || value.phone.trim().length < 6)) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["phone"],
-      message: "Envios de WhatsApp precisam de telefone."
-    });
-  }
+    contactId: z.string().optional().nullable().default(null),
+    conversationId: z.string().optional().nullable().default(null),
+    runId: z.string().optional().nullable().default(null),
+    recipientId: z.string().optional().nullable().default(null),
+    campaignId: z.string().optional().nullable().default(null),
+    automationId: z.string().optional().nullable().default(null),
+    ruleId: z.string().optional().nullable().default(null),
+    stepId: z.string().optional().nullable().default(null),
+    contentType: z.enum(["text", "audio", "image", "images", "video", "document", "link"]),
+    text: z.string().default(""),
+    mediaPath: z.string().optional().nullable().default(null),
+    mediaPaths: z.array(z.string()).optional().nullable().default(null),
+    caption: z.string().default(""),
+    sendFileFirst: z.boolean().default(false),
+    attendantId: z.string().optional().nullable().default(null),
+    pendingMessageId: z.string().optional().nullable().default(null),
+  })
+  .superRefine((value, ctx) => {
+    if (value.channel === "whatsapp" && (!value.phone?.trim() || value.phone.trim().length < 6)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["phone"],
+        message: "Envios de WhatsApp precisam de telefone.",
+      });
+    }
 
-  if (value.channel === "instagram" && !value.externalThreadId?.trim() && !value.recipientNormalizedValue?.trim()) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["recipientNormalizedValue"],
-      message: "Envios de Instagram precisam de thread ou username."
-    });
-  }
-});
+    if (
+      value.channel === "instagram" &&
+      !value.externalThreadId?.trim() &&
+      !value.recipientNormalizedValue?.trim()
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["recipientNormalizedValue"],
+        message: "Envios de Instagram precisam de thread ou username.",
+      });
+    }
+  });
 
 export type SendJobPayload = z.infer<typeof sendJobPayloadSchema>;
 
@@ -587,8 +688,12 @@ export const automationTriggerTypeValues = ["tag", "event"] as const;
 export type AutomationTriggerType = (typeof automationTriggerTypeValues)[number];
 
 export const automationEventValues = [
-  "message_received", "campaign_completed", "tag_applied", "tag_removed",
-  "conversation_opened", "conversation_closed"
+  "message_received",
+  "campaign_completed",
+  "tag_applied",
+  "tag_removed",
+  "conversation_opened",
+  "conversation_closed",
 ] as const;
 export type AutomationEvent = (typeof automationEventValues)[number];
 
@@ -638,21 +743,25 @@ export const chatbotInputSchema = z.object({
   description: z.string().trim().default(""),
   fallbackAction: z.enum(chatbotFallbackActionValues).default("silence_and_flag"),
   fallbackTag: z.string().trim().default("chatbot_nao_entendeu"),
-  rules: z.array(z.object({
-    id: z.string().trim().optional(),
-    priority: z.coerce.number().int().min(0).default(0),
-    matchType: z.enum(chatbotMatchTypeValues).default("contains"),
-    keywordPattern: z.string().trim().min(1),
-    responseType: z.enum(["text", "image", "audio", "video"]).default("text"),
-    responseBody: z.string().trim().default(""),
-    responseMediaPath: z.string().trim().optional().nullable().default(null),
-    applyTag: z.string().trim().optional().nullable().default(null),
-    changeStatus: z.string().trim().optional().nullable().default(null),
-    flagForHuman: z.boolean().default(false),
-    enabled: z.boolean().default(true),
-    triggerAutomationId: z.string().trim().optional().nullable().default(null),
-    phoneDddFilter: z.string().trim().optional().nullable().default(null)
-  })).default([])
+  rules: z
+    .array(
+      z.object({
+        id: z.string().trim().optional(),
+        priority: z.coerce.number().int().min(0).default(0),
+        matchType: z.enum(chatbotMatchTypeValues).default("contains"),
+        keywordPattern: z.string().trim().min(1),
+        responseType: z.enum(["text", "image", "audio", "video"]).default("text"),
+        responseBody: z.string().trim().default(""),
+        responseMediaPath: z.string().trim().optional().nullable().default(null),
+        applyTag: z.string().trim().optional().nullable().default(null),
+        changeStatus: z.string().trim().optional().nullable().default(null),
+        flagForHuman: z.boolean().default(false),
+        enabled: z.boolean().default(true),
+        triggerAutomationId: z.string().trim().optional().nullable().default(null),
+        phoneDddFilter: z.string().trim().optional().nullable().default(null),
+      }),
+    )
+    .default([]),
 });
 export type ChatbotInput = z.infer<typeof chatbotInputSchema>;
 

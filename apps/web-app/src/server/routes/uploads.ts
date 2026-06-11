@@ -13,7 +13,7 @@ export async function registerUploadRoutes(app: FastifyInstance) {
     const media = await saveMediaUpload(file, {
       scope: (fields.scope?.value as "campaign" | "automation" | "temp" | undefined) ?? "temp",
       campaignId: fields.campaignId?.value,
-      automationId: fields.automationId?.value
+      automationId: fields.automationId?.value,
     });
 
     reply.code(201);

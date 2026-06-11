@@ -27,7 +27,7 @@ const baseEnv: ApiEnv = {
   API_AUTOMATION_ENGINE_ENABLED: false,
   API_AUTOMATION_ENGINE_INTERVAL_MS: 5000,
   API_AUTOMATION_ENGINE_USER_ID: 1,
-  API_AUTOMATION_ENGINE_ALLOWED_PHONE: "5531982066263",
+  API_AUTOMATION_ENGINE_ALLOWED_PHONE: "",
   API_WEB_PUSH_VAPID_SUBJECT: "mailto:admin@nuoma.local",
   API_CRM_STORAGE_PROVIDER: "local",
   API_CRM_STORAGE_NAMESPACE: "/nuoma/files/crm",
@@ -49,8 +49,24 @@ const baseEnv: ApiEnv = {
 };
 
 describe("api send policy", () => {
-  it("falls back to the canonical test phone in test mode", () => {
+  it("blocks test-mode real sends without an explicit allowlist", () => {
     const policy = resolveApiSendPolicy(baseEnv);
+
+    expect(evaluateApiRealSendTarget(policy, "5531982066263")).toEqual({
+      allowed: false,
+      reason: "not_allowlisted_for_test_execution",
+    });
+    expect(evaluateApiRealSendTarget(policy, "5531999999999")).toEqual({
+      allowed: false,
+      reason: "not_allowlisted_for_test_execution",
+    });
+  });
+
+  it("uses explicit test allowlists when configured", () => {
+    const policy = resolveApiSendPolicy({
+      ...baseEnv,
+      API_SEND_ALLOWED_PHONES: "5531982066263",
+    });
 
     expect(evaluateApiRealSendTarget(policy, "5531982066263")).toEqual({ allowed: true });
     expect(evaluateApiRealSendTarget(policy, "31982066263")).toEqual({ allowed: true });
@@ -101,9 +117,10 @@ describe("api send policy", () => {
     });
   });
 
-  it("keeps client-side allowedPhone override pinned to the canonical test phone", () => {
+  it("normalizes explicit client-side allowedPhone overrides", () => {
     expect(normalizeClientAllowedPhoneOverride("31982066263")).toBe("5531982066263");
     expect(normalizeClientAllowedPhoneOverride("+55 (31) 98206-6263")).toBe("5531982066263");
-    expect(normalizeClientAllowedPhoneOverride("5531999999999")).toBeUndefined();
+    expect(normalizeClientAllowedPhoneOverride("5531999999999")).toBe("5531999999999");
+    expect(normalizeClientAllowedPhoneOverride("sem telefone")).toBeUndefined();
   });
 });

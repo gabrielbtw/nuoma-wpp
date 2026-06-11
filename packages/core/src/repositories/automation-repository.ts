@@ -31,7 +31,10 @@ function parseJsonObject(input: string | null | undefined) {
   }
 }
 
-function mapAutomation(row: Record<string, unknown>, actions: Array<Record<string, unknown>>): AutomationRuleRecord {
+function mapAutomation(
+  row: Record<string, unknown>,
+  actions: Array<Record<string, unknown>>,
+): AutomationRuleRecord {
   return {
     id: String(row.id),
     name: String(row.name),
@@ -61,15 +64,17 @@ function mapAutomation(row: Record<string, unknown>, actions: Array<Record<strin
         waitSeconds: action.wait_seconds == null ? null : Number(action.wait_seconds),
         tagName: (action.tag_name as string | null) ?? null,
         reminderText: (action.reminder_text as string | null) ?? null,
-        metadata
+        metadata,
       };
     }),
     triggerType: String(row.trigger_type ?? "tag") as AutomationRuleRecord["triggerType"],
     triggerEvent: (row.trigger_event as AutomationRuleRecord["triggerEvent"]) ?? null,
-    triggerConditions: parseJsonArray(row.trigger_conditions_json as string | null) as unknown as AutomationRuleRecord["triggerConditions"],
+    triggerConditions: parseJsonArray(
+      row.trigger_conditions_json as string | null,
+    ) as unknown as AutomationRuleRecord["triggerConditions"],
     customCategory: (row.custom_category as string | null) ?? null,
     createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at)
+    updatedAt: String(row.updated_at),
   };
 }
 
@@ -91,7 +96,7 @@ function replaceAutomationActions(automationId: string, actions: AutomationRuleI
         INSERT INTO automation_actions (
           id, automation_id, sort_order, type, content, media_asset_id, wait_seconds, tag_name, reminder_text, metadata_json, created_at
         ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)
-      `
+      `,
     );
 
     actions.forEach((action, index) => {
@@ -106,9 +111,9 @@ function replaceAutomationActions(automationId: string, actions: AutomationRuleI
         action.reminderText ?? null,
         JSON.stringify({
           ...(action.metadata ?? {}),
-          mediaPath: action.mediaPath ?? null
+          mediaPath: action.mediaPath ?? null,
         }),
-        timestamp
+        timestamp,
       );
     });
   });
@@ -118,13 +123,17 @@ function replaceAutomationActions(automationId: string, actions: AutomationRuleI
 
 export function listAutomations() {
   const db = getDb();
-  const rows = db.prepare("SELECT * FROM automations ORDER BY enabled DESC, updated_at DESC").all() as Array<Record<string, unknown>>;
+  const rows = db
+    .prepare("SELECT * FROM automations ORDER BY enabled DESC, updated_at DESC")
+    .all() as Array<Record<string, unknown>>;
   return rows.map((row) => mapAutomation(row, getAutomationActions(String(row.id))));
 }
 
 export function getAutomation(automationId: string) {
   const db = getDb();
-  const row = db.prepare("SELECT * FROM automations WHERE id = ?").get(automationId) as Record<string, unknown> | undefined;
+  const row = db.prepare("SELECT * FROM automations WHERE id = ?").get(automationId) as
+    | Record<string, unknown>
+    | undefined;
   return row ? mapAutomation(row, getAutomationActions(automationId)) : null;
 }
 
@@ -141,7 +150,7 @@ export function createAutomation(input: AutomationRuleInput) {
         random_delay_min_seconds, random_delay_max_seconds, send_window_start, send_window_end, template_key,
         created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `
+    `,
   ).run(
     id,
     input.name,
@@ -162,7 +171,7 @@ export function createAutomation(input: AutomationRuleInput) {
     input.sendWindowEnd,
     input.templateKey,
     timestamp,
-    timestamp
+    timestamp,
   );
 
   replaceAutomationActions(id, input.actions);
@@ -195,7 +204,7 @@ export function updateAutomation(automationId: string, input: AutomationRuleInpu
         template_key = ?,
         updated_at = ?
       WHERE id = ?
-    `
+    `,
   ).run(
     input.name,
     input.category,
@@ -215,7 +224,7 @@ export function updateAutomation(automationId: string, input: AutomationRuleInpu
     input.sendWindowEnd,
     input.templateKey,
     timestamp,
-    automationId
+    automationId,
   );
 
   replaceAutomationActions(automationId, input.actions);
@@ -224,7 +233,11 @@ export function updateAutomation(automationId: string, input: AutomationRuleInpu
 
 export function setAutomationEnabled(automationId: string, enabled: boolean) {
   const db = getDb();
-  db.prepare("UPDATE automations SET enabled = ?, updated_at = ? WHERE id = ?").run(enabled ? 1 : 0, nowIso(), automationId);
+  db.prepare("UPDATE automations SET enabled = ?, updated_at = ? WHERE id = ?").run(
+    enabled ? 1 : 0,
+    nowIso(),
+    automationId,
+  );
   return getAutomation(automationId);
 }
 
@@ -253,14 +266,16 @@ export function listDueAutomationRuns() {
           )
         ORDER BY datetime(next_run_at) ASC
         LIMIT 100
-      `
+      `,
     )
     .all() as Array<Record<string, unknown>>;
 }
 
 export function getAutomationRun(runId: string) {
   const db = getDb();
-  return db.prepare("SELECT * FROM automation_runs WHERE id = ?").get(runId) as Record<string, unknown> | undefined;
+  return db.prepare("SELECT * FROM automation_runs WHERE id = ?").get(runId) as
+    | Record<string, unknown>
+    | undefined;
 }
 
 export function getOpenAutomationRunForContact(automationId: string, contactId: string) {
@@ -273,7 +288,7 @@ export function getOpenAutomationRunForContact(automationId: string, contactId: 
         WHERE automation_id = ? AND contact_id = ? AND status IN ('pending', 'active')
         ORDER BY datetime(created_at) DESC
         LIMIT 1
-      `
+      `,
     )
     .get(automationId, contactId) as Record<string, unknown> | undefined;
 }
@@ -281,7 +296,7 @@ export function getOpenAutomationRunForContact(automationId: string, contactId: 
 export function cancelAutomationRun(runId: string) {
   const db = getDb();
   db.prepare(
-    `UPDATE automation_runs SET status = 'cancelled', updated_at = ? WHERE id = ? AND status IN ('pending', 'active')`
+    `UPDATE automation_runs SET status = 'cancelled', updated_at = ? WHERE id = ? AND status IN ('pending', 'active')`,
   ).run(new Date().toISOString(), runId);
 }
 
@@ -301,7 +316,7 @@ export function createAutomationRun(input: {
       INSERT INTO automation_runs (
         id, automation_id, contact_id, conversation_id, status, action_index, next_run_at, triggered_at, created_at, updated_at, batch_id, batch_position
       ) VALUES (?, ?, ?, ?, 'pending', 0, ?, ?, ?, ?, ?, ?)
-    `
+    `,
   ).run(
     id,
     input.automationId,
@@ -312,34 +327,45 @@ export function createAutomationRun(input: {
     timestamp,
     timestamp,
     input.batchId ?? null,
-    input.batchPosition ?? null
+    input.batchPosition ?? null,
   );
 
   return getAutomationRun(id);
 }
 
-export function advanceAutomationRun(runId: string, actionIndex: number, nextRunAt: string, status: "pending" | "active" = "active") {
+export function advanceAutomationRun(
+  runId: string,
+  actionIndex: number,
+  nextRunAt: string,
+  status: "pending" | "active" = "active",
+) {
   const db = getDb();
-  db.prepare("UPDATE automation_runs SET action_index = ?, next_run_at = ?, status = ?, updated_at = ? WHERE id = ?").run(
-    actionIndex,
-    nextRunAt,
-    status,
-    nowIso(),
-    runId
-  );
+  db.prepare(
+    "UPDATE automation_runs SET action_index = ?, next_run_at = ?, status = ?, updated_at = ? WHERE id = ?",
+  ).run(actionIndex, nextRunAt, status, nowIso(), runId);
 }
 
 export function completeAutomationRun(runId: string) {
   const db = getDb();
-  db.prepare("UPDATE automation_runs SET status = 'completed', updated_at = ? WHERE id = ?").run(nowIso(), runId);
+  db.prepare("UPDATE automation_runs SET status = 'completed', updated_at = ? WHERE id = ?").run(
+    nowIso(),
+    runId,
+  );
 }
 
 export function failAutomationRun(runId: string, error: string) {
   const db = getDb();
-  db.prepare("UPDATE automation_runs SET status = 'failed', last_error = ?, updated_at = ? WHERE id = ?").run(error, nowIso(), runId);
+  db.prepare(
+    "UPDATE automation_runs SET status = 'failed', last_error = ?, updated_at = ? WHERE id = ?",
+  ).run(error, nowIso(), runId);
 }
 
-export function recordAutomationContactState(automationId: string, contactId: string, jobId: string, sentAt = nowIso()) {
+export function recordAutomationContactState(
+  automationId: string,
+  contactId: string,
+  jobId: string,
+  sentAt = nowIso(),
+) {
   const db = getDb();
   db.prepare(
     `
@@ -350,10 +376,14 @@ export function recordAutomationContactState(automationId: string, contactId: st
         last_job_id = excluded.last_job_id,
         last_triggered_at = excluded.last_triggered_at,
         updated_at = excluded.updated_at
-    `
+    `,
   ).run(automationId, contactId, sentAt, jobId, sentAt, sentAt);
 
-  db.prepare("UPDATE contacts SET last_automation_at = ?, updated_at = ? WHERE id = ?").run(sentAt, sentAt, contactId);
+  db.prepare("UPDATE contacts SET last_automation_at = ?, updated_at = ? WHERE id = ?").run(
+    sentAt,
+    sentAt,
+    contactId,
+  );
 }
 
 export function getAutomationContactState(automationId: string, contactId: string) {

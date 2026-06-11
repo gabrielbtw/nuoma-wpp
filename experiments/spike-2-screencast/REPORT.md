@@ -36,17 +36,17 @@ Input back validado por clique remoto no canvas: o relay enviou `Input.dispatchM
 
 Latência click→frame após ajuste (`Page.bringToFront` + ACK não-bloqueante):
 
-| amostra | latência |
-|---|---:|
-| clique 1 | 183ms |
-| clique 2 | 137ms |
+| amostra  | latência |
+| -------- | -------: |
+| clique 1 |    183ms |
+| clique 2 |    137ms |
 
 Bandwidth:
 
-| janela | frames | bytes | média |
-|---|---:|---:|---:|
-| passiva 10s | 22 | 2.345.037 | 1,88 Mbps |
-| estabilidade 600s | 1.601 | 172.610.955 | 2,30 Mbps |
+| janela            | frames |       bytes |     média |
+| ----------------- | -----: | ----------: | --------: |
+| passiva 10s       |     22 |   2.345.037 | 1,88 Mbps |
+| estabilidade 600s |  1.601 | 172.610.955 | 2,30 Mbps |
 
 Estabilidade:
 

@@ -154,7 +154,9 @@ export function SettingsPage() {
                     <dt className="text-fg-muted">Email</dt>
                     <dd className="font-mono">{auth.user?.email}</dd>
                     <dt className="text-fg-muted">Role</dt>
-                    <dd className="font-mono uppercase tracking-wider text-xs">{auth.user?.role}</dd>
+                    <dd className="font-mono uppercase tracking-wider text-xs">
+                      {auth.user?.role}
+                    </dd>
                   </dl>
                 </CardContent>
               </Card>
@@ -236,95 +238,97 @@ export function SettingsPage() {
               </div>
             </TabsContent>
 
-          <TabsContent value="notifications">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <SignalDot
-                    status={pushSubscription ? "active" : VAPID_PUBLIC_KEY ? "idle" : "degraded"}
-                    label={pushSubscription ? "Push ativo" : "Push inativo"}
-                  />
-                  Notificações do painel
-                </CardTitle>
-                <CardDescription>
-                  Serviço local de notificações e assinatura Web Push para alertas do painel.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-                <div className="rounded-xl bg-bg-base p-4 text-xs font-mono text-fg-muted shadow-pressed-sm">
-                  endpoint = {pushSubscription ? pushSubscription.endpoint : "not-subscribed"}
-                </div>
-                {!browserSupportsPush() && (
-                  <p className="text-sm text-semantic-warning">
-                    Este navegador não suporta Web Push.
-                  </p>
-                )}
-                {!VAPID_PUBLIC_KEY && (
-                  <p className="text-sm text-semantic-warning">
-                    Configure `VITE_WEB_PUSH_VAPID_PUBLIC_KEY` para permitir assinatura no
-                    navegador.
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-3">
-                  <Button
-                    variant="accent"
-                    loading={pushLoading}
-                    disabled={
-                      !browserSupportsPush() || !VAPID_PUBLIC_KEY || Boolean(pushSubscription)
-                    }
-                    onClick={() => void enablePush()}
-                  >
-                    Ativar push
-                  </Button>
-                  <Button
-                    variant="soft"
-                    loading={pushLoading}
-                    disabled={!pushSubscription}
-                    onClick={() => void sendTestPush()}
-                  >
-                    Testar
-                  </Button>
-                  <Button
-                    variant="danger"
-                    loading={pushLoading}
-                    disabled={!pushSubscription}
-                    onClick={() => void disablePush()}
-                  >
-                    Desativar
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+            <TabsContent value="notifications">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <SignalDot
+                      status={pushSubscription ? "active" : VAPID_PUBLIC_KEY ? "idle" : "degraded"}
+                      label={pushSubscription ? "Push ativo" : "Push inativo"}
+                    />
+                    Notificações do painel
+                  </CardTitle>
+                  <CardDescription>
+                    Serviço local de notificações e assinatura Web Push para alertas do painel.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                  <div className="rounded-xl bg-bg-base p-4 text-xs font-mono text-fg-muted shadow-pressed-sm">
+                    endpoint = {pushSubscription ? pushSubscription.endpoint : "not-subscribed"}
+                  </div>
+                  {!browserSupportsPush() && (
+                    <p className="text-sm text-semantic-warning">
+                      Este navegador não suporta Web Push.
+                    </p>
+                  )}
+                  {!VAPID_PUBLIC_KEY && (
+                    <p className="text-sm text-semantic-warning">
+                      Configure `VITE_WEB_PUSH_VAPID_PUBLIC_KEY` para permitir assinatura no
+                      navegador.
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      variant="accent"
+                      loading={pushLoading}
+                      disabled={
+                        !browserSupportsPush() || !VAPID_PUBLIC_KEY || Boolean(pushSubscription)
+                      }
+                      onClick={() => void enablePush()}
+                    >
+                      Ativar push
+                    </Button>
+                    <Button
+                      variant="soft"
+                      loading={pushLoading}
+                      disabled={!pushSubscription}
+                      onClick={() => void sendTestPush()}
+                    >
+                      Testar
+                    </Button>
+                    <Button
+                      variant="danger"
+                      loading={pushLoading}
+                      disabled={!pushSubscription}
+                      onClick={() => void disablePush()}
+                    >
+                      Desativar
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-          <TabsContent value="integrations">
-            <Card>
-              <CardHeader>
-                <CardTitle>Integrações</CardTitle>
-                <CardDescription>WhatsApp e Instagram ficam isolados por canal.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-fg-muted">
-                  Configuração avançada de Instagram e Data Lake entra na trilha separada de
-                  integrações.
-                </p>
-              </CardContent>
-            </Card>
-          </TabsContent>
+            <TabsContent value="integrations">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Integrações</CardTitle>
+                  <CardDescription>WhatsApp e Instagram ficam isolados por canal.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-fg-muted">
+                    Configuração avançada de Instagram e Data Lake entra na trilha separada de
+                    integrações.
+                  </p>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-          <TabsContent value="advanced">
-            <Card>
-              <CardHeader>
-                <CardTitle>Diagnóstico</CardTitle>
-                <CardDescription>SQLite local, worker pid, browser status.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-fg-muted">
-                  Diagnostico operacional ativo para stream, worker e backups.
-                </p>
-              </CardContent>
-            </Card>
-          </TabsContent>
+            <TabsContent value="advanced">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Diagnóstico</CardTitle>
+                  <CardDescription>
+                    SQLite local, PID do processador e status do navegador.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-fg-muted">
+                    Diagnóstico operacional ativo para stream, processador e backups.
+                  </p>
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
 
           <aside className="nuoma-settings-side">
@@ -336,7 +340,9 @@ export function SettingsPage() {
             <section>
               <h2>Readiness</h2>
               <div className="nuoma-settings-gates">
-                <span><SignalDot status="active" size="xs" /> Sessão <b>{auth.user?.role ?? "—"}</b></span>
+                <span>
+                  <SignalDot status="active" size="xs" /> Sessão <b>{auth.user?.role ?? "—"}</b>
+                </span>
                 <span>
                   <SignalDot status={pushSubscription ? "active" : "degraded"} size="xs" />
                   Push <b>{pushSubscription ? "ativo" : "off"}</b>

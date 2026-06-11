@@ -1,5 +1,15 @@
 import type { FastifyInstance } from "fastify";
-import { automationRuleInputSchema, cancelAutomationRun, createAutomation, createAutomationRun, getAutomation, getOpenAutomationRunForContact, listAutomations, setAutomationEnabled, updateAutomation } from "@nuoma/core";
+import {
+  automationRuleInputSchema,
+  cancelAutomationRun,
+  createAutomation,
+  createAutomationRun,
+  getAutomation,
+  getOpenAutomationRunForContact,
+  listAutomations,
+  setAutomationEnabled,
+  updateAutomation,
+} from "@nuoma/core";
 
 export async function registerAutomationRoutes(app: FastifyInstance) {
   app.get("/automations", async () => listAutomations());
@@ -25,7 +35,7 @@ export async function registerAutomationRoutes(app: FastifyInstance) {
       ...payload,
       triggerTags: payload.triggerTags ?? existing.triggerTags,
       excludeTags: payload.excludeTags ?? existing.excludeTags,
-      actions: payload.actions ?? existing.actions
+      actions: payload.actions ?? existing.actions,
     });
   });
 
@@ -66,7 +76,7 @@ export async function registerAutomationRoutes(app: FastifyInstance) {
       automationId: automation.id,
       contactId: body.contactId,
       conversationId: body.conversationId ?? null,
-      nextRunAt: new Date().toISOString()
+      nextRunAt: new Date().toISOString(),
     });
 
     reply.code(201);

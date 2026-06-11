@@ -47,7 +47,7 @@ export function OperationsPage() {
   if (metrics.error || !metrics.data) {
     return (
       <div className="mx-auto max-w-6xl pt-10">
-        <ErrorState description={metrics.error?.message ?? "Operação indisponível."} />
+        <ErrorState description="Não foi possível carregar operações. Tente atualizar a tela ou verifique a sessão do canal." />
       </div>
     );
   }
@@ -69,7 +69,8 @@ export function OperationsPage() {
               Saúde <span className="nuoma-gradient-text">do envio</span>.
             </h1>
             <p className="mt-3 max-w-2xl text-sm text-fg-muted">
-              Processadores, sessão do navegador (CDP), fila e auditoria de disparo em uma tela de plantão.
+              Processadores, sessão do navegador (CDP), fila e auditoria de disparo em uma tela de
+              plantão.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -123,14 +124,14 @@ export function OperationsPage() {
           <section className="grid gap-4">
             <Card data-testid="operations-workers-card">
               <CardHeader>
-                <CardTitle>Workers</CardTitle>
+                <CardTitle>Processadores</CardTitle>
                 <CardDescription>
-                  Heartbeat, memória e conexão de browser por processo.
+                  Heartbeat, memória e conexão de navegador por processo.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {data.workers.items.length === 0 ? (
-                  <EmptyState description="Nenhum worker reportou heartbeat." />
+                  <EmptyState description="Nenhum processador reportou heartbeat." />
                 ) : (
                   <div className="grid gap-2">
                     {data.workers.items.map((worker) => (
@@ -145,7 +146,7 @@ export function OperationsPage() {
               <CardHeader>
                 <CardTitle>Fila recente</CardTitle>
                 <CardDescription>
-                  Últimos jobs observados, com foco em claimed/running/failed.
+                  Últimos Jobs observados, com foco em reservados, execução e falhas.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -162,7 +163,7 @@ export function OperationsPage() {
                         <span>ID</span>
                         <span>Tipo</span>
                         <span>Status</span>
-                        <span>Worker</span>
+                        <span>Processador</span>
                         <span>Criado</span>
                       </div>
                       <div className="divide-y divide-white/10">
@@ -174,7 +175,9 @@ export function OperationsPage() {
                             <span className="font-mono text-fg-dim">#{job.id}</span>
                             <span className="truncate text-fg-primary">{job.type}</span>
                             <span>
-                              <Badge variant={jobStatusVariant(job.status)}>{job.status}</Badge>
+                              <Badge variant={jobStatusVariant(job.status)}>
+                                {jobStatusLabel(job.status)}
+                              </Badge>
                             </span>
                             <span className="truncate text-fg-muted">{job.claimedBy ?? "—"}</span>
                             <span className="text-fg-muted">
@@ -195,25 +198,25 @@ export function OperationsPage() {
           <aside className="grid content-start gap-4">
             <Card data-testid="operations-readiness-card">
               <CardHeader>
-                <CardTitle>Readiness</CardTitle>
+                <CardTitle>Prontidão</CardTitle>
                 <CardDescription>Gates mínimos antes de disparar.</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-2">
                   <GateRow
                     ok={data.workers.online > 0}
-                    label="Worker online"
+                    label="Processador online"
                     detail={`${data.workers.online}/${data.workers.total}`}
                   />
                   <GateRow
                     ok={data.whatsapp.cdpConnected}
-                    label="CDP conectado"
+                    label="Sessão do navegador (CDP)"
                     detail={data.whatsapp.sessionStatus}
                   />
                   <GateRow
                     ok={data.jobs.dead === 0 && data.jobs.failed === 0}
-                    label="Sem DLQ/falha"
-                    detail={`${data.jobs.dead} DLQ · ${data.jobs.failed} failed`}
+                    label="Sem falhas críticas"
+                    detail={`${data.jobs.dead} críticas (DLQ) · ${data.jobs.failed} com falha`}
                   />
                   <GateRow
                     ok={data.sendPolicy.apiAllowedPhonesConfigured}
@@ -226,7 +229,7 @@ export function OperationsPage() {
 
             <Card data-testid="operations-audit-card">
               <CardHeader>
-                <CardTitle>Send audit</CardTitle>
+                <CardTitle>Auditoria de envio</CardTitle>
                 <CardDescription>Últimos eventos estruturados de envio.</CardDescription>
               </CardHeader>
               <CardContent>
@@ -249,7 +252,7 @@ export function OperationsPage() {
             <Card data-testid="operations-alerts-card">
               <CardHeader>
                 <CardTitle>Alertas</CardTitle>
-                <CardDescription>Warn/error mais recentes.</CardDescription>
+                <CardDescription>Avisos e erros mais recentes.</CardDescription>
               </CardHeader>
               <CardContent>
                 {data.criticalEvents.length === 0 ? (
@@ -290,7 +293,7 @@ function OperationTile({
           <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-bg-base text-fg-muted shadow-pressed-sm">
             {icon}
           </span>
-          <Badge variant={tone}>{tone}</Badge>
+          <Badge variant={tone}>{operationToneLabel(tone)}</Badge>
         </div>
         <div>
           <p className="font-mono text-[0.65rem] uppercase text-fg-dim">{label}</p>
@@ -316,7 +319,7 @@ function WorkerRow({ worker }: { worker: WorkerItem }) {
             `pid ${worker.pid ?? "—"} · heartbeat ${worker.heartbeatAgeSeconds}s`}
         </p>
       </div>
-      <Badge variant={status.variant}>{worker.status}</Badge>
+      <Badge variant={status.variant}>{workerStatusLabel(worker.status)}</Badge>
       <span className="text-sm text-fg-muted">{worker.rssMb ?? "—"} MB</span>
       <span className="text-sm text-fg-muted">
         <TimeAgo date={worker.heartbeatAt} />
@@ -342,7 +345,7 @@ function AuditRow({ event }: { event: SendAuditEvent }) {
   return (
     <div className="rounded-lg border border-white/10 bg-bg-surface/40 p-3">
       <div className="flex items-center justify-between gap-3">
-        <Badge variant={sendAuditVariant(event.phase)}>{event.phase}</Badge>
+        <Badge variant={sendAuditVariant(event.phase)}>{sendAuditPhaseLabel(event.phase)}</Badge>
         <span className="text-xs text-fg-muted">
           <TimeAgo date={event.occurredAt} />
         </span>
@@ -361,7 +364,9 @@ function CriticalEventRow({ event }: { event: CriticalEvent }) {
   return (
     <div className="rounded-lg border border-white/10 bg-bg-surface/40 p-3">
       <div className="flex items-center justify-between gap-3">
-        <Badge variant={event.severity === "error" ? "danger" : "warning"}>{event.severity}</Badge>
+        <Badge variant={event.severity === "error" ? "danger" : "warning"}>
+          {event.severity === "error" ? "erro" : "aviso"}
+        </Badge>
         <span className="text-xs text-fg-muted">
           <TimeAgo date={event.createdAt} />
         </span>
@@ -401,6 +406,21 @@ function workerStatus(worker: WorkerItem): {
   return { signal: "active", variant: "success" };
 }
 
+function operationToneLabel(tone: "success" | "warning" | "danger" | "info"): string {
+  if (tone === "success") return "ok";
+  if (tone === "warning") return "atenção";
+  if (tone === "danger") return "crítico";
+  return "info";
+}
+
+function workerStatusLabel(status: string): string {
+  if (status === "busy") return "ocupado";
+  if (status === "idle") return "ocioso";
+  if (status === "error") return "erro";
+  if (status === "offline") return "offline";
+  return status;
+}
+
 function jobStatusVariant(status: string) {
   if (status === "completed") return "success";
   if (status === "failed" || status === "cancelled") return "danger";
@@ -408,11 +428,31 @@ function jobStatusVariant(status: string) {
   return "neutral";
 }
 
+function jobStatusLabel(status: string): string {
+  if (status === "queued") return "na fila";
+  if (status === "claimed") return "reservado";
+  if (status === "running") return "em execução";
+  if (status === "completed") return "concluído";
+  if (status === "failed") return "com falha";
+  if (status === "cancelled") return "cancelado";
+  return status;
+}
+
 function sendAuditVariant(phase: SendAuditEvent["phase"]) {
   if (phase === "failed" || phase === "policy_block") return "danger";
   if (phase === "duplicate") return "warning";
   if (phase === "sent" || phase === "delivered" || phase === "read") return "success";
   return "info";
+}
+
+function sendAuditPhaseLabel(phase: SendAuditEvent["phase"]): string {
+  if (phase === "failed") return "falhou";
+  if (phase === "policy_block") return "bloqueado";
+  if (phase === "duplicate") return "duplicado";
+  if (phase === "sent") return "enviado";
+  if (phase === "delivered") return "entregue";
+  if (phase === "read") return "lido";
+  return phase;
 }
 
 function formatMs(value: number | null) {

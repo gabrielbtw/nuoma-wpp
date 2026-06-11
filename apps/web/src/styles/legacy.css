@@ -4,7 +4,12 @@
 @layer base {
   :root {
     font-family:
-      "Inter Variable", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+      "Inter Variable",
+      "Inter",
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
       sans-serif;
   }
 
@@ -301,7 +306,6 @@
   .nuoma-jobs-row:hover {
     background: rgb(255 255 255 / 0.02);
   }
-
 }
 
 @layer components {
@@ -1921,9 +1925,7 @@
   position: fixed;
   inset: 0;
   z-index: 0;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 8rem),
-    #080f18;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 8rem), #080f18;
 }
 
 .nuoma-concept-app > .relative.flex > aside {
@@ -2112,9 +2114,7 @@
 .nuoma-concept-app .nuoma-workspace-header {
   border-radius: 0.45rem;
   border: 1px solid rgba(92, 112, 129, 0.28);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.026), transparent 60%),
-    #0d1721;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.026), transparent 60%), #0d1721;
   box-shadow: none;
 }
 
@@ -2315,7 +2315,11 @@
 
 .nuoma-flow-studio-tab[data-state="active"] {
   background:
-    linear-gradient(135deg, rgba(var(--color-brand-cyan), 0.16), rgba(var(--color-bg-elevated), 0.76)),
+    linear-gradient(
+      135deg,
+      rgba(var(--color-brand-cyan), 0.16),
+      rgba(var(--color-bg-elevated), 0.76)
+    ),
     rgba(var(--color-bg-elevated), 0.82);
   box-shadow:
     var(--shadow-raised-sm),
@@ -2414,7 +2418,11 @@
     linear-gradient(rgba(var(--color-brand-cyan), 0.055) 1px, transparent 1px),
     linear-gradient(90deg, rgba(var(--color-brand-cyan), 0.045) 1px, transparent 1px),
     rgba(var(--color-bg-base), 0.72);
-  background-size: auto, 38px 38px, 38px 38px, auto;
+  background-size:
+    auto,
+    38px 38px,
+    38px 38px,
+    auto;
 }
 
 .nuoma-flow-board {
@@ -2431,7 +2439,12 @@
     linear-gradient(rgba(var(--color-brand-cyan), 0.045) 1px, transparent 1px),
     linear-gradient(90deg, rgba(var(--color-brand-cyan), 0.035) 1px, transparent 1px),
     rgba(var(--color-bg-base), 0.76);
-  background-size: auto, auto, 32px 32px, 32px 32px, auto;
+  background-size:
+    auto,
+    auto,
+    32px 32px,
+    32px 32px,
+    auto;
   border: 1px solid rgba(var(--color-border-subtle), 0.16);
   box-shadow:
     var(--shadow-flat),
@@ -2513,20 +2526,32 @@
   height: 3.1rem;
   border-radius: 0.375rem;
   background:
-    linear-gradient(135deg, rgba(var(--color-brand-cyan), 0.58), rgba(var(--color-brand-gold), 0.42)),
+    linear-gradient(
+      135deg,
+      rgba(var(--color-brand-cyan), 0.58),
+      rgba(var(--color-brand-gold), 0.42)
+    ),
     rgba(var(--color-bg-elevated), 0.9);
   box-shadow: var(--shadow-flat);
 }
 
 .nuoma-flow-node-thumb.alt {
   background:
-    linear-gradient(135deg, rgba(var(--color-semantic-success), 0.5), rgba(var(--color-brand-cyan), 0.34)),
+    linear-gradient(
+      135deg,
+      rgba(var(--color-semantic-success), 0.5),
+      rgba(var(--color-brand-cyan), 0.34)
+    ),
     rgba(var(--color-bg-elevated), 0.9);
 }
 
 .nuoma-flow-node-thumb.warm {
   background:
-    linear-gradient(135deg, rgba(var(--color-brand-gold), 0.56), rgba(var(--color-brand-violet), 0.3)),
+    linear-gradient(
+      135deg,
+      rgba(var(--color-brand-gold), 0.56),
+      rgba(var(--color-brand-violet), 0.3)
+    ),
     rgba(var(--color-bg-elevated), 0.9);
 }
 
@@ -2755,7 +2780,12 @@
     border-radius: 0.375rem;
     border: 1px solid rgba(var(--color-brand-cyan), 0.44);
     background:
-      linear-gradient(90deg, transparent 12%, rgba(var(--color-brand-cyan), 0.12) 12% 34%, transparent 34%),
+      linear-gradient(
+        90deg,
+        transparent 12%,
+        rgba(var(--color-brand-cyan), 0.12) 12% 34%,
+        transparent 34%
+      ),
       linear-gradient(rgba(var(--color-brand-cyan), 0.1) 0 0) 50% 35% / 74% 0.5rem no-repeat,
       rgba(var(--color-bg-panel), 0.82);
     box-shadow: var(--shadow-flat);
@@ -2787,7 +2817,6 @@
   display: none;
 }
 
-
 .nuoma-compat-kicker {
   font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
   font-size: 0.64rem;
@@ -2795,7 +2824,6 @@
   text-transform: uppercase;
   color: rgb(var(--color-brand-blue-soft));
 }
-
 
 .nuoma-compat-readable {
   background: rgba(var(--color-bg-sunken), 0.88);

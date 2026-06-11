@@ -16,7 +16,7 @@ export function createLogger(processName: string) {
   const destination = pino.destination({
     dest: path.join(env.LOG_DIR, `${processName}.log`),
     mkdir: true,
-    sync: false
+    sync: false,
   });
 
   const logger = pino(
@@ -24,14 +24,11 @@ export function createLogger(processName: string) {
       name: processName,
       level: env.LOG_LEVEL,
       base: {
-        process: processName
+        process: processName,
       },
-      timestamp: pino.stdTimeFunctions.isoTime
+      timestamp: pino.stdTimeFunctions.isoTime,
     },
-    pino.multistream([
-      { stream: process.stdout },
-      { stream: destination }
-    ])
+    pino.multistream([{ stream: process.stdout }, { stream: destination }]),
   );
 
   loggerCache.set(processName, logger);
