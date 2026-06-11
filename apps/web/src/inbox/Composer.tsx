@@ -570,7 +570,7 @@ export function Composer({
       setRecordingMs(0);
       toast.push({
         title: "Áudio enfileirado",
-        description: "O worker vai preparar o WAV com ffprobe/ffmpeg antes de enviar.",
+        description: "O processador vai preparar o áudio antes de enviar.",
         variant: "success",
       });
       void utils.messages.listByConversation.invalidate();
@@ -633,7 +633,7 @@ export function Composer({
             : type === "video"
               ? "Vídeo enfileirado"
               : "Documento enfileirado",
-        description: "O worker vai anexar o arquivo no WhatsApp com a política de envio ativa.",
+        description: "O processador vai anexar o arquivo no WhatsApp com a política de envio ativa.",
         variant: "success",
       });
       void utils.messages.listByConversation.invalidate();

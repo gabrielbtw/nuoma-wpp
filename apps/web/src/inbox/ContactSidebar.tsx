@@ -242,12 +242,12 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
         wouldEnqueueJobs: result.wouldEnqueueJobs,
       });
       toast.push({
-        title: result.dryRun ? "Prévia calculada" : "Automação disparada",
+        title: result.dryRun ? "Simulação calculada" : "Automação disparada",
         description: result.dryRun
           ? result.wouldEnqueueJobs
-            ? "Execução real criaria job de envio."
+            ? "Execução real criaria Job de envio."
             : "Execução real não criaria envio."
-          : `${result.jobsCreated} job(s) criado(s).`,
+          : `${result.jobsCreated} Job(s) criado(s).`,
         variant: result.eligible ? "success" : "warning",
       });
       void utils.automations.listForConversation.invalidate();
@@ -273,7 +273,7 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
         jobsCreated: result.scheduler?.jobsCreated ?? null,
       });
       toast.push({
-        title: result.dryRun ? "Prévia calculada" : "Campanha disparada",
+        title: result.dryRun ? "Simulação calculada" : "Campanha disparada",
         description: result.dryRun
           ? `${result.recipientsPlanned} destinatário(s) planejado(s).`
           : `${result.recipientsCreated} destinatário(s) criado(s).`,
@@ -570,9 +570,12 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                     }
                   >
                     {automationCandidates.data?.conversation.canDispatchReal
-                      ? "real ok"
-                      : "real bloqueado"}
+                      ? "Envio liberado"
+                      : "Envio bloqueado"}
                   </Badge>
+                </div>
+                <div className="mt-2 rounded-md bg-bg-subtle px-3 py-2 text-xs text-fg-muted">
+                  Envio real limitado ao canário configurado.
                 </div>
                 <div className="mt-3 grid gap-2">
                   <div className="relative">
@@ -653,7 +656,7 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                             onClick={() => handleAutomationTrigger(item.automation.id, true)}
                             data-testid="inbox-automation-preview"
                           >
-                            Prévia
+                            Simulação
                           </Button>
                           <Button
                             size="xs"
@@ -687,16 +690,16 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                         {automationFeedback.automationName}
                       </div>
                       <div className="mt-1 font-mono text-[0.65rem] uppercase tracking-widest text-fg-dim">
-                        {automationFeedback.dryRun ? "prévia" : "execução"} ·{" "}
+                        {automationFeedback.dryRun ? "simulação" : "execução"} ·{" "}
                         {automationFeedback.eligible ? "elegível" : "bloqueada"}
                       </div>
                     </div>
                     <Badge variant={automationFeedback.eligible ? "success" : "warning"}>
                       {automationFeedback.dryRun
                         ? automationFeedback.wouldEnqueueJobs
-                          ? "criaria job"
-                          : "sem job"
-                        : `${automationFeedback.jobsCreated} job`}
+                          ? "criaria Job"
+                          : "sem Job"
+                        : `${automationFeedback.jobsCreated} Job`}
                     </Badge>
                   </div>
                   {automationFeedback.reasons.length > 0 ? (
@@ -741,9 +744,12 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                     }
                   >
                     {campaignCandidates.data?.conversation.canDispatchReal
-                      ? "real ok"
-                      : "real bloqueado"}
+                      ? "Envio liberado"
+                      : "Envio bloqueado"}
                   </Badge>
+                </div>
+                <div className="mt-2 rounded-md bg-bg-subtle px-3 py-2 text-xs text-fg-muted">
+                  Envio real limitado ao canário configurado.
                 </div>
                 <div className="mt-3 grid gap-2">
                   <div className="relative">
@@ -828,7 +834,7 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                             onClick={() => handleCampaignDispatch(item.campaign.id, true)}
                             data-testid="inbox-campaign-preview"
                           >
-                            Prévia
+                            Simulação
                           </Button>
                           <Button
                             size="xs"
@@ -862,14 +868,14 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                         {campaignFeedback.campaignName}
                       </div>
                       <div className="mt-1 font-mono text-[0.65rem] uppercase tracking-widest text-fg-dim">
-                        {campaignFeedback.dryRun ? "prévia" : "execução"} ·{" "}
+                        {campaignFeedback.dryRun ? "simulação" : "execução"} ·{" "}
                         {campaignFeedback.eligible ? "elegível" : "bloqueada"}
                       </div>
                     </div>
                     <Badge variant={campaignFeedback.eligible ? "success" : "warning"}>
                       {campaignFeedback.dryRun
-                        ? `${campaignFeedback.recipientsPlanned} alvo`
-                        : `${campaignFeedback.jobsCreated ?? 0} job`}
+                        ? `${campaignFeedback.recipientsPlanned} destinatário(s)`
+                        : `${campaignFeedback.jobsCreated ?? 0} Job`}
                     </Badge>
                   </div>
                   {campaignFeedback.reasons.length > 0 ? (
@@ -1632,11 +1638,11 @@ function formatAutomationReason(reason: string): string {
     case "invalid_phone":
       return "telefone inválido";
     case "not_allowlisted_for_test_execution":
-      return "fora da allowlist";
+      return "fora da lista permitida";
     case "not_in_production_canary_allowlist":
-      return "fora da canary";
+      return "fora do canário";
     case "production_without_canary_allowlist":
-      return "produção sem canary";
+      return "produção sem canário";
     default:
       return reason.replaceAll("_", " ");
   }
@@ -1655,11 +1661,11 @@ function formatCampaignReason(reason: string): string {
     case "duplicate_recipient":
       return "destinatário já existe";
     case "not_allowlisted_for_test_execution":
-      return "fora da allowlist";
+      return "fora da lista permitida";
     case "not_in_production_canary_allowlist":
-      return "fora da canary";
+      return "fora do canário";
     case "production_without_canary_allowlist":
-      return "produção sem canary";
+      return "produção sem canário";
     default:
       return reason.replaceAll("_", " ");
   }
