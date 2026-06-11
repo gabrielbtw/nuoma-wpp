@@ -4,19 +4,32 @@ import {
   createRoute,
   createRouter,
   Outlet,
+  useNavigate,
+  useRouterState,
 } from "@tanstack/react-router";
-import React, { lazy, Suspense } from "react";
+import {
+  lazy,
+  StrictMode,
+  Suspense,
+  useEffect,
+  type ComponentType,
+  type LazyExoticComponent,
+} from "react";
 import ReactDOM from "react-dom/client";
 
 import { ThemeProvider, ToastProvider } from "@nuoma/ui";
 
 import { AuthProvider } from "./auth/AuthProvider.js";
+import { useAuth } from "./auth/auth-context.js";
+import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { registerNuomaServiceWorker } from "./lib/push-subscription.js";
 import { TrpcProvider } from "./lib/trpc-provider.js";
-import { ShellLayout } from "./shell/ShellLayout.js";
 import { LoginPage } from "./pages/LoginPage.js";
+import { ShellLayout } from "./shell/ShellLayout.js";
 
 import "./styles.css";
+
+type LazyPage = LazyExoticComponent<ComponentType>;
 
 const DashboardPage = lazy(() =>
   import("./pages/DashboardPage.js").then((module) => ({ default: module.DashboardPage })),
@@ -51,24 +64,55 @@ const EvidencePage = lazy(() =>
 const SettingsPage = lazy(() =>
   import("./pages/SettingsPage.js").then((module) => ({ default: module.SettingsPage })),
 );
-const DevComponentsPage = lazy(() =>
-  import("./pages/DevComponentsPage.js").then((module) => ({ default: module.DevComponentsPage })),
-);
+const DevComponentsPage = import.meta.env.DEV
+  ? lazy(() =>
+      import("./pages/DevComponentsPage.js").then((module) => ({
+        default: module.DevComponentsPage,
+      })),
+    )
+  : null;
 
-function routePage(Page: React.LazyExoticComponent<React.ComponentType>) {
-  return function RoutePage() {
-    return (
-      <Suspense
-        fallback={
-          <div className="mx-auto grid min-h-[40vh] max-w-7xl place-items-center px-6 text-sm text-fg-muted">
-            Carregando tela.
-          </div>
-        }
-      >
+function RouteLoading() {
+  return (
+    <div className="nw-shell-route-loading mx-auto grid min-h-[40vh] max-w-7xl place-items-center px-6 text-sm text-ink-base">
+      Carregando tela.
+    </div>
+  );
+}
+
+function LazyRoutePage({ Page, label }: { Page: LazyPage; label: string }) {
+  const router = useRouterState();
+
+  return (
+    <ErrorBoundary scope={label} resetKey={`${label}:${router.location.pathname}`}>
+      <Suspense fallback={<RouteLoading />}>
         <Page />
       </Suspense>
-    );
+    </ErrorBoundary>
+  );
+}
+
+function routePage(Page: LazyPage, label: string) {
+  return function RoutePage() {
+    return <LazyRoutePage Page={Page} label={label} />;
   };
+}
+
+function HomeRoute() {
+  const auth = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (auth.user?.role !== "admin") {
+      void navigate({ to: "/inbox", replace: true });
+    }
+  }, [auth.user?.role, navigate]);
+
+  if (auth.user?.role === "admin") {
+    return <LazyRoutePage Page={DashboardPage} label="Painel" />;
+  }
+
+  return <RouteLoading />;
 }
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
@@ -94,92 +138,93 @@ const shellRoute = createRoute({
 const dashboardRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/",
-  component: routePage(DashboardPage),
+  component: HomeRoute,
 });
 
 const inboxRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/inbox",
-  component: routePage(InboxPage),
+  component: routePage(InboxPage, "Inbox"),
 });
 
 const contactsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/contacts",
-  component: routePage(ContactsPage),
+  component: routePage(ContactsPage, "Contatos"),
 });
 
 const campaignsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/campaigns",
-  component: routePage(CampaignsPage),
+  component: routePage(CampaignsPage, "Campanhas"),
 });
 
 const automationsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/automations",
-  component: routePage(AutomationsPage),
+  component: routePage(AutomationsPage, "Automações"),
 });
 
 const chatbotsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/chatbots",
-  component: routePage(ChatbotsPage),
+  component: routePage(ChatbotsPage, "Chatbots"),
 });
 
 const jobsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/jobs",
-  component: routePage(JobsPage),
+  component: routePage(JobsPage, "Fila de envio"),
 });
 
 const operationsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/operations",
-  component: routePage(OperationsPage),
+  component: routePage(OperationsPage, "Operações"),
 });
 
 const implementationRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/implementation",
-  component: routePage(ImplementationPage),
+  component: routePage(ImplementationPage, "Implementação"),
 });
 
 const evidenceRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/evidence",
-  component: routePage(EvidencePage),
+  component: routePage(EvidencePage, "Evidências"),
 });
 
 const settingsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/settings",
-  component: routePage(SettingsPage),
+  component: routePage(SettingsPage, "Configurações"),
 });
 
-const devComponentsRoute = createRoute({
-  getParentRoute: () => shellRoute,
-  path: "/dev/components",
-  component: routePage(DevComponentsPage),
-});
+const devComponentsRoute = DevComponentsPage
+  ? createRoute({
+      getParentRoute: () => shellRoute,
+      path: "/dev/components",
+      component: routePage(DevComponentsPage, "Componentes"),
+    })
+  : null;
 
-const routeTree = rootRoute.addChildren([
-  loginRoute,
-  shellRoute.addChildren([
-    dashboardRoute,
-    inboxRoute,
-    contactsRoute,
-    campaignsRoute,
-    automationsRoute,
-    chatbotsRoute,
-    operationsRoute,
-    jobsRoute,
-    implementationRoute,
-    evidenceRoute,
-    settingsRoute,
-    devComponentsRoute,
-  ]),
-]);
+const shellChildren = [
+  dashboardRoute,
+  inboxRoute,
+  contactsRoute,
+  campaignsRoute,
+  automationsRoute,
+  chatbotsRoute,
+  operationsRoute,
+  jobsRoute,
+  implementationRoute,
+  evidenceRoute,
+  settingsRoute,
+  ...(devComponentsRoute ? [devComponentsRoute] : []),
+];
+
+const routeTree = rootRoute.addChildren([loginRoute, shellRoute.addChildren(shellChildren)]);
 
 const router = createRouter({ routeTree });
 
@@ -190,15 +235,17 @@ declare module "@tanstack/react-router" {
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <ThemeProvider>
-      <TrpcProvider>
-        <AuthProvider>
-          <ToastProvider>
-            <RouterProvider router={router} />
-          </ToastProvider>
-        </AuthProvider>
-      </TrpcProvider>
-    </ThemeProvider>
-  </React.StrictMode>,
+  <StrictMode>
+    <ErrorBoundary scope="Aplicação">
+      <ThemeProvider>
+        <TrpcProvider>
+          <AuthProvider>
+            <ToastProvider>
+              <RouterProvider router={router} />
+            </ToastProvider>
+          </AuthProvider>
+        </TrpcProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
+  </StrictMode>,
 );

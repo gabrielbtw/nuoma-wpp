@@ -1,1 +1,31 @@
-/* Nuoma Carvão & Cobre — login (vocabulário nw-*). Preenchido na wave de re-skin. */
+/* Nuoma Carvão & Cobre — login (vocabulário nw-*). */
+
+@layer components {
+  .nw-login-page {
+    @apply relative min-h-screen overflow-hidden bg-surface-0 text-ink-strong;
+  }
+
+  .nw-login-grid {
+    @apply relative z-10 grid min-h-screen lg:grid-cols-[minmax(0,1fr)_30rem];
+  }
+
+  .nw-login-aside {
+    @apply hidden min-h-screen flex-col justify-between border-r border-line-hairline bg-surface-deep px-10 py-9 lg:flex xl:px-14;
+  }
+
+  .nw-login-eyebrow {
+    @apply mb-6 inline-flex items-center gap-2 rounded-md border border-line-hairline bg-surface-1 px-3 py-1.5 font-mono text-xs uppercase text-ink-base;
+  }
+
+  .nw-login-panel-wrap {
+    @apply flex min-h-screen items-center justify-center bg-surface-0 p-4 sm:p-8 lg:bg-surface-1;
+  }
+
+  .nw-login-card {
+    @apply w-full max-w-sm rounded-lg border border-line-hairline bg-surface-1 p-6 shadow-flat sm:p-7;
+  }
+
+  .nw-login-signal {
+    @apply rounded-lg border border-line-hairline bg-surface-1 p-4 shadow-flat;
+  }
+}

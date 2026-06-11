@@ -27,12 +27,12 @@ function StateBase({
       {...props}
     >
       {icon && (
-        <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-bg-base shadow-pressed-sm text-fg-dim">
+        <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-surface-1 shadow-inset text-ink-soft">
           {icon}
         </div>
       )}
-      {title && <div className="text-base font-medium text-fg-primary mt-1">{title}</div>}
-      {description && <p className="text-sm text-fg-muted max-w-md">{description}</p>}
+      {title && <div className="text-base font-medium text-ink-strong mt-1">{title}</div>}
+      {description && <p className="text-sm text-ink max-w-md">{description}</p>}
       {action && <div className="mt-2">{action}</div>}
     </div>
   );
@@ -51,7 +51,7 @@ export function EmptyState(props: StateProps) {
 export function ErrorState(props: StateProps) {
   return (
     <StateBase
-      icon={<AlertCircle className="h-5 w-5 text-semantic-danger" />}
+      icon={<AlertCircle className="h-5 w-5 text-status-error" />}
       title={props.title ?? "Algo deu errado"}
       {...props}
     />

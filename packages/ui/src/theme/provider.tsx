@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
 
 /**
- * Nuoma Editorial · Indigo ships a single dark signature theme — there is no
+ * Nuoma Carvão & Cobre ships a single dark signature theme — there is no
  * theme switcher. The provider applies the theme to <html> once and exposes a
  * minimal context for backwards compatibility with existing consumers.
  */
@@ -15,8 +15,8 @@ export const THEME_OPTIONS: Array<{
 }> = [
   {
     value: "editorial",
-    label: "Editorial",
-    description: "Assinatura escura, editorial, com acento índigo.",
+    label: "Carvão & Cobre",
+    description: "Assinatura escura em carvão quente com acento cobre.",
   },
 ];
 

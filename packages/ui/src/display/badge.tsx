@@ -18,15 +18,15 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 }
 
 const VARIANTS: Record<BadgeVariant, string> = {
-  neutral: "bg-fg-primary/[0.06] text-fg-muted",
-  info: "bg-semantic-info/12 text-semantic-info",
-  success: "bg-semantic-success/12 text-semantic-success",
-  warning: "bg-semantic-warning/14 text-semantic-warning",
-  danger: "bg-semantic-danger/12 text-semantic-danger",
-  wa: "bg-channel-whatsapp/12 text-channel-whatsapp",
-  ig: "bg-channel-instagram/12 text-channel-instagram",
-  violet: "bg-accent/12 text-accent-strong",
-  cyan: "bg-accent/12 text-accent-strong",
+  neutral: "bg-ink-strong/[0.06] text-ink",
+  info: "bg-status-info/12 text-status-info",
+  success: "bg-status-ok/12 text-status-ok",
+  warning: "bg-status-warn/14 text-status-warn",
+  danger: "bg-status-error/12 text-status-error",
+  wa: "bg-channel-wa/12 text-channel-wa",
+  ig: "bg-channel-ig/12 text-channel-ig",
+  violet: "bg-status-info/12 text-status-info",
+  cyan: "bg-status-info/12 text-status-info",
 };
 
 export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(

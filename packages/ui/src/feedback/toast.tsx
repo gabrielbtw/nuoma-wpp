@@ -56,10 +56,10 @@ export function useToast(): ToastContextValue {
 }
 
 const VARIANT_RING: Record<ToastVariant, string> = {
-  info: "before:bg-semantic-info",
-  success: "before:bg-semantic-success",
-  warning: "before:bg-semantic-warning",
-  danger: "before:bg-semantic-danger",
+  info: "before:bg-status-info",
+  success: "before:bg-status-ok",
+  warning: "before:bg-status-warn",
+  danger: "before:bg-status-error",
 };
 
 function ToastViewport({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: number) => void }) {
@@ -81,22 +81,22 @@ function ToastViewport({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: num
             role="status"
             aria-live="polite"
             className={cn(
-              "botforge-surface relative flex items-start gap-3 p-4 pl-5 rounded-xl pointer-events-auto",
+              "relative flex items-start gap-3 rounded-xl bg-surface-2 p-4 pl-5 shadow-raised pointer-events-auto",
               "before:absolute before:left-1.5 before:top-3 before:bottom-3 before:w-1 before:rounded-full",
               VARIANT_RING[toast.variant],
             )}
           >
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-fg-primary">{toast.title}</div>
+              <div className="text-sm font-medium text-ink-strong">{toast.title}</div>
               {toast.description && (
-                <div className="text-xs text-fg-muted mt-0.5">{toast.description}</div>
+                <div className="text-xs text-ink mt-0.5">{toast.description}</div>
               )}
             </div>
             <button
               type="button"
               onClick={() => dismiss(toast.id)}
               aria-label="Dispensar"
-              className="text-fg-dim hover:text-fg-primary"
+              className="text-ink-soft hover:text-ink-strong"
             >
               <X className="h-3.5 w-3.5" />
             </button>

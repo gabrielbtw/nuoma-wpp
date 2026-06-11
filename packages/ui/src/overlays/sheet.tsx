@@ -27,11 +27,11 @@ export interface SheetContentProps
 export const SheetContent = forwardRef<HTMLDivElement, SheetContentProps>(
   ({ side = "right", className, children, showClose = true, ...props }, ref) => (
     <RadixDialog.Portal>
-      <RadixDialog.Overlay className="fixed inset-0 z-overlay bg-bg-deep/70 backdrop-blur-sm" />
+      <RadixDialog.Overlay className="fixed inset-0 z-overlay bg-surface-deep/70" />
       <RadixDialog.Content
         ref={ref}
         className={cn(
-          "fixed z-drawer bg-bg-base shadow-lift",
+          "fixed z-drawer bg-surface-1 shadow-lifted",
           "p-7 outline-none",
           SIDE[side],
           className,
@@ -42,7 +42,7 @@ export const SheetContent = forwardRef<HTMLDivElement, SheetContentProps>(
         {showClose && (
           <RadixDialog.Close
             aria-label="Fechar"
-            className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-bg-base text-fg-muted shadow-flat hover:shadow-raised-sm hover:text-fg-primary transition-shadow"
+            className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-surface-1 text-ink shadow-flat hover:shadow-raised hover:text-ink-strong transition-shadow"
           >
             <X className="h-3.5 w-3.5" />
           </RadixDialog.Close>

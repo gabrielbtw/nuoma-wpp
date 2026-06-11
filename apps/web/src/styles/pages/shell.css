@@ -1,1 +1,51 @@
-/* Nuoma Carvão & Cobre — shell (vocabulário nw-*). Preenchido na wave de re-skin. */
+/* Nuoma Carvão & Cobre — shell (vocabulário nw-*). */
+
+@layer components {
+  .nw-shell-app {
+    @apply relative min-h-screen overflow-hidden bg-surface-0 text-ink-strong;
+  }
+
+  .nw-shell-frame {
+    @apply relative flex min-h-screen bg-surface-0;
+  }
+
+  .nw-shell-sidebar-panel {
+    @apply border-r border-line-hairline bg-surface-deep;
+  }
+
+  .nw-shell-brand {
+    @apply text-ink-strong hover:bg-surface-1;
+  }
+
+  .nw-shell-nav-item {
+    @apply overflow-hidden border border-transparent;
+  }
+
+  .nw-shell-nav-item:hover {
+    @apply border-line-hairline;
+  }
+
+  .nw-shell-workspace {
+    @apply shadow-flat;
+  }
+
+  .nw-shell-topbar {
+    @apply flex min-h-14 items-center gap-2 border-b border-line-hairline bg-surface-0 px-4;
+  }
+
+  .nw-shell-main {
+    @apply bg-surface-0 text-ink-strong;
+  }
+
+  .nw-shell-route-frame {
+    @apply min-w-0;
+  }
+
+  .nw-shell-route-loading {
+    @apply text-ink-base;
+  }
+
+  .nw-shell-frame-flow .nw-shell-main {
+    @apply bg-surface-deep;
+  }
+}

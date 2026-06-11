@@ -13,7 +13,7 @@ export const AccordionItem = forwardRef<
   <RadixAccordion.Item
     ref={ref}
     className={cn(
-      "rounded-xl bg-bg-base shadow-flat data-[state=open]:shadow-pressed-sm transition-shadow",
+      "rounded-xl bg-surface-1 shadow-flat data-[state=open]:shadow-inset transition-shadow",
       className,
     )}
     {...props}
@@ -29,15 +29,15 @@ export const AccordionTrigger = forwardRef<
     <RadixAccordion.Trigger
       ref={ref}
       className={cn(
-        "flex flex-1 items-center justify-between px-4 py-3 text-sm font-medium text-fg-primary",
-        "outline-none focus-visible:ring-2 focus-visible:ring-brand-cyan/60",
+        "flex flex-1 items-center justify-between px-4 py-3 text-sm font-medium text-ink-strong",
+        "outline-none focus-visible:ring-2 focus-visible:ring-accent/60",
         "[&[data-state=open]>svg]:rotate-180",
         className,
       )}
       {...props}
     >
       {children}
-      <ChevronDown className="h-4 w-4 transition-transform duration-base text-fg-muted" />
+      <ChevronDown className="h-4 w-4 transition-transform duration-base text-ink" />
     </RadixAccordion.Trigger>
   </RadixAccordion.Header>
 ));
@@ -50,7 +50,7 @@ export const AccordionContent = forwardRef<
   <RadixAccordion.Content
     ref={ref}
     className={cn(
-      "overflow-hidden text-sm text-fg-muted",
+      "overflow-hidden text-sm text-ink",
       className,
     )}
     {...props}

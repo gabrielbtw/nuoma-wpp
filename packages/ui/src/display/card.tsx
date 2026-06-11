@@ -15,14 +15,14 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
   ({ className, interactive, variant = "raised", ...props }, ref) => {
     const baseShadow =
       variant === "pressed"
-        ? "shadow-pressed-md"
+        ? "shadow-inset"
         : variant === "flat"
           ? "shadow-flat"
           : variant === "glass"
-            ? "shadow-lift"
-            : "shadow-raised-md";
-    const surfaceClass = variant === "glass" ? "nuoma-glass-panel" : "botforge-surface";
-    const hoverShadow = variant === "pressed" ? "" : "hover:shadow-raised-md";
+            ? "shadow-raised"
+            : "shadow-raised";
+    const surfaceClass = variant === "pressed" ? "bg-surface-deep" : "bg-surface-2";
+    const hoverShadow = variant === "pressed" ? "" : "hover:shadow-lifted";
     if (interactive) {
       return (
         <motion.div
@@ -64,7 +64,7 @@ export const CardTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadi
     <h3
       ref={ref}
       className={cn(
-        "font-display text-base font-semibold tracking-tight text-fg-primary",
+        "font-display text-base font-semibold tracking-tight text-ink-strong",
         className,
       )}
       {...props}
@@ -77,7 +77,7 @@ export const CardDescription = forwardRef<
   HTMLParagraphElement,
   HTMLAttributes<HTMLParagraphElement>
 >(({ className, ...props }, ref) => (
-  <p ref={ref} className={cn("text-sm text-fg-muted", className)} {...props} />
+  <p ref={ref} className={cn("text-sm text-ink", className)} {...props} />
 ));
 CardDescription.displayName = "CardDescription";
 

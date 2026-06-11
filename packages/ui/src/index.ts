@@ -1,7 +1,7 @@
 /**
- * @nuoma/ui — Nuoma premium dark/glass design system.
+ * @nuoma/ui — Nuoma Carvão & Cobre design system.
  *
- * Matte graphite canvas with solid green/blue operational accents.
+ * Warm charcoal canvas with one copper accent and separated operational status.
  */
 
 export * from "./tokens/index.js";

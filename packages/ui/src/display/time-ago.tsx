@@ -36,7 +36,7 @@ export function TimeAgo({ date, refreshIntervalMs = 60_000, className, ...props 
     <time
       dateTime={iso}
       title={iso}
-      className={cn("font-mono tabular-nums text-fg-dim text-xs", className)}
+      className={cn("font-mono tabular-nums text-ink-soft text-xs", className)}
       {...props}
     >
       {formatRelative(target, now)}

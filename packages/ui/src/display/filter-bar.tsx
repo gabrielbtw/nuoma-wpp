@@ -23,7 +23,7 @@ export function FilterBar({
     <section
       aria-label="Filtros"
       className={cn(
-        "grid gap-3 rounded-lg border border-border-subtle/40 bg-bg-panel/78 p-3",
+        "grid gap-3 rounded-lg border border-line-hairline/40 bg-surface-1/78 p-3",
         "lg:grid-cols-[1fr_auto]",
         className,
       )}
@@ -31,7 +31,7 @@ export function FilterBar({
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{children}</div>
       <div className="flex flex-wrap items-end justify-end gap-2">
         {activeCount > 0 ? (
-          <span className="inline-flex h-9 items-center rounded-md bg-brand-green/10 px-3 text-xs font-medium text-brand-green">
+          <span className="inline-flex h-9 items-center rounded-md bg-accent/12 px-3 text-xs font-medium text-accent">
             {activeCount} filtro(s)
           </span>
         ) : null}

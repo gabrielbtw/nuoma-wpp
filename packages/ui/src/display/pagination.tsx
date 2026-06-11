@@ -28,11 +28,11 @@ export function Pagination({
     <nav
       aria-label="Paginação"
       className={cn(
-        "flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle/40 px-3 py-3 text-sm",
+        "flex flex-wrap items-center justify-between gap-3 border-t border-line-hairline/40 px-3 py-3 text-sm",
         className,
       )}
     >
-      <div className="flex min-w-0 flex-wrap items-center gap-3 text-xs text-fg-dim">
+      <div className="flex min-w-0 flex-wrap items-center gap-3 text-xs text-ink-soft">
         {totalLabel ? <span>{totalLabel}</span> : null}
         {pageSizeLabel ? <span>{pageSizeLabel}</span> : null}
       </div>
@@ -49,7 +49,7 @@ export function Pagination({
           item === "ellipsis" ? (
             <span
               key={`ellipsis-${index}`}
-              className="flex h-9 min-w-9 items-center justify-center text-fg-dim"
+              className="flex h-9 min-w-9 items-center justify-center text-ink-soft"
             >
               ...
             </span>

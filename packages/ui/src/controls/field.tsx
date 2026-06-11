@@ -26,19 +26,19 @@ export function Field({
       {label ? (
         <span
           className={cn(
-            "flex items-center gap-1 text-xs font-medium uppercase tracking-wider text-fg-dim",
+            "flex items-center gap-1 text-xs font-medium uppercase tracking-wider text-ink-soft",
             labelClassName,
           )}
         >
           {label}
-          {required ? <span className="text-semantic-danger">*</span> : null}
+          {required ? <span className="text-status-error">*</span> : null}
         </span>
       ) : null}
       {children}
       {description && !error ? (
-        <span className="text-xs leading-5 text-fg-dim">{description}</span>
+        <span className="text-xs leading-5 text-ink-soft">{description}</span>
       ) : null}
-      {error ? <span className="text-xs leading-5 text-semantic-danger">{error}</span> : null}
+      {error ? <span className="text-xs leading-5 text-status-error">{error}</span> : null}
     </div>
   );
 }

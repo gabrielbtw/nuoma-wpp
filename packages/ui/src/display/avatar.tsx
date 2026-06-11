@@ -10,7 +10,7 @@ export const Avatar = forwardRef<
   <RadixAvatar.Root
     ref={ref}
     className={cn(
-      "inline-flex h-10 w-10 select-none items-center justify-center overflow-hidden rounded-full bg-bg-base shadow-raised-sm align-middle",
+      "inline-flex h-10 w-10 select-none items-center justify-center overflow-hidden rounded-full bg-surface-1 shadow-raised align-middle",
       className,
     )}
     {...props}
@@ -33,7 +33,7 @@ export const AvatarFallback = forwardRef<
   <RadixAvatar.Fallback
     ref={ref}
     className={cn(
-      "flex h-full w-full items-center justify-center text-xs font-mono font-medium uppercase tracking-wider text-fg-muted",
+      "flex h-full w-full items-center justify-center text-xs font-mono font-medium uppercase tracking-wider text-ink",
       className,
     )}
     {...props}

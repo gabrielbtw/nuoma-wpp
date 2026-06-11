@@ -63,9 +63,9 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
         data-invalid={invalid || undefined}
         className={cn(
           "grid h-11 w-full grid-cols-[2.25rem_1fr_2.25rem] items-center rounded-lg",
-          "bg-bg-sunken/76 text-fg-primary shadow-pressed-sm",
-          "focus-within:shadow-pressed-md focus-within:ring-2 focus-within:ring-brand-teal/40",
-          invalid && "ring-2 ring-semantic-danger/60 focus-within:ring-semantic-danger/60",
+          "bg-surface-deep/76 text-ink-strong shadow-inset",
+          "focus-within:ring-2 focus-within:ring-accent/40",
+          invalid && "ring-2 ring-status-error/60 focus-within:ring-status-error/60",
           disabled && "cursor-not-allowed opacity-50",
           className,
         )}
@@ -90,7 +90,7 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
           onChange={onChange}
           className={cn(
             "h-full min-w-0 bg-transparent text-center text-sm tabular-nums outline-none",
-            "placeholder:text-fg-dim disabled:cursor-not-allowed",
+            "placeholder:text-ink-soft disabled:cursor-not-allowed",
           )}
           {...props}
         />

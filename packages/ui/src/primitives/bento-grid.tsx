@@ -34,7 +34,7 @@ BentoGrid.displayName = "BentoGrid";
 export interface BentoItemProps extends HTMLAttributes<HTMLDivElement> {
   colSpan?: 1 | 2 | 3 | 4;
   rowSpan?: 1 | 2;
-  /** Soft aura glow in the corner — for the headline cell only. */
+  /** Copper hairline emphasis for the headline cell only. */
   aura?: boolean;
   /** Render a bare grid cell with no surface styling. */
   plain?: boolean;
@@ -53,7 +53,7 @@ const ROW_SPAN: Record<NonNullable<BentoItemProps["rowSpan"]>, string> = {
 };
 
 /**
- * BentoItem — a single cell. Layered glass feature surface by default; pass
+ * BentoItem — a single cell. Solid Carvão & Cobre surface by default; pass
  * `plain` for an unstyled cell that hosts another component.
  */
 export const BentoItem = forwardRef<HTMLDivElement, BentoItemProps>(
@@ -62,7 +62,7 @@ export const BentoItem = forwardRef<HTMLDivElement, BentoItemProps>(
       ref={ref}
       className={cn(
         "relative isolate overflow-hidden",
-        !plain && "nuoma-glass-panel rounded-lg p-5 shadow-raised-sm",
+        !plain && "rounded-lg bg-surface-2 p-5 shadow-raised",
         COL_SPAN[colSpan],
         ROW_SPAN[rowSpan],
         className,
@@ -72,7 +72,7 @@ export const BentoItem = forwardRef<HTMLDivElement, BentoItemProps>(
       {aura && !plain && (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute -right-10 -top-10 -z-10 h-40 w-40 rounded-full bg-gradient-aura blur-2xl"
+          className="pointer-events-none absolute inset-0 -z-10 rounded-lg border border-accent/25"
         />
       )}
       {children}

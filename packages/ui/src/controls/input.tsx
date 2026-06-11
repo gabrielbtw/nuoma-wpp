@@ -3,8 +3,8 @@ import { forwardRef, type InputHTMLAttributes, type TextareaHTMLAttributes } fro
 import { cn } from "../utils/cn.js";
 
 const baseField = cn(
-  "w-full bg-bg-base text-fg-primary placeholder:text-fg-faint",
-  "rounded-md border border-border-muted outline-none",
+  "w-full bg-surface-1 text-ink-strong placeholder:text-ink-faint",
+  "rounded-md border border-line-soft outline-none",
   "focus:border-accent focus:ring-2 focus:ring-accent/30",
   "transition-colors duration-fast ease-out",
   "disabled:opacity-50 disabled:cursor-not-allowed",
@@ -25,7 +25,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         baseField,
         "h-11 px-4 text-sm",
         monospace && "font-mono",
-        invalid && "ring-2 ring-semantic-danger/60 focus:ring-semantic-danger/60",
+        invalid && "ring-2 ring-status-error/60 focus:ring-status-error/60",
         className,
       )}
       {...props}
@@ -49,7 +49,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         baseField,
         "px-4 py-3 text-sm resize-y min-h-[72px]",
         monospace && "font-mono",
-        invalid && "ring-2 ring-semantic-danger/60 focus:ring-semantic-danger/60",
+        invalid && "ring-2 ring-status-error/60 focus:ring-status-error/60",
         className,
       )}
       {...props}

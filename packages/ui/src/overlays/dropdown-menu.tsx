@@ -18,8 +18,8 @@ export const DropdownMenuContent = forwardRef<
       sideOffset={sideOffset}
       className={cn(
         "z-dropdown min-w-[10rem] overflow-hidden",
-        "bg-bg-base rounded-xl shadow-lift",
-        "p-2 text-sm text-fg-primary outline-none",
+        "bg-surface-1 rounded-xl shadow-lifted",
+        "p-2 text-sm text-ink-strong outline-none",
         className,
       )}
       {...props}
@@ -36,8 +36,8 @@ export const DropdownMenuItem = forwardRef<
     ref={ref}
     className={cn(
       "relative flex cursor-pointer select-none items-center gap-2 rounded-md px-3 py-2",
-      "text-fg-muted",
-      "data-[highlighted]:bg-bg-elevated data-[highlighted]:text-fg-primary data-[highlighted]:shadow-flat",
+      "text-ink",
+      "data-[highlighted]:bg-surface-4 data-[highlighted]:text-ink-strong data-[highlighted]:shadow-flat",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
       "outline-none transition-shadow duration-fast",
       className,
@@ -53,7 +53,7 @@ export const DropdownMenuSeparator = forwardRef<
 >(({ className, ...props }, ref) => (
   <RadixDropdown.Separator
     ref={ref}
-    className={cn("my-1.5 h-px bg-contour-line", className)}
+    className={cn("my-1.5 h-px bg-line-hairline", className)}
     {...props}
   />
 ));
@@ -65,7 +65,7 @@ export const DropdownMenuLabel = forwardRef<
 >(({ className, ...props }, ref) => (
   <RadixDropdown.Label
     ref={ref}
-    className={cn("px-3 py-1.5 text-xs uppercase tracking-wider text-fg-dim", className)}
+    className={cn("px-3 py-1.5 text-xs uppercase tracking-wider text-ink-soft", className)}
     {...props}
   />
 ));
@@ -79,7 +79,7 @@ export const DropdownMenuCheckboxItem = forwardRef<
     ref={ref}
     className={cn(
       "relative flex cursor-pointer select-none items-center rounded-md py-2 pl-8 pr-3 text-sm",
-      "data-[highlighted]:bg-bg-elevated outline-none",
+      "text-ink data-[highlighted]:bg-surface-4 data-[highlighted]:text-ink-strong outline-none",
       className,
     )}
     {...props}

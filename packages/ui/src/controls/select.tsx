@@ -16,8 +16,8 @@ export const SelectTrigger = forwardRef<
     ref={ref}
     className={cn(
       "inline-flex h-11 w-full items-center justify-between gap-2 px-4 text-sm",
-      "rounded-lg bg-bg-base text-fg-primary shadow-pressed-sm",
-      "outline-none focus:ring-2 focus:ring-brand-cyan/60 focus:ring-offset-2 focus:ring-offset-bg-base",
+      "rounded-lg bg-surface-1 text-ink-strong shadow-inset",
+      "outline-none focus:ring-2 focus:ring-accent/60 focus:ring-offset-2 focus:ring-offset-surface-1",
       "transition-shadow duration-base",
       "disabled:opacity-50",
       className,
@@ -43,7 +43,7 @@ export const SelectContent = forwardRef<
       sideOffset={6}
       className={cn(
         "z-dropdown overflow-hidden",
-        "bg-bg-base shadow-lift rounded-xl",
+        "bg-surface-1 shadow-lifted rounded-xl",
         "min-w-[10rem] p-2",
         className,
       )}
@@ -69,8 +69,8 @@ export const SelectItem = forwardRef<
     ref={ref}
     className={cn(
       "relative flex cursor-pointer select-none items-center gap-2 rounded-md px-8 py-2 text-sm",
-      "text-fg-muted outline-none",
-      "data-[highlighted]:bg-bg-elevated data-[highlighted]:text-fg-primary data-[highlighted]:shadow-flat",
+      "text-ink outline-none",
+      "data-[highlighted]:bg-surface-4 data-[highlighted]:text-ink-strong data-[highlighted]:shadow-flat",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
       "transition-shadow duration-fast",
       className,
@@ -79,7 +79,7 @@ export const SelectItem = forwardRef<
   >
     <span className="absolute left-2 flex h-4 w-4 items-center justify-center">
       <RadixSelect.ItemIndicator>
-        <Check className="h-3.5 w-3.5 text-brand-cyan" />
+        <Check className="h-3.5 w-3.5 text-accent" />
       </RadixSelect.ItemIndicator>
     </span>
     <RadixSelect.ItemText>{children}</RadixSelect.ItemText>

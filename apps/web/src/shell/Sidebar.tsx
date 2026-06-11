@@ -20,7 +20,6 @@ import {
   type BadgeVariant,
   cn,
   KeyboardShortcut,
-  MicroGrid,
   NuomaLogo,
   Tooltip,
   TooltipContent,
@@ -30,35 +29,82 @@ import {
 interface NavItem {
   to: string;
   label: string;
-  displayLabel?: string;
   icon: typeof LayoutDashboard;
   shortcut: string;
 }
 
-export const SHELL_NAV_ITEMS: NavItem[] = [
-  { to: "/", label: "Dashboard", displayLabel: "Signal Board", icon: LayoutDashboard, shortcut: "1" },
-  { to: "/inbox", label: "Inbox", icon: Inbox, shortcut: "2" },
-  { to: "/contacts", label: "Contatos", icon: Users, shortcut: "3" },
-  { to: "/campaigns", label: "Campanhas", icon: Sparkles, shortcut: "4" },
-  { to: "/automations", label: "Automações", displayLabel: "Automação", icon: Activity, shortcut: "5" },
-  { to: "/chatbots", label: "Chatbots", displayLabel: "Respostas", icon: Bot, shortcut: "6" },
-  { to: "/operations", label: "Operações", displayLabel: "Operação", icon: Radio, shortcut: "o" },
-  { to: "/jobs", label: "Jobs", displayLabel: "Logs", icon: ListChecks, shortcut: "7" },
-  { to: "/implementation", label: "Implementação", displayLabel: "Fluxos", icon: ClipboardList, shortcut: "8" },
-  { to: "/evidence", label: "Evidências", displayLabel: "Auditoria", icon: FolderSearch, shortcut: "v" },
+interface NavSection {
+  id: "operate" | "dispatch" | "system" | "dev";
+  label: string;
+  adminOnly?: boolean;
+  devOnly?: boolean;
+  items: NavItem[];
+}
+
+export const SHELL_NAV_SECTIONS: NavSection[] = [
+  {
+    id: "operate",
+    label: "Operar",
+    items: [
+      { to: "/inbox", label: "Inbox", icon: Inbox, shortcut: "2" },
+      { to: "/contacts", label: "Contatos", icon: Users, shortcut: "3" },
+    ],
+  },
+  {
+    id: "dispatch",
+    label: "Disparar",
+    items: [
+      { to: "/campaigns", label: "Campanhas", icon: Sparkles, shortcut: "4" },
+      { to: "/automations", label: "Automações", icon: Activity, shortcut: "5" },
+      { to: "/chatbots", label: "Chatbots", icon: Bot, shortcut: "6" },
+    ],
+  },
+  {
+    id: "system",
+    label: "Sistema",
+    adminOnly: true,
+    items: [
+      { to: "/", label: "Painel", icon: LayoutDashboard, shortcut: "1" },
+      { to: "/operations", label: "Operações", icon: Radio, shortcut: "o" },
+      { to: "/jobs", label: "Fila de envio", icon: ListChecks, shortcut: "7" },
+      { to: "/settings", label: "Configurações", icon: Settings, shortcut: "9" },
+    ],
+  },
+  {
+    id: "dev",
+    label: "Dev",
+    devOnly: true,
+    items: [
+      { to: "/implementation", label: "Implementação", icon: ClipboardList, shortcut: "8" },
+      { to: "/evidence", label: "Evidências", icon: FolderSearch, shortcut: "v" },
+      { to: "/dev/components", label: "Componentes", icon: Wrench, shortcut: "0" },
+    ],
+  },
 ];
 
-export const SHELL_FOOTER_NAV_ITEMS: NavItem[] = [
-  { to: "/settings", label: "Configurações", icon: Settings, shortcut: "9" },
-  { to: "/dev/components", label: "Dev / DS", icon: Wrench, shortcut: "0" },
-];
+export function getShellNavSections({
+  isAdmin,
+  isDev = import.meta.env.DEV,
+}: {
+  isAdmin: boolean;
+  isDev?: boolean;
+}): NavSection[] {
+  return SHELL_NAV_SECTIONS.filter((section) => {
+    if (section.adminOnly && !isAdmin) return false;
+    if (section.devOnly && !isDev) return false;
+    return true;
+  });
+}
 
-export const SHELL_SHORTCUT_ITEMS = [...SHELL_NAV_ITEMS, ...SHELL_FOOTER_NAV_ITEMS];
+export function getShellShortcutItems(isAdmin: boolean, isDev = import.meta.env.DEV): NavItem[] {
+  return getShellNavSections({ isAdmin, isDev }).flatMap((section) => section.items);
+}
 
 interface SidebarProps {
   mode?: "desktop" | "mobile";
   onNavigate?: () => void;
   runtimeStatus?: ShellRuntimeStatus;
+  isAdmin: boolean;
 }
 
 export interface ShellRuntimeStatus {
@@ -71,87 +117,129 @@ export interface ShellRuntimeStatus {
   error?: boolean;
 }
 
-export function Sidebar({ mode = "desktop", onNavigate, runtimeStatus }: SidebarProps) {
+export function Sidebar({
+  mode = "desktop",
+  onNavigate,
+  runtimeStatus,
+  isAdmin,
+}: SidebarProps) {
   const router = useRouterState();
   const currentPath = router.location.pathname;
   const workspaceStatus = workspaceStatusFor(runtimeStatus);
+  const sections = getShellNavSections({ isAdmin });
+  const primarySections = sections.filter((section) => !section.devOnly);
+  const devSection = sections.find((section) => section.devOnly);
 
   return (
     <aside
       className={cn(
-        "relative shrink-0",
-        mode === "desktop" ? "hidden w-[5rem] px-2 py-3 md:block xl:w-[15rem]" : "w-full p-0",
+        "nw-shell-sidebar relative shrink-0",
+        mode === "desktop" ? "hidden w-[4.75rem] md:block xl:w-[16rem]" : "w-full",
       )}
     >
       <div
         className={cn(
-          "flex flex-col gap-1 p-3",
-          mode === "desktop"
-            ? "sticky top-0 h-screen border-r border-border-subtle bg-bg-base"
-            : "min-h-screen",
+          "nw-shell-sidebar-panel flex min-h-full flex-col",
+          mode === "desktop" ? "sticky top-0 h-screen px-2 py-3 xl:px-3" : "px-3 py-4",
         )}
       >
-        <MicroGrid className="hidden" size={48} />
         <Link
           to="/"
           aria-label="Nuoma"
           onClick={onNavigate}
-          className="mb-1 inline-flex h-12 items-center justify-center gap-3 rounded-md px-1 outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-accent xl:w-full xl:justify-start xl:px-2"
+          className={cn(
+            "nw-shell-brand mb-4 inline-flex h-11 items-center justify-center gap-3 rounded-md outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
+            mode === "mobile" ? "w-full justify-start px-2" : "xl:w-full xl:justify-start xl:px-2",
+          )}
         >
           <NuomaLogo variant="small" tone="gold" className="h-9 w-9 shrink-0" />
-          <span className="hidden min-w-0 xl:block">
-            <span className="block truncate text-sm font-semibold tracking-tight text-fg-primary">
-              Nuoma WPP
+          <span className={cn("min-w-0", mode === "mobile" ? "block" : "hidden xl:block")}>
+            <span className="block truncate font-display text-sm font-semibold text-ink-strong">
+              Nuoma
             </span>
-            <span className="mt-0.5 block truncate font-mono text-[0.62rem] uppercase tracking-wider text-fg-dim">
-              Operação local
+            <span className="mt-0.5 block truncate font-mono text-[0.64rem] uppercase text-ink-faint">
+              Carvão & Cobre
             </span>
           </span>
         </Link>
 
-        <div
-          className="mb-2 mt-1 hidden px-2 font-mono text-[0.6rem] uppercase tracking-[0.14em] text-fg-faint xl:block"
-          aria-hidden
-        >
-          Operações
-        </div>
-
-        <nav className="flex w-full flex-col gap-1.5">
-          {SHELL_NAV_ITEMS.map((item) => (
-            <NavLink
-              key={item.to}
-              item={item}
-              active={isActive(currentPath, item.to)}
+        <nav className="flex w-full flex-col gap-5" aria-label="Navegação principal">
+          {primarySections.map((section) => (
+            <NavSectionBlock
+              key={section.id}
+              section={section}
+              currentPath={currentPath}
+              mode={mode}
               onNavigate={onNavigate}
             />
           ))}
         </nav>
 
-        <div className="nuoma-sidebar-workspace mt-auto hidden rounded-md border border-border-subtle bg-bg-surface p-3 xl:block">
-          <div className="font-mono text-[0.6rem] uppercase tracking-wider text-fg-faint">
-            Workspace
-          </div>
-          <div className="mt-1 truncate text-sm font-medium text-fg-primary">
-            Operação Principal
-          </div>
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <Badge variant={workspaceStatus.variant}>{workspaceStatus.label}</Badge>
-            <span className="font-mono text-[0.62rem] text-fg-dim">{workspaceStatus.detail}</span>
-          </div>
-        </div>
+        <div className="mt-auto flex flex-col gap-3 pt-5">
+          {isAdmin && (
+            <div className="nw-shell-workspace hidden rounded-md border border-line-hairline bg-surface-1 p-3 xl:block">
+              <div className="font-mono text-[0.64rem] uppercase text-ink-faint">Workspace</div>
+              <div className="mt-1 truncate text-sm font-medium text-ink-strong">
+                Operação Principal
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <Badge variant={workspaceStatus.variant}>{workspaceStatus.label}</Badge>
+                <span className="font-mono text-[0.62rem] text-ink-soft">
+                  {workspaceStatus.detail}
+                </span>
+              </div>
+            </div>
+          )}
 
-        <div className="nuoma-sidebar-footer mt-2 flex w-full flex-col items-center gap-1 border-t border-border-subtle pt-2 xl:items-stretch">
-          {SHELL_FOOTER_NAV_ITEMS.map((item) => (
-            <NavLink
-              key={item.to}
-              item={item}
-              active={isActive(currentPath, item.to)}
-              onNavigate={onNavigate}
-            />
-          ))}
+          {devSection && (
+            <nav className="nw-shell-dev-nav flex w-full flex-col gap-2 border-t border-line-hairline pt-3">
+              <NavSectionBlock
+                section={devSection}
+                currentPath={currentPath}
+                mode={mode}
+                onNavigate={onNavigate}
+              />
+            </nav>
+          )}
         </div>
       </div>
     </aside>
+  );
+}
+
+function NavSectionBlock({
+  section,
+  currentPath,
+  mode,
+  onNavigate,
+}: {
+  section: NavSection;
+  currentPath: string;
+  mode: "desktop" | "mobile";
+  onNavigate?: () => void;
+}) {
+  return (
+    <section className="flex flex-col gap-1.5">
+      <div
+        className={cn(
+          "px-2 font-mono text-[0.64rem] uppercase text-ink-faint",
+          mode === "desktop" && "hidden xl:block",
+        )}
+      >
+        {section.label}
+      </div>
+      <div className="flex flex-col gap-1">
+        {section.items.map((item) => (
+          <NavLink
+            key={item.to}
+            item={item}
+            active={isActive(currentPath, item.to)}
+            mode={mode}
+            onNavigate={onNavigate}
+          />
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -194,13 +282,17 @@ function workspaceStatusFor(input: ShellRuntimeStatus | undefined): {
 function NavLink({
   item,
   active,
+  mode,
   onNavigate,
 }: {
   item: NavItem;
   active: boolean;
+  mode: "desktop" | "mobile";
   onNavigate?: () => void;
 }) {
   const Icon = item.icon;
+  const showLabel = mode === "mobile";
+
   return (
     <Tooltip delayDuration={150}>
       <TooltipTrigger asChild>
@@ -211,27 +303,38 @@ function NavLink({
           className="relative rounded-md outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <motion.span
-            whileTap={{ scale: 0.97 }}
-            transition={{ type: "spring", stiffness: 400, damping: 22 }}
+            whileTap={{ scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 400, damping: 24 }}
             className={cn(
-              "group relative inline-flex h-9 w-9 items-center justify-center rounded-md xl:w-full xl:justify-start xl:gap-3 xl:px-3",
+              "nw-shell-nav-item group relative inline-flex h-10 w-10 items-center justify-center rounded-md",
               "transition-colors duration-fast ease-out",
+              mode === "mobile" ? "w-full justify-start gap-3 px-3" : "xl:w-full xl:justify-start xl:gap-3 xl:px-3",
               active
-                ? "bg-accent/12 text-accent-strong"
-                : "text-fg-muted hover:bg-fg-primary/[0.05] hover:text-fg-primary",
+                ? "bg-surface-2 text-ink-strong"
+                : "text-ink-soft hover:bg-surface-1 hover:text-ink-strong",
             )}
           >
-            <Icon className="h-[1.05rem] w-[1.05rem] shrink-0" />
-            <span className="nuoma-nav-label hidden min-w-0 flex-1 truncate text-[0.86rem] xl:block">
-              {item.displayLabel ?? item.label}
+            <Icon className={cn("h-[1.05rem] w-[1.05rem] shrink-0", active && "text-accent")} />
+            <span
+              className={cn(
+                "min-w-0 flex-1 truncate text-[0.86rem]",
+                showLabel ? "block" : "hidden xl:block",
+              )}
+            >
+              {item.label}
             </span>
-            <span className="nuoma-nav-shortcut hidden font-mono text-[0.62rem] text-fg-faint xl:block">
+            <span
+              className={cn(
+                "font-mono text-[0.62rem] text-ink-faint",
+                showLabel ? "block" : "hidden xl:block",
+              )}
+            >
               {item.shortcut}
             </span>
             {active && (
               <motion.span
                 layoutId="sidebar-active-marker"
-                className="absolute -left-3 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-accent"
+                className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-accent"
                 transition={{ type: "spring", stiffness: 380, damping: 28 }}
               />
             )}

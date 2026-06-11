@@ -53,17 +53,17 @@ export function DataTable<T>({
 
   if (rows.length === 0) {
     return (
-      <div className={cn("rounded-lg border border-border-subtle/40 bg-bg-sunken/40", className)}>
+      <div className={cn("rounded-lg border border-line-hairline/40 bg-surface-deep/40", className)}>
         <EmptyState title={emptyTitle} description={emptyDescription} className="py-12" />
       </div>
     );
   }
 
   return (
-    <div className={cn("overflow-hidden rounded-lg border border-border-subtle/40", className)}>
+    <div className={cn("overflow-hidden rounded-lg border border-line-hairline/40", className)}>
       <div className="overflow-x-auto">
         <table className="min-w-full border-collapse text-left text-sm">
-          <thead className="bg-bg-sunken/72 text-xs uppercase tracking-wider text-fg-dim">
+          <thead className="bg-surface-deep/72 text-xs uppercase tracking-wider text-ink-soft">
             <tr>
               {selectable ? (
                 <th className="w-11 px-3 py-3">
@@ -89,11 +89,11 @@ export function DataTable<T>({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-border-subtle/24 bg-bg-panel/72">
+          <tbody className="divide-y divide-line-hairline/24 bg-surface-1/72">
             {rows.map((row) => {
               const key = getRowKey(row);
               return (
-                <tr key={key} className="transition-colors hover:bg-bg-elevated/44">
+                <tr key={key} className="transition-colors hover:bg-surface-4/44">
                   {selectable ? (
                     <td className="w-11 px-3 py-3">
                       <Checkbox
@@ -107,7 +107,7 @@ export function DataTable<T>({
                     <td
                       key={column.id}
                       className={cn(
-                        "px-3 py-3 text-fg-muted",
+                        "px-3 py-3 text-ink",
                         alignClass(column.align),
                         column.className,
                       )}

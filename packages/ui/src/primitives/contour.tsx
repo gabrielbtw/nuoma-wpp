@@ -10,9 +10,9 @@ export interface ContourProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const INTENSITY: Record<NonNullable<ContourProps["intensity"]>, string> = {
-  subtle: "shadow-flat-subtle",
+  subtle: "shadow-flat",
   normal: "shadow-flat",
-  strong: "shadow-raised-sm",
+  strong: "shadow-raised",
 };
 
 export const Contour = forwardRef<HTMLDivElement, ContourProps>(
@@ -20,7 +20,7 @@ export const Contour = forwardRef<HTMLDivElement, ContourProps>(
     <div
       ref={ref}
       data-contour={intensity}
-      className={cn("bg-bg-base rounded-xl", INTENSITY[intensity], className)}
+      className={cn("bg-surface-1 rounded-xl", INTENSITY[intensity], className)}
       {...props}
     />
   ),

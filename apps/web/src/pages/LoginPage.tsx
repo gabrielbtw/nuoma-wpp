@@ -3,22 +3,18 @@ import { motion } from "framer-motion";
 import { ArrowRight, LockKeyhole, Server, ShieldCheck } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
-import {
-  Button,
-  cn,
-  Input,
-  KeyboardShortcut,
-  MicroGrid,
-  NuomaLogo,
-} from "@nuoma/ui";
+import { Button, cn, Input, KeyboardShortcut, NuomaLogo } from "@nuoma/ui";
 
 import { useAuth } from "../auth/auth-context.js";
+
+const DEV_EMAIL = "admin@nuoma.local";
+const DEV_PASSWORD = "nuoma-dev-admin-123";
 
 export function LoginPage() {
   const auth = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("admin@nuoma.local");
-  const [password, setPassword] = useState("nuoma-dev-admin-123");
+  const [email, setEmail] = useState(import.meta.env.DEV ? DEV_EMAIL : "");
+  const [password, setPassword] = useState(import.meta.env.DEV ? DEV_PASSWORD : "");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -30,36 +26,35 @@ export function LoginPage() {
       await auth.login(email, password);
       void navigate({ to: "/" });
     } catch {
-      setError("Email ou senha inválidos.");
+      setError("E-mail ou senha inválidos.");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-bg-canvas text-fg-primary">
-      <MicroGrid className="fixed opacity-35" fade={false} size={64} />
-      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),transparent_22%),linear-gradient(145deg,rgba(var(--color-brand-cyan),0.085),transparent_36%,rgba(0,0,0,0.34))]" />
-
-      <div className="relative z-10 grid min-h-screen lg:grid-cols-[minmax(0,1fr)_30rem]">
-        <section className="hidden min-h-screen flex-col justify-between px-10 py-9 lg:flex xl:px-14">
+    <main className="nw-login-page">
+      <div className="nw-login-grid">
+        <section className="nw-login-aside">
           <div className="flex items-center gap-3">
             <NuomaLogo variant="small" tone="gold" className="h-11 w-11" />
             <div className="min-w-0">
-              <div className="font-display text-base font-semibold">Nuoma WPP</div>
-              <div className="font-mono text-[0.68rem] text-fg-dim">V2 operations</div>
+              <div className="font-display text-base font-semibold text-ink-strong">Nuoma</div>
+              <div className="font-mono text-[0.68rem] uppercase text-ink-faint">
+                Carvão & Cobre
+              </div>
             </div>
           </div>
 
-          <div className="max-w-[42rem]">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-bg-sunken/60 px-3 py-1.5 text-xs text-fg-muted shadow-pressed-sm">
+          <div className="max-w-[40rem]">
+            <div className="nw-login-eyebrow">
               <StatusPulse />
-              Local-first console
+              Console local
             </div>
-            <h1 className="font-display text-5xl font-semibold leading-[1.02] text-fg-primary xl:text-6xl">
+            <h1 className="font-display text-5xl font-semibold leading-[1.02] text-ink-strong xl:text-6xl">
               Operação escura, limpa e pronta para rotina real.
             </h1>
-            <p className="mt-5 max-w-xl text-base leading-7 text-fg-muted">
+            <p className="mt-5 max-w-xl text-base leading-7 text-ink-base">
               WhatsApp, Instagram e automações em uma cabine compacta, com foco em leitura,
               resposta e evidência operacional.
             </p>
@@ -67,54 +62,50 @@ export function LoginPage() {
 
           <div className="grid max-w-3xl grid-cols-3 gap-3">
             <LoginSignal icon={ShieldCheck} label="Sessão" value="JWT local" />
-            <LoginSignal icon={Server} label="Runtime" value="Edge local" />
+            <LoginSignal icon={Server} label="Ambiente" value="Node local" />
             <LoginSignal icon={LockKeyhole} label="Senha" value="Argon2id" />
           </div>
         </section>
 
-        <div className="flex min-h-screen items-center justify-center p-4 sm:p-8 lg:bg-bg-sunken/22">
+        <div className="nw-login-panel-wrap">
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.98 }}
+            initial={{ opacity: 0, y: 16, scale: 0.99 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ type: "spring", stiffness: 200, damping: 26, delay: 0.1 }}
-            className="botforge-surface w-full max-w-sm rounded-2xl p-6 shadow-raised-xl sm:p-7"
+            transition={{ type: "spring", stiffness: 200, damping: 26, delay: 0.08 }}
+            className="nw-login-card"
           >
             <div className="mb-8 flex items-center justify-between">
               <div className="flex min-w-0 items-center gap-3">
                 <NuomaLogo variant="small" tone="gold" className="h-10 w-10" />
                 <div className="min-w-0">
-                  <div className="font-display text-sm font-semibold">Nuoma WPP</div>
-                  <div className="font-mono text-[0.68rem] text-fg-dim">Acesso local</div>
+                  <div className="font-display text-sm font-semibold text-ink-strong">Nuoma</div>
+                  <div className="font-mono text-[0.68rem] uppercase text-ink-faint">
+                    Acesso local
+                  </div>
                 </div>
               </div>
               <KeyboardShortcut keys="↵" />
             </div>
 
-            <h2 className="font-display text-2xl font-semibold">Entrar</h2>
-            <p className="mt-1 text-sm text-fg-muted">Acesso à cabine operacional V2.</p>
+            <h2 className="font-display text-2xl font-semibold text-ink-strong">Entrar</h2>
+            <p className="mt-1 text-sm text-ink-base">Acesso à cabine operacional V2.</p>
 
             <form onSubmit={onSubmit} className="mt-6 flex flex-col gap-4">
               <div className="flex flex-col gap-2">
-                <label
-                  className="font-mono text-[0.72rem] text-fg-dim"
-                  htmlFor="email"
-                >
-                  Email
+                <label className="font-mono text-[0.72rem] text-ink-soft" htmlFor="email">
+                  E-mail
                 </label>
                 <Input
                   id="email"
                   autoComplete="email"
                   value={email}
-                  className="bg-bg-sunken/72"
-                  onChange={(e) => setEmail(e.target.value)}
+                  className="border-line-soft bg-surface-deep text-ink-strong"
+                  onChange={(event) => setEmail(event.target.value)}
                 />
               </div>
 
               <div className="flex flex-col gap-2">
-                <label
-                  className="font-mono text-[0.72rem] text-fg-dim"
-                  htmlFor="password"
-                >
+                <label className="font-mono text-[0.72rem] text-ink-soft" htmlFor="password">
                   Senha
                 </label>
                 <Input
@@ -122,8 +113,8 @@ export function LoginPage() {
                   type="password"
                   autoComplete="current-password"
                   value={password}
-                  className="bg-bg-sunken/72"
-                  onChange={(e) => setPassword(e.target.value)}
+                  className="border-line-soft bg-surface-deep text-ink-strong"
+                  onChange={(event) => setPassword(event.target.value)}
                 />
               </div>
 
@@ -131,7 +122,7 @@ export function LoginPage() {
                 <motion.div
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="rounded-md border border-semantic-danger/25 bg-semantic-danger/10 px-3 py-2 text-sm text-semantic-danger"
+                  className="rounded-md border border-status-error/30 bg-status-error/10 px-3 py-2 text-sm text-status-error"
                 >
                   {error}
                 </motion.div>
@@ -143,13 +134,13 @@ export function LoginPage() {
                 variant="accent"
                 loading={submitting}
                 rightIcon={<ArrowRight className="h-4 w-4" />}
-                className="mt-2 shadow-glow-cyan"
+                className="mt-2 bg-accent text-accent-on hover:bg-accent-hover"
               >
                 {submitting ? "Entrando" : "Entrar"}
               </Button>
             </form>
 
-            <div className="mt-7 flex items-center justify-between border-t border-white/10 pt-4 font-mono text-[0.68rem] text-fg-dim">
+            <div className="mt-7 flex items-center justify-between border-t border-line-hairline pt-4 font-mono text-[0.68rem] text-ink-soft">
               <span className="flex items-center gap-1.5">
                 <StatusPulse compact />
                 local
@@ -167,12 +158,10 @@ function StatusPulse({ compact = false }: { compact?: boolean }) {
   return (
     <span
       className={cn(
-        "relative inline-flex rounded-full bg-brand-cyan shadow-glow-cyan",
+        "relative inline-flex rounded-full bg-accent",
         compact ? "h-1.5 w-1.5" : "h-2 w-2",
       )}
-    >
-      <span className="absolute inset-0 rounded-full bg-brand-cyan/70 animate-ping" />
-    </span>
+    />
   );
 }
 
@@ -186,12 +175,12 @@ function LoginSignal({
   value: string;
 }) {
   return (
-    <div className="botforge-surface rounded-xl p-4">
-      <div className="mb-4 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-bg-sunken/70 text-brand-cyan shadow-pressed-sm">
+    <div className="nw-login-signal">
+      <div className="mb-4 inline-flex h-9 w-9 items-center justify-center rounded-md border border-line-hairline bg-surface-deep text-accent">
         <Icon className="h-4 w-4" />
       </div>
-      <div className="text-sm font-medium text-fg-primary">{value}</div>
-      <div className="mt-1 font-mono text-[0.68rem] text-fg-dim">{label}</div>
+      <div className="text-sm font-medium text-ink-strong">{value}</div>
+      <div className="mt-1 font-mono text-[0.68rem] text-ink-soft">{label}</div>
     </div>
   );
 }

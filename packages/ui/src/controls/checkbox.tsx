@@ -11,16 +11,15 @@ export const Checkbox = forwardRef<
   <RadixCheckbox.Root
     ref={ref}
     className={cn(
-      "h-5 w-5 rounded-md bg-bg-base shadow-pressed-sm",
-      "data-[state=checked]:shadow-glow-cyan",
-      "outline-none focus-visible:ring-2 focus-visible:ring-brand-cyan/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base",
+      "h-5 w-5 rounded-md bg-surface-1 shadow-inset data-[state=checked]:bg-accent data-[state=checked]:shadow-flat",
+      "outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1",
       "transition-shadow duration-base",
       "disabled:opacity-50",
       className,
     )}
     {...props}
   >
-    <RadixCheckbox.Indicator className="flex items-center justify-center text-brand-cyan">
+    <RadixCheckbox.Indicator className="flex items-center justify-center text-accent-on">
       <Check className="h-3 w-3" strokeWidth={3} />
     </RadixCheckbox.Indicator>
   </RadixCheckbox.Root>

@@ -17,9 +17,9 @@ const ICONS: Record<Channel, typeof MessageCircle> = {
 };
 
 const COLORS: Record<Channel, string> = {
-  whatsapp: "text-channel-whatsapp",
-  instagram: "text-channel-instagram",
-  system: "text-channel-system",
+  whatsapp: "text-channel-wa",
+  instagram: "text-channel-ig",
+  system: "text-channel-sys",
 };
 
 export function ChannelIcon({ channel, variant = "icon", className, ...props }: ChannelIconProps) {
@@ -28,7 +28,7 @@ export function ChannelIcon({ channel, variant = "icon", className, ...props }: 
     return (
       <span
         className={cn(
-          "inline-flex h-8 w-8 items-center justify-center rounded-lg bg-bg-base shadow-pressed-sm",
+          "inline-flex h-8 w-8 items-center justify-center rounded-lg bg-surface-1 shadow-inset",
           className,
         )}
       >

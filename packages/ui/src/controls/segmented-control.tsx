@@ -81,7 +81,7 @@ export function SegmentedControl({
       role="radiogroup"
       aria-label={ariaLabel}
       className={cn(
-        "inline-flex items-center gap-0.5 rounded-lg bg-bg-sunken/80 shadow-pressed-sm",
+        "inline-flex items-center gap-0.5 rounded-lg bg-surface-deep/80 shadow-inset",
         SIZES[size],
         className,
       )}
@@ -104,12 +104,12 @@ export function SegmentedControl({
             className={cn(
               "inline-flex h-full items-center justify-center rounded-md font-medium",
               "outline-none transition-[color,background,box-shadow] duration-fast ease-out",
-              "focus-visible:ring-2 focus-visible:ring-brand-cyan/60 focus-visible:ring-offset-1 focus-visible:ring-offset-bg-base",
+              "focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-1 focus-visible:ring-offset-surface-1",
               "disabled:cursor-not-allowed disabled:opacity-40",
               ITEM_SIZES[size],
               active
-                ? "bg-bg-elevated text-fg-primary shadow-raised-sm"
-                : "text-fg-dim hover:text-fg-muted",
+                ? "bg-surface-4 text-ink-strong shadow-raised"
+                : "text-ink-soft hover:text-ink",
             )}
           >
             {option.icon}

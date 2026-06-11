@@ -712,10 +712,9 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
             <PopoverTrigger asChild>
               <Button
                 size="sm"
-                variant="soft"
+                variant="primary"
                 leftIcon={<Megaphone className="h-3 w-3" />}
                 data-testid="inbox-campaign-trigger"
-                className="bg-brand-cyan text-bg-deep shadow-glow-cyan hover:text-bg-deep"
               >
                 Rodar campanha
               </Button>

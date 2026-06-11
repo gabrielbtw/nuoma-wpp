@@ -11,6 +11,8 @@ import {
   cn,
 } from "@nuoma/ui";
 
+import { getShellShortcutItems } from "./Sidebar.js";
+
 interface Command {
   id: string;
   label: string;
@@ -22,9 +24,10 @@ interface Command {
 interface CommandPaletteProps {
   open: boolean;
   onOpenChange(open: boolean): void;
+  isAdmin: boolean;
 }
 
-export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
+export function CommandPalette({ open, onOpenChange, isAdmin }: CommandPaletteProps) {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -41,18 +44,13 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
   const commands = useMemo<Command[]>(
     () => [
-      { id: "go.dashboard", label: "Dashboard", hint: "G D", group: "Navegação", run: () => navigate({ to: "/" }) },
-      { id: "go.inbox", label: "Inbox", hint: "G I", group: "Navegação", run: () => navigate({ to: "/inbox" }) },
-      { id: "go.contacts", label: "Contatos", group: "Navegação", run: () => navigate({ to: "/contacts" }) },
-      { id: "go.campaigns", label: "Campanhas", group: "Navegação", run: () => navigate({ to: "/campaigns" }) },
-      { id: "go.automations", label: "Automações", group: "Navegação", run: () => navigate({ to: "/automations" }) },
-      { id: "go.chatbots", label: "Chatbots", group: "Navegação", run: () => navigate({ to: "/chatbots" }) },
-      { id: "go.operations", label: "Operações", hint: "O", group: "Navegação", run: () => navigate({ to: "/operations" }) },
-      { id: "go.jobs", label: "Jobs", group: "Navegação", run: () => navigate({ to: "/jobs" }) },
-      { id: "go.implementation", label: "Implementação", group: "Navegação", run: () => navigate({ to: "/implementation" }) },
-      { id: "go.evidence", label: "Evidências", hint: "M37", group: "Navegação", run: () => navigate({ to: "/evidence" }) },
-      { id: "go.settings", label: "Configurações", group: "Navegação", run: () => navigate({ to: "/settings" }) },
-      { id: "go.dev", label: "Dev / Componentes", group: "Ação", run: () => navigate({ to: "/dev/components" }) },
+      ...getShellShortcutItems(isAdmin).map((item) => ({
+        id: `go.${item.to}`,
+        label: item.label,
+        hint: item.shortcut,
+        group: "Navegação" as const,
+        run: () => navigate({ to: item.to }),
+      })),
       {
         id: "action.contacts.create",
         label: "Criar contato",
@@ -75,31 +73,31 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         run: () => navigate({ to: "/automations", search: { intent: "trigger" } }),
       },
     ],
-    [navigate],
+    [isAdmin, navigate],
   );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return commands;
-    return commands.filter((c) => c.label.toLowerCase().includes(q));
+    return commands.filter((command) => command.label.toLowerCase().includes(q));
   }, [commands, query]);
 
   useEffect(() => {
     if (activeIndex >= filtered.length) setActiveIndex(0);
   }, [filtered.length, activeIndex]);
 
-  function runCommand(cmd: Command) {
-    cmd.run();
+  function runCommand(command: Command) {
+    command.run();
     onOpenChange(false);
   }
 
   function onKey(event: React.KeyboardEvent<HTMLDivElement>) {
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+      setActiveIndex((index) => Math.min(index + 1, filtered.length - 1));
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
-      setActiveIndex((i) => Math.max(i - 1, 0));
+      setActiveIndex((index) => Math.max(index - 1, 0));
     } else if (event.key === "Enter") {
       event.preventDefault();
       const selected = filtered[activeIndex];
@@ -107,63 +105,66 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     }
   }
 
-  // group commands
   const grouped = useMemo(() => {
     const map = new Map<string, Command[]>();
-    for (const cmd of filtered) {
-      const list = map.get(cmd.group) ?? [];
-      list.push(cmd);
-      map.set(cmd.group, list);
+    for (const command of filtered) {
+      const list = map.get(command.group) ?? [];
+      list.push(command);
+      map.set(command.group, list);
     }
     return Array.from(map.entries());
   }, [filtered]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl p-0 overflow-hidden" showClose={false} onKeyDown={onKey}>
-        <VisuallyHidden>Command palette</VisuallyHidden>
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-contour-line">
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-bg-base shadow-pressed-sm text-fg-muted">
+      <DialogContent
+        className="max-w-xl overflow-hidden border border-line-hairline bg-surface-1 p-0 text-ink-strong"
+        showClose={false}
+        onKeyDown={onKey}
+      >
+        <VisuallyHidden>Paleta de comandos</VisuallyHidden>
+        <div className="flex items-center gap-3 border-b border-line-hairline px-5 py-4">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-line-hairline bg-surface-0 text-accent">
             <Search className="h-4 w-4" />
           </span>
           <Input
             ref={inputRef}
-            placeholder="Buscar comando…"
+            placeholder="Buscar comando..."
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="border-0 bg-transparent shadow-none h-10 px-0 focus:ring-0 focus:shadow-none text-base"
+            onChange={(event) => setQuery(event.target.value)}
+            className="h-10 border-0 bg-transparent px-0 text-base text-ink-strong shadow-none focus:ring-0"
           />
           <KeyboardShortcut keys="Esc" />
         </div>
         <div className="max-h-[26rem] overflow-y-auto py-2">
           {filtered.length === 0 ? (
-            <div className="px-5 py-12 text-center text-sm text-fg-muted">
+            <div className="px-5 py-12 text-center text-sm text-ink-base">
               Nenhum comando encontrado
             </div>
           ) : (
             grouped.map(([group, items]) => (
               <div key={group} className="px-2">
-                <div className="px-3 py-2 text-[0.65rem] uppercase tracking-widest text-fg-dim font-mono">
+                <div className="px-3 py-2 font-mono text-[0.65rem] uppercase text-ink-faint">
                   {group}
                 </div>
-                {items.map((cmd) => {
-                  const idx = filtered.indexOf(cmd);
-                  const active = idx === activeIndex;
+                {items.map((command) => {
+                  const index = filtered.indexOf(command);
+                  const active = index === activeIndex;
                   return (
                     <button
-                      key={cmd.id}
+                      key={command.id}
                       type="button"
-                      onMouseEnter={() => setActiveIndex(idx)}
-                      onClick={() => runCommand(cmd)}
+                      onMouseEnter={() => setActiveIndex(index)}
+                      onClick={() => runCommand(command)}
                       className={cn(
-                        "flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-shadow",
+                        "flex w-full items-center justify-between gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors",
                         active
-                          ? "bg-bg-base shadow-raised-sm text-fg-primary"
-                          : "text-fg-muted hover:text-fg-primary",
+                          ? "bg-surface-2 text-ink-strong"
+                          : "text-ink-base hover:bg-surface-2 hover:text-ink-strong",
                       )}
                     >
-                      <span>{cmd.label}</span>
-                      {cmd.hint && <KeyboardShortcut keys={cmd.hint.split(" ")} />}
+                      <span>{command.label}</span>
+                      {command.hint && <KeyboardShortcut keys={command.hint.split(" ")} />}
                     </button>
                   );
                 })}

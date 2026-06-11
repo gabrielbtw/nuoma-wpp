@@ -25,15 +25,15 @@ export interface StatCardProps extends Omit<CardProps, "title"> {
 }
 
 const TONE_TEXT: Record<DeltaTone, string> = {
-  positive: "text-semantic-success",
-  negative: "text-semantic-danger",
-  neutral: "text-fg-dim",
+  positive: "text-status-ok",
+  negative: "text-status-error",
+  neutral: "text-ink-soft",
 };
 
 const TONE_STROKE: Record<DeltaTone, string> = {
-  positive: "rgb(var(--color-semantic-success))",
-  negative: "rgb(var(--color-semantic-danger))",
-  neutral: "rgb(var(--color-fg-dim))",
+  positive: "rgb(var(--nw-status-ok))",
+  negative: "rgb(var(--nw-status-error))",
+  neutral: "rgb(var(--nw-ink-soft))",
 };
 
 const ARROW: Record<DeltaDirection, string> = {
@@ -101,15 +101,15 @@ export const StatCard = forwardRef<HTMLDivElement, StatCardProps>(
         {...props}
       >
         <div className="flex items-center justify-between gap-2">
-          <span className="font-mono text-[0.7rem] uppercase tracking-wider text-fg-dim">
+          <span className="font-mono text-[0.7rem] uppercase tracking-wider text-ink-soft">
             {label}
           </span>
-          {icon && <span className="text-fg-dim">{icon}</span>}
+          {icon && <span className="text-ink-soft">{icon}</span>}
         </div>
 
         <div className="flex items-baseline gap-1">
-          <span className="botforge-display text-3xl tabular-nums">{value}</span>
-          {unit && <span className="text-sm font-medium text-fg-dim">{unit}</span>}
+          <span className="font-display text-3xl tabular-nums text-ink-strong">{value}</span>
+          {unit && <span className="text-sm font-medium text-ink-soft">{unit}</span>}
         </div>
 
         <div className="mt-auto flex items-center justify-between gap-3">
@@ -117,7 +117,7 @@ export const StatCard = forwardRef<HTMLDivElement, StatCardProps>(
             <span
               className={cn(
                 "inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5",
-                "font-mono text-xs font-medium tabular-nums shadow-pressed-sm",
+                "font-mono text-xs font-medium tabular-nums shadow-inset",
                 TONE_TEXT[tone],
               )}
             >
@@ -133,14 +133,14 @@ export const StatCard = forwardRef<HTMLDivElement, StatCardProps>(
               {delta.value}
             </span>
           ) : (
-            hint && <span className="text-xs text-fg-dim">{hint}</span>
+            hint && <span className="text-xs text-ink-soft">{hint}</span>
           )}
           {trend && trend.length > 1 && (
             <Sparkline data={trend} stroke={TONE_STROKE[tone]} />
           )}
         </div>
 
-        {delta && hint && <span className="text-xs text-fg-dim">{hint}</span>}
+        {delta && hint && <span className="text-xs text-ink-soft">{hint}</span>}
       </Card>
     );
   },

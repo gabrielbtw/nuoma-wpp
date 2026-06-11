@@ -18,16 +18,16 @@ export const RadioItem = forwardRef<
   <RadixRadio.Item
     ref={ref}
     className={cn(
-      "h-5 w-5 rounded-full bg-bg-base shadow-pressed-sm",
-      "data-[state=checked]:shadow-glow-cyan",
-      "outline-none focus-visible:ring-2 focus-visible:ring-brand-cyan/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base",
+      "h-5 w-5 rounded-full bg-surface-1 shadow-inset",
+      "data-[state=checked]:shadow-flat",
+      "outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1",
       "transition-shadow duration-base",
       "disabled:opacity-50",
       className,
     )}
     {...props}
   >
-    <RadixRadio.Indicator className="flex items-center justify-center after:block after:h-2 after:w-2 after:rounded-full after:bg-brand-cyan" />
+    <RadixRadio.Indicator className="flex items-center justify-center after:block after:h-2 after:w-2 after:rounded-full after:bg-accent" />
   </RadixRadio.Item>
 ));
 RadioItem.displayName = "RadioItem";

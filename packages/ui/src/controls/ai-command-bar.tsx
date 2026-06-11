@@ -25,7 +25,7 @@ export interface AICommandBarProps {
 
 /**
  * AICommandBar — conversational input. Presentational only: it surfaces a
- * prompt field, an animated accent orb and optional suggestion pills. It does
+ * prompt field, a copper affordance and optional suggestion pills. It does
  * NOT replace the shell CommandPalette (Cmd+K) — that stays for navigation.
  */
 export const AICommandBar = forwardRef<HTMLInputElement, AICommandBarProps>(
@@ -76,16 +76,16 @@ export const AICommandBar = forwardRef<HTMLInputElement, AICommandBarProps>(
           onSubmit={onFormSubmit}
           className={cn(
             "flex items-center gap-3 rounded-lg px-3.5 py-2.5",
-            "nuoma-glass-elevated shadow-raised-sm",
-            "ring-1 ring-brand-cyan/25 focus-within:ring-brand-cyan/55",
+            "bg-surface-2 shadow-raised",
+            "ring-1 ring-line-hairline focus-within:ring-accent/55",
             "transition-[box-shadow,outline] duration-base ease-out",
           )}
         >
           <span
             aria-hidden="true"
             className={cn(
-              "h-6 w-6 shrink-0 rounded-full",
-              busy ? "nuoma-ai-orb" : "bg-gradient-accent",
+              "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-accent-on",
+              busy && "animate-pulse",
             )}
           >
             {icon}
@@ -99,14 +99,14 @@ export const AICommandBar = forwardRef<HTMLInputElement, AICommandBarProps>(
             onKeyDown={onKeyDown}
             aria-label={placeholder}
             className={cn(
-              "min-w-0 flex-1 bg-transparent text-sm text-fg-primary outline-none",
-              "placeholder:text-fg-dim",
+              "min-w-0 flex-1 bg-transparent text-sm text-ink-strong outline-none",
+              "placeholder:text-ink-soft",
             )}
           />
           <kbd
             className={cn(
-              "hidden shrink-0 rounded-xs bg-bg-elevated px-1.5 py-0.5 sm:inline",
-              "font-mono text-[0.6rem] text-fg-faint shadow-pressed-sm",
+              "hidden shrink-0 rounded-xs bg-surface-4 px-1.5 py-0.5 sm:inline",
+              "font-mono text-[0.6rem] text-ink-faint shadow-inset",
             )}
           >
             ⏎
@@ -124,14 +124,14 @@ export const AICommandBar = forwardRef<HTMLInputElement, AICommandBarProps>(
                   onSuggestionSelect?.(suggestion);
                 }}
                 className={cn(
-                  "rounded-full px-3 py-1 text-xs text-fg-muted",
-                  "bg-bg-surface/60 shadow-flat-subtle",
+                  "rounded-full px-3 py-1 text-xs text-ink",
+                  "bg-surface-2/60 shadow-flat",
                   "outline-none transition-[color,box-shadow] duration-fast ease-out",
-                  "hover:text-fg-primary hover:shadow-raised-sm",
-                  "focus-visible:ring-2 focus-visible:ring-brand-cyan/60",
+                  "hover:text-ink-strong hover:shadow-raised",
+                  "focus-visible:ring-2 focus-visible:ring-accent/60",
                 )}
               >
-                <span aria-hidden="true" className="text-brand-cyan">
+                <span aria-hidden="true" className="text-accent">
                   ✦{" "}
                 </span>
                 {suggestion}

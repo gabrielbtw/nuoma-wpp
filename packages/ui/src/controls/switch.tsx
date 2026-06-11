@@ -10,9 +10,9 @@ export const Switch = forwardRef<
   <RadixSwitch.Root
     ref={ref}
     className={cn(
-      "relative h-6 w-11 rounded-full bg-bg-base shadow-pressed-sm",
-      "outline-none focus-visible:ring-2 focus-visible:ring-brand-cyan/60 focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base",
-      "data-[state=checked]:shadow-glow-cyan",
+      "relative h-6 w-11 rounded-full bg-surface-1 shadow-inset",
+      "outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1",
+      "data-[state=checked]:bg-accent data-[state=checked]:shadow-flat",
       "transition-shadow duration-base",
       "disabled:opacity-50",
       className,
@@ -21,9 +21,9 @@ export const Switch = forwardRef<
   >
     <RadixSwitch.Thumb
       className={cn(
-        "block h-4 w-4 rounded-full bg-bg-base shadow-raised-sm",
+        "block h-4 w-4 rounded-full bg-surface-4 shadow-raised",
         "transition-transform duration-base ease-out",
-        "translate-x-1 data-[state=checked]:translate-x-6 data-[state=checked]:bg-brand-cyan",
+        "translate-x-1 data-[state=checked]:translate-x-6 data-[state=checked]:bg-accent-on",
       )}
     />
   </RadixSwitch.Root>

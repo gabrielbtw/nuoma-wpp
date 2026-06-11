@@ -11,7 +11,7 @@ export function KeyboardShortcut({ keys, className, ...props }: KeyboardShortcut
   return (
     <kbd
       className={cn(
-        "inline-flex items-center gap-1 font-mono text-[0.6rem] uppercase tracking-widest text-fg-dim",
+        "inline-flex items-center gap-1 font-mono text-[0.6rem] uppercase tracking-widest text-ink-soft",
         className,
       )}
       {...props}
@@ -19,7 +19,7 @@ export function KeyboardShortcut({ keys, className, ...props }: KeyboardShortcut
       {list.map((k, i) => (
         <span
           key={`${k}-${i}`}
-          className="inline-flex h-5 min-w-[1.25rem] items-center justify-center px-1.5 rounded-sm bg-bg-base shadow-flat-subtle text-[0.65rem]"
+          className="inline-flex h-5 min-w-[1.25rem] items-center justify-center px-1.5 rounded-sm bg-surface-1 shadow-flat text-[0.65rem]"
         >
           {k}
         </span>

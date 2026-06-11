@@ -13,14 +13,14 @@ export interface NuomaLogoProps extends SVGProps<SVGSVGElement> {
 
 const tones = {
   default: {
-    primary: "rgb(var(--color-brand-blue, 75 119 154))",
-    secondary: "rgb(var(--color-brand-teal-soft, 176 213 222))",
-    ghost: "rgb(var(--color-fg-faint, 82 88 104))",
+    primary: "currentColor",
+    secondary: "rgb(var(--nw-accent, 232 100 44))",
+    ghost: "rgb(var(--nw-ink-faint, 113 107 97))",
   },
   gold: {
-    primary: "rgb(var(--color-brand-blue, 75 119 154))",
-    secondary: "rgb(var(--color-brand-teal-soft, 176 213 222))",
-    ghost: "rgb(var(--color-brand-blue, 75 119 154))",
+    primary: "rgb(var(--nw-accent, 232 100 44))",
+    secondary: "rgb(var(--nw-accent-hover, 255 122 69))",
+    ghost: "rgb(var(--nw-accent, 232 100 44))",
   },
   mono: {
     primary: "currentColor",

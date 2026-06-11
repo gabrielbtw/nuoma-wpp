@@ -3,13 +3,13 @@ import { forwardRef, type HTMLAttributes } from "react";
 import { cn } from "../utils/cn.js";
 
 /**
- * Surface — foundational Nuoma premium primitive.
+ * Surface — foundational Nuoma Carvão & Cobre primitive.
  *
- * `raised`: satin operational panel with a restrained blue/teal contour edge.
+ * `raised`: solid operational panel with a restrained hairline edge.
  * `pressed`: inset panel for inputs and active navigation.
  * `flat`: one-line contour for compact chips and dividers.
- * `glass`: tiered transparent surface for product chrome.
- * `floating`: lifted glass for modals and command palette.
+ * `glass`: compatibility alias rendered as a flat panel.
+ * `floating`: compatibility alias rendered as a raised panel.
  */
 export type SurfaceVariant = "raised" | "pressed" | "flat" | "glass" | "floating";
 export type SurfaceSize = "sm" | "md" | "lg" | "xl";
@@ -24,35 +24,43 @@ export interface SurfaceProps extends HTMLAttributes<HTMLDivElement> {
 
 const VARIANT_BY_SIZE: Record<SurfaceVariant, Record<SurfaceSize, string>> = {
   raised: {
-    sm: "shadow-raised-sm",
-    md: "shadow-raised-md",
-    lg: "shadow-raised-lg",
-    xl: "shadow-raised-xl",
+    sm: "shadow-raised",
+    md: "shadow-raised",
+    lg: "shadow-lifted",
+    xl: "shadow-lifted",
   },
   pressed: {
-    sm: "shadow-pressed-sm",
-    md: "shadow-pressed-md",
-    lg: "shadow-pressed-lg",
-    xl: "shadow-pressed-lg",
+    sm: "shadow-inset",
+    md: "shadow-inset",
+    lg: "shadow-inset",
+    xl: "shadow-inset",
   },
   flat: {
-    sm: "shadow-flat-subtle",
+    sm: "shadow-flat",
     md: "shadow-flat",
     lg: "shadow-flat",
     xl: "shadow-flat",
   },
   glass: {
-    sm: "shadow-flat-subtle",
-    md: "shadow-raised-sm",
-    lg: "shadow-raised-md",
-    xl: "shadow-lift",
+    sm: "shadow-flat",
+    md: "shadow-raised",
+    lg: "shadow-raised",
+    xl: "shadow-lifted",
   },
   floating: {
-    sm: "shadow-lift",
-    md: "shadow-lift",
-    lg: "shadow-lift",
-    xl: "shadow-lift",
+    sm: "shadow-raised",
+    md: "shadow-lifted",
+    lg: "shadow-lifted",
+    xl: "shadow-lifted",
   },
+};
+
+const SURFACE_BY_VARIANT: Record<SurfaceVariant, string> = {
+  raised: "bg-surface-2",
+  pressed: "bg-surface-deep",
+  flat: "bg-surface-1",
+  glass: "bg-surface-2",
+  floating: "bg-surface-3",
 };
 
 export const Surface = forwardRef<HTMLDivElement, SurfaceProps>(
@@ -73,9 +81,7 @@ export const Surface = forwardRef<HTMLDivElement, SurfaceProps>(
       data-glass-level={variant === "glass" || variant === "floating" ? glassLevel : undefined}
       className={cn(
         "rounded-sm",
-        variant === "glass" || variant === "floating"
-          ? `nuoma-glass-${glassLevel}`
-          : "bg-bg-surface",
+        SURFACE_BY_VARIANT[variant],
         VARIANT_BY_SIZE[variant][size],
         interactive && "transition-shadow duration-base ease-out",
         className,
@@ -87,7 +93,7 @@ export const Surface = forwardRef<HTMLDivElement, SurfaceProps>(
 Surface.displayName = "Surface";
 
 /**
- * Glass alias for product chrome and floating layers.
+ * Glass alias kept for API compatibility; renders as a solid surface.
  */
 export const Glass = forwardRef<HTMLDivElement, SurfaceProps & { level?: GlassLevel }>(
   ({ level = "panel", glassLevel, ...rest }, ref) => (

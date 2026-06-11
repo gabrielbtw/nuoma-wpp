@@ -4,7 +4,7 @@ import { forwardRef, type HTMLAttributes } from "react";
 import { cn } from "../utils/cn.js";
 
 /**
- * SignalDot - recessed operational dot with a luminous core.
+ * SignalDot - recessed operational dot with a status core.
  * `active` breathes; others are static.
  */
 export type SignalStatus = "active" | "idle" | "error" | "degraded";
@@ -16,10 +16,10 @@ export interface SignalDotProps extends Omit<HTMLAttributes<HTMLSpanElement>, "t
 }
 
 const STATUS_CORE: Record<SignalStatus, string> = {
-  active: "bg-signal-active shadow-glow-lime",
-  idle: "bg-signal-idle",
-  error: "bg-signal-error shadow-glow-danger",
-  degraded: "bg-signal-degraded",
+  active: "bg-status-ok shadow-flat",
+  idle: "bg-status-info/70",
+  error: "bg-status-error shadow-flat",
+  degraded: "bg-status-warn",
 };
 
 const SIZES: Record<NonNullable<SignalDotProps["size"]>, { wrap: string; core: string }> = {
@@ -40,7 +40,7 @@ export const SignalDot = forwardRef<HTMLSpanElement, SignalDotProps>(
         data-signal={status}
         className={cn(
           "inline-flex items-center justify-center rounded-full",
-          "shadow-pressed-sm bg-bg-deep",
+          "shadow-inset bg-surface-deep",
           dimensions.wrap,
           className,
         )}

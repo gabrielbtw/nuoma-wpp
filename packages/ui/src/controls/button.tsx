@@ -15,17 +15,15 @@ export interface ButtonProps extends HTMLMotionProps<"button"> {
 }
 
 const VARIANTS: Record<ButtonVariant, string> = {
-  // Neutral default action — solid surface + hairline, no fill.
-  primary:
-    "border border-border-muted bg-bg-elevated text-fg-primary hover:border-fg-faint hover:bg-bg-subtle",
+  // Primary action — copper fill with dark ink.
+  primary: "border border-accent/80 bg-accent text-accent-on shadow-flat hover:bg-accent-hover",
   secondary:
-    "border border-border-subtle bg-bg-surface text-fg-muted hover:border-border-muted hover:bg-bg-elevated hover:text-fg-primary",
-  soft: "bg-fg-primary/[0.05] text-fg-muted hover:bg-fg-primary/[0.09] hover:text-fg-primary",
-  ghost: "bg-transparent text-fg-muted hover:bg-fg-primary/[0.06] hover:text-fg-primary",
-  // The real CTA — filled electric indigo.
-  accent: "bg-accent text-white hover:bg-accent-strong",
+    "border border-line-hairline bg-surface-2 text-ink hover:border-line-soft hover:bg-surface-3 hover:text-ink-strong",
+  soft: "bg-ink-strong/[0.05] text-ink hover:bg-ink-strong/[0.09] hover:text-ink-strong",
+  ghost: "bg-transparent text-ink hover:bg-ink-strong/[0.06] hover:text-ink-strong",
+  accent: "border border-accent/80 bg-accent text-accent-on shadow-flat hover:bg-accent-hover",
   danger:
-    "border border-semantic-danger/30 bg-semantic-danger/10 text-semantic-danger hover:bg-semantic-danger/16",
+    "border border-status-error/30 bg-status-error/10 text-status-error hover:bg-status-error/16",
 };
 
 const SIZES: Record<ButtonSize, string> = {
@@ -64,7 +62,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         className={cn(
           "inline-flex items-center justify-center font-medium tracking-tight",
           "whitespace-nowrap",
-          "outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg-canvas",
+          "outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0",
           "transition-colors duration-fast ease-out",
           "disabled:cursor-not-allowed disabled:opacity-50",
           VARIANTS[variant],
