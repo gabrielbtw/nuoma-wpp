@@ -183,8 +183,8 @@ export function SettingsPage() {
                             className="absolute inset-x-3 top-3 h-10 rounded-lg bg-bg-canvas shadow-pressed-sm"
                             aria-hidden="true"
                           >
-                            <span className="absolute left-3 top-3 h-4 w-14 rounded-full bg-brand-cyan/70" />
-                            <span className="absolute right-3 top-3 h-4 w-8 rounded-full bg-brand-violet/55" />
+                            <span className="absolute left-3 top-3 h-4 w-14 rounded-full bg-accent/70" />
+                            <span className="absolute right-3 top-3 h-4 w-8 rounded-full bg-accent/55" />
                             <span className="absolute bottom-2 left-3 right-3 h-px bg-contour-line/80" />
                           </span>
                           <span className="relative mt-14 flex items-start gap-3">
@@ -244,10 +244,10 @@ export function SettingsPage() {
                     status={pushSubscription ? "active" : VAPID_PUBLIC_KEY ? "idle" : "degraded"}
                     label={pushSubscription ? "Push ativo" : "Push inativo"}
                   />
-                  Push notifications
+                  Notificações do painel
                 </CardTitle>
                 <CardDescription>
-                  Service worker local e subscription Web Push para alertas do painel.
+                  Serviço local de notificações e assinatura Web Push para alertas do painel.
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
@@ -256,13 +256,13 @@ export function SettingsPage() {
                 </div>
                 {!browserSupportsPush() && (
                   <p className="text-sm text-semantic-warning">
-                    Este navegador nao suporta Web Push.
+                    Este navegador não suporta Web Push.
                   </p>
                 )}
                 {!VAPID_PUBLIC_KEY && (
                   <p className="text-sm text-semantic-warning">
-                    Configure `VITE_WEB_PUSH_VAPID_PUBLIC_KEY` para permitir subscription no
-                    browser.
+                    Configure `VITE_WEB_PUSH_VAPID_PUBLIC_KEY` para permitir assinatura no
+                    navegador.
                   </p>
                 )}
                 <div className="flex flex-wrap gap-3">

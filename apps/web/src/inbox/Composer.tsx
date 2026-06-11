@@ -731,11 +731,11 @@ export function Composer({
           data-testid="composer-action-draft"
           data-action-kind={actionDraft.kind}
           className={cn(
-            "mb-3 flex items-start gap-3 rounded-xl border border-brand-cyan/18 bg-white/[0.045] px-3 py-2.5",
-            "shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl",
+            "mb-3 flex items-start gap-3 rounded-xl border border-accent/18 bg-white/[0.045] px-3 py-2.5",
+            "shadow-inset backdrop-blur-xl",
           )}
         >
-          <div className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-cyan/10 text-brand-cyan">
+          <div className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
             {actionDraft.kind === "reply" ? (
               <Reply className="h-3.5 w-3.5" />
             ) : actionDraft.kind === "edit" ? (
@@ -745,7 +745,7 @@ export function Composer({
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="font-mono text-[0.62rem] uppercase tracking-widest text-brand-cyan">
+            <div className="font-mono text-[0.62rem] uppercase tracking-widest text-accent">
               {actionDraft.kind === "reply"
                 ? "Citando mensagem"
                 : actionDraft.kind === "edit"
@@ -761,7 +761,7 @@ export function Composer({
             type="button"
             aria-label="Cancelar ação da mensagem"
             onClick={onClearActionDraft}
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-fg-muted outline-none transition hover:bg-white/[0.07] hover:text-fg-primary focus-visible:ring-2 focus-visible:ring-brand-cyan/45"
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-fg-muted outline-none transition hover:bg-white/[0.07] hover:text-fg-primary focus-visible:ring-2 focus-visible:ring-accent/45"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -861,7 +861,7 @@ export function Composer({
                     "inline-flex h-10 w-10 items-center justify-center rounded-lg bg-bg-base shadow-flat transition-shadow",
                     "text-fg-muted hover:shadow-raised-sm hover:text-fg-primary",
                     "disabled:cursor-wait disabled:opacity-60",
-                    active && "text-brand-cyan shadow-glow-cyan",
+                    active && "text-accent shadow-flat",
                   )}
                 >
                   <Icon className="h-3.5 w-3.5" />
@@ -914,7 +914,7 @@ export function Composer({
           className={cn(
             "flex-1 resize-none bg-bg-base shadow-pressed-sm rounded-lg",
             "px-4 py-2.5 text-sm placeholder:text-fg-dim outline-none",
-            "focus:ring-2 focus:ring-brand-cyan/40 transition-shadow",
+            "focus:ring-2 focus:ring-accent/40 transition-shadow",
           )}
           style={{ minHeight: "2.5rem", maxHeight: "10rem" }}
         />
@@ -984,9 +984,9 @@ function VoiceRecorderPanel({
       data-testid="composer-voice-preview"
       data-recording-state={state}
       className={cn(
-        "mb-3 rounded-xl border px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl",
+        "mb-3 rounded-xl border px-3 py-3 shadow-inset backdrop-blur-xl",
         isRecording
-          ? "border-brand-cyan/30 bg-brand-cyan/10"
+          ? "border-accent/30 bg-accent/10"
           : "border-border-strong/60 bg-surface-overlay/82",
       )}
     >
@@ -994,7 +994,7 @@ function VoiceRecorderPanel({
         <div
           className={cn(
             "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
-            isRecording ? "bg-brand-cyan/12 text-brand-cyan" : "bg-brand-gold/12 text-brand-gold",
+            isRecording ? "bg-accent/12 text-accent" : "bg-accent/12 text-accent",
           )}
         >
           {isRecording ? (
@@ -1021,7 +1021,7 @@ function VoiceRecorderPanel({
                   key={index}
                   className={cn(
                     "w-1 rounded-full transition-[height,background-color]",
-                    isRecording ? "bg-brand-cyan/75" : "bg-brand-gold/60",
+                    isRecording ? "bg-accent/75" : "bg-accent/60",
                   )}
                   style={{ height: `${height}%` }}
                 />
@@ -1072,7 +1072,7 @@ function VoiceRecorderPanel({
                 type="button"
                 aria-label="Descartar áudio"
                 onClick={onDiscard}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-fg-muted outline-none transition hover:bg-white/[0.07] hover:text-fg-primary focus-visible:ring-2 focus-visible:ring-brand-cyan/45"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-fg-muted outline-none transition hover:bg-white/[0.07] hover:text-fg-primary focus-visible:ring-2 focus-visible:ring-accent/45"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -1124,7 +1124,7 @@ function EmojiPicker({
           className={cn(
             "inline-flex h-10 w-10 items-center justify-center rounded-lg bg-bg-base shadow-flat transition-shadow",
             "text-fg-muted hover:shadow-raised-sm hover:text-fg-primary",
-            open && "text-brand-cyan shadow-glow-cyan",
+            open && "text-accent shadow-flat",
           )}
         >
           <Smile className="h-3.5 w-3.5" />
@@ -1145,7 +1145,7 @@ function EmojiPicker({
             data-testid="composer-emoji-search"
             className={cn(
               "h-9 w-full rounded-lg bg-bg-base px-3 text-sm shadow-pressed-sm",
-              "outline-none transition-shadow placeholder:text-fg-dim focus:ring-2 focus:ring-brand-cyan/40",
+              "outline-none transition-shadow placeholder:text-fg-dim focus:ring-2 focus:ring-accent/40",
             )}
           />
           <div className="flex gap-1" role="tablist" aria-label="Categorias de emoji">
@@ -1161,7 +1161,7 @@ function EmojiPicker({
                 className={cn(
                   "inline-flex h-8 w-8 items-center justify-center rounded-md bg-bg-base text-sm shadow-flat transition-shadow",
                   category === tab.id
-                    ? "text-brand-cyan shadow-raised-sm"
+                    ? "text-accent shadow-raised-sm"
                     : "text-fg-muted hover:text-fg-primary hover:shadow-raised-sm",
                 )}
               >
@@ -1185,7 +1185,7 @@ function EmojiPicker({
                 onClick={() => onSelect(entry)}
                 className={cn(
                   "flex aspect-square items-center justify-center rounded-lg bg-bg-base text-xl shadow-flat transition",
-                  "hover:scale-[1.04] hover:shadow-raised-sm focus-visible:ring-2 focus-visible:ring-brand-cyan/45",
+                  "hover:scale-[1.04] hover:shadow-raised-sm focus-visible:ring-2 focus-visible:ring-accent/45",
                 )}
               >
                 {entry.emoji}
@@ -1253,7 +1253,7 @@ function QuickRepliesPicker({
           className={cn(
             "inline-flex h-10 w-10 items-center justify-center rounded-lg bg-bg-base shadow-flat transition-shadow",
             "text-fg-muted hover:shadow-raised-sm hover:text-fg-primary",
-            open && "text-brand-cyan shadow-glow-cyan",
+            open && "text-accent shadow-flat",
           )}
         >
           <MessageSquareText className="h-3.5 w-3.5" />
@@ -1267,7 +1267,7 @@ function QuickRepliesPicker({
       >
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <div className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-cyan/10 text-brand-cyan">
+            <div className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
               <MessageSquareText className="h-3.5 w-3.5" />
             </div>
             <div className="min-w-0">
@@ -1286,7 +1286,7 @@ function QuickRepliesPicker({
             data-testid="composer-quick-reply-search"
             className={cn(
               "h-9 w-full rounded-lg bg-bg-base px-3 text-sm shadow-pressed-sm",
-              "outline-none transition-shadow placeholder:text-fg-dim focus:ring-2 focus:ring-brand-cyan/40",
+              "outline-none transition-shadow placeholder:text-fg-dim focus:ring-2 focus:ring-accent/40",
             )}
           />
 
@@ -1312,7 +1312,7 @@ function QuickRepliesPicker({
                   onClick={() => onSelect(reply)}
                   className={cn(
                     "w-full rounded-lg bg-bg-base px-3 py-2 text-left shadow-flat transition",
-                    "hover:shadow-raised-sm focus-visible:ring-2 focus-visible:ring-brand-cyan/45",
+                    "hover:shadow-raised-sm focus-visible:ring-2 focus-visible:ring-accent/45",
                   )}
                 >
                   <span className="flex min-w-0 items-center justify-between gap-2">
@@ -1320,7 +1320,7 @@ function QuickRepliesPicker({
                       {reply.title}
                     </span>
                     {reply.shortcut ? (
-                      <span className="shrink-0 font-mono text-[0.62rem] uppercase tracking-widest text-brand-cyan">
+                      <span className="shrink-0 font-mono text-[0.62rem] uppercase tracking-widest text-accent">
                         /{reply.shortcut}
                       </span>
                     ) : null}
@@ -1346,7 +1346,7 @@ function QuickRepliesPicker({
                 data-testid="composer-quick-reply-title"
                 className={cn(
                   "h-9 rounded-lg bg-bg-base px-3 text-sm shadow-pressed-sm",
-                  "outline-none transition-shadow placeholder:text-fg-dim focus:ring-2 focus:ring-brand-cyan/40",
+                  "outline-none transition-shadow placeholder:text-fg-dim focus:ring-2 focus:ring-accent/40",
                 )}
               />
               <input
@@ -1356,7 +1356,7 @@ function QuickRepliesPicker({
                 data-testid="composer-quick-reply-shortcut"
                 className={cn(
                   "h-9 rounded-lg bg-bg-base px-3 text-sm shadow-pressed-sm",
-                  "outline-none transition-shadow placeholder:text-fg-dim focus:ring-2 focus:ring-brand-cyan/40",
+                  "outline-none transition-shadow placeholder:text-fg-dim focus:ring-2 focus:ring-accent/40",
                 )}
               />
             </div>
@@ -1367,7 +1367,7 @@ function QuickRepliesPicker({
               data-testid="composer-quick-reply-category"
               className={cn(
                 "h-9 w-full rounded-lg bg-bg-base px-3 text-sm shadow-pressed-sm",
-                "outline-none transition-shadow placeholder:text-fg-dim focus:ring-2 focus:ring-brand-cyan/40",
+                "outline-none transition-shadow placeholder:text-fg-dim focus:ring-2 focus:ring-accent/40",
               )}
             />
             <textarea
@@ -1378,7 +1378,7 @@ function QuickRepliesPicker({
               data-testid="composer-quick-reply-body"
               className={cn(
                 "min-h-20 w-full resize-none rounded-lg bg-bg-base px-3 py-2 text-sm shadow-pressed-sm",
-                "outline-none transition-shadow placeholder:text-fg-dim focus:ring-2 focus:ring-brand-cyan/40",
+                "outline-none transition-shadow placeholder:text-fg-dim focus:ring-2 focus:ring-accent/40",
               )}
             />
             <Button

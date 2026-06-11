@@ -85,13 +85,13 @@ export function JobsPage() {
         <header className="nuoma-workspace-header flex items-end justify-between gap-6">
           <div>
             <p className="nuoma-compat-kicker">
-              Worker
+              Processador
             </p>
             <h1 className="nuoma-compat-display mt-2 text-3xl md:text-4xl">
               Jobs <span className="nuoma-gradient-text">em fila</span>.
             </h1>
             <p className="text-sm text-fg-muted mt-3 max-w-xl">
-              Mortos vão pra DLQ — recoloque manualmente após resolver causa.
+              Falhas críticas vão para DLQ; recoloque manualmente após resolver a causa.
             </p>
           </div>
           <ConfirmDangerAction
@@ -110,8 +110,8 @@ export function JobsPage() {
       <Animate preset="rise-in" delaySeconds={0.1}>
         <section className="nuoma-jobs-board">
           <div className="nuoma-jobs-stats">
-            <JobSignalCard icon={<Database className="h-4 w-4" />} label="Fila" value={jobs.length} detail={`${queuedCount} queued`} tone="cyan" />
-            <JobSignalCard icon={<Clock3 className="h-4 w-4" />} label="Em execução" value={runningCount} detail="claimed/running" tone="green" />
+            <JobSignalCard icon={<Database className="h-4 w-4" />} label="Fila" value={jobs.length} detail={`${queuedCount} na fila`} tone="cyan" />
+            <JobSignalCard icon={<Clock3 className="h-4 w-4" />} label="Em execução" value={runningCount} detail="em execução" tone="green" />
             <JobSignalCard icon={<CheckCircle2 className="h-4 w-4" />} label="Concluídos" value={completedCount} detail="janela atual" tone="green" />
             <JobSignalCard icon={<AlertTriangle className="h-4 w-4" />} label="Falhas" value={failedCount + deadJobs.length} detail={`${deadJobs.length} DLQ`} tone={failedCount + deadJobs.length > 0 ? "amber" : "green"} />
           </div>
@@ -172,7 +172,7 @@ export function JobsPage() {
               <TabsContent value="dead">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Dead-letter queue</CardTitle>
+                    <CardTitle>Falhas críticas (DLQ)</CardTitle>
                     <CardDescription>
                       {dead.data ? `${dead.data.jobs.length} jobs mortos` : "—"}
                     </CardDescription>
@@ -220,9 +220,9 @@ export function JobsPage() {
 
             <aside className="nuoma-jobs-side">
               <section>
-                <h2>Readiness da fila</h2>
+                <h2>Prontidão da fila</h2>
                 <div className="nuoma-jobs-gates">
-                  <span><ShieldCheck className="h-4 w-4" /> Scheduler <b>OK</b></span>
+                  <span><ShieldCheck className="h-4 w-4" /> Agendador <b>OK</b></span>
                   <span><Clock3 className="h-4 w-4" /> Backlog <b>{queuedCount}</b></span>
                   <span><AlertTriangle className="h-4 w-4" /> DLQ <b>{deadJobs.length}</b></span>
                 </div>

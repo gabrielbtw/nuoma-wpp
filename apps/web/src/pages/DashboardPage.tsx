@@ -115,7 +115,7 @@ export function DashboardPage() {
             Painel
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-soft">
-            Leitura direta da fila, workers, canais e pendências abertas nos dados reais do
+            Leitura direta da fila, processadores, canais e pendências abertas nos dados reais do
             sistema.
           </p>
         </div>
@@ -329,10 +329,10 @@ function buildMetricTiles(
 ): MetricTileData[] {
   const failed = data.jobs.failed + data.jobs.dead;
   return [
-    tile("queued", "Fila pendente", data.jobs.queued, "jobs aguardando execução", data.jobs.queued > 0 ? "warn" : "ok", <Clock3 className="h-4 w-4" />),
-    tile("active", "Processando", data.jobs.active, "claimed/running no SQLite", data.jobs.active > 0 ? "info" : "ok", <Send className="h-4 w-4" />),
-    tile("failed", "Falhas", failed, `${data.jobs.failed} failed · ${data.jobs.dead} DLQ`, failed > 0 ? "error" : "ok", <AlertTriangle className="h-4 w-4" />),
-    tile("workers", "Workers online", `${formatNumber(data.workers.online)}/${formatNumber(data.workers.total)}`, `${data.workers.browserConnected} com browser conectado`, data.workers.withErrors > 0 || data.workers.stale > 0 ? "warn" : "ok", <ServerCog className="h-4 w-4" />),
+    tile("queued", "Fila pendente", data.jobs.queued, "Jobs aguardando execução", data.jobs.queued > 0 ? "warn" : "ok", <Clock3 className="h-4 w-4" />),
+    tile("active", "Processando", data.jobs.active, "em execução no SQLite", data.jobs.active > 0 ? "info" : "ok", <Send className="h-4 w-4" />),
+    tile("failed", "Falhas", failed, `Falhas: ${data.jobs.failed} · críticas: ${data.jobs.dead} (DLQ)`, failed > 0 ? "error" : "ok", <AlertTriangle className="h-4 w-4" />),
+    tile("workers", "Processadores online", `${formatNumber(data.workers.online)}/${formatNumber(data.workers.total)}`, `${data.workers.browserConnected} com navegador conectado`, data.workers.withErrors > 0 || data.workers.stale > 0 ? "warn" : "ok", <ServerCog className="h-4 w-4" />),
     tile("throughput", "Throughput 1h", `${formatNumber(data.operations.throughputPerHour)}/h`, `${data.operations.failureRatePct}% falha na janela`, data.operations.failureRatePct > 0 ? "warn" : "ok", <CheckCircle2 className="h-4 w-4" />),
     tile("unread", "Não lidas", unread.error ? "erro" : unread.total == null ? "—" : formatNumber(unread.total), unread.error ? "consulta do inbox falhou" : `${formatNumber(unread.returned)} conversas carregadas`, unread.error ? "error" : unread.total && unread.total > 0 ? "warn" : "ok", <Inbox className="h-4 w-4" />, unread.loading),
   ];
@@ -353,11 +353,11 @@ function tile(
 function buildPendingActions(data: SystemMetrics, unreadTotal: number | null): PendingAction[] {
   const actions: PendingAction[] = [];
   const add = (action: PendingAction) => actions.push(action);
-  if (data.jobs.dead > 0) add(action("dead-jobs", "Revisar DLQ", "Jobs mortos precisam de análise antes de reenfileirar.", `${data.jobs.dead} DLQ`, "/jobs", "danger", <AlertTriangle className="h-4 w-4" />));
-  if (data.jobs.failed > 0) add(action("failed-jobs", "Investigar jobs com falha", "Há falhas persistidas na fila atual.", `${data.jobs.failed} failed`, "/jobs", "warning", <Clock3 className="h-4 w-4" />));
+  if (data.jobs.dead > 0) add(action("dead-jobs", "Revisar falhas críticas", "Jobs críticos precisam de análise antes de reenfileirar.", `${data.jobs.dead} DLQ`, "/jobs", "danger", <AlertTriangle className="h-4 w-4" />));
+  if (data.jobs.failed > 0) add(action("failed-jobs", "Investigar Jobs com falha", "Há falhas persistidas na fila atual.", `${data.jobs.failed} com falha`, "/jobs", "warning", <Clock3 className="h-4 w-4" />));
   if (unreadTotal != null && unreadTotal > 0) add(action("unread-conversations", "Responder conversas não lidas", "Inbox possui conversas com contador unread_count.", `${unreadTotal} inbox`, "/inbox", "info", <Inbox className="h-4 w-4" />));
   if (!data.whatsapp.cdpConnected) add(action("whatsapp-session", "Ver sessão WhatsApp", `Status atual: ${sessionLabel(data.whatsapp.sessionStatus)}.`, "canal", "/operations", "warning", <Radio className="h-4 w-4" />));
-  if (data.workers.withErrors > 0 || data.workers.stale > 0) add(action("workers", "Checar workers", `${data.workers.withErrors} com erro · ${data.workers.stale} sem heartbeat recente.`, "worker", "/operations", "warning", <ServerCog className="h-4 w-4" />));
+  if (data.workers.withErrors > 0 || data.workers.stale > 0) add(action("workers", "Checar processadores", `${data.workers.withErrors} com erro · ${data.workers.stale} sem atualização recente.`, "processador", "/operations", "warning", <ServerCog className="h-4 w-4" />));
   if (!data.sendPolicy.apiAllowedPhonesConfigured) add(action("send-policy", "Configurar canário de envio", `Política atual: ${data.sendPolicy.apiMode}.`, "setup", "/settings", "neutral", <Settings className="h-4 w-4" />));
   return actions.slice(0, 6);
 }

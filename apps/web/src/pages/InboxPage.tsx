@@ -328,7 +328,7 @@ export function InboxPage() {
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <p className="nuoma-compat-kicker text-brand-cyan">Inbox</p>
+            <p className="nuoma-compat-kicker text-accent">Inbox</p>
             <Badge variant="cyan">operador</Badge>
           </div>
           <div className="mt-0.5 truncate font-mono text-[0.65rem] uppercase tracking-widest text-fg-dim">
@@ -448,7 +448,7 @@ function RealtimeStatus({ state }: { state: InboxRealtimeState }) {
     <div
       className={cn(
         "flex min-h-9 items-center gap-3 rounded-lg bg-bg-base px-3 shadow-flat",
-        state.status === "error" && "shadow-glow-danger",
+        state.status === "error" && "shadow-flat",
       )}
     >
       <SignalDot status={tone} size="sm" />

@@ -70,7 +70,7 @@ export function QueueIndicator({
         "inline-flex h-9 max-w-full items-center gap-2 rounded-lg border px-2.5 text-xs shadow-flat",
         "transition-shadow hover:shadow-raised-sm",
         hasJobs
-          ? "border-brand-cyan/35 bg-brand-cyan/10 text-brand-cyan"
+          ? "border-accent/35 bg-accent/10 text-accent"
           : "border-contour-line/50 bg-bg-base text-fg-muted",
         error && "border-semantic-danger/35 bg-semantic-danger/10 text-semantic-danger",
       )}

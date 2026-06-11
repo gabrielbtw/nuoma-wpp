@@ -111,8 +111,8 @@ const DELIVERY_STATUS_META: Partial<Record<MessageStatus, DeliveryStatusMeta>> =
     label: "Lida",
     stage: "blue-double-check",
     Icon: CheckCheck,
-    iconClassName: "text-brand-cyan",
-    shellClassName: "border-brand-cyan/45 bg-brand-cyan/12 shadow-[0_0_14px_rgba(55,214,211,0.28)]",
+    iconClassName: "text-accent",
+    shellClassName: "border-accent/45 bg-accent/12 shadow-flat",
   },
   failed: {
     label: "Falhou",
@@ -335,7 +335,7 @@ export function MessageTimeline({
               className={cn(
                 "inline-flex h-9 w-9 items-center justify-center rounded-lg text-fg-muted transition-shadow",
                 searchOpen
-                  ? "bg-bg-base shadow-pressed-sm text-brand-cyan"
+                  ? "bg-bg-base shadow-pressed-sm text-accent"
                   : "shadow-flat hover:shadow-raised-sm hover:text-fg-primary",
               )}
               aria-label="Buscar"
@@ -360,7 +360,7 @@ export function MessageTimeline({
                 <label
                   className={cn(
                     "inline-flex h-7 items-center gap-1.5 rounded-md bg-bg-base px-2 text-xs text-fg-muted shadow-flat",
-                    "focus-within:ring-2 focus-within:ring-brand-cyan/50",
+                    "focus-within:ring-2 focus-within:ring-accent/50",
                   )}
                   title="Profundidade do histórico"
                 >
@@ -623,19 +623,18 @@ function MessageBubble({
           "border backdrop-blur-xl",
           outgoing
             ? [
-                "rounded-[1.35rem] rounded-br-md border-brand-cyan/25 text-fg-primary",
-                "bg-[linear-gradient(135deg,rgba(28,180,172,0.34),rgba(8,98,116,0.42)_44%,rgba(98,74,170,0.26))]",
-                "shadow-[0_16px_42px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.18)]",
-                "after:absolute after:-right-1 after:bottom-3 after:h-3 after:w-3 after:rotate-45 after:rounded-[2px] after:border-r after:border-b after:border-brand-cyan/20 after:bg-[rgba(8,98,116,0.42)]",
+                "rounded-[1.35rem] rounded-br-md border-accent/25 text-fg-primary",
+                "bg-accent/12 shadow-raised-md",
+                "after:absolute after:-right-1 after:bottom-3 after:h-3 after:w-3 after:rotate-45 after:rounded-[2px] after:border-r after:border-b after:border-accent/20 after:bg-accent/12",
               ]
             : [
-                "rounded-[1.35rem] rounded-bl-md border-white/[0.08] bg-white/[0.055] text-fg-primary",
-                "shadow-[0_14px_34px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.08)]",
-                "after:absolute after:-left-1 after:bottom-3 after:h-3 after:w-3 after:rotate-45 after:rounded-[2px] after:border-l after:border-b after:border-white/[0.08] after:bg-[rgba(255,255,255,0.055)]",
+                "rounded-[1.35rem] rounded-bl-md border-line-hairline/80 bg-surface-2/70 text-fg-primary",
+                "shadow-raised-sm",
+                "after:absolute after:-left-1 after:bottom-3 after:h-3 after:w-3 after:rotate-45 after:rounded-[2px] after:border-l after:border-b after:border-line-hairline/80 after:bg-surface-2/70",
               ],
-          "hover:-translate-y-0.5 hover:border-brand-cyan/30",
-          failed && "border-semantic-danger/40 shadow-glow-danger",
-          selected && "ring-2 ring-brand-cyan/55",
+          "hover:-translate-y-0.5 hover:border-accent/30",
+          failed && "border-semantic-danger/40 shadow-flat",
+          selected && "ring-2 ring-accent/55",
         )}
         style={{ maxWidth: MESSAGE_BUBBLE_MAX_WIDTH }}
         data-testid="inbox-message-bubble"
@@ -652,7 +651,7 @@ function MessageBubble({
           className={cn(
             "pointer-events-none absolute inset-x-3 top-0 h-px",
             outgoing
-              ? "bg-gradient-to-r from-transparent via-brand-cyan/55 to-transparent"
+              ? "bg-gradient-to-r from-transparent via-accent/55 to-transparent"
               : "bg-gradient-to-r from-transparent via-white/25 to-transparent",
           )}
         />
@@ -723,7 +722,7 @@ function MessageBubble({
                   }}
                   className={cn(
                     "inline-flex h-6 items-center gap-1 rounded-md border px-2 font-mono text-[0.62rem] uppercase tracking-widest",
-                    "outline-none transition focus-visible:ring-2 focus-visible:ring-brand-cyan/45",
+                    "outline-none transition focus-visible:ring-2 focus-visible:ring-accent/45",
                     "border-semantic-danger/35 bg-semantic-danger/10 text-semantic-danger",
                     "hover:border-semantic-danger/55 hover:bg-semantic-danger/15",
                     retrying && "cursor-wait opacity-70",
@@ -777,7 +776,7 @@ function MediaPreviewCard({ message, outgoing }: { message: Message; outgoing: b
   return (
     <div
       className={cn(
-        "mb-2 overflow-hidden rounded-xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl",
+        "mb-2 overflow-hidden rounded-xl border shadow-inset backdrop-blur-xl",
         outgoing ? "border-cyan-50/12 bg-slate-950/18" : "border-white/[0.08] bg-black/14",
       )}
       data-testid="message-media-card"
@@ -815,7 +814,7 @@ function MediaPreviewCard({ message, outgoing }: { message: Message; outgoing: b
       ) : null}
 
       <div className="flex min-w-0 items-center gap-3 px-3 py-2.5">
-        <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-bg-base/80 text-brand-cyan shadow-pressed-sm">
+        <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-bg-base/80 text-accent shadow-pressed-sm">
           <Icon className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">
@@ -833,7 +832,7 @@ function MediaPreviewCard({ message, outgoing }: { message: Message; outgoing: b
             target="_blank"
             rel="noreferrer"
             title="Abrir mídia"
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-fg-muted outline-none transition hover:bg-white/[0.07] hover:text-fg-primary focus-visible:ring-2 focus-visible:ring-brand-cyan/45"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-fg-muted outline-none transition hover:bg-white/[0.07] hover:text-fg-primary focus-visible:ring-2 focus-visible:ring-accent/45"
           >
             <Download className="h-3.5 w-3.5" />
           </a>
@@ -856,7 +855,7 @@ function ReadReceiptPill({ message }: { message: Message }) {
           className={cn(
             "inline-flex h-5 items-center gap-1 rounded-full border px-1.5 font-mono text-[0.58rem] uppercase tracking-widest",
             receipt.state === "read"
-              ? "border-brand-cyan/45 bg-brand-cyan/12 text-brand-cyan"
+              ? "border-accent/45 bg-accent/12 text-accent"
               : "border-cyan-50/12 bg-slate-950/18 text-cyan-50/70",
           )}
         >
@@ -890,7 +889,7 @@ function MessageActions({
     <div
       data-testid="message-actions-toolbar"
       className={cn(
-        "flex shrink-0 items-center gap-1 rounded-lg border p-0.5 opacity-85 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]",
+        "flex shrink-0 items-center gap-1 rounded-lg border p-0.5 opacity-85 shadow-inset",
         "transition-opacity group-hover:opacity-100 group-focus-within:opacity-100",
         outgoing ? "border-cyan-50/10 bg-slate-950/20" : "border-white/[0.08] bg-black/15",
       )}
@@ -948,8 +947,8 @@ function MessageActionButton({
           }}
           className={cn(
             "inline-flex h-7 w-7 items-center justify-center rounded-md text-fg-muted outline-none transition",
-            "hover:bg-white/[0.08] hover:text-fg-primary focus-visible:ring-2 focus-visible:ring-brand-cyan/45",
-            active && "bg-brand-cyan/12 text-brand-cyan",
+            "hover:bg-white/[0.08] hover:text-fg-primary focus-visible:ring-2 focus-visible:ring-accent/45",
+            active && "bg-accent/12 text-accent",
           )}
         >
           <Icon className="h-3.5 w-3.5" />
@@ -1140,7 +1139,7 @@ function DeliveryStatusIndicator({ status }: { status: MessageStatus }) {
           data-delivery-animated="true"
           className={cn(
             "relative inline-flex h-5 min-w-5 items-center justify-center rounded-full border px-0.5",
-            "outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-brand-cyan/45",
+            "outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-accent/45",
             meta.shellClassName,
           )}
           initial={false}
@@ -1159,7 +1158,7 @@ function DeliveryStatusIndicator({ status }: { status: MessageStatus }) {
             <motion.span
               aria-hidden="true"
               data-testid="message-delivery-read-pulse"
-              className="absolute inset-0 rounded-full border border-brand-cyan/40"
+              className="absolute inset-0 rounded-full border border-accent/40"
               initial={{ opacity: 0.55, scale: 0.82 }}
               animate={{ opacity: 0, scale: 1.55 }}
               transition={{ duration: 1.8, repeat: Infinity, ease: "easeOut" }}

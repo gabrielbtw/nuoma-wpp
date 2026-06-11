@@ -511,7 +511,7 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
           <label
             className={cn(
               "inline-flex h-9 items-center gap-2 rounded-md bg-bg-base px-3 text-sm text-fg-muted shadow-flat",
-              "focus-within:ring-2 focus-within:ring-brand-cyan/50",
+              "focus-within:ring-2 focus-within:ring-accent/50",
             )}
           >
             <History className="h-3 w-3" />
@@ -555,7 +555,7 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 text-sm font-medium">
-                      <Bot className="h-4 w-4 text-brand-cyan" />
+                      <Bot className="h-4 w-4 text-accent" />
                       <span>Disparar automação</span>
                     </div>
                     <div className="mt-1 truncate font-mono text-[0.65rem] uppercase tracking-widest text-fg-dim">
@@ -622,7 +622,7 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                         data-testid="inbox-automation-option"
                         className={cn(
                           "rounded-lg bg-bg-subtle p-3 shadow-pressed-sm",
-                          item.eligible && "shadow-glow-cyan",
+                          item.eligible && "shadow-flat",
                         )}
                       >
                         <div className="flex items-start justify-between gap-3">
@@ -731,7 +731,7 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 text-sm font-medium">
-                      <Megaphone className="h-4 w-4 text-brand-cyan" />
+                      <Megaphone className="h-4 w-4 text-accent" />
                       <span>Rodar campanha</span>
                     </div>
                     <div className="mt-1 truncate font-mono text-[0.65rem] uppercase tracking-widest text-fg-dim">
@@ -796,7 +796,7 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                         data-testid="inbox-campaign-option"
                         className={cn(
                           "rounded-lg bg-bg-subtle p-3 shadow-pressed-sm",
-                          item.eligible && "shadow-glow-cyan",
+                          item.eligible && "shadow-flat",
                         )}
                       >
                         <div className="flex items-start justify-between gap-3">
@@ -1096,11 +1096,11 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
               data-testid="inbox-profile-photo-status"
               className={cn(
                 "rounded-lg bg-bg-base p-3 shadow-flat",
-                conversation.profilePhotoMediaAssetId && "shadow-glow-cyan",
+                conversation.profilePhotoMediaAssetId && "shadow-flat",
               )}
             >
               <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-bg-base shadow-pressed-sm text-brand-cyan">
+                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-bg-base shadow-pressed-sm text-accent">
                   <ImageIcon className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -1129,11 +1129,11 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
               data-testid="inbox-attachment-candidates-status"
               className={cn(
                 "rounded-lg bg-bg-base p-3 shadow-flat",
-                (attachmentCandidates.data?.total ?? 0) > 0 && "shadow-glow-cyan",
+                (attachmentCandidates.data?.total ?? 0) > 0 && "shadow-flat",
               )}
             >
               <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-bg-base shadow-pressed-sm text-brand-cyan">
+                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-bg-base shadow-pressed-sm text-accent">
                   <Paperclip className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -1162,7 +1162,7 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                             className="rounded-md bg-bg-subtle px-2.5 py-2 shadow-pressed-sm"
                           >
                             <div className="flex min-w-0 items-center gap-2">
-                              <Icon className="h-3.5 w-3.5 shrink-0 text-brand-cyan" />
+                              <Icon className="h-3.5 w-3.5 shrink-0 text-accent" />
                               <span className="truncate text-xs font-medium text-fg-primary">
                                 {attachmentLabel(candidate.contentType)}
                               </span>
@@ -1199,7 +1199,7 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
           <TabsContent value="history" className="mt-4 space-y-3" data-testid="inbox-history-panel">
             <div className="rounded-lg bg-bg-base p-3 shadow-flat">
               <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-bg-base text-brand-cyan shadow-pressed-sm">
+                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-bg-base text-accent shadow-pressed-sm">
                   <RefreshCw className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -1229,7 +1229,7 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
 
             <div className="rounded-lg bg-bg-base p-3 shadow-flat">
               <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-bg-base text-brand-cyan shadow-pressed-sm">
+                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-bg-base text-accent shadow-pressed-sm">
                   <History className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -1245,7 +1245,7 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                     <select
                       value={historyDepth}
                       onChange={(event) => setHistoryDepth(Number(event.target.value))}
-                      className="h-10 w-full rounded-lg bg-bg-base px-3 text-sm shadow-pressed-sm outline-none focus:ring-2 focus:ring-brand-cyan/40"
+                      className="h-10 w-full rounded-lg bg-bg-base px-3 text-sm shadow-pressed-sm outline-none focus:ring-2 focus:ring-accent/40"
                       aria-label="Profundidade do histórico"
                       data-testid="inbox-history-depth"
                     >
@@ -1336,8 +1336,8 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                           data-tag-order={index}
                           className={cn(
                             "inline-flex min-h-8 max-w-full cursor-grab items-center gap-2 rounded-md border px-2.5 py-1 text-xs shadow-flat",
-                            "outline-none transition-shadow hover:shadow-raised-sm focus-visible:ring-2 focus-visible:ring-brand-cyan/60",
-                            "border-brand-cyan/35 bg-brand-cyan/10 text-fg-primary",
+                            "outline-none transition-shadow hover:shadow-raised-sm focus-visible:ring-2 focus-visible:ring-accent/60",
+                            "border-accent/35 bg-accent/10 text-fg-primary",
                             draggedTagId === tag.id && "cursor-grabbing opacity-70",
                           )}
                         >
@@ -1366,7 +1366,7 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                             className={cn(
                               "inline-flex min-h-8 max-w-full items-center gap-2 rounded-md border px-2.5 py-1 text-xs shadow-flat",
                               "border-contour-line/50 bg-bg-subtle text-fg-muted outline-none transition-shadow",
-                              "hover:shadow-raised-sm focus-visible:ring-2 focus-visible:ring-brand-cyan/60",
+                              "hover:shadow-raised-sm focus-visible:ring-2 focus-visible:ring-accent/60",
                             )}
                           >
                             <span
@@ -1412,7 +1412,7 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                     data-testid="inbox-contact-notes-input"
                     className={cn(
                       "min-h-[132px] w-full resize-y rounded-lg bg-bg-base p-3 text-sm shadow-pressed-sm",
-                      "outline-none transition-shadow focus:ring-2 focus:ring-brand-cyan/40",
+                      "outline-none transition-shadow focus:ring-2 focus:ring-accent/40",
                     )}
                   />
                 </label>
@@ -1477,7 +1477,7 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                   data-testid="inbox-reminder-title"
                   className={cn(
                     "h-10 w-full rounded-lg bg-bg-base px-3 text-sm shadow-pressed-sm",
-                    "outline-none transition-shadow focus:ring-2 focus:ring-brand-cyan/40",
+                    "outline-none transition-shadow focus:ring-2 focus:ring-accent/40",
                   )}
                 />
               </label>
@@ -1493,7 +1493,7 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                   data-testid="inbox-reminder-due-at"
                   className={cn(
                     "h-10 w-full rounded-lg bg-bg-base px-3 text-sm shadow-pressed-sm",
-                    "outline-none transition-shadow focus:ring-2 focus:ring-brand-cyan/40",
+                    "outline-none transition-shadow focus:ring-2 focus:ring-accent/40",
                   )}
                 />
               </label>

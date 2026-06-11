@@ -64,12 +64,12 @@ export function OperationsPage() {
       <Animate preset="rise-in">
         <header className="nuoma-workspace-header flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="nuoma-compat-kicker">Operations</p>
+            <p className="nuoma-compat-kicker">Operações</p>
             <h1 className="nuoma-compat-display mt-2 text-3xl md:text-4xl">
               Saúde <span className="nuoma-gradient-text">do envio</span>.
             </h1>
             <p className="mt-3 max-w-2xl text-sm text-fg-muted">
-              Worker, CDP, fila e auditoria de disparo em uma tela de plantão.
+              Processadores, sessão do navegador (CDP), fila e auditoria de disparo em uma tela de plantão.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -89,30 +89,30 @@ export function OperationsPage() {
         >
           <OperationTile
             icon={<Radio className="h-4 w-4" />}
-            label="WhatsApp CDP"
+            label="Sessão WhatsApp (CDP)"
             value={data.whatsapp.sessionStatus}
-            detail={`${data.workers.browserConnected}/${data.workers.total} worker(s) com browser`}
+            detail={`${data.workers.browserConnected}/${data.workers.total} processador(es) com navegador`}
             tone={data.whatsapp.cdpConnected ? "success" : "warning"}
           />
           <OperationTile
             icon={<ServerCog className="h-4 w-4" />}
-            label="Workers"
+            label="Processadores"
             value={`${data.workers.online}/${data.workers.total}`}
-            detail={`${data.workers.stale} stale · ${data.workers.withErrors} erro`}
+            detail={`${data.workers.stale} sem atualização · ${data.workers.withErrors} erro`}
             tone={data.workers.withErrors > 0 || data.workers.stale > 0 ? "warning" : "success"}
           />
           <OperationTile
             icon={<Database className="h-4 w-4" />}
             label="Fila"
             value={data.jobs.queued + data.jobs.active}
-            detail={`${data.jobs.queued} queued · ${data.jobs.active} active`}
+            detail={`${data.jobs.queued} na fila · ${data.jobs.active} em execução`}
             tone={data.jobs.dead > 0 || data.jobs.failed > 0 ? "danger" : "info"}
           />
           <OperationTile
             icon={<Activity className="h-4 w-4" />}
-            label="Throughput"
+            label="Vazão"
             value={`${data.operations.throughputPerHour}/h`}
-            detail={`${data.operations.failureRatePct}% falha · ${formatMs(data.operations.avgRunLatencyMs)} run`}
+            detail={`${data.operations.failureRatePct}% falha · ${formatMs(data.operations.avgRunLatencyMs)} por execução`}
             tone={data.operations.failureRatePct > 0 ? "warning" : "success"}
           />
         </section>

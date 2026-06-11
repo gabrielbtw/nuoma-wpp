@@ -81,7 +81,7 @@ export function ImplementationPage() {
             </p>
           </div>
           <div className="flex items-center gap-3 rounded-xl bg-bg-base px-4 py-3 shadow-flat">
-            <FileText className="h-4 w-4 text-brand-cyan" />
+            <FileText className="h-4 w-4 text-accent" />
             <div className="min-w-0">
               <div className="text-xs text-fg-muted">Fonte</div>
               <div className="text-xs font-mono text-fg-primary truncate max-w-[26rem]">
@@ -160,7 +160,7 @@ export function ImplementationPage() {
             <pre
               tabIndex={0}
               aria-label="Markdown bruto do status de implementação"
-              className="nuoma-implementation-pre focus:outline-none focus:ring-2 focus:ring-brand-cyan/50"
+              className="nuoma-implementation-pre focus:outline-none focus:ring-2 focus:ring-accent/50"
             >
               {status.data.markdown}
             </pre>
@@ -186,7 +186,7 @@ function SummaryTile({
       <div
         className={cn(
           "mt-2 text-3xl font-semibold",
-          accent === "cyan" && "text-brand-cyan",
+          accent === "cyan" && "text-accent",
           accent === "success" && "text-semantic-success",
           accent === "warning" && "text-semantic-warning",
           accent === "neutral" && "text-fg-primary",

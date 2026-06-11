@@ -226,7 +226,7 @@ export function CampaignsDispatchPanel({
                         </span>{" "}
                         <span className="text-fg-primary">{job.stepId}</span>
                         {job.variantId && (
-                          <span className="ml-2 inline-flex rounded-full bg-brand-violet/15 px-2 py-0.5 font-mono text-[0.65rem] text-brand-violet">
+                          <span className="ml-2 inline-flex rounded-full bg-accent/15 px-2 py-0.5 font-mono text-[0.65rem] text-accent">
                             A/B {job.variantLabel ?? job.variantId}
                           </span>
                         )}

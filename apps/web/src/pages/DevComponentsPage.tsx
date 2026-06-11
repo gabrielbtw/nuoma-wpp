@@ -185,7 +185,7 @@ export function DevComponentsPage() {
       <Animate preset="rise-in">
         <header className="flex flex-col gap-5 border-b border-border-subtle/40 pb-10">
           <p className="nuoma-compat-kicker flex items-center gap-2 text-fg-muted">
-            <span className="h-px w-5 bg-brand-teal" />
+            <span className="h-px w-5 bg-accent" />
             Nuoma · Design System · v2026.1
           </p>
           <h1 className="nuoma-compat-display text-3xl md:text-4xl">
@@ -261,7 +261,7 @@ export function DevComponentsPage() {
             <span className="font-mono text-xl tabular-nums text-fg-primary">R$ 18.420,00</span>
           </TypeRow>
           <TypeRow token="Kicker" detail="0.7rem · uppercase">
-            <span className="font-mono text-[0.7rem] uppercase tracking-wider text-brand-cyan">
+            <span className="font-mono text-[0.7rem] uppercase tracking-wider text-accent">
               Sync Engine · Live
             </span>
           </TypeRow>
@@ -303,8 +303,8 @@ export function DevComponentsPage() {
         <div className="grid gap-4 sm:grid-cols-4">
           <ElevCard shadow="shadow-raised-md" name="raised" />
           <ElevCard shadow="shadow-lift" name="lift" />
-          <ElevCard shadow="shadow-glow-cyan" name="ring-teal" />
-          <ElevCard shadow="shadow-glow-aura" name="glow-aura" />
+          <ElevCard shadow="shadow-flat" name="ring-teal" />
+          <ElevCard shadow="shadow-flat" name="glow-aura" />
         </div>
         <SubLabel>SignalDot</SubLabel>
         <div className="flex flex-wrap items-center gap-6 text-sm text-fg-muted">
@@ -825,7 +825,7 @@ function TypeRow({
   return (
     <div className="flex flex-wrap items-baseline gap-5 bg-bg-surface px-5 py-4">
       <div className="w-32 shrink-0">
-        <span className="font-mono text-[0.7rem] text-brand-cyan">{token}</span>
+        <span className="font-mono text-[0.7rem] text-accent">{token}</span>
         <span className="mt-0.5 block font-mono text-[0.62rem] text-fg-dim">{detail}</span>
       </div>
       <div className="flex-1">{children}</div>
@@ -838,7 +838,7 @@ function ElevCard({ shadow, name }: { shadow: string; name: string }) {
     <div
       className={`rounded-md border border-border-subtle/40 bg-bg-raised p-5 text-center ${shadow}`}
     >
-      <span className="font-mono text-xs text-brand-cyan">{name}</span>
+      <span className="font-mono text-xs text-accent">{name}</span>
     </div>
   );
 }
@@ -869,7 +869,7 @@ function TrendCard({
   return (
     <Card variant="raised" className="flex flex-col gap-2.5">
       <div className="flex items-center gap-2.5">
-        <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-brand-cyan/12 text-brand-cyan">
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-accent/12 text-accent">
           {icon}
         </span>
         <span className="font-mono text-[0.62rem] uppercase tracking-wider [color:rgb(var(--color-brand-blue-soft))]">
@@ -893,7 +893,7 @@ function PrincipleCard({
 }) {
   return (
     <Card variant="raised" className="flex flex-col gap-2.5">
-      <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-brand-cyan/10 text-brand-cyan">
+      <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-accent/10 text-accent">
         {icon}
       </span>
       <h3 className="font-display text-sm font-semibold text-fg-primary">{title}</h3>

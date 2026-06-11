@@ -1,8 +1,8 @@
 /**
  * ThemedChart — Recharts wrappers themed with Nuoma design tokens.
  *
- * The palette is read from the live `--color-*` CSS variables so charts adapt
- * to the active theme (void-flow / aurora / ocean). `recharts` lives in
+ * The palette is read from the live `--nw-*` CSS variables so charts adapt
+ * to the Carvão & Cobre theme. `recharts` lives in
  * `apps/web` only — `@nuoma/ui` stays dependency-free.
  */
 import { useTheme } from "@nuoma/ui";
@@ -45,16 +45,16 @@ const VAR_NAMES = {
 } as const;
 
 const FALLBACK = {
-  teal: "rgb(232 100 44)",
-  blue: "rgb(92 162 250)",
-  green: "rgb(52 199 123)",
-  danger: "rgb(240 90 86)",
-  success: "rgb(52 199 123)",
-  warning: "rgb(230 176 28)",
-  text: "rgb(245 242 236)",
-  muted: "rgb(141 134 123)",
-  grid: "rgb(42 38 33)",
-  surface: "rgb(37 33 28)",
+  teal: "currentColor",
+  blue: "currentColor",
+  green: "currentColor",
+  danger: "currentColor",
+  success: "currentColor",
+  warning: "currentColor",
+  text: "currentColor",
+  muted: "currentColor",
+  grid: "currentColor",
+  surface: "Canvas",
 } as const;
 
 type ChartPalette = Record<keyof typeof VAR_NAMES, string> & { series: string[] };
@@ -87,7 +87,7 @@ function useTooltipStyle(palette: ChartPalette) {
       background: palette.surface,
       border: `1px solid ${palette.grid}`,
       borderRadius: 10,
-      boxShadow: "0 8px 32px rgba(0,0,0,.4)",
+      boxShadow: "var(--nw-shadow-lifted)",
       fontFamily: "'Inter Variable', system-ui, sans-serif",
       fontSize: 12,
     },
@@ -96,7 +96,7 @@ function useTooltipStyle(palette: ChartPalette) {
   } as const;
 }
 
-const AXIS_TICK = { fontSize: 11, fontFamily: "'Geist Mono Variable', monospace" };
+const AXIS_TICK = { fontSize: 11, fontFamily: "'JetBrains Mono Variable', monospace" };
 
 interface SeriesDef {
   key: string;

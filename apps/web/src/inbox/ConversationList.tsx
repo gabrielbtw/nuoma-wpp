@@ -105,7 +105,7 @@ export function ConversationList({ selectedId, onSelect, autoSelect = true }: Co
           </div>
           <Badge variant="cyan">{conversations.data?.summary.total ?? 0}</Badge>
         </div>
-        <div className="flex items-center gap-2 px-3 h-10 rounded-lg bg-bg-base shadow-pressed-sm focus-within:ring-2 focus-within:ring-brand-cyan/40">
+        <div className="flex items-center gap-2 px-3 h-10 rounded-lg bg-bg-base shadow-pressed-sm focus-within:ring-2 focus-within:ring-accent/40">
           <Search className="h-3.5 w-3.5 text-fg-dim shrink-0" />
           <input
             type="search"
@@ -126,7 +126,7 @@ export function ConversationList({ selectedId, onSelect, autoSelect = true }: Co
               className={cn(
                 "h-7 rounded-md px-2.5 font-mono text-[0.65rem] uppercase tracking-widest transition-shadow",
                 filter === chip.id
-                  ? "bg-brand-cyan/12 text-brand-cyan shadow-glow-cyan"
+                  ? "bg-accent/12 text-accent shadow-flat"
                   : "text-fg-muted shadow-flat-subtle hover:shadow-raised-sm hover:text-fg-primary",
               )}
             >
@@ -146,8 +146,8 @@ export function ConversationList({ selectedId, onSelect, autoSelect = true }: Co
                 "h-7 rounded-md px-2.5 font-mono text-[0.65rem] uppercase tracking-widest transition-shadow",
                 operationalFilter === chip.id
                   ? chip.id === "failed"
-                    ? "bg-semantic-danger/12 text-semantic-danger shadow-glow-danger"
-                    : "bg-brand-gold/12 text-brand-gold shadow-glow-gold"
+                    ? "bg-semantic-danger/12 text-semantic-danger shadow-flat"
+                    : "bg-accent/12 text-accent shadow-flat"
                   : "text-fg-muted shadow-flat-subtle hover:shadow-raised-sm hover:text-fg-primary",
               )}
             >
@@ -233,7 +233,7 @@ export function ConversationList({ selectedId, onSelect, autoSelect = true }: Co
                   className={cn(
                     "absolute left-2 right-2 flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors transition-shadow",
                     active
-                      ? "bg-brand-cyan/10 shadow-glow-cyan"
+                      ? "bg-accent/10 shadow-flat"
                       : "hover:bg-bg-base/76 hover:shadow-flat",
                   )}
                   style={{

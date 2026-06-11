@@ -123,7 +123,7 @@ function renderBlock(block: MarkdownBlock, index: number): ReactNode {
     return (
       <blockquote
         key={`quote-${index}`}
-        className="border-l-2 border-brand-cyan/45 pl-3 text-xs text-fg-muted"
+        className="border-l-2 border-accent/45 pl-3 text-xs text-fg-muted"
       >
         {renderInline(block.text, `quote-${index}`)}
       </blockquote>
@@ -141,9 +141,9 @@ function renderBlock(block: MarkdownBlock, index: number): ReactNode {
           >
             <span
               className={cn(
-                "mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-cyan",
+                "mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent",
                 item.checked === true &&
-                  "h-3.5 w-3.5 rounded border border-brand-cyan bg-brand-cyan",
+                  "h-3.5 w-3.5 rounded border border-accent bg-accent",
                 item.checked === false &&
                   "h-3.5 w-3.5 rounded border border-contour-line bg-bg-base",
               )}
@@ -189,7 +189,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
           target="_blank"
           rel="noreferrer"
           data-testid="inbox-contact-notes-preview-link"
-          className="text-brand-cyan underline decoration-brand-cyan/40 underline-offset-2"
+          className="text-accent underline decoration-accent/40 underline-offset-2"
         >
           {next.match[1]}
         </a>,
@@ -199,7 +199,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
         <code
           key={key}
           data-testid="inbox-contact-notes-preview-inline-code"
-          className="rounded bg-bg-subtle px-1 py-0.5 font-mono text-[0.7rem] text-brand-cyan"
+          className="rounded bg-bg-subtle px-1 py-0.5 font-mono text-[0.7rem] text-accent"
         >
           {next.match[1]}
         </code>,

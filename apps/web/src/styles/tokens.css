@@ -53,6 +53,7 @@
   --nw-flow-branch: rgb(var(--nw-status-info));
   --nw-flow-exit: rgb(var(--nw-status-warn));
   --nw-flow-label: rgb(var(--nw-ink-strong));
+  --nw-flow-grid: rgb(var(--nw-line-soft) / 0.28);
   --nw-flow-wa: rgb(var(--nw-channel-wa));
   --nw-flow-ig: rgb(var(--nw-channel-ig));
   --nw-flow-accent: rgb(var(--nw-accent));
