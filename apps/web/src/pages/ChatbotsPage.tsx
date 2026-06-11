@@ -50,7 +50,7 @@ const matchTypes: Array<{ value: ChatbotRuleMatch["type"]; label: string }> = [
   { value: "contains", label: "Contém" },
   { value: "equals", label: "Igual" },
   { value: "starts_with", label: "Começa com" },
-  { value: "regex", label: "Regex" },
+  { value: "regex", label: "Padrão (regex)" },
   { value: "fallback", label: "Fallback" },
 ];
 
@@ -68,16 +68,19 @@ export function ChatbotsPage() {
   const automations = trpc.automations.list.useQuery(undefined, { staleTime: 30_000 });
   const utils = trpc.useUtils();
   const toast = useToast();
-  const [body, setBody] = useState("Qual o preco?");
+  const [body, setBody] = useState("Qual o preço?");
   const [phone, setPhone] = useState("");
   const [dryRunChannel, setDryRunChannel] = useState<DryRunChannel>("whatsapp");
   const [dryRunAttempted, setDryRunAttempted] = useState(false);
+  const [ruleErrors, setRuleErrors] = useState<{ name?: string; match?: string; action?: string }>(
+    {},
+  );
   const [selectedChatbotId, setSelectedChatbotId] = useState("");
   const [ruleName, setRuleName] = useState("Resposta preço");
   const [priority, setPriority] = useState("10");
   const [matchType, setMatchType] = useState<ChatbotRuleMatch["type"]>("contains");
-  const [matchValue, setMatchValue] = useState("preco");
-  const [regexProbe, setRegexProbe] = useState("Qual o preco?");
+  const [matchValue, setMatchValue] = useState("preço");
+  const [regexProbe, setRegexProbe] = useState("Qual o preço?");
   const [actionKind, setActionKind] = useState<ChatbotActionKind>("send_step");
   const [responseText, setResponseText] = useState("Vou te mandar as opções por aqui.");
   const [tagId, setTagId] = useState("");
@@ -124,7 +127,7 @@ export function ChatbotsPage() {
       await utils.chatbots.listRules.invalidate();
       toast.push({
         title: "Regra criada",
-        description: "Rascunho ativo salvo sem criar job.",
+        description: "Rascunho ativo salvo sem criar Job.",
         variant: "success",
       });
     },
@@ -196,24 +199,30 @@ export function ChatbotsPage() {
     });
     if (!Number.isInteger(chatbotId) || chatbotId <= 0) {
       toast.push({ title: "Escolha um chatbot", variant: "warning" });
+      setRuleErrors({ action: "Selecione um chatbot antes de criar a regra." });
       return;
     }
     if (!ruleName.trim()) {
       toast.push({ title: "Nome da regra obrigatório", variant: "warning" });
+      setRuleErrors({ name: "Informe um nome para identificar a regra." });
       return;
     }
     if (typeof action === "string") {
       toast.push({ title: "Revise a ação", description: action, variant: "warning" });
+      setRuleErrors({ action });
       return;
     }
     if (matchType !== "fallback" && !matchValue.trim()) {
-      toast.push({ title: "Match precisa de valor", variant: "warning" });
+      toast.push({ title: "Correspondência precisa de valor", variant: "warning" });
+      setRuleErrors({ match: "Informe o texto ou padrão que ativa esta regra." });
       return;
     }
     if (regexStatus.state === "invalid") {
-      toast.push({ title: "Regex inválida", description: regexStatus.message, variant: "warning" });
+      toast.push({ title: "Padrão inválido", description: regexStatus.message, variant: "warning" });
+      setRuleErrors({ match: regexStatus.message });
       return;
     }
+    setRuleErrors({});
     const basePriority = Number.parseInt(priority, 10);
     createRule.mutate({
       chatbotId,
@@ -247,9 +256,9 @@ export function ChatbotsPage() {
               <CardHeader>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <CardTitle>Teste seco A/B</CardTitle>
+                    <CardTitle>Simulação A/B</CardTitle>
                     <CardDescription>
-                      Simula a regra ativa sem criar job e sem enviar mensagem.
+                      Simula a regra ativa sem criar Job e sem enviar mensagem.
                     </CardDescription>
                   </div>
                   <Badge variant="violet">V2.10.35</Badge>
@@ -261,7 +270,7 @@ export function ChatbotsPage() {
                   onValueChange={(value) => updateDryRunChannel(value as DryRunChannel)}
                 >
                   <SelectTrigger
-                    aria-label="Canal do teste seco"
+                    aria-label="Canal da simulação"
                     data-testid="chatbot-dry-run-channel-select"
                   >
                     <SelectValue placeholder="Canal" />
@@ -273,7 +282,7 @@ export function ChatbotsPage() {
                 </Select>
                 <Select value={selectedChatbotId} onValueChange={setSelectedChatbotId}>
                   <SelectTrigger
-                    aria-label="Chatbot do teste seco"
+                    aria-label="Chatbot da simulação"
                     data-testid="chatbot-dry-run-chatbot-select"
                   >
                     <SelectValue placeholder="Chatbot" />
@@ -349,7 +358,7 @@ export function ChatbotsPage() {
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant={dryRun.data.matched ? "success" : "warning"}>
-                        {dryRun.data.matched ? "match" : "sem match"}
+                        {dryRun.data.matched ? "com correspondência" : "sem correspondência"}
                       </Badge>
                       <Badge variant={dryRun.data.abTest ? "cyan" : "neutral"}>
                         variante: {selectedVariant}
@@ -405,7 +414,7 @@ export function ChatbotsPage() {
                   <div>
                     <CardTitle>Builder de regras</CardTitle>
                     <CardDescription>
-                      Match, regex tester, fallback, ações e variantes sem disparar envio.
+                      Correspondência, teste de padrão, fallback, ações e variantes sem disparar envio.
                     </CardDescription>
                   </div>
                   <Badge variant="cyan">V2.10.26-34</Badge>
@@ -427,8 +436,14 @@ export function ChatbotsPage() {
                       </SelectContent>
                     </Select>
                   </LabeledField>
-                  <LabeledField label="Nome">
-                    <Input value={ruleName} onChange={(event) => setRuleName(event.target.value)} />
+                  <LabeledField label="Nome" error={ruleErrors.name} errorId="chatbot-rule-name-error">
+                    <Input
+                      value={ruleName}
+                      invalid={Boolean(ruleErrors.name)}
+                      aria-invalid={Boolean(ruleErrors.name)}
+                      aria-describedby={ruleErrors.name ? "chatbot-rule-name-error" : undefined}
+                      onChange={(event) => setRuleName(event.target.value)}
+                    />
                   </LabeledField>
                   <LabeledField label="Prioridade">
                     <Input
@@ -440,7 +455,7 @@ export function ChatbotsPage() {
                 </div>
 
                 <div className="grid gap-3 lg:grid-cols-[12rem_1fr_1fr]">
-                  <LabeledField label="Tipo de match">
+                  <LabeledField label="Tipo de correspondência">
                     <Select
                       value={matchType}
                       onValueChange={(value) => setMatchType(value as ChatbotRuleMatch["type"])}
@@ -457,14 +472,17 @@ export function ChatbotsPage() {
                       </SelectContent>
                     </Select>
                   </LabeledField>
-                  <LabeledField label="Valor">
+                  <LabeledField label="Valor" error={ruleErrors.match} errorId="chatbot-rule-match-error">
                     <Input
                       value={matchValue}
                       disabled={matchType === "fallback"}
+                      invalid={Boolean(ruleErrors.match)}
+                      aria-invalid={Boolean(ruleErrors.match)}
+                      aria-describedby={ruleErrors.match ? "chatbot-rule-match-error" : undefined}
                       onChange={(event) => setMatchValue(event.target.value)}
                     />
                   </LabeledField>
-                  <LabeledField label="Regex tester">
+                  <LabeledField label="Teste de padrão">
                     <Input
                       value={regexProbe}
                       onChange={(event) => setRegexProbe(event.target.value)}
@@ -477,7 +495,7 @@ export function ChatbotsPage() {
                   data-regex-state={regexStatus.state}
                 >
                   <div className="flex items-center gap-2">
-                    <Regex className="h-4 w-4 text-brand-cyan" />
+                    <Regex className="h-4 w-4 text-accent" />
                     <span className="font-mono">{regexStatus.message}</span>
                   </div>
                 </div>
@@ -515,6 +533,11 @@ export function ChatbotsPage() {
                       tags={tags.data?.tags ?? []}
                       automations={automations.data?.automations ?? []}
                     />
+                  {ruleErrors.action ? (
+                    <p className="text-xs text-semantic-danger" data-testid="chatbot-rule-action-error">
+                      {ruleErrors.action}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="grid gap-3 lg:grid-cols-[auto_1fr_1fr]">
@@ -565,7 +588,20 @@ export function ChatbotsPage() {
                 ) : chatbots.error ? (
                   <ErrorState description={chatbots.error.message} />
                 ) : !chatbots.data || chatbots.data.chatbots.length === 0 ? (
-                  <EmptyState description="Nenhum chatbot ainda." />
+                  <EmptyState
+                    description="Nenhum chatbot ainda."
+                    action={
+                      <Button
+                        variant="accent"
+                        size="sm"
+                        onClick={() =>
+                          setRuleErrors({ action: "Crie ou selecione um chatbot para começar." })
+                        }
+                      >
+                        Criar primeiro chatbot
+                      </Button>
+                    }
+                  />
                 ) : (
                   <div className="grid gap-4" data-testid="chatbot-list">
                     {chatbots.data.chatbots.map((chatbot) => (
@@ -578,7 +614,7 @@ export function ChatbotsPage() {
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <Bot className="h-4 w-4 text-brand-cyan" />
+                              <Bot className="h-4 w-4 text-accent" />
                               <h2 className="truncate text-base font-medium">{chatbot.name}</h2>
                             </div>
                             <p className="mt-1 text-xs font-mono text-fg-dim">
@@ -715,7 +751,7 @@ function ChatbotRulesPanel({ chatbotId }: { chatbotId: number }) {
 	                  <ChevronDown className="h-3.5 w-3.5" />
 	                </Button>
 	                <Badge variant={rule.match.type === "fallback" ? "warning" : "neutral"}>
-                  {rule.match.type === "fallback" ? "fallback" : "match"}
+                  {rule.match.type === "fallback" ? "fallback" : "correspondência"}
                 </Badge>
                 <Badge variant={abTest?.enabled ? "cyan" : "neutral"}>
                   {abTest?.enabled ? `${abTest.variants.length} variantes` : "sem A/B"}
@@ -864,13 +900,28 @@ function ChatbotActionEditor({
   );
 }
 
-function LabeledField({ label, children }: { label: string; children: ReactNode }) {
+function LabeledField({
+  label,
+  children,
+  error,
+  errorId,
+}: {
+  label: string;
+  children: ReactNode;
+  error?: string;
+  errorId?: string;
+}) {
   return (
     <label>
       <span className="mb-1.5 block font-mono text-[0.65rem] uppercase tracking-widest text-fg-dim">
         {label}
       </span>
       {children}
+      {error ? (
+        <span id={errorId} className="mt-1 block text-xs text-semantic-danger">
+          {error}
+        </span>
+      ) : null}
     </label>
   );
 }
