@@ -62,6 +62,11 @@ somente ajustes mecanicos de Prettier sobre eles.
 - Referencias legadas continuam permitidas quando marcadas como historicas ou
   legacy; referencias operacionais obsoletas devem ser removidas.
 - Validacoes de plataforma usam `AI_PROVIDER=none` por padrao.
+- Alvos aprovados para teste controlado: WhatsApp `31982066263` (canonico
+  `5531982066263`) e Instagram `gabriell_braga`.
+- `apps/api` e `apps/worker` usam `vitest --testTimeout=30000` porque contem
+  testes integration/browser-heavy que podem exceder o default de 5s em cache
+  frio.
 
 ## Validacao
 

@@ -12,7 +12,7 @@ import { createRepositories, openDb, runMigrations } from "@nuoma/db";
 
 import { buildApiApp } from "./app.js";
 
-const testAllowedPhone = "5531982066263";
+const testAllowedPhone = "31982066263";
 
 function cookieHeader(setCookie: string | string[] | undefined): string {
   if (!setCookie) return "";

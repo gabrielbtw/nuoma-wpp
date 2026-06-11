@@ -209,15 +209,18 @@ export function MessageTimeline({
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.defaultPrevented) return;
-      const target = event.target as HTMLElement | null;
-      const isTypingTarget = isTimelineShortcutTarget(target);
-      if (isTypingTarget || conversationId == null) {
+      if (conversationId == null) {
         return;
       }
       const isMod = event.metaKey || event.ctrlKey;
-      if (isMod && event.key === "f" && conversationId != null) {
+      if (isMod && event.key.toLowerCase() === "f") {
         event.preventDefault();
         setSearchOpen((v) => !v);
+        return;
+      }
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      const isTypingTarget = isTimelineShortcutTarget(target);
+      if (isTypingTarget) {
         return;
       }
       if (event.key === "Escape" && (searchOpen || selectedMessage)) {

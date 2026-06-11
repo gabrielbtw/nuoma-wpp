@@ -613,12 +613,17 @@ Current cleanup tooling:
 
 ## Go-live Canary Proof
 
+Approved test targets for controlled validation:
+
+- WhatsApp phone: `31982066263` (canonical `5531982066263`).
+- Instagram handle: `gabriell_braga`.
+
 Local readiness can be checked without sending:
 
 ```bash
 npm run go-live:canary:preflight -- \
   --env-file .env.hosted \
-  --canary 5531982066263 \
+  --canary 31982066263 \
   --require-hosted-proof
 ```
 
@@ -632,9 +637,9 @@ npm run go-live:canary:run -- \
   --api https://YOUR_HOSTED_API_ORIGIN \
   --email operator@example.com \
   --campaign-id 123 \
-  --phone 5531982066263 \
+  --phone 31982066263 \
   --require-send \
-  --confirm-send "ENVIAR CANARIO 5531982066263"
+  --confirm-send "ENVIAR CANARIO 31982066263"
 ```
 
 Required hosted variables are documented in `.env.hosted.example` under

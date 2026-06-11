@@ -12,7 +12,7 @@ import { createRepositories, openDb, runMigrations } from "@nuoma/db";
 
 import { buildApiApp } from "./app.js";
 
-const testAllowedPhone = "5531982066263";
+const testAllowedPhone = "31982066263";
 
 function cookieHeader(setCookie: string | string[] | undefined): string {
   if (!setCookie) return "";
@@ -367,6 +367,7 @@ describe("messages.sendVoice", () => {
         API_LOG_LEVEL: "silent",
         NODE_ENV: "test",
         API_JWT_SECRET: "test-secret-with-more-than-16-chars",
+        API_SEND_ALLOWED_PHONES: testAllowedPhone,
         DATABASE_URL: dbPath,
       }),
       db,
