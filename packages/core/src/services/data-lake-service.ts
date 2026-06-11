@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { copyFileSync, existsSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
-import { loadEnv } from "../config/env.js";
+import { loadEnv, type AppEnv } from "../config/env.js";
 import { getDb } from "../db/connection.js";
 import {
   createDataLakeReport,
@@ -30,7 +30,8 @@ type DataLakeRunOptions = {
 };
 
 type DataLakeProviderStatus = {
-  mode: "auto" | "openai" | "local";
+  mode: "auto" | "openai" | "local" | "none";
+  openAiApproved: boolean;
   openAiAvailable: boolean;
   localWhisperAvailable: boolean;
   localOllamaAvailable: boolean;
@@ -401,16 +402,23 @@ function commandExists(command: string) {
   }
 }
 
-export function getDataLakeProviderStatus(): DataLakeProviderStatus {
-  const env = loadEnv();
-  const openAiAvailable = Boolean(env.OPENAI_API_KEY);
+function isOpenAiCostApproved(env: AppEnv) {
+  return env.AI_COST_APPROVED === "SIM";
+}
+
+export function getDataLakeProviderStatus(env: AppEnv = loadEnv()): DataLakeProviderStatus {
+  const openAiApproved = env.AI_COST_APPROVED === "SIM";
+  const openAiAvailable = openAiApproved && Boolean(env.OPENAI_API_KEY);
   const localWhisperAvailable = existsSync(env.WHISPER_MODEL_PATH) && commandExists(env.WHISPER_BIN);
   const localOllamaAvailable = commandExists("ollama");
 
   let audioProvider: DataLakeProviderStatus["audioProvider"] = "none";
   let imageProvider: DataLakeProviderStatus["imageProvider"] = "none";
 
-  if (env.AI_PROVIDER === "local") {
+  if (env.AI_PROVIDER === "none") {
+    audioProvider = "none";
+    imageProvider = "none";
+  } else if (env.AI_PROVIDER === "local") {
     audioProvider = localWhisperAvailable ? "local-whisper" : "none";
     imageProvider = localOllamaAvailable ? "local-ollama" : "none";
   } else if (env.AI_PROVIDER === "openai") {
@@ -423,6 +431,7 @@ export function getDataLakeProviderStatus(): DataLakeProviderStatus {
 
   return {
     mode: env.AI_PROVIDER,
+    openAiApproved,
     openAiAvailable,
     localWhisperAvailable,
     localOllamaAvailable,
@@ -454,7 +463,7 @@ function buildAudioTranscriptionPath(filePath: string) {
 
 async function transcribeAudioWithOpenAi(asset: DataLakeAssetRecord) {
   const env = loadEnv();
-  if (!env.OPENAI_API_KEY || !asset.storagePath) {
+  if (!isOpenAiCostApproved(env) || !env.OPENAI_API_KEY || !asset.storagePath) {
     return null;
   }
 
@@ -510,7 +519,7 @@ async function transcribeAudioLocally(asset: DataLakeAssetRecord) {
 
 async function describeImageWithOpenAi(asset: DataLakeAssetRecord) {
   const env = loadEnv();
-  if (!env.OPENAI_API_KEY || !asset.storagePath) {
+  if (!isOpenAiCostApproved(env) || !env.OPENAI_API_KEY || !asset.storagePath) {
     return null;
   }
 

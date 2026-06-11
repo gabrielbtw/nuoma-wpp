@@ -1124,6 +1124,7 @@ describe("api health", () => {
         API_CRM_STORAGE_S3_ENDPOINT: "https://s3.local.test",
         API_CRM_STORAGE_S3_ACCESS_KEY_ID: "AKIATEST",
         API_CRM_STORAGE_S3_SECRET_ACCESS_KEY: "secret-test-key",
+        API_MEDIA_OPTIMIZATION_FFMPEG_BIN: "__nuoma_missing_ffmpeg__",
       }),
       db,
       migrate: false,
@@ -1256,6 +1257,7 @@ describe("api health", () => {
       const multipartJson = multipartUpload.json() as {
         asset: { id: number; sha256: string; storagePath: string; sizeBytes: number };
         deduped: boolean;
+        optimization: { attempted: boolean; applied: boolean; reason: string | null };
       };
       expect(multipartUpload.statusCode).toBe(201);
       expect(multipartJson).toMatchObject({
@@ -1263,6 +1265,11 @@ describe("api health", () => {
         asset: {
           sha256: createHash("sha256").update(multipartBody).digest("hex"),
           sizeBytes: multipartBody.byteLength,
+        },
+        optimization: {
+          attempted: true,
+          applied: false,
+          reason: "tool_failed:127",
         },
       });
       await expect(fs.stat(multipartJson.asset.storagePath)).resolves.toMatchObject({
@@ -1320,7 +1327,7 @@ describe("api health", () => {
         }),
       });
       const crmJson = crmUpload.json() as {
-        asset: { storagePath: string; sha256: string };
+        asset: { id: number; storagePath: string; sha256: string };
         storage: { provider: string; namespace: string; objectKey: string };
       };
       const crmSha256 = createHash("sha256").update(crmBody).digest("hex");
@@ -1345,6 +1352,98 @@ describe("api health", () => {
         ),
       );
       await expect(fs.readFile(crmJson.asset.storagePath)).resolves.toEqual(crmBody);
+      await repos.contacts.update({
+        id: contact.id,
+        userId: user.id,
+        profilePhotoMediaAssetId: crmJson.asset.id,
+        profilePhotoSha256: crmJson.asset.sha256,
+        profilePhotoUpdatedAt: "2026-05-04T13:00:00.000Z",
+      });
+      await repos.attachmentCandidates.create({
+        userId: user.id,
+        conversationId: conversation.id,
+        messageId: null,
+        mediaAssetId: crmJson.asset.id,
+        channel: "whatsapp",
+        contentType: "image",
+        externalMessageId: "MSG1",
+        caption: "foto de perfil",
+        observedAt: "2026-05-04T13:01:00.000Z",
+        metadata: {
+          channel: "whatsapp",
+          source: "test.v27.media",
+          externalMessageId: "MSG1",
+        },
+      });
+
+      const readUrl = await trpcCall<{
+        read: { readable: boolean; path: string; auth: string; provider: string };
+      }>(
+        app,
+        "GET",
+        "media.readUrl",
+        { id: crmJson.asset.id, ttlSeconds: 120 },
+        { cookie: cookies },
+      );
+      expect(readUrl.statusCode).toBe(200);
+      expect(readUrl.data?.read).toMatchObject({
+        readable: true,
+        auth: "signed-url",
+        provider: "local",
+      });
+      expect(readUrl.data?.read.path).toContain(`/api/media/assets/${crmJson.asset.id}?token=`);
+      const signedRead = await app.inject({
+        method: "GET",
+        url: readUrl.data!.read.path,
+      });
+      expect(signedRead.statusCode).toBe(200);
+      expect(signedRead.payload).toBe(crmBody.toString());
+
+      const profilePhoto = await trpcCall<{
+        asset: { id: number } | null;
+        read: { readable: boolean; provider: string } | null;
+        sha256: string | null;
+        updatedAt: string | null;
+      }>(
+        app,
+        "GET",
+        "media.profilePhoto",
+        { conversationId: conversation.id },
+        { cookie: cookies },
+      );
+      expect(profilePhoto.statusCode).toBe(200);
+      expect(profilePhoto.data).toMatchObject({
+        asset: { id: crmJson.asset.id },
+        read: { readable: true, provider: "local" },
+        sha256: crmJson.asset.sha256,
+        updatedAt: "2026-05-04T13:00:00.000Z",
+      });
+
+      const attachments = await trpcCall<{
+        attachments: Array<{
+          mediaAsset: { id: number } | null;
+          read: { readable: boolean; provider: string } | null;
+          origin: { channel: string; source: string | null; externalMessageId: string | null };
+        }>;
+      }>(
+        app,
+        "GET",
+        "media.attachmentsByConversation",
+        { conversationId: conversation.id, limit: 10 },
+        { cookie: cookies },
+      );
+      expect(attachments.statusCode).toBe(200);
+      expect(attachments.data?.attachments).toEqual([
+        expect.objectContaining({
+          mediaAsset: expect.objectContaining({ id: crmJson.asset.id }),
+          read: expect.objectContaining({ readable: true, provider: "local" }),
+          origin: {
+            channel: "whatsapp",
+            source: "test.v27.media",
+            externalMessageId: "MSG1",
+          },
+        }),
+      ]);
 
       const s3Body = Buffer.from("s3 cached download bytes");
       const s3Asset = await repos.mediaAssets.create({
@@ -2435,6 +2534,19 @@ describe("api health", () => {
       );
       expect(pushUnsubscribe.data?.deleted).toBe(true);
 
+      const costEstimate = await trpcCall<{
+        totals: { objects: number; reads: number; writes: number };
+        providers: { local: { objects: number; bytes: number }; s3: { objects: number } };
+        estimate: { totalMonthly: number };
+      }>(app, "GET", "system.costEstimate", undefined, { cookie: cookies });
+      expect(costEstimate.statusCode).toBe(200);
+      expect(costEstimate.data?.totals.objects).toBeGreaterThanOrEqual(3);
+      expect(costEstimate.data?.totals.reads).toBeGreaterThanOrEqual(1);
+      expect(costEstimate.data?.totals.writes).toBeGreaterThanOrEqual(3);
+      expect(costEstimate.data?.providers.local.objects).toBeGreaterThanOrEqual(2);
+      expect(costEstimate.data?.providers.s3.objects).toBeGreaterThanOrEqual(1);
+      expect(costEstimate.data?.estimate.totalMonthly).toBeGreaterThanOrEqual(0);
+
       const tagDelete = await trpcCall<{ ok: boolean }>(
         app,
         "POST",
@@ -2479,6 +2591,12 @@ describe("api health", () => {
       phone: "5531982066263",
       primaryChannel: "whatsapp",
       notes: "Cliente do aceite M30.3.",
+    });
+    const overlayTag = await repos.tags.create({
+      userId: user.id,
+      name: "Overlay VIP",
+      color: "#22c55e",
+      description: "Tag aplicada pelo overlay",
     });
     await repos.contacts.create({
       userId: user.id,
@@ -2795,6 +2913,118 @@ describe("api health", () => {
           }),
         ]),
       );
+
+      const applyTag = await app.inject({
+        method: "POST",
+        url: "/api/extension/overlay",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${accessToken}`,
+        },
+        payload: {
+          id: "m38-quick-apply-tag",
+          method: "applyTag",
+          params: {
+            tagId: overlayTag.id,
+            phone: "31982066263",
+            waJid: "5531982066263@s.whatsapp.net",
+            phoneSource: "wa-jid",
+            threadTitle: "Neferpeel",
+          },
+          mutation: {
+            nonce: "overlay-tag-nonce",
+            idempotencyKey: "overlay-tag-key",
+            confirmed: true,
+          },
+          version: "v2.11.10-quick-actions",
+        },
+      });
+      expect(applyTag.statusCode).toBe(200);
+      expect(applyTag.json()).toMatchObject({
+        ok: true,
+        data: {
+          result: { action: "applyTag", changed: true },
+          snapshot: {
+            contact: { id: contact.id, tagIds: [overlayTag.id] },
+            apiLastMethod: "applyTag",
+          },
+        },
+      });
+
+      const setStatus = await app.inject({
+        method: "POST",
+        url: "/api/extension/overlay",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${accessToken}`,
+        },
+        payload: {
+          id: "m38-quick-set-status",
+          method: "setStatus",
+          params: {
+            status: "active",
+            phone: "31982066263",
+            waJid: "5531982066263@s.whatsapp.net",
+            phoneSource: "wa-jid",
+            threadTitle: "Neferpeel",
+          },
+          mutation: {
+            nonce: "overlay-status-nonce",
+            idempotencyKey: "overlay-status-key",
+            confirmed: true,
+          },
+          version: "v2.11.10-quick-actions",
+        },
+      });
+      expect(setStatus.statusCode).toBe(200);
+      expect(setStatus.json()).toMatchObject({
+        ok: true,
+        data: {
+          result: { action: "setStatus" },
+          snapshot: {
+            contact: { id: contact.id, status: "active" },
+            apiLastMethod: "setStatus",
+          },
+        },
+      });
+
+      const createReminder = await app.inject({
+        method: "POST",
+        url: "/api/extension/overlay",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${accessToken}`,
+        },
+        payload: {
+          id: "m38-quick-reminder",
+          method: "createReminder",
+          params: {
+            title: "Retornar via overlay",
+            dueAt: "2026-06-12T12:00:00.000Z",
+            phone: "31982066263",
+            waJid: "5531982066263@s.whatsapp.net",
+            phoneSource: "wa-jid",
+            threadTitle: "Neferpeel",
+          },
+          mutation: {
+            nonce: "overlay-reminder-nonce",
+            idempotencyKey: "overlay-reminder-key",
+            confirmed: true,
+          },
+          version: "v2.11.10-quick-actions",
+        },
+      });
+      expect(createReminder.statusCode).toBe(200);
+      expect(createReminder.json()).toMatchObject({
+        ok: true,
+        data: {
+          result: { action: "createReminder", reminder: { title: "Retornar via overlay" } },
+          snapshot: {
+            reminders: [expect.objectContaining({ title: "Retornar via overlay" })],
+            apiLastMethod: "createReminder",
+          },
+        },
+      });
 
       const missingMutation = await app.inject({
         method: "POST",

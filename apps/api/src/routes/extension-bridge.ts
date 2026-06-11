@@ -11,6 +11,11 @@ import {
   runOverlayAutomationNow,
 } from "../services/overlay-automations.js";
 import { runOverlayCampaignNow } from "../services/overlay-campaigns.js";
+import {
+  applyOverlayQuickAction,
+  listOverlayAutomationHistory,
+  type OverlayQuickActionName,
+} from "../services/overlay-quick-actions.js";
 import { resolveApiSendPolicy } from "../services/send-policy.js";
 import { verifyAccessToken, type AuthUser } from "../trpc/auth.js";
 import { ACCESS_COOKIE, readCookie } from "../trpc/cookies.js";
@@ -117,6 +122,55 @@ export async function registerExtensionBridgeRoutes(
           ok: true,
           data: {
             ...snapshot,
+            apiStatus: "online",
+            apiLastMethod: overlayRequest.method,
+            apiLastError: null,
+          },
+        });
+      }
+
+      if (overlayRequest.method === "automationHistory") {
+        if (!targetIdentity.ok) {
+          await auditExtensionOverlayRequest({
+            repos: deps.repos,
+            userId: user.id,
+            request: overlayRequest,
+            ok: false,
+            latencyMs: Date.now() - startedAt,
+            phone,
+            waJid,
+            phoneSource,
+            errorCode: targetIdentity.errorCode,
+            errorMessage: targetIdentity.errorMessage,
+          });
+          return reply.code(400).send({
+            ok: false,
+            error: {
+              code: targetIdentity.errorCode,
+              message: targetIdentity.errorMessage,
+            },
+          });
+        }
+        const automationHistory = await listOverlayAutomationHistory({
+          repos: deps.repos,
+          userId: user.id,
+          phone: targetPhone,
+          limit: positiveIntegerValue(overlayRequest.params.limit) ?? 5,
+        });
+        await auditExtensionOverlayRequest({
+          repos: deps.repos,
+          userId: user.id,
+          request: overlayRequest,
+          ok: true,
+          latencyMs: Date.now() - startedAt,
+          phone: targetPhone,
+          waJid,
+          phoneSource,
+        });
+        return reply.send({
+          ok: true,
+          data: {
+            automationHistory,
             apiStatus: "online",
             apiLastMethod: overlayRequest.method,
             apiLastError: null,
@@ -346,6 +400,107 @@ export async function registerExtensionBridgeRoutes(
         });
       }
 
+      if (isOverlayQuickActionMethod(overlayRequest.method)) {
+        const mutationCheck = validateOverlayMutation(overlayRequest);
+        if (!mutationCheck.ok) {
+          await auditExtensionOverlayRequest({
+            repos: deps.repos,
+            userId: user.id,
+            request: overlayRequest,
+            ok: false,
+            latencyMs: Date.now() - startedAt,
+            phone,
+            waJid,
+            phoneSource,
+            errorCode: mutationCheck.errorCode,
+            errorMessage: mutationCheck.errorMessage,
+          });
+          return reply.code(400).send({
+            ok: false,
+            error: {
+              code: mutationCheck.errorCode,
+              message: mutationCheck.errorMessage,
+            },
+          });
+        }
+        if (!targetIdentity.ok) {
+          await auditExtensionOverlayRequest({
+            repos: deps.repos,
+            userId: user.id,
+            request: overlayRequest,
+            ok: false,
+            latencyMs: Date.now() - startedAt,
+            phone,
+            waJid,
+            phoneSource,
+            errorCode: targetIdentity.errorCode,
+            errorMessage: targetIdentity.errorMessage,
+          });
+          return reply.code(400).send({
+            ok: false,
+            error: {
+              code: targetIdentity.errorCode,
+              message: targetIdentity.errorMessage,
+            },
+          });
+        }
+        const result = await applyOverlayQuickAction({
+          repos: deps.repos,
+          userId: user.id,
+          phone: targetPhone,
+          waJid,
+          action: overlayRequest.method,
+          tagId: positiveIntegerValue(overlayRequest.params.tagId),
+          status: stringValue(overlayRequest.params.status),
+          reminderTitle: stringValue(overlayRequest.params.title),
+          reminderDueAt: stringValue(overlayRequest.params.dueAt),
+          reminderNotes: stringValue(overlayRequest.params.notes),
+          source: "extension.overlay",
+        });
+        const snapshot = await buildExtensionOverlaySnapshot({
+          repos: deps.repos,
+          userId: user.id,
+          phone: targetPhone,
+          waJid,
+          phoneSource,
+          title: stringValue(overlayRequest.params.threadTitle),
+          reason: `chrome-extension:${overlayRequest.method}`,
+          sendPolicy,
+        });
+        await auditExtensionOverlayRequest({
+          repos: deps.repos,
+          userId: user.id,
+          request: overlayRequest,
+          ok: result.ok,
+          latencyMs: Date.now() - startedAt,
+          phone: targetPhone,
+          waJid,
+          phoneSource,
+          errorCode: result.ok ? undefined : (result.rejected[0]?.reason ?? "quick_action_blocked"),
+          errorMessage: result.ok ? undefined : "Overlay quick action blocked",
+        });
+        return reply.send({
+          ok: result.ok,
+          data: {
+            result,
+            snapshot: {
+              ...snapshot,
+              apiStatus: result.ok ? "online" : "error",
+              apiLastMethod: overlayRequest.method,
+              apiLastError: result.ok ? null : (result.rejected[0]?.reason ?? "quick_action_blocked"),
+            },
+          },
+          ...(result.ok
+            ? {}
+            : {
+                error: {
+                  code: result.rejected[0]?.reason ?? "quick_action_blocked",
+                  message: "Acao rapida bloqueada para este contato.",
+                },
+              }),
+        });
+      }
+
       await auditExtensionOverlayRequest({
         repos: deps.repos,
         userId: user.id,
@@ -455,6 +610,15 @@ function positiveIntegerValue(value: unknown): number | null {
   const numeric =
     typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
   return Number.isInteger(numeric) && numeric > 0 ? numeric : null;
+}
+
+function isOverlayQuickActionMethod(method: string): method is OverlayQuickActionName {
+  return (
+    method === "applyTag" ||
+    method === "removeTag" ||
+    method === "setStatus" ||
+    method === "createReminder"
+  );
 }
 
 function resolveOverlayRequestIdentity(

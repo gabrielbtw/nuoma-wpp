@@ -39,6 +39,12 @@ require_env() {
   [[ -n "${!1:-}" ]] || die "missing required env var: $1"
 }
 
+require_env_equals() {
+  local name="$1"
+  local expected="$2"
+  [[ "${!name:-}" == "$expected" ]] || die "env var $name must be $expected"
+}
+
 ensure_dirs() {
   mkdir -p "$JOBS_DIR" "$RENDERS_DIR"
 }
@@ -50,6 +56,7 @@ run_sora_dry() {
 }
 
 run_sora_live() {
+  require_env_equals SORA_BUDGET_APPROVED SIM
   require_cmd uv
   require_cmd python3
   require_file "$SORA_CLI"

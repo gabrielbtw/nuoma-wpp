@@ -6,6 +6,11 @@ import { ensureRuntimeDirectories } from "../utils/fs.js";
 let dbInstance: Database.Database | null = null;
 const SQLITE_BUSY_CODES = new Set(["SQLITE_BUSY", "SQLITE_BUSY_RECOVERY", "SQLITE_BUSY_SNAPSHOT"]);
 
+type TableInfoRow = {
+  name: string;
+  type: string;
+};
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -78,6 +83,49 @@ function runMigrations(db: Database.Database) {
   }
 }
 
+function tableExists(db: Database.Database, tableName: string): boolean {
+  const row = db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(tableName);
+  return Boolean(row);
+}
+
+function tableInfo(db: Database.Database, tableName: string): TableInfoRow[] {
+  if (!tableExists(db, tableName)) {
+    return [];
+  }
+
+  return db.prepare(`PRAGMA table_info(${tableName})`).all() as TableInfoRow[];
+}
+
+export function assertNoV2Schema(db: Database.Database, databasePath: string): void {
+  const contactsColumns = tableInfo(db, "contacts");
+  const hasContacts = contactsColumns.length > 0;
+  const contactIdColumn = contactsColumns.find((column) => column.name === "id");
+  const hasUserId = contactsColumns.some((column) => column.name === "user_id");
+  const hasDrizzleMigrations = tableExists(db, "__drizzle_migrations");
+
+  if (!hasContacts && !hasDrizzleMigrations) {
+    return;
+  }
+
+  const v2Signals = [
+    hasDrizzleMigrations ? "__drizzle_migrations table" : null,
+    contactIdColumn?.type.toUpperCase().includes("INT") ? "contacts.id INTEGER" : null,
+    hasUserId ? "contacts.user_id present" : null
+  ].filter(Boolean);
+
+  if (v2Signals.length === 0) {
+    return;
+  }
+
+  throw new Error(
+    `NUOMA_DB_STACK_MISMATCH: DATABASE_PATH points to the runtime-v2-active-candidate SQLite schema (${v2Signals.join(
+      ", "
+    )}). Use the legacy-maintenance database for @nuoma/core or run the approved V2.15 migration/cutover path. DATABASE_PATH=${databasePath}`
+  );
+}
+
 export function getDb() {
   if (dbInstance) {
     return dbInstance;
@@ -92,7 +140,13 @@ export function getDb() {
   db.pragma("synchronous = NORMAL");
   db.pragma("busy_timeout = 5000");
 
-  runMigrations(db);
+  try {
+    assertNoV2Schema(db, env.DATABASE_PATH);
+    runMigrations(db);
+  } catch (error) {
+    db.close();
+    throw error;
+  }
 
   dbInstance = db;
   return db;

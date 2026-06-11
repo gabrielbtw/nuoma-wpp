@@ -23,6 +23,54 @@ export interface DbHandle {
   close: () => void;
 }
 
+type TableInfoRow = {
+  name: string;
+  type: string;
+};
+
+function tableExists(raw: Database.Database, tableName: string): boolean {
+  const row = raw
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(tableName);
+  return Boolean(row);
+}
+
+function tableInfo(raw: Database.Database, tableName: string): TableInfoRow[] {
+  if (!tableExists(raw, tableName)) {
+    return [];
+  }
+
+  return raw.prepare(`PRAGMA table_info(${tableName})`).all() as TableInfoRow[];
+}
+
+export function assertNoLegacySchema(raw: Database.Database, databaseUrl: string): void {
+  const contactsColumns = tableInfo(raw, "contacts");
+  const hasContacts = contactsColumns.length > 0;
+  const contactIdColumn = contactsColumns.find((column) => column.name === "id");
+  const hasUserId = contactsColumns.some((column) => column.name === "user_id");
+  const hasLegacyMigrations = tableExists(raw, "_migrations");
+
+  if (!hasContacts && !hasLegacyMigrations) {
+    return;
+  }
+
+  const legacySignals = [
+    hasLegacyMigrations ? "_migrations table" : null,
+    contactIdColumn?.type.toUpperCase().includes("TEXT") ? "contacts.id TEXT" : null,
+    hasContacts && !hasUserId ? "contacts.user_id missing" : null,
+  ].filter(Boolean);
+
+  if (legacySignals.length === 0) {
+    return;
+  }
+
+  throw new Error(
+    `NUOMA_DB_STACK_MISMATCH: DATABASE_URL points to a legacy-maintenance SQLite schema (${legacySignals.join(
+      ", ",
+    )}). Use the V2 Drizzle database for @nuoma/db or run the approved V2.15 migration/cutover first. DATABASE_URL=${databaseUrl}`,
+  );
+}
+
 export function openDb(url: DatabaseUrl): DbHandle {
   const dir = path.dirname(url);
   if (dir && !fs.existsSync(dir)) {
@@ -34,6 +82,13 @@ export function openDb(url: DatabaseUrl): DbHandle {
   raw.pragma("synchronous = NORMAL");
   raw.pragma("foreign_keys = ON");
   raw.pragma("busy_timeout = 5000");
+
+  try {
+    assertNoLegacySchema(raw, url);
+  } catch (error) {
+    raw.close();
+    throw error;
+  }
 
   const db = drizzle(raw, { schema });
 

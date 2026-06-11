@@ -1,0 +1,29 @@
+{
+  "name": "@nuoma/migration",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "preflight": "tsx src/index.ts preflight",
+    "dry-run": "tsx src/index.ts dry-run",
+    "apply": "tsx src/index.ts apply",
+    "validate": "tsx src/index.ts validate",
+    "build": "echo \"@nuoma/migration: CLI package, no build step\"",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@nuoma/db": "*",
+    "better-sqlite3": "^12.4.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^24.3.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.2",
+    "vitest": "^3.1.4"
+  }
+}

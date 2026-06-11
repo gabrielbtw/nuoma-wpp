@@ -63,6 +63,13 @@ const apiSchema = baseSchema.extend({
   API_CRM_STORAGE_S3_ACCESS_KEY_ID: z.string().min(1).optional(),
   API_CRM_STORAGE_S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
   API_CRM_STORAGE_S3_SESSION_TOKEN: z.string().min(1).optional(),
+  API_MEDIA_OPTIMIZATION_ENABLED: booleanFromEnv.default(true),
+  API_MEDIA_OPTIMIZATION_STRICT: booleanFromEnv.default(false),
+  API_MEDIA_OPTIMIZATION_FFMPEG_BIN: z.string().min(1).default("ffmpeg"),
+  API_MEDIA_OPTIMIZATION_IMAGE_MAX_WIDTH: z.coerce.number().int().min(320).default(1600),
+  API_MEDIA_OPTIMIZATION_AUDIO_KBPS: z.coerce.number().int().min(16).max(320).default(48),
+  API_MEDIA_OPTIMIZATION_VIDEO_MAX_WIDTH: z.coerce.number().int().min(320).default(1280),
+  API_MEDIA_OPTIMIZATION_VIDEO_KBPS: z.coerce.number().int().min(128).default(1200),
   API_STREAMING_ENABLED: booleanFromEnv.default(false),
   API_STREAMING_CDP_HOST: z.string().default("127.0.0.1"),
   API_STREAMING_CDP_PORT: z.coerce.number().int().min(1).max(65535).default(9223),
@@ -101,14 +108,13 @@ const workerSchema = baseSchema.extend({
   WA_SEND_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).default(60_000),
   WA_SEND_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(12),
   IG_SEND_ALLOWED_HANDLES: z.string().default(""),
-  IG_SEND_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).default(60 * 60_000),
-  IG_SEND_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(30),
-  IG_SEND_CONFIRMATION_TIMEOUT_MS: z.coerce
+  IG_SEND_RATE_LIMIT_WINDOW_MS: z.coerce
     .number()
     .int()
     .min(1_000)
-    .max(60_000)
-    .default(15_000),
+    .default(60 * 60_000),
+  IG_SEND_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(30),
+  IG_SEND_CONFIRMATION_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(60_000).default(15_000),
   WORKER_INSTAGRAM_SYNC_ENABLED: booleanFromEnv.default(false),
   WORKER_INSTAGRAM_SYNC_INTERVAL_MS: z.coerce.number().int().min(10_000).default(60_000),
   WORKER_INSTAGRAM_SYNC_THREAD_LIMIT: z.coerce.number().int().min(1).max(50).default(5),

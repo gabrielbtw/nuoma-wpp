@@ -7,6 +7,7 @@ import {
   type OverlayAutomationOption,
 } from "./overlay-automations.js";
 import { listOverlayCampaignOptions, type OverlayCampaignOption } from "./overlay-campaigns.js";
+import { listOverlayAutomationHistory } from "./overlay-quick-actions.js";
 import { normalizePhone } from "./send-policy.js";
 import type { ApiSendPolicy } from "./send-policy.js";
 
@@ -97,6 +98,18 @@ export async function buildExtensionOverlaySnapshot(input: ExtensionOverlaySnaps
     sendPolicy: input.sendPolicy,
     limit: 5,
   }).catch(() => []);
+  const tags = contact ? await input.repos.tags.list(input.userId).catch(() => []) : [];
+  const reminders = contact
+    ? await input.repos.reminders
+        .list({ userId: input.userId, contactId: contact.id, status: "open", limit: 3 })
+        .catch(() => [])
+    : [];
+  const automationHistory = await listOverlayAutomationHistory({
+    repos: input.repos,
+    userId: input.userId,
+    phone,
+    limit: 5,
+  }).catch(() => []);
 
   return {
     phone,
@@ -105,12 +118,27 @@ export async function buildExtensionOverlaySnapshot(input: ExtensionOverlaySnaps
     title,
     contact: contact
       ? {
+          id: contact.id,
           name: contact.name,
           status: contact.status,
           primaryChannel: contact.primaryChannel,
           notes: contact.notes,
+          tagIds: contact.tagIds,
         }
       : null,
+    tags: tags.map((tag) => ({
+      id: tag.id,
+      name: tag.name,
+      color: tag.color,
+      description: tag.description,
+    })),
+    reminders: reminders.map((reminder) => ({
+      id: reminder.id,
+      title: reminder.title,
+      notes: reminder.notes,
+      dueAt: reminder.dueAt,
+      status: reminder.status,
+    })),
     conversations: conversations.map((conversation) => ({
       id: conversation.id,
       channel: conversation.channel,
@@ -124,6 +152,7 @@ export async function buildExtensionOverlaySnapshot(input: ExtensionOverlaySnaps
       observedAtUtc: message.observedAtUtc,
     })),
     automations,
+    automationHistory,
     campaigns,
     notes: contact?.notes ?? null,
     source: "nuoma-api",

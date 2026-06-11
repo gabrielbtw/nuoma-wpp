@@ -12,10 +12,38 @@ describe("loadApiEnv", () => {
     expect(env.API_CRM_STORAGE_NAMESPACE).toBe("/nuoma/files/crm");
     expect(env.API_CRM_STORAGE_LOCAL_ROOT).toBeUndefined();
     expect(env.API_CRM_STORAGE_CACHE_ROOT).toBeUndefined();
+    expect(env.API_MEDIA_OPTIMIZATION_ENABLED).toBe(true);
+    expect(env.API_MEDIA_OPTIMIZATION_STRICT).toBe(false);
+    expect(env.API_MEDIA_OPTIMIZATION_FFMPEG_BIN).toBe("ffmpeg");
+    expect(env.API_MEDIA_OPTIMIZATION_IMAGE_MAX_WIDTH).toBe(1600);
+    expect(env.API_MEDIA_OPTIMIZATION_AUDIO_KBPS).toBe(48);
+    expect(env.API_MEDIA_OPTIMIZATION_VIDEO_MAX_WIDTH).toBe(1280);
+    expect(env.API_MEDIA_OPTIMIZATION_VIDEO_KBPS).toBe(1200);
     expect(env.API_STREAMING_ENABLED).toBe(false);
     expect(env.API_STREAMING_CDP_HOST).toBe("127.0.0.1");
     expect(env.API_STREAMING_CDP_PORT).toBe(9223);
     expect(env.API_STREAMING_TARGET_URL_MATCH).toBe("web.whatsapp.com");
+  });
+
+  it("parses media optimization configuration explicitly", () => {
+    const env = loadApiEnv({
+      NODE_ENV: "test",
+      API_MEDIA_OPTIMIZATION_ENABLED: "false",
+      API_MEDIA_OPTIMIZATION_STRICT: "true",
+      API_MEDIA_OPTIMIZATION_FFMPEG_BIN: "/usr/local/bin/ffmpeg",
+      API_MEDIA_OPTIMIZATION_IMAGE_MAX_WIDTH: "960",
+      API_MEDIA_OPTIMIZATION_AUDIO_KBPS: "64",
+      API_MEDIA_OPTIMIZATION_VIDEO_MAX_WIDTH: "720",
+      API_MEDIA_OPTIMIZATION_VIDEO_KBPS: "900",
+    });
+
+    expect(env.API_MEDIA_OPTIMIZATION_ENABLED).toBe(false);
+    expect(env.API_MEDIA_OPTIMIZATION_STRICT).toBe(true);
+    expect(env.API_MEDIA_OPTIMIZATION_FFMPEG_BIN).toBe("/usr/local/bin/ffmpeg");
+    expect(env.API_MEDIA_OPTIMIZATION_IMAGE_MAX_WIDTH).toBe(960);
+    expect(env.API_MEDIA_OPTIMIZATION_AUDIO_KBPS).toBe(64);
+    expect(env.API_MEDIA_OPTIMIZATION_VIDEO_MAX_WIDTH).toBe(720);
+    expect(env.API_MEDIA_OPTIMIZATION_VIDEO_KBPS).toBe(900);
   });
 
   it("parses explicit S3 CRM storage configuration", () => {

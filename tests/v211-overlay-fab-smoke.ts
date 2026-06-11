@@ -43,6 +43,7 @@ async function main() {
       `sendJobsDelta=${sendJobsDelta}`,
       `fixture=${fixtureScreenshotPath}`,
       `wpp=${wppScreenshotPath}`,
+      `wppShot=${wppResult.screenshotMode}`,
       `wppMode=${wppResult.mode}`,
       "ig=nao_aplicavel",
       "m=32",
@@ -123,12 +124,15 @@ async function validateWhatsAppWeb() {
     ) {
       throw new Error(`WhatsApp overlay invalid state: ${JSON.stringify(state)}`);
     }
-    await page.screenshot({ path: wppScreenshotPath, fullPage: false, timeout: 15_000 });
+    const screenshotMode = (await captureCdpViewportScreenshot(page, wppScreenshotPath))
+      ? "cdp"
+      : "timeout";
     return {
       mounted: true,
       mode: "cdp",
       phone: state.phone,
       buttonLabel: state.buttonLabel,
+      screenshotMode,
     };
   } finally {
     await browser.close();
@@ -170,6 +174,31 @@ async function readOverlayState(page: Page) {
     },
     [NUOMA_OVERLAY_ROOT_ID, NUOMA_OVERLAY_FAB_TEST_ID],
   );
+}
+
+async function captureCdpViewportScreenshot(page: Page, outputPath: string): Promise<boolean> {
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    const result = await Promise.race([
+      cdp.send("Page.captureScreenshot", {
+        format: "png",
+        captureBeyondViewport: false,
+      }),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("cdp_screenshot_timeout")), 8_000);
+      }),
+    ]);
+    await fs.writeFile(outputPath, Buffer.from(result.data, "base64"));
+    return true;
+  } catch (error) {
+    await fs.writeFile(
+      `${outputPath}.error.txt`,
+      error instanceof Error ? error.message : String(error),
+    );
+    return false;
+  } finally {
+    await cdp.detach().catch(() => undefined);
+  }
 }
 
 async function countActiveSendJobs() {

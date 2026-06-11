@@ -11,6 +11,8 @@ import { mediaAssetTypeSchema, normalizePhone, type MediaAssetType } from "@nuom
 import type { Repositories } from "@nuoma/db";
 
 import { resolveCrmReadableFile, storeCrmFile } from "../services/crm-file-storage.js";
+import { verifyMediaReadToken } from "../services/media-read-token.js";
+import { optimizeMediaForStorage } from "../services/media-optimizer.js";
 import { checkCsrf, verifyAccessToken } from "../trpc/auth.js";
 import { ACCESS_COOKIE, readCookie } from "../trpc/cookies.js";
 
@@ -43,16 +45,27 @@ export async function registerMediaUploadRoutes(
       return reply.code(400).send({ error: "Missing multipart file" });
     }
 
-    const buffer = await file.toBuffer();
-    const sha256 = createHash("sha256").update(buffer).digest("hex");
-    const existing = await deps.repos.mediaAssets.findBySha(user.id, sha256);
-    if (existing) {
-      return reply.send({ asset: existing, deduped: true });
-    }
-
+    const originalBuffer = await file.toBuffer();
     const type = inferMediaType(file.mimetype, fieldValue(file.fields, "type"));
     const durationMs = parseOptionalInteger(fieldValue(file.fields, "durationMs"));
     const sourceUrl = emptyToNull(fieldValue(file.fields, "sourceUrl"));
+    const optimized = await optimizeMediaForStorage({
+      env: deps.env,
+      buffer: originalBuffer,
+      fileName: file.filename,
+      mimeType: file.mimetype || "application/octet-stream",
+      type,
+    });
+    const sha256 = createHash("sha256").update(optimized.buffer).digest("hex");
+    const existing = await deps.repos.mediaAssets.findBySha(user.id, sha256);
+    if (existing) {
+      return reply.send({
+        asset: existing,
+        deduped: true,
+        optimization: optimized.optimization,
+      });
+    }
+
     const crmOwnerKey = await resolveCrmOwnerKey({
       repos: deps.repos,
       userId: user.id,
@@ -62,9 +75,9 @@ export async function registerMediaUploadRoutes(
       ? await storeCrmFile({
           env: deps.env,
           ownerKey: crmOwnerKey,
-          fileName: file.filename,
-          mimeType: file.mimetype || "application/octet-stream",
-          buffer,
+          fileName: optimized.fileName,
+          mimeType: optimized.mimeType,
+          buffer: optimized.buffer,
         })
       : null;
     const storagePath =
@@ -73,26 +86,40 @@ export async function registerMediaUploadRoutes(
         env: deps.env,
         userId: user.id,
         sha256,
-        fileName: file.filename,
-        buffer,
+        fileName: optimized.fileName,
+        buffer: optimized.buffer,
       }));
 
     const asset = await deps.repos.mediaAssets.create({
       userId: user.id,
       type,
-      fileName: file.filename || `${sha256}.bin`,
-      mimeType: file.mimetype || "application/octet-stream",
+      fileName: optimized.fileName || `${sha256}.bin`,
+      mimeType: optimized.mimeType,
       sha256,
-      sizeBytes: buffer.byteLength,
+      sizeBytes: optimized.buffer.byteLength,
       durationMs,
       storagePath,
       sourceUrl,
       deletedAt: null,
     });
+    await deps.repos.systemEvents.create({
+      userId: user.id,
+      type: "media.asset.write",
+      severity: optimized.optimization.applied ? "info" : "debug",
+      payload: JSON.stringify({
+        assetId: asset.id,
+        mediaType: asset.type,
+        provider: crmStorage?.provider ?? "local",
+        sizeBytes: asset.sizeBytes,
+        optimization: optimized.optimization,
+        source: "api.media.upload",
+      }),
+    });
 
     return reply.code(201).send({
       asset,
       deduped: false,
+      optimization: optimized.optimization,
       storage: crmStorage
         ? {
             provider: crmStorage.provider,
@@ -105,14 +132,13 @@ export async function registerMediaUploadRoutes(
   });
 
   app.get("/api/media/assets/:id", async (request, reply) => {
-    const user = await authenticateRequest(request, reply, deps.env);
-    if (!user) {
-      return reply;
-    }
-
     const mediaAssetId = Number((request.params as { id?: string }).id);
     if (!Number.isInteger(mediaAssetId) || mediaAssetId <= 0) {
       return reply.code(400).send({ error: "Invalid media asset id" });
+    }
+    const user = await authenticateMediaReadRequest(request, reply, deps.env, mediaAssetId);
+    if (!user) {
+      return reply;
     }
 
     const asset = await deps.repos.mediaAssets.findById({
@@ -131,12 +157,14 @@ export async function registerMediaUploadRoutes(
 
     let resolvedPath: string;
     let cacheStatus: "hit" | "miss" | null = null;
+    let resolvedProvider: "local" | "s3" = "local";
     try {
       const readable = await resolveCrmReadableFile({
         env: deps.env,
         storagePath: asset.storagePath,
       });
       resolvedPath = readable.localPath;
+      resolvedProvider = readable.provider;
       cacheStatus = readable.provider === "s3" ? (readable.cached ? "hit" : "miss") : null;
     } catch {
       return reply.code(404).send({ error: "Media asset file not found" });
@@ -151,6 +179,18 @@ export async function registerMediaUploadRoutes(
       if (cacheStatus) {
         reply.header("x-nuoma-storage-cache", cacheStatus);
       }
+      await deps.repos.systemEvents.create({
+        userId: user.id,
+        type: "media.asset.read",
+        severity: "debug",
+        payload: JSON.stringify({
+          assetId: asset.id,
+          mediaType: asset.type,
+          provider: resolvedProvider,
+          cacheStatus,
+          source: "api.media.assets.read",
+        }),
+      });
       return reply.send(createReadStream(resolvedPath));
     } catch {
       return reply.code(404).send({ error: "Media asset file not found" });
@@ -158,22 +198,55 @@ export async function registerMediaUploadRoutes(
   });
 }
 
+async function authenticateMediaReadRequest(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  env: ApiEnv,
+  mediaAssetId: number,
+): Promise<{ id: number } | null> {
+  const user = await authenticateRequest(request, reply, env, { silent: true });
+  if (user) {
+    return user;
+  }
+
+  const token = tokenFromQuery(request);
+  if (token) {
+    const verified = verifyMediaReadToken({ env, token, assetId: mediaAssetId });
+    if (verified) {
+      return { id: verified.userId };
+    }
+  }
+
+  reply.code(401).send({ error: "Unauthorized" });
+  return null;
+}
+
 async function authenticateRequest(
   request: FastifyRequest,
   reply: FastifyReply,
   env: ApiEnv,
+  options?: { silent?: boolean },
 ): Promise<{ id: number } | null> {
   const token = readCookie(request, ACCESS_COOKIE);
   if (!token) {
-    reply.code(401).send({ error: "Unauthorized" });
+    if (!options?.silent) {
+      reply.code(401).send({ error: "Unauthorized" });
+    }
     return null;
   }
   try {
     return await verifyAccessToken(env, token);
   } catch {
-    reply.code(401).send({ error: "Unauthorized" });
+    if (!options?.silent) {
+      reply.code(401).send({ error: "Unauthorized" });
+    }
     return null;
   }
+}
+
+function tokenFromQuery(request: FastifyRequest): string | null {
+  const query = request.query as { token?: unknown };
+  return typeof query.token === "string" && query.token.trim() ? query.token : null;
 }
 
 function inferMediaType(mimeType: string, explicitType?: string): MediaAssetType {
@@ -236,7 +309,9 @@ async function resolveCrmOwnerKey(input: {
   if (phone.length >= 8) {
     return phone;
   }
-  return conversation.contactId ? `contact-${conversation.contactId}` : `conversation-${conversation.id}`;
+  return conversation.contactId
+    ? `contact-${conversation.contactId}`
+    : `conversation-${conversation.id}`;
 }
 
 async function writeMediaFile(input: {

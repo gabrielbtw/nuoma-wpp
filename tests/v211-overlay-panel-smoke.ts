@@ -110,6 +110,8 @@ async function main() {
       `fixtureStatesShot=${fixtureStateScreenshotPath}`,
       `wpp=${wppScreenshotPath}`,
       `wppStatesShot=${wppStateScreenshotPath}`,
+      `wppShot=${wppResult.screenshotMode}`,
+      `wppStatesShotMode=${wppResult.stateScreenshotMode}`,
       `wppMode=${wppResult.mode}`,
       "ig=nao_aplicavel",
       "m=36",
@@ -162,11 +164,15 @@ async function validateWhatsAppWeb() {
     await mountAndOpenPanel(page);
     const panel = await readPanelState(page);
     assertPanel(panel, "wpp");
-    await page.screenshot({ path: wppScreenshotPath, fullPage: false, timeout: 15_000 });
+    const screenshotMode = (await captureCdpViewportScreenshot(page, wppScreenshotPath))
+      ? "cdp"
+      : "timeout";
     const statePanel = await validatePanelStateFeedback(page);
     assertPanelStateFeedback(statePanel, "wpp");
-    await page.screenshot({ path: wppStateScreenshotPath, fullPage: false, timeout: 15_000 });
-    return { ...panel, ...statePanel, mode: "cdp" };
+    const stateScreenshotMode = (await captureCdpViewportScreenshot(page, wppStateScreenshotPath))
+      ? "cdp"
+      : "timeout";
+    return { ...panel, ...statePanel, mode: "cdp", screenshotMode, stateScreenshotMode };
   } finally {
     await browser.close();
   }
@@ -354,6 +360,31 @@ function assertPanelStateFeedback(
 ) {
   if (!panel.hasStateFeedback) {
     throw new Error(`${label} overlay panel missing state feedback: ${JSON.stringify(panel)}`);
+  }
+}
+
+async function captureCdpViewportScreenshot(page: Page, outputPath: string): Promise<boolean> {
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    const result = await Promise.race([
+      cdp.send("Page.captureScreenshot", {
+        format: "png",
+        captureBeyondViewport: false,
+      }),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("cdp_screenshot_timeout")), 8_000);
+      }),
+    ]);
+    await fs.writeFile(outputPath, Buffer.from(result.data, "base64"));
+    return true;
+  } catch (error) {
+    await fs.writeFile(
+      `${outputPath}.error.txt`,
+      error instanceof Error ? error.message : String(error),
+    );
+    return false;
+  } finally {
+    await cdp.detach().catch(() => undefined);
   }
 }
 

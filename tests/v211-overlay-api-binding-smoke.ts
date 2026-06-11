@@ -52,6 +52,7 @@ async function main() {
       `sendJobsDelta=${sendJobsDelta}`,
       `fixture=${fixtureScreenshotPath}`,
       `wpp=${wppScreenshotPath}`,
+      `wppShot=${wppResult.screenshotMode}`,
       `wppMode=${wppResult.mode}`,
       "ig=nao_aplicavel",
       "m=35",
@@ -101,6 +102,9 @@ async function validateWhatsAppWeb() {
     const context = browser.contexts()[0] ?? (await browser.newContext());
     page = context.pages().find((candidate) => candidate.url().startsWith(whatsappUrl)) ?? null;
     page ??= context.pages()[0] ?? (await context.newPage());
+    const bridge = await installApiBinding(page, "WhatsApp API M35", {
+      reloadWhenNativeMissing: true,
+    });
     await page.setViewportSize({ width: 1366, height: 768 });
 
     if (!page.url().startsWith(whatsappUrl)) {
@@ -133,18 +137,20 @@ async function validateWhatsAppWeb() {
     }
     const panel = await readPanelState(page);
     assertPanel(panel, "wpp");
-    await page.screenshot({ path: wppScreenshotPath, fullPage: false, timeout: 15_000 });
+    const screenshotMode = (await captureCdpViewportScreenshot(page, wppScreenshotPath))
+      ? "cdp"
+      : "timeout";
     return {
       ...panel,
       phone: state.phone,
       method: panel.apiMethod || "missing",
       mode: "worker-cdp-binding",
+      screenshotMode,
+      requests: bridge.requests.length,
     };
   } catch (error) {
     if (page) {
-      await page
-        .screenshot({ path: wppFailureScreenshotPath, fullPage: false, timeout: 15_000 })
-        .catch(() => undefined);
+      await captureCdpViewportScreenshot(page, wppFailureScreenshotPath).catch(() => undefined);
     }
     throw error;
   } finally {
@@ -595,6 +601,31 @@ function savedContactFixture() {
       </body>
     </html>
   `;
+}
+
+async function captureCdpViewportScreenshot(page: Page, outputPath: string): Promise<boolean> {
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    const result = await Promise.race([
+      cdp.send("Page.captureScreenshot", {
+        format: "png",
+        captureBeyondViewport: false,
+      }),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("cdp_screenshot_timeout")), 8_000);
+      }),
+    ]);
+    await fs.writeFile(outputPath, Buffer.from(result.data, "base64"));
+    return true;
+  } catch (error) {
+    await fs.writeFile(
+      `${outputPath}.error.txt`,
+      error instanceof Error ? error.message : String(error),
+    );
+    return false;
+  } finally {
+    await cdp.detach().catch(() => undefined);
+  }
 }
 
 main().catch((error) => {

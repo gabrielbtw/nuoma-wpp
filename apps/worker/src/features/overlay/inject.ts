@@ -15,11 +15,26 @@ export interface NuomaOverlayData {
   phoneSource?: string;
   title?: string;
   contact?: {
+    id?: number;
     name?: string | null;
     status?: string | null;
     primaryChannel?: string | null;
     notes?: string | null;
+    tagIds?: number[];
   } | null;
+  tags?: Array<{
+    id?: number;
+    name?: string | null;
+    color?: string | null;
+    description?: string | null;
+  }>;
+  reminders?: Array<{
+    id?: number;
+    title?: string | null;
+    notes?: string | null;
+    dueAt?: string | null;
+    status?: string | null;
+  }>;
   conversations?: Array<{
     id?: number;
     channel?: string | null;
@@ -93,6 +108,25 @@ export interface NuomaOverlayData {
     rejected?: Array<{ reason?: string | null }>;
   } | null;
   automationRunLastError?: string | null;
+  automationHistory?: Array<{
+    id?: number;
+    type?: string | null;
+    severity?: string | null;
+    automationId?: number | null;
+    phone?: string | null;
+    eligible?: boolean | null;
+    reasons?: string[];
+    jobsCreated?: number;
+    actionsApplied?: number;
+    createdAt?: string | null;
+  }>;
+  quickActionStatus?: string;
+  quickActionLastResult?: {
+    action?: string;
+    changed?: boolean;
+    rejected?: Array<{ reason?: string | null }>;
+  } | null;
+  quickActionLastError?: string | null;
   updatedAt?: string;
 }
 
@@ -120,7 +154,7 @@ function createNuomaOverlayCss(): string {
   all: initial;
   position: absolute;
   inset-block-start: 8px;
-  inset-inline-end: 72px;
+  inset-inline-end: var(--nuoma-fab-inline-end, 72px);
   z-index: 2147483646;
   display: block;
   inline-size: 48px;
@@ -222,6 +256,39 @@ function createNuomaOverlayCss(): string {
   box-shadow: 0 0 10px oklch(0.74 0.12 202 / 0.34);
 }
 
+.nuoma-sync-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: ${overlayTokens.cyan};
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.nuoma-sync-live::before {
+  content: "";
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 999px;
+  background: ${overlayTokens.cyan};
+  box-shadow: 0 0 12px oklch(0.74 0.12 202 / 0.48);
+  animation: nuoma-brand-pulse 850ms ease-in-out infinite;
+}
+
+:host([data-nuoma-debug="true"]) [data-nuoma-locator] {
+  outline: 1px solid oklch(0.62 0.20 25 / 0.95);
+  outline-offset: 2px;
+}
+
+:host([data-nuoma-dom-status="changed"]) .nuoma-fab {
+  border-color: oklch(0.78 0.15 74 / 0.62);
+  box-shadow:
+    0 0 0 1px oklch(0.78 0.15 74 / 0.38),
+    0 14px 34px oklch(0.05 0.020 205 / 0.38),
+    inset 0 1px 0 oklch(1 0 0 / 0.14);
+}
+
 :host([data-nuoma-api-status="offline"]) .nuoma-brand-status {
   background: ${overlayTokens.fgDim};
   box-shadow: none;
@@ -276,7 +343,7 @@ function createNuomaOverlayCss(): string {
   z-index: 2147483644;
   display: none;
   background: transparent;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .nuoma-panel {
@@ -720,7 +787,7 @@ function createNuomaOverlayCss(): string {
 @media (max-width: 780px) {
   :host {
     inset-block-start: 9px;
-    inset-inline-end: 66px;
+    inset-inline-end: var(--nuoma-fab-inline-end, 66px);
     inline-size: 46px;
     block-size: 46px;
   }
@@ -771,6 +838,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
   const state = window.__nuomaOverlayState || {
     observer: null,
     raf: 0,
+    observerTimer: 0,
     data: null,
     apiBridge: null,
     apiPending: {},
@@ -784,10 +852,23 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     apiLastError: "",
     quickCampaignId: "",
     quickAutomationId: "",
+    quickTagId: "",
+    quickStatus: "",
     animationRaf: 0,
     animationStartedAt: 0,
     visualState: "idle",
+    debugLocators: false,
+    domSignature: "",
+    domChanged: false,
+    hotReloadedAt: "",
+    refreshCount: 0,
   };
+
+  if (window.__nuomaOverlayVersion && window.__nuomaOverlayVersion !== config.version) {
+    state.hotReloadedAt = new Date().toISOString();
+    state.domSignature = "";
+    state.apiHydratedPhone = "";
+  }
 
   const readOnlyApiMethods = new Set(["ping", "contactSummary"]);
 
@@ -1137,6 +1218,14 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
           return response;
         });
       },
+      applyTag: (input) => runQuickActionMutation("applyTag", input || {}, "Aplicar tag no contato"),
+      removeTag: (input) =>
+        runQuickActionMutation("removeTag", input || {}, "Remover tag do contato"),
+      setStatus: (input) =>
+        runQuickActionMutation("setStatus", input || {}, "Alterar status do contato"),
+      createReminder: (input) =>
+        runQuickActionMutation("createReminder", input || {}, "Criar lembrete no contato"),
+      automationHistory: (input) => requestNuomaApi("automationHistory", input || {}),
       prepareMutation,
       confirmMutation: (intent, confirmationText) =>
         requestNuomaApi(intent && intent.method, intent && intent.params, {
@@ -1157,6 +1246,31 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
           return response;
         }),
     };
+  }
+
+  function runQuickActionMutation(method, input, confirmationText) {
+    const intent = prepareMutation(method, input || {});
+    return requestNuomaApi(method, input || {}, {
+      mutationIntent: intent,
+      confirmationText,
+      confirm: true,
+      timeoutMs: 12000,
+    }).then((response) => {
+      if (response && response.data && typeof window.__nuomaOverlaySetData === "function") {
+        window.__nuomaOverlaySetData({
+          ...(response.data.snapshot || {}),
+          quickActionStatus: response.ok ? "done" : "error",
+          quickActionLastResult: response.data.result || null,
+          quickActionLastError:
+            response.ok ? null : response.error && response.error.message ? response.error.message : "Acao rapida bloqueada",
+          apiStatus: response.ok ? "online" : "error",
+          apiLastMethod: method,
+          apiLastError:
+            response.ok ? null : response.error && response.error.message ? response.error.message : "Acao rapida bloqueada",
+        });
+      }
+      return response;
+    });
   }
 
   function shortDate(value) {
@@ -1600,6 +1714,82 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     );
   }
 
+  function headerDomSignature(header) {
+    if (!header) {
+      return "missing-header";
+    }
+    const controls = Array.from(header.querySelectorAll("button, [role='button'], [data-testid], [aria-label], [title]"))
+      .filter((node) => !(node.closest && node.closest("[data-nuoma-overlay-root]")))
+      .slice(0, 12)
+      .map((node) => {
+        const label = text(node.getAttribute && node.getAttribute("aria-label"));
+        return [
+          node.tagName,
+          text(node.getAttribute && node.getAttribute("data-testid")),
+          isHeaderControlText(label) ? label : "",
+          text(node.getAttribute && node.getAttribute("role")),
+        ]
+          .filter(Boolean)
+          .join(":");
+      });
+    return controls.join("|") || "header-empty";
+  }
+
+  function updateDomGuard(host, header) {
+    const signature = headerDomSignature(header);
+    if (!state.domSignature) {
+      state.domSignature = signature;
+    } else if (signature !== state.domSignature && signature !== "missing-header") {
+      state.domChanged = true;
+      host.setAttribute("data-nuoma-dom-status", "changed");
+      host.setAttribute("data-nuoma-dom-signature", signature.slice(0, 180));
+      window.dispatchEvent(
+        new CustomEvent("nuoma:overlay-dom-changed", {
+          detail: {
+            previousSignature: state.domSignature,
+            currentSignature: signature,
+            version: config.version,
+            observedAt: new Date().toISOString(),
+          },
+        }),
+      );
+    }
+    if (!state.domChanged) {
+      host.setAttribute("data-nuoma-dom-status", "ok");
+    }
+    return signature;
+  }
+
+  function positionHostByHeaderActions(host, header) {
+    if (!header || !header.getBoundingClientRect) {
+      host.style.setProperty("--nuoma-fab-inline-end", "72px");
+      return;
+    }
+    const headerRect = header.getBoundingClientRect();
+    const actionNodes = Array.from(
+      header.querySelectorAll("button, [role='button'], [data-testid], [aria-label]"),
+    ).filter((node) => {
+      if (node.closest && node.closest("[data-nuoma-overlay-root]")) {
+        return false;
+      }
+      const rect = node.getBoundingClientRect && node.getBoundingClientRect();
+      return Boolean(
+        rect &&
+          rect.width >= 12 &&
+          rect.height >= 12 &&
+          rect.left > headerRect.left + headerRect.width * 0.42,
+      );
+    });
+    const leftmostAction = actionNodes
+      .map((node) => node.getBoundingClientRect().left)
+      .sort((a, b) => a - b)[0];
+    const offset = Number.isFinite(leftmostAction)
+      ? Math.min(190, Math.max(58, Math.round(headerRect.right - leftmostAction + 10)))
+      : 72;
+    host.style.setProperty("--nuoma-fab-inline-end", offset + "px");
+    host.setAttribute("data-nuoma-header-actions", String(actionNodes.length));
+  }
+
   function detectCurrentThread(header) {
     if (!header) {
       return { title: "", phone: "", waJid: "", phoneSource: "missing-header" };
@@ -1737,7 +1927,9 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
         if (event.key === "Escape") {
           event.preventDefault();
           setOpen(host, false);
+          return;
         }
+        handleOverlayShortcut(event, host);
       });
       shadow.appendChild(panel);
     }
@@ -1756,7 +1948,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     if (open) {
       void refreshContactFromApi(host, "panel-open");
       setTimeout(() => {
-        host.shadowRoot?.querySelector(".nuoma-panel-body")?.focus();
+        host.shadowRoot?.querySelector("[data-nuoma-panel-body]")?.focus();
       }, 0);
     } else {
       host.shadowRoot?.querySelector("[data-nuoma-fab]")?.focus({ preventScroll: true });
@@ -2048,6 +2240,104 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       });
   }
 
+  function overlayIdentityParams(host, extra) {
+    return {
+      phone: host.getAttribute("data-nuoma-thread-phone") || (state.data && state.data.phone) || "",
+      waJid: host.getAttribute("data-nuoma-wa-jid") || (state.data && state.data.waJid) || "",
+      phoneSource: host.getAttribute("data-nuoma-phone-source") || "",
+      threadTitle: host.getAttribute("data-nuoma-thread-title") || "",
+      ...(extra || {}),
+    };
+  }
+
+  function runQuickActionForCurrentContact(host, method, params) {
+    installNuomaApi();
+    const api = window.__nuomaApi || {};
+    const action = api[method];
+    if (state.apiInFlight || typeof action !== "function") {
+      return Promise.resolve(null);
+    }
+    const identity = overlayIdentityParams(host);
+    if (!identity.phone && !identity.waJid) {
+      return Promise.resolve(null);
+    }
+    state.apiInFlight = true;
+    state.data = {
+      ...(state.data || {}),
+      quickActionStatus: "running",
+      quickActionLastError: null,
+      apiStatus: "loading",
+      apiLastMethod: method,
+      apiLastError: null,
+    };
+    renderPanel(host);
+    return action(overlayIdentityParams(host, params || {}))
+      .then((response) => {
+        if (!response || !response.ok) {
+          state.data = {
+            ...(state.data || {}),
+            quickActionStatus: "error",
+            quickActionLastError:
+              response && response.error && response.error.message
+                ? response.error.message
+                : "Acao rapida bloqueada",
+            apiStatus: "error",
+            apiLastMethod: method,
+            apiLastError:
+              response && response.error && response.error.message
+                ? response.error.message
+                : "Acao rapida bloqueada",
+          };
+        }
+        renderPanel(host);
+        return response;
+      })
+      .finally(() => {
+        state.apiInFlight = false;
+        renderPanel(host);
+      });
+  }
+
+  function isTextEntryTarget(target) {
+    if (!target || !target.matches) {
+      return false;
+    }
+    return (
+      target.matches("input, textarea, select") ||
+      target.getAttribute("contenteditable") === "true" ||
+      Boolean(target.closest && target.closest("[contenteditable='true']"))
+    );
+  }
+
+  function toggleDebugLocators(host) {
+    state.debugLocators = !state.debugLocators;
+    host.setAttribute("data-nuoma-debug", state.debugLocators ? "true" : "false");
+    renderPanel(host);
+  }
+
+  function handleOverlayShortcut(event, host) {
+    if (event.altKey || event.ctrlKey || event.metaKey || isTextEntryTarget(event.target)) {
+      return;
+    }
+    const key = text(event.key).toLowerCase();
+    if (key === "r") {
+      event.preventDefault();
+      void refreshContactFromApi(host, "shortcut-refresh");
+    } else if (key === "s") {
+      event.preventDefault();
+      void forceSyncCurrentConversation(host);
+    } else if (key === "c") {
+      event.preventDefault();
+      void copyPhoneToClipboard(
+        host.getAttribute("data-nuoma-thread-phone") || (state.data && state.data.phone) || "",
+        host,
+      );
+    } else if (key === "d") {
+      event.preventDefault();
+      toggleDebugLocators(host);
+    }
+  }
+
   function renderPanel(host) {
     const panel = host.shadowRoot?.querySelector("[data-nuoma-panel]");
     if (!panel) {
@@ -2061,9 +2351,13 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     const waJid = text(data.waJid) || host.getAttribute("data-nuoma-wa-jid") || "";
     const phoneSource = text(data.phoneSource) || host.getAttribute("data-nuoma-phone-source") || "";
     const contact = data.contact || null;
+    const tags = Array.isArray(data.tags) ? data.tags : [];
+    const contactTagIds = Array.isArray(contact && contact.tagIds) ? contact.tagIds : [];
+    const reminders = Array.isArray(data.reminders) ? data.reminders : [];
     const conversations = Array.isArray(data.conversations) ? data.conversations : [];
     const latestMessages = Array.isArray(data.latestMessages) ? data.latestMessages : [];
     const automations = Array.isArray(data.automations) ? data.automations : [];
+    const automationHistory = Array.isArray(data.automationHistory) ? data.automationHistory : [];
     const campaigns = Array.isArray(data.campaigns) ? data.campaigns : [];
     const notes = text(data.notes) || text(contact && contact.notes);
     const apiStatus = text(data.apiStatus) || text(state.apiStatus) || "offline";
@@ -2077,6 +2371,9 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     const automationRunStatus = text(data.automationRunStatus);
     const automationRunLastResult = data.automationRunLastResult || null;
     const automationRunLastError = text(data.automationRunLastError);
+    const quickActionStatus = text(data.quickActionStatus);
+    const quickActionLastResult = data.quickActionLastResult || null;
+    const quickActionLastError = text(data.quickActionLastError);
     const isApiLoading =
       apiStatus === "loading" || (state.apiInFlight && apiStatus !== "online" && apiStatus !== "error");
     const hasApiError = apiStatus === "error" || Boolean(apiLastError);
@@ -2108,6 +2405,8 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
 
     const body = document.createElement("div");
     body.className = "nuoma-panel-body";
+    body.setAttribute("data-nuoma-panel-body", "");
+    body.setAttribute("data-nuoma-locator", "panel-body");
     body.tabIndex = 0;
 
     if (isApiLoading) {
@@ -2184,9 +2483,16 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     summary.appendChild(grid);
     body.appendChild(summary);
 
-    const syncSection = section("Sync", syncStatus === "done" ? "atualizado" : "manual");
+    const syncSection = section(
+      "Sync",
+      syncStatus === "running" ? "ativo" : syncStatus === "done" ? "atualizado" : syncStatus === "error" ? "erro" : "manual",
+    );
     const syncActions = document.createElement("div");
     syncActions.className = "nuoma-action-row";
+    if (syncStatus === "running") {
+      const live = appendText(syncActions, "div", "nuoma-sync-live", "Sync ativo");
+      live.setAttribute("data-nuoma-sync-indicator", "running");
+    }
     const syncButton = document.createElement("button");
     syncButton.type = "button";
     syncButton.className = "nuoma-action";
@@ -2327,6 +2633,142 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     });
     automationQuickRow.appendChild(automationQuickButton);
     quickGrid.appendChild(automationQuickRow);
+
+    const selectedTag =
+      tags.find((tag) => String(tag.id || "") === text(state.quickTagId)) || tags[0] || null;
+    if (selectedTag && selectedTag.id) {
+      state.quickTagId = String(selectedTag.id);
+    }
+    const tagQuickRow = document.createElement("div");
+    tagQuickRow.className = "nuoma-quick-row";
+    tagQuickRow.setAttribute("data-nuoma-locator", "quick-tag");
+    const tagSelect = document.createElement("select");
+    tagSelect.className = "nuoma-select";
+    tagSelect.setAttribute("aria-label", "Selecionar tag para aplicar ou remover");
+    tagSelect.setAttribute("data-nuoma-quick-tag", "true");
+    tagSelect.disabled = tags.length === 0 || state.apiInFlight || !contact;
+    for (const tag of tags.slice(0, 8)) {
+      const option = document.createElement("option");
+      option.value = String(tag.id || "");
+      option.textContent = text(tag.name) || "Tag sem nome";
+      option.selected = selectedTag && tag.id === selectedTag.id;
+      tagSelect.appendChild(option);
+    }
+    tagSelect.addEventListener("change", () => {
+      state.quickTagId = tagSelect.value;
+      renderPanel(host);
+    });
+    tagQuickRow.appendChild(tagSelect);
+    const tagButtons = document.createElement("div");
+    tagButtons.className = "nuoma-inline-actions";
+    const applyTagButton = document.createElement("button");
+    applyTagButton.type = "button";
+    applyTagButton.className = "nuoma-small-action";
+    applyTagButton.textContent = "Aplicar";
+    applyTagButton.disabled = !hasDispatchTarget || !contact || !selectedTag || state.apiInFlight;
+    applyTagButton.setAttribute("data-nuoma-quick-apply-tag", "true");
+    applyTagButton.addEventListener("click", () => {
+      void runQuickActionForCurrentContact(host, "applyTag", {
+        tagId: Number(state.quickTagId),
+      });
+    });
+    tagButtons.appendChild(applyTagButton);
+    const removeTagButton = document.createElement("button");
+    removeTagButton.type = "button";
+    removeTagButton.className = "nuoma-small-action";
+    removeTagButton.textContent = "Remover";
+    removeTagButton.disabled =
+      !hasDispatchTarget ||
+      !contact ||
+      !selectedTag ||
+      !contactTagIds.includes(Number(selectedTag.id)) ||
+      state.apiInFlight;
+    removeTagButton.setAttribute("data-nuoma-quick-remove-tag", "true");
+    removeTagButton.addEventListener("click", () => {
+      void runQuickActionForCurrentContact(host, "removeTag", {
+        tagId: Number(state.quickTagId),
+      });
+    });
+    tagButtons.appendChild(removeTagButton);
+    tagQuickRow.appendChild(tagButtons);
+    quickGrid.appendChild(tagQuickRow);
+
+    const statuses = ["lead", "active", "inactive", "blocked", "archived"];
+    const statusQuickRow = document.createElement("div");
+    statusQuickRow.className = "nuoma-quick-row";
+    statusQuickRow.setAttribute("data-nuoma-locator", "quick-status");
+    const statusSelect = document.createElement("select");
+    statusSelect.className = "nuoma-select";
+    statusSelect.setAttribute("aria-label", "Selecionar status do contato");
+    statusSelect.setAttribute("data-nuoma-quick-status", "true");
+    statusSelect.disabled = !contact || state.apiInFlight;
+    const selectedStatus = text(state.quickStatus) || text(contact && contact.status) || "lead";
+    for (const status of statuses) {
+      const option = document.createElement("option");
+      option.value = status;
+      option.textContent = status;
+      option.selected = status === selectedStatus;
+      statusSelect.appendChild(option);
+    }
+    statusSelect.addEventListener("change", () => {
+      state.quickStatus = statusSelect.value;
+      renderPanel(host);
+    });
+    statusQuickRow.appendChild(statusSelect);
+    const statusButton = document.createElement("button");
+    statusButton.type = "button";
+    statusButton.className = "nuoma-action";
+    statusButton.textContent = "Salvar status";
+    statusButton.disabled = !hasDispatchTarget || !contact || state.apiInFlight;
+    statusButton.setAttribute("data-nuoma-quick-set-status", "true");
+    statusButton.addEventListener("click", () => {
+      void runQuickActionForCurrentContact(host, "setStatus", {
+        status: statusSelect.value,
+      });
+    });
+    statusQuickRow.appendChild(statusButton);
+    quickGrid.appendChild(statusQuickRow);
+
+    const reminderQuickRow = document.createElement("div");
+    reminderQuickRow.className = "nuoma-quick-row";
+    reminderQuickRow.setAttribute("data-nuoma-locator", "quick-reminder");
+    appendText(
+      reminderQuickRow,
+      "div",
+      "nuoma-sync-note",
+      reminders.length
+        ? [text(reminders[0].title) || "Lembrete aberto", shortDate(reminders[0].dueAt)].filter(Boolean).join(" · ")
+        : "Sem lembrete aberto",
+    );
+    const reminderButton = document.createElement("button");
+    reminderButton.type = "button";
+    reminderButton.className = "nuoma-action";
+    reminderButton.textContent = "Lembrar amanha";
+    reminderButton.disabled = !hasDispatchTarget || !contact || state.apiInFlight;
+    reminderButton.setAttribute("data-nuoma-quick-create-reminder", "true");
+    reminderButton.addEventListener("click", () => {
+      void runQuickActionForCurrentContact(host, "createReminder", {
+        title: "Retornar pelo WhatsApp",
+        dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        notes: "Criado pelo overlay Nuoma no WhatsApp Web.",
+      });
+    });
+    reminderQuickRow.appendChild(reminderButton);
+    quickGrid.appendChild(reminderQuickRow);
+
+    if (quickActionStatus || quickActionLastResult || quickActionLastError) {
+      appendText(
+        quickGrid,
+        "div",
+        "nuoma-empty" + (quickActionStatus === "error" ? " nuoma-warning" : ""),
+        quickActionStatus === "running"
+          ? "Aplicando acao rapida."
+          : quickActionStatus === "done"
+            ? "Acao rapida aplicada" +
+              (quickActionLastResult && quickActionLastResult.changed === false ? " sem alteracao." : ".")
+            : quickActionLastError || "Acao rapida bloqueada.",
+      );
+    }
     quickSection.appendChild(quickGrid);
     body.appendChild(quickSection);
 
@@ -2492,6 +2934,48 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     }
     body.appendChild(automationSection);
 
+    const historySection = section(
+      "Historico automacoes",
+      automationHistory.length ? String(automationHistory.length) : "0",
+    );
+    const historyList = document.createElement("div");
+    historyList.className = "nuoma-list";
+    historyList.setAttribute("data-nuoma-automation-history", "true");
+    if (automationHistory.length === 0) {
+      appendText(historyList, "div", "nuoma-empty", "Nenhuma automacao disparada por overlay para este contato.");
+    } else {
+      for (const item of automationHistory.slice(0, 5)) {
+        const row = document.createElement("div");
+        row.className = "nuoma-list-item";
+        row.setAttribute("data-nuoma-locator", "automation-history-item");
+        appendText(
+          row,
+          "strong",
+          "",
+          "Automation #" + (item.automationId || "?") + (item.eligible === false ? " bloqueada" : " disparada"),
+        );
+        appendText(
+          row,
+          "span",
+          "",
+          [
+            shortDate(item.createdAt),
+            (item.jobsCreated || 0) + " job(s)",
+            (item.actionsApplied || 0) + " acao(oes)",
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        );
+        const reasons = Array.isArray(item.reasons) ? item.reasons.filter(Boolean) : [];
+        if (reasons.length > 0) {
+          appendText(row, "span", "nuoma-warning", reasons.slice(0, 2).join(" · "));
+        }
+        historyList.appendChild(row);
+      }
+    }
+    historySection.appendChild(historyList);
+    body.appendChild(historySection);
+
     const messageSection = section("Ultimas mensagens", latestMessages.length ? String(latestMessages.length) : "0");
     const messageList = document.createElement("div");
     messageList.className = "nuoma-list";
@@ -2543,6 +3027,32 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
       unresolvedActions.appendChild(reidentify);
       unresolved.appendChild(unresolvedActions);
     }
+    const debugSection = section("Debug", state.debugLocators ? "locators on" : "locators off");
+    const debugActions = document.createElement("div");
+    debugActions.className = "nuoma-inline-actions";
+    const debugButton = document.createElement("button");
+    debugButton.type = "button";
+    debugButton.className = "nuoma-small-action";
+    debugButton.setAttribute("data-nuoma-debug-toggle", "true");
+    debugButton.textContent = state.debugLocators ? "Ocultar bordas" : "Mostrar bordas";
+    debugButton.addEventListener("click", () => toggleDebugLocators(host));
+    debugActions.appendChild(debugButton);
+    appendText(
+      debugActions,
+      "div",
+      "nuoma-sync-note",
+      "Atalhos: R atualizar · S sync · C copiar · D debug",
+    );
+    debugSection.appendChild(debugActions);
+    if (state.domChanged) {
+      appendText(
+        debugSection,
+        "div",
+        "nuoma-empty nuoma-warning",
+        "DOM do WhatsApp mudou desde a injecao. Revalidar locators antes de acao sensivel.",
+      );
+    }
+    body.appendChild(debugSection);
     if (apiLastError) {
       appendText(body, "div", "nuoma-empty nuoma-warning", "Ponte API: " + apiLastError);
     }
@@ -2567,8 +3077,11 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
   function section(title, pill) {
     const wrapper = document.createElement("section");
     wrapper.className = "nuoma-section";
+    wrapper.setAttribute("data-nuoma-section", text(title).toLowerCase().replace(/[^a-z0-9]+/g, "-"));
+    wrapper.setAttribute("data-nuoma-locator", "section");
     const heading = document.createElement("div");
     heading.className = "nuoma-section-title";
+    heading.setAttribute("data-nuoma-locator", "section-title");
     appendText(heading, "span", "", title);
     appendText(heading, "span", "nuoma-pill", pill);
     wrapper.appendChild(heading);
@@ -2594,6 +3107,7 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
   }
 
   function refresh() {
+    state.refreshCount = (state.refreshCount || 0) + 1;
     const header = findHeader();
     if (!header) {
       return { mounted: false, reason: "header-not-found", version: config.version };
@@ -2606,6 +3120,8 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     const existingWaJid = normalizeWaJid(existingHost?.getAttribute("data-nuoma-wa-jid"));
     const existingPhoneSource = text(existingHost?.getAttribute("data-nuoma-phone-source"));
     const host = ensureHost(header);
+    updateDomGuard(host, header);
+    positionHostByHeaderActions(host, header);
     const dataPhone = text(state.data && state.data.phone);
     const dataWaJid = text(state.data && state.data.waJid);
     const dataPhoneSource = text(state.data && state.data.phoneSource);
@@ -2674,6 +3190,10 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     host.setAttribute("data-nuoma-wa-jid", displayWaJid);
     host.setAttribute("data-nuoma-phone-source", displayPhoneSource);
     host.setAttribute("data-nuoma-api-status", state.apiStatus || "offline");
+    host.setAttribute("data-nuoma-debug", state.debugLocators ? "true" : "false");
+    if (state.hotReloadedAt) {
+      host.setAttribute("data-nuoma-hot-reloaded-at", state.hotReloadedAt);
+    }
     const button = ensureShadow(host);
     button.setAttribute("data-nuoma-thread-phone", displayPhone);
     button.setAttribute("data-nuoma-wa-jid", displayWaJid);
@@ -2703,13 +3223,19 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
   }
 
   function scheduleRefresh() {
-    if (state.raf) {
-      cancelAnimationFrame(state.raf);
+    if (state.observerTimer) {
+      clearTimeout(state.observerTimer);
     }
-    state.raf = requestAnimationFrame(() => {
-      state.raf = 0;
-      refresh();
-    });
+    state.observerTimer = setTimeout(() => {
+      state.observerTimer = 0;
+      if (state.raf) {
+        cancelAnimationFrame(state.raf);
+      }
+      state.raf = requestAnimationFrame(() => {
+        state.raf = 0;
+        refresh();
+      });
+    }, 50);
   }
 
   function installObserver() {
@@ -2773,6 +3299,10 @@ export function createNuomaOverlayScript(options: NuomaOverlayScriptOptions = {}
     }
     if (state.raf) {
       cancelAnimationFrame(state.raf);
+    }
+    if (state.observerTimer) {
+      clearTimeout(state.observerTimer);
+      state.observerTimer = 0;
     }
     if (state.animationRaf) {
       cancelAnimationFrame(state.animationRaf);

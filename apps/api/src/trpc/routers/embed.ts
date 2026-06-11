@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { protectedCsrfProcedure, protectedProcedure, router } from "../init.js";
 import { triggerAutomationForPhone } from "../../services/automation-trigger.js";
+import { buildExtensionOverlaySnapshot } from "../../services/extension-overlay.js";
 import { resolveApiSendPolicy } from "../../services/send-policy.js";
 
 const phoneInputSchema = z.object({
@@ -11,34 +12,17 @@ const phoneInputSchema = z.object({
 
 export const embedRouter = router({
   contactSummary: protectedProcedure.input(phoneInputSchema).query(async ({ ctx, input }) => {
-    const contact = await ctx.repos.contacts.findByPhone({
+    const sendPolicy = resolveApiSendPolicy(ctx.env);
+    return buildExtensionOverlaySnapshot({
+      repos: ctx.repos,
       userId: ctx.user.id,
       phone: input.phone,
+      waJid: null,
+      phoneSource: "embed.trpc",
+      title: null,
+      reason: "embed.contactSummary",
+      sendPolicy,
     });
-    if (!contact) {
-      return {
-        contact: null,
-        conversations: [],
-        latestMessages: [],
-      };
-    }
-
-    const conversations = (await ctx.repos.conversations.list(ctx.user.id, 100)).filter(
-      (conversation) => conversation.contactId === contact.id,
-    );
-    const latestMessages = (
-      await Promise.all(
-        conversations.map((conversation) =>
-          ctx.repos.messages.listByConversation({
-            userId: ctx.user.id,
-            conversationId: conversation.id,
-            limit: 3,
-          }),
-        ),
-      )
-    ).flat();
-
-    return { contact, conversations, latestMessages };
   }),
 
   eligibleAutomations: protectedProcedure.input(phoneInputSchema).query(async ({ ctx, input }) => {

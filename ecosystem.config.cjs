@@ -1,4 +1,6 @@
 module.exports = {
+  // LEGACY V1 maintenance process map. Fase 1 keeps this file available for
+  // rollback/reference only; use ecosystem.canonical.config.cjs for V2.
   apps: [
     {
       name: "web-app",

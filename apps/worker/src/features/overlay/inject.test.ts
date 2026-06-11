@@ -1258,4 +1258,230 @@ describe("Nuoma WhatsApp overlay injection", () => {
       await browser.close();
     }
   }, 30_000);
+
+  it("renders V2.11 quick actions, sync indicator, automation history, debug and shortcuts", async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+
+    try {
+      const fixture = await readFile(
+        path.resolve(process.cwd(), "../../tests/fixtures/wa-web.html"),
+        "utf8",
+      );
+      await page.setContent(fixture);
+      await page.evaluate(createNuomaOverlayScript());
+      const state = await page.evaluate(
+        async ({ rootId, panelTestId }) => {
+          (
+            window as unknown as {
+              __nuomaOverlaySetData: (data: unknown) => unknown;
+            }
+          ).__nuomaOverlaySetData({
+            phone: "5531982066263",
+            waJid: "5531982066263@s.whatsapp.net",
+            phoneSource: "message-data-id",
+            title: "5531982066263",
+            contact: {
+              id: 10,
+              name: "Contato V2.11",
+              status: "lead",
+              primaryChannel: "whatsapp",
+              tagIds: [2],
+              notes: "Nota",
+            },
+            tags: [
+              { id: 1, name: "VIP", color: "#22c55e" },
+              { id: 2, name: "Lead quente", color: "#f97316" },
+            ],
+            reminders: [
+              {
+                id: 3,
+                title: "Retornar lead",
+                dueAt: "2026-06-12T12:00:00.000Z",
+                status: "open",
+              },
+            ],
+            automations: [],
+            campaigns: [],
+            automationHistory: [
+              {
+                id: 99,
+                type: "automation.overlay.dispatched",
+                automationId: 42,
+                eligible: true,
+                jobsCreated: 1,
+                actionsApplied: 2,
+                createdAt: "2026-06-11T10:00:00.000Z",
+              },
+            ],
+            syncStatus: "running",
+            apiStatus: "online",
+            apiLastMethod: "contactSummary",
+            source: "nuoma-api",
+          });
+          const host = document.getElementById(rootId);
+          host?.shadowRoot?.querySelector<HTMLButtonElement>("[data-nuoma-fab]")?.click();
+          await new Promise((resolve) => setTimeout(resolve, 30));
+          const panel = host?.shadowRoot?.querySelector(`[data-testid="${panelTestId}"]`);
+          host?.shadowRoot?.querySelector<HTMLButtonElement>("[data-nuoma-debug-toggle]")?.click();
+          const body = host?.shadowRoot?.querySelector<HTMLElement>("[data-nuoma-panel-body]");
+          body?.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "d", bubbles: true, cancelable: true }),
+          );
+          body?.dispatchEvent(
+            new KeyboardEvent("keydown", { key: "r", bubbles: true, cancelable: true }),
+          );
+          const statusSelect = host?.shadowRoot?.querySelector<HTMLSelectElement>(
+            "[data-nuoma-quick-status]",
+          );
+          const statusEvent = new KeyboardEvent("keydown", {
+            key: "d",
+            bubbles: true,
+            cancelable: true,
+          });
+          statusSelect?.dispatchEvent(statusEvent);
+          return {
+            panelText: panel?.textContent ?? "",
+            hasSyncIndicator: Boolean(
+              host?.shadowRoot?.querySelector("[data-nuoma-sync-indicator='running']"),
+            ),
+            hasQuickTag: Boolean(host?.shadowRoot?.querySelector("[data-nuoma-quick-tag]")),
+            hasQuickStatus: Boolean(host?.shadowRoot?.querySelector("[data-nuoma-quick-status]")),
+            hasQuickReminder: Boolean(
+              host?.shadowRoot?.querySelector("[data-nuoma-quick-create-reminder]"),
+            ),
+            hasHistory: Boolean(host?.shadowRoot?.querySelector("[data-nuoma-automation-history]")),
+            debug: host?.getAttribute("data-nuoma-debug"),
+            statusPrevented: statusEvent.defaultPrevented,
+          };
+        },
+        { rootId: NUOMA_OVERLAY_ROOT_ID, panelTestId: NUOMA_OVERLAY_PANEL_TEST_ID },
+      );
+
+      expect(state.panelText).toContain("Sync ativo");
+      expect(state.panelText).toContain("VIP");
+      expect(state.panelText).toContain("Lead quente");
+      expect(state.panelText).toContain("Retornar lead");
+      expect(state.panelText).toContain("Historico automacoes");
+      expect(state.panelText).toContain("Automation #42 disparada");
+      expect(state.hasSyncIndicator).toBe(true);
+      expect(state.hasQuickTag).toBe(true);
+      expect(state.hasQuickStatus).toBe(true);
+      expect(state.hasQuickReminder).toBe(true);
+      expect(state.hasHistory).toBe(true);
+      expect(state.debug).toBe("false");
+      expect(state.statusPrevented).toBe(false);
+    } finally {
+      await browser.close();
+    }
+  }, 30_000);
+
+  it("debounces observer refreshes and hot-reloads without duplicating the overlay", async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+
+    try {
+      const fixture = await readFile(
+        path.resolve(process.cwd(), "../../tests/fixtures/wa-web.html"),
+        "utf8",
+      );
+      await page.setContent(fixture);
+      await page.evaluate(createNuomaOverlayScript({ version: "v2.11-test-a" }));
+      const result = await page.evaluate(
+        async ({ rootId }) => {
+          const overlayState = (
+            window as unknown as {
+              __nuomaOverlayState: { refreshCount: number; observerTimer: number };
+            }
+          ).__nuomaOverlayState;
+          const before = overlayState.refreshCount;
+          for (let index = 0; index < 12; index += 1) {
+            document
+              .querySelector("#main header")
+              ?.setAttribute("data-testid", "conversation-header-" + index);
+          }
+          await new Promise((resolve) => setTimeout(resolve, 90));
+          return {
+            before,
+            afterBurst: overlayState.refreshCount,
+            timer: overlayState.observerTimer,
+            rootCountBeforeReload: document.querySelectorAll(`#${rootId}`).length,
+          };
+        },
+        { rootId: NUOMA_OVERLAY_ROOT_ID },
+      );
+      await page.evaluate(createNuomaOverlayScript({ version: "v2.11-test-b" }));
+      const reloaded = await page.evaluate((rootId) => {
+        const host = document.getElementById(rootId);
+        return {
+          rootCount: document.querySelectorAll(`#${rootId}`).length,
+          version: host?.getAttribute("data-nuoma-version"),
+          hotReloadedAt: host?.getAttribute("data-nuoma-hot-reloaded-at"),
+        };
+      }, NUOMA_OVERLAY_ROOT_ID);
+
+      expect(result.rootCountBeforeReload).toBe(1);
+      expect(result.afterBurst - result.before).toBeLessThanOrEqual(2);
+      expect(result.timer).toBe(0);
+      expect(reloaded).toMatchObject({ rootCount: 1, version: "v2.11-test-b" });
+      expect(reloaded.hotReloadedAt).toBeTruthy();
+    } finally {
+      await browser.close();
+    }
+  }, 30_000);
+
+  it("keeps native WhatsApp composer events additive while the overlay is open", async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+
+    try {
+      await page.setContent(`
+        <!doctype html>
+        <html lang="pt-BR">
+          <body>
+            <section id="main">
+              <header style="position: relative; min-height: 64px">
+                <span title="5531982066263">5531982066263</span>
+                <button type="button" aria-label="Pesquisar">Pesquisar</button>
+                <button type="button" aria-label="Mais opcoes">Mais</button>
+              </header>
+              <div data-id="false_5531982066263@c.us_M34">Mensagem</div>
+              <footer>
+                <div id="composer" contenteditable="true" role="textbox">Oi</div>
+                <button id="native-send" type="button" aria-label="Enviar">Enviar</button>
+              </footer>
+            </section>
+          </body>
+        </html>
+      `);
+      await page.evaluate(createNuomaOverlayScript());
+      const result = await page.evaluate((rootId) => {
+        let sendClicks = 0;
+        let composerEnter = 0;
+        document.getElementById("native-send")?.addEventListener("click", () => {
+          sendClicks += 1;
+        });
+        document.getElementById("composer")?.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" && !event.defaultPrevented) {
+            composerEnter += 1;
+          }
+        });
+        const host = document.getElementById(rootId);
+        host?.shadowRoot?.querySelector<HTMLButtonElement>("[data-nuoma-fab]")?.click();
+        document.getElementById("native-send")?.click();
+        document.getElementById("composer")?.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }),
+        );
+        return {
+          overlayState: host?.getAttribute("data-nuoma-state"),
+          sendClicks,
+          composerEnter,
+        };
+      }, NUOMA_OVERLAY_ROOT_ID);
+
+      expect(result).toMatchObject({ overlayState: "open", sendClicks: 1, composerEnter: 1 });
+    } finally {
+      await browser.close();
+    }
+  }, 30_000);
 });

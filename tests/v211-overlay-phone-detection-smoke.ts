@@ -50,6 +50,7 @@ async function main() {
       `sendJobsDelta=${sendJobsDelta}`,
       `fixture=${fixtureScreenshotPath}`,
       `wpp=${wppScreenshotPath}`,
+      `wppShot=${wppResult.screenshotMode}`,
       `wppMode=${wppResult.mode}`,
       "ig=nao_aplicavel",
       "m=34",
@@ -114,13 +115,13 @@ async function validateWhatsAppWeb() {
     await hydrateAndOpenPanel(page, state, "WhatsApp Web M34");
     const panel = await readPanelState(page);
     assertPanel(panel, "wpp");
-    await page.screenshot({ path: wppScreenshotPath, fullPage: false, timeout: 15_000 });
-    return { ...state, ...panel, mode: "cdp" };
+    const screenshotMode = (await captureCdpViewportScreenshot(page, wppScreenshotPath))
+      ? "cdp"
+      : "timeout";
+    return { ...state, ...panel, mode: "cdp", screenshotMode };
   } catch (error) {
     if (page) {
-      await page
-        .screenshot({ path: wppFailureScreenshotPath, fullPage: false, timeout: 15_000 })
-        .catch(() => undefined);
+      await captureCdpViewportScreenshot(page, wppFailureScreenshotPath).catch(() => undefined);
     }
     throw error;
   } finally {
@@ -420,6 +421,31 @@ interface OverlayState {
   title: string;
   hostPhone: string;
   hostPhoneSource: string;
+}
+
+async function captureCdpViewportScreenshot(page: Page, outputPath: string): Promise<boolean> {
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    const result = await Promise.race([
+      cdp.send("Page.captureScreenshot", {
+        format: "png",
+        captureBeyondViewport: false,
+      }),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("cdp_screenshot_timeout")), 8_000);
+      }),
+    ]);
+    await fs.writeFile(outputPath, Buffer.from(result.data, "base64"));
+    return true;
+  } catch (error) {
+    await fs.writeFile(
+      `${outputPath}.error.txt`,
+      error instanceof Error ? error.message : String(error),
+    );
+    return false;
+  } finally {
+    await cdp.detach().catch(() => undefined);
+  }
 }
 
 main().catch((error) => {
