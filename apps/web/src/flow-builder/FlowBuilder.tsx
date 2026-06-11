@@ -91,6 +91,17 @@ import {
 import { trpc } from "../lib/trpc.js";
 import { buildAbVariantsMetadata } from "./lib/ab-variants.js";
 import {
+  actionTypes,
+  builderTabs,
+  conditionActions,
+  conditionTypes,
+  segmentFields,
+  segmentOperators,
+  stepTypes,
+  temporaryMessagesDurations,
+  type BuilderTab,
+} from "./lib/builder-options.js";
+import {
   buildActions,
   buildSteps,
   newActionDraft,
@@ -114,6 +125,7 @@ import {
   type CampaignCanvasNode,
   type CampaignCanvasNodeData,
 } from "./lib/flow-graph.js";
+import { moveItem, moveItemById } from "./lib/list-utils.js";
 import {
   buildSegment,
   buildSegmentFromDrafts,
@@ -131,77 +143,8 @@ import {
   type StepFieldErrors,
 } from "./lib/validation.js";
 
-type BuilderTab = "base" | "audience" | "steps" | "preview";
 type CampaignWorkspaceTab = "overview" | "dispatch" | "recipients";
 type DraftSaveState = "dirty" | "saving" | "saved" | "error";
-
-const stepTypes: Array<{ value: BuilderStepType; label: string }> = [
-  { value: "temporary_messages", label: "Mensagens temporárias" },
-  { value: "text", label: "Texto" },
-  { value: "link", label: "Link" },
-  { value: "voice", label: "Áudio" },
-  { value: "image", label: "Imagem" },
-  { value: "video", label: "Vídeo" },
-  { value: "document", label: "Documento" },
-];
-
-const temporaryMessagesDurations: Array<{ value: "24h" | "7d" | "90d"; label: string }> = [
-  { value: "24h", label: "24 horas" },
-  { value: "7d", label: "7 dias" },
-  { value: "90d", label: "90 dias" },
-];
-
-const actionTypes: Array<{ value: BuilderActionType; label: string }> = [
-  { value: "send_step", label: "Enviar step" },
-  { value: "delay", label: "Delay" },
-  { value: "branch", label: "Branch" },
-  { value: "apply_tag", label: "Aplicar tag" },
-  { value: "remove_tag", label: "Remover tag" },
-  { value: "set_status", label: "Definir status" },
-  { value: "create_reminder", label: "Criar lembrete" },
-  { value: "notify_attendant", label: "Notificar atendente" },
-  { value: "trigger_automation", label: "Disparar automação" },
-];
-
-const conditionTypes: Array<{ value: CampaignStepCondition["type"]; label: string }> = [
-  { value: "replied", label: "Respondeu" },
-  { value: "has_tag", label: "Tem tag" },
-  { value: "channel_is", label: "Canal é" },
-  { value: "outside_window", label: "Fora 24h" },
-];
-
-const conditionActions: Array<{ value: CampaignStepCondition["action"]; label: string }> = [
-  { value: "exit", label: "Sair" },
-  { value: "branch", label: "Ir para step" },
-  { value: "skip", label: "Pular" },
-  { value: "wait", label: "Aguardar" },
-];
-
-const segmentFields: Array<{ value: SegmentField; label: string }> = [
-  { value: "tag", label: "Tag" },
-  { value: "status", label: "Status" },
-  { value: "channel", label: "Canal" },
-  { value: "lastMessageAt", label: "Última msg" },
-  { value: "createdAt", label: "Criado em" },
-  { value: "procedure", label: "Procedimento" },
-  { value: "instagramRelationship", label: "Relação IG" },
-];
-
-const segmentOperators: Array<{ value: SegmentOperator; label: string }> = [
-  { value: "eq", label: "=" },
-  { value: "neq", label: "!=" },
-  { value: "exists", label: "Existe" },
-  { value: "not_exists", label: "Não existe" },
-  { value: "before", label: "Antes" },
-  { value: "after", label: "Depois" },
-];
-
-const builderTabs: Array<{ value: BuilderTab; label: string; description: string }> = [
-  { value: "base", label: "Base", description: "Nome, canal e templates" },
-  { value: "audience", label: "Audiência", description: "Segmento e CSV" },
-  { value: "steps", label: "Passos", description: "Mensagens e regras" },
-  { value: "preview", label: "Preview", description: "Fluxo final" },
-];
 
 export function CampaignFlowBuilder({
   onOpenCampaignTab,
@@ -3329,29 +3272,6 @@ function conditionPlaceholder(type: CampaignStepCondition["type"]) {
   if (type === "channel_is") return "whatsapp";
   if (type === "outside_window") return "24h";
   return "opcional";
-}
-
-function moveItem<T>(items: T[], index: number, direction: -1 | 1) {
-  const nextIndex = index + direction;
-  if (nextIndex < 0 || nextIndex >= items.length) return items;
-  const copy = [...items];
-  const current = copy[index];
-  const target = copy[nextIndex];
-  if (current === undefined || target === undefined) return items;
-  copy[index] = target;
-  copy[nextIndex] = current;
-  return copy;
-}
-
-function moveItemById<T extends { id: string }>(items: T[], sourceId: string, targetId: string) {
-  const sourceIndex = items.findIndex((item) => item.id === sourceId);
-  const targetIndex = items.findIndex((item) => item.id === targetId);
-  if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return items;
-  const copy = [...items];
-  const [moved] = copy.splice(sourceIndex, 1);
-  if (!moved) return items;
-  copy.splice(targetIndex, 0, moved);
-  return copy;
 }
 
 function stepIcon(type: BuilderStepType) {
