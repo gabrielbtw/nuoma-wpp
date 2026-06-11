@@ -29,10 +29,15 @@ import {
   useToast,
 } from "@nuoma/ui";
 
+import { ConfirmDangerAction } from "../components/ConfirmDangerAction.js";
+import { COPY } from "../lib/copy.js";
 import { trpc } from "../lib/trpc.js";
+
+const CLEANUP_CONFIRM_TEXT = "LIMPAR CONCLUÍDOS";
 
 export function JobsPage() {
   const [tab, setTab] = useState("queue");
+  const [cleanupConfirm, setCleanupConfirm] = useState("");
   const toast = useToast();
   const utils = trpc.useUtils();
 
@@ -57,6 +62,7 @@ export function JobsPage() {
 
   const cleanup = trpc.jobs.cleanup.useMutation({
     onSuccess(data) {
+      setCleanupConfirm("");
       toast.push({
         title: "Cleanup OK",
         description: `${data.deleted} jobs concluídos removidos`,
@@ -69,29 +75,35 @@ export function JobsPage() {
     },
   });
 
+  function runCleanup() {
+    cleanup.mutate({ olderThanDays: 30 });
+  }
+
   return (
     <div className="flex min-h-[calc(100vh-6.5rem)] w-full max-w-none flex-col gap-4 pt-0">
       <Animate preset="rise-in">
         <header className="nuoma-workspace-header flex items-end justify-between gap-6">
           <div>
-            <p className="botforge-kicker">
+            <p className="nuoma-compat-kicker">
               Worker
             </p>
-            <h1 className="botforge-display mt-2 text-3xl md:text-4xl">
+            <h1 className="nuoma-compat-display mt-2 text-3xl md:text-4xl">
               Jobs <span className="nuoma-gradient-text">em fila</span>.
             </h1>
             <p className="text-sm text-fg-muted mt-3 max-w-xl">
               Mortos vão pra DLQ — recoloque manualmente após resolver causa.
             </p>
           </div>
-          <Button
-            variant="soft"
-            size="sm"
+          <ConfirmDangerAction
+            buttonLabel={COPY.limparConcluidos30Dias}
+            confirmText={CLEANUP_CONFIRM_TEXT}
+            value={cleanupConfirm}
+            onValueChange={setCleanupConfirm}
+            onConfirm={runCleanup}
             loading={cleanup.isPending}
-            onClick={() => cleanup.mutate({ olderThanDays: 30 })}
-          >
-            Cleanup 30 dias
-          </Button>
+            description="Remove apenas jobs concluídos na janela operacional."
+            testId="jobs-cleanup-confirm"
+          />
         </header>
       </Animate>
 
@@ -217,10 +229,20 @@ export function JobsPage() {
               </section>
               <section>
                 <h2>Ações recomendadas</h2>
-                <button type="button" onClick={() => cleanup.mutate({ olderThanDays: 30 })}>
-                  <Trash2 className="h-4 w-4" />
-                  Cleanup 30 dias
-                </button>
+                <div className="grid gap-2">
+                  <span className="inline-flex items-center gap-2 text-sm text-fg-muted">
+                    <Trash2 className="h-4 w-4" />
+                    {COPY.limparConcluidos30Dias}
+                  </span>
+                  <ConfirmDangerAction
+                    buttonLabel="Limpar"
+                    confirmText={CLEANUP_CONFIRM_TEXT}
+                    value={cleanupConfirm}
+                    onValueChange={setCleanupConfirm}
+                    onConfirm={runCleanup}
+                    loading={cleanup.isPending}
+                  />
+                </div>
                 <button type="button" onClick={() => setTab("dead")}>
                   <RotateCcw className="h-4 w-4" />
                   Revisar DLQ

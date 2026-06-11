@@ -49,6 +49,16 @@
   --nw-channel-ig: 225 86 143;
   --nw-channel-sys: 232 100 44;
 
+  --nw-flow-edge: rgb(var(--nw-line-strong));
+  --nw-flow-branch: rgb(var(--nw-status-info));
+  --nw-flow-exit: rgb(var(--nw-status-warn));
+  --nw-flow-label: rgb(var(--nw-ink-strong));
+  --nw-flow-wa: rgb(var(--nw-channel-wa));
+  --nw-flow-ig: rgb(var(--nw-channel-ig));
+  --nw-flow-accent: rgb(var(--nw-accent));
+  --nw-flow-danger: rgb(var(--nw-status-error));
+  --nw-flow-neutral: rgb(var(--nw-ink-soft));
+
   /* Data-viz — paleta dedicada (ThemedChart lê daqui, nunca duplica) */
   --nw-chart-1: 232 100 44;
   --nw-chart-2: 217 164 91;
@@ -66,9 +76,8 @@
   --nw-shadow-inset: inset 0 2px 6px rgb(0 0 0 / 0.42);
 
   /* ==========================================================================
-   * CAMADA COMPAT (deprecated) — nomes da era Editorial·Indigo resolvendo para
-   * os tokens novos. Mantém o CSS legado e as utilities antigas do preset
-   * renderizando já na paleta Carvão & Cobre. Morre junto com styles/legacy.css.
+   * CAMADA COMPAT (deprecated) — aliases antigos resolvendo para tokens novos.
+   * Mantém páginas ainda não migradas renderizando na paleta Carvão & Cobre.
    * ======================================================================= */
   --color-bg-canvas: var(--nw-surface-0);
   --color-bg-deep: var(--nw-surface-deep);

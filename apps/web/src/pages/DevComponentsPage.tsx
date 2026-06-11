@@ -184,11 +184,11 @@ export function DevComponentsPage() {
     >
       <Animate preset="rise-in">
         <header className="flex flex-col gap-5 border-b border-border-subtle/40 pb-10">
-          <p className="botforge-kicker flex items-center gap-2 text-fg-muted">
+          <p className="nuoma-compat-kicker flex items-center gap-2 text-fg-muted">
             <span className="h-px w-5 bg-brand-teal" />
             Nuoma · Design System · v2026.1
           </p>
-          <h1 className="botforge-display text-3xl md:text-4xl">
+          <h1 className="nuoma-compat-display text-3xl md:text-4xl">
             O sistema visual do <span className="nuoma-gradient-text">Nuoma WPP</span>.
           </h1>
           <p className="max-w-2xl text-sm leading-relaxed text-fg-muted">
@@ -234,10 +234,10 @@ export function DevComponentsPage() {
         <SubLabel>Inter — interface &amp; destaques</SubLabel>
         <div className="flex flex-col divide-y divide-border-subtle/40 overflow-hidden rounded-md border border-border-subtle/40">
           <TypeRow token="Display" detail="3rem · 660 · -.03em">
-            <span className="botforge-display text-5xl">2.341</span>
+            <span className="nuoma-compat-display text-5xl">2.341</span>
           </TypeRow>
           <TypeRow token="H1" detail="2.25rem · 700">
-            <span className="botforge-display text-4xl">Operação Omnichannel</span>
+            <span className="nuoma-compat-display text-4xl">Operação Omnichannel</span>
           </TypeRow>
           <TypeRow token="H2" detail="1.5rem · 700">
             <span className="font-display text-2xl font-bold text-fg-primary">
@@ -568,7 +568,7 @@ export function DevComponentsPage() {
       <Section
         id="tendencias"
         title="Padrões UX/UI 2026"
-        hint="AI-first, espacial e modular — adotados do padrão Orielo."
+        hint="Comandos assistidos, navegação densa e módulos operacionais."
       >
         <SubLabel>AI Command Bar</SubLabel>
         <AICommandBar
@@ -586,9 +586,9 @@ export function DevComponentsPage() {
         <SubLabel>Bento Grid — dashboard modular</SubLabel>
         <BentoGrid columns={4}>
           <BentoItem colSpan={2} rowSpan={2} aura className="flex flex-col justify-between">
-            <p className="botforge-kicker">Índice de operação</p>
+            <p className="nuoma-compat-kicker">Índice de operação</p>
             <div>
-              <p className="botforge-display nuoma-gradient-text text-6xl tabular-nums">94</p>
+              <p className="nuoma-compat-display nuoma-gradient-text text-6xl tabular-nums">94</p>
               <p className="mt-1 text-sm text-fg-dim">Saúde da operação omnichannel · meta 90</p>
             </div>
             <Badge variant="success" className="self-start">
@@ -596,20 +596,20 @@ export function DevComponentsPage() {
             </Badge>
           </BentoItem>
           <BentoItem className="flex flex-col justify-between">
-            <p className="botforge-kicker">Live</p>
+            <p className="nuoma-compat-kicker">Live</p>
             <p className="flex items-center gap-2 text-2xl font-bold text-fg-primary">
               <SignalDot status="active" /> 12
             </p>
             <p className="text-xs text-fg-dim">atendentes online</p>
           </BentoItem>
           <BentoItem className="flex flex-col justify-between">
-            <p className="botforge-kicker">Fila</p>
+            <p className="nuoma-compat-kicker">Fila</p>
             <p className="text-2xl font-bold text-fg-primary">38</p>
             <p className="text-xs text-fg-dim">mensagens aguardando</p>
           </BentoItem>
           <BentoItem colSpan={2} className="flex flex-col justify-between">
-            <p className="botforge-kicker">SLA médio</p>
-            <p className="botforge-display text-3xl [color:rgb(var(--color-brand-blue-soft))]">
+            <p className="nuoma-compat-kicker">SLA médio</p>
+            <p className="nuoma-compat-display text-3xl [color:rgb(var(--color-brand-blue-soft))]">
               1m 42s
             </p>
             <p className="text-xs text-fg-dim">tempo de resposta · 24h</p>
@@ -743,7 +743,7 @@ export function DevComponentsPage() {
 function Stat({ num, label }: { num: string; label: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="botforge-display text-2xl tabular-nums">{num}</span>
+      <span className="nuoma-compat-display text-2xl tabular-nums">{num}</span>
       <span className="font-mono text-[0.7rem] uppercase tracking-wider text-fg-muted">
         {label}
       </span>
@@ -765,7 +765,7 @@ function Section({
   return (
     <section id={id} className="flex scroll-mt-20 flex-col gap-5">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className="botforge-display text-2xl" dangerouslySetInnerHTML={{ __html: title }} />
+        <h2 className="nuoma-compat-display text-2xl" dangerouslySetInnerHTML={{ __html: title }} />
         <p className="text-xs text-fg-dim">{hint}</p>
       </div>
       <div className="flex flex-col gap-4">{children}</div>

@@ -28,13 +28,19 @@ import {
   Tag,
   UserRound,
 } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
 
 import { trpc } from "../lib/trpc.js";
 
 export function ContactsPage() {
+  const navigate = useNavigate();
   const utils = trpc.useUtils();
   const contacts = trpc.contacts.list.useQuery({});
+  const conversations = trpc.conversations.listUnified.useQuery(
+    { limit: 500 },
+    { staleTime: 30_000 },
+  );
   const toast = useToast();
   const intent = usePageIntent();
   const [name, setName] = useState("");
@@ -43,6 +49,8 @@ export function ContactsPage() {
   const [notes, setNotes] = useState("");
   const [query, setQuery] = useState("");
   const [channelFilter, setChannelFilter] = useState("all");
+  const [showCreateForm, setShowCreateForm] = useState(() => intent === "create");
+  const [selectedContactId, setSelectedContactId] = useState<number | null>(null);
   const filteredContacts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return (contacts.data?.contacts ?? []).filter((contact) => {
@@ -72,7 +80,30 @@ export function ContactsPage() {
       instagram: allContacts.filter((contact) => contact.primaryChannel === "instagram").length,
     };
   }, [contacts.data?.contacts]);
-  const selectedContact = filteredContacts[0] ?? contacts.data?.contacts[0] ?? null;
+  useEffect(() => {
+    if (filteredContacts.length === 0) {
+      setSelectedContactId(null);
+      return;
+    }
+    const selectedIsVisible =
+      selectedContactId != null && filteredContacts.some((contact) => contact.id === selectedContactId);
+    if (selectedContactId == null || !selectedIsVisible) {
+      setSelectedContactId(filteredContacts[0]!.id);
+    }
+  }, [filteredContacts, selectedContactId]);
+
+  const selectedContact =
+    filteredContacts.find((contact) => contact.id === selectedContactId) ??
+    contacts.data?.contacts.find((contact) => contact.id === selectedContactId) ??
+    null;
+  const selectedConversation = useMemo(() => {
+    if (!selectedContact) return null;
+    return (
+      conversations.data?.conversations.find(
+        (conversation) => conversation.contactId === selectedContact.id,
+      ) ?? null
+    );
+  }, [conversations.data?.conversations, selectedContact]);
   const visibleContacts = filteredContacts.slice(0, 9);
   const recentContacts = filteredContacts.filter((contact) => contact.lastMessageAt).slice(0, 4);
   const createContact = trpc.contacts.create.useMutation({
@@ -81,6 +112,7 @@ export function ContactsPage() {
       setPhone("");
       setInstagramHandle("");
       setNotes("");
+      setShowCreateForm(false);
       await utils.contacts.list.invalidate();
       toast.push({ title: "Contato criado", variant: "success" });
     },
@@ -108,12 +140,51 @@ export function ContactsPage() {
     });
   }
 
+  function selectContact(contactId: number) {
+    setSelectedContactId(contactId);
+  }
+
+  function handleContactKeyDown(event: KeyboardEvent<HTMLLIElement>, contactId: number) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      selectContact(contactId);
+      return;
+    }
+    const currentIndex = visibleContacts.findIndex((contact) => contact.id === contactId);
+    if (currentIndex < 0) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      const next = visibleContacts[Math.min(currentIndex + 1, visibleContacts.length - 1)];
+      if (next) selectContact(next.id);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      const previous = visibleContacts[Math.max(currentIndex - 1, 0)];
+      if (previous) selectContact(previous.id);
+    }
+  }
+
+  function openSelectedConversation() {
+    if (!selectedContact) return;
+    if (!selectedConversation) {
+      toast.push({
+        title: "Contato sem conversa",
+        description: "A ação Responder fica disponível depois que existir conversa vinculada.",
+        variant: "info",
+      });
+      return;
+    }
+    void navigate({
+      to: "/inbox",
+      search: { conversationId: selectedConversation.id },
+    });
+  }
+
   return (
     <div className="flex min-h-[calc(100vh-6.5rem)] w-full max-w-none flex-col gap-4 pt-0">
       <Animate preset="rise-in">
         <header className="nuoma-workspace-header">
-          <p className="botforge-kicker">Contatos</p>
-          <h1 className="botforge-display mt-2 text-3xl md:text-4xl">
+          <p className="nuoma-compat-kicker">Contatos</p>
+          <h1 className="nuoma-compat-display mt-2 text-3xl md:text-4xl">
             <span className="nuoma-gradient-text">Catálogo</span> ativo.
           </h1>
           <p className="text-sm text-fg-muted mt-3 max-w-xl">
@@ -122,7 +193,7 @@ export function ContactsPage() {
         </header>
       </Animate>
 
-      {intent === "create" && (
+      {showCreateForm && (
         <Animate preset="rise-in" delaySeconds={0.08}>
           <Card>
             <CardHeader>
@@ -185,7 +256,13 @@ export function ContactsPage() {
                     : "—"}
                 </p>
               </div>
-              <Button variant="soft" size="sm" className="aspect-square px-0" aria-label="Criar">
+              <Button
+                variant="soft"
+                size="sm"
+                className="aspect-square px-0"
+                aria-label="Criar contato"
+                onClick={() => setShowCreateForm((current) => !current)}
+              >
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
@@ -218,9 +295,23 @@ export function ContactsPage() {
             ) : filteredContacts.length === 0 ? (
               <EmptyState description="Nenhum contato corresponde aos filtros atuais." />
             ) : (
-              <ul className="nuoma-contact-list" tabIndex={0} aria-label="Lista de contatos">
-                {visibleContacts.map((contact, index) => (
-                  <li key={contact.id} className={index === 0 ? "is-active" : undefined}>
+              <ul
+                className="nuoma-contact-list"
+                role="listbox"
+                aria-label="Lista de contatos"
+              >
+                {visibleContacts.map((contact) => {
+                  const active = contact.id === selectedContact?.id;
+                  return (
+                  <li
+                    key={contact.id}
+                    className={active ? "is-active" : undefined}
+                    role="option"
+                    aria-selected={active}
+                    tabIndex={0}
+                    onClick={() => selectContact(contact.id)}
+                    onKeyDown={(event) => handleContactKeyDown(event, contact.id)}
+                  >
                     <span className="nuoma-contact-avatar">
                       {contact.name.slice(0, 2).toUpperCase()}
                     </span>
@@ -240,7 +331,8 @@ export function ContactsPage() {
                     </span>
                     {contact.lastMessageAt ? <TimeAgo date={contact.lastMessageAt} /> : null}
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </aside>
@@ -309,8 +401,8 @@ export function ContactsPage() {
               <div className="nuoma-contact-message is-outbound">
                 <span>Próxima ação</span>
                 <p>
-                  Validar elegibilidade do contato, manter trilha de auditoria e acionar campanha
-                  apenas por canal liberado.
+                  Sem próxima ação registrada. Use uma conversa vinculada para responder ou acionar
+                  rotinas pelo CRM.
                 </p>
               </div>
             </div>
@@ -330,31 +422,41 @@ export function ContactsPage() {
                 <Badge variant="cyan">Catálogo</Badge>
               </div>
               <div className="nuoma-contact-action-grid">
-                <button type="button">
+                <button type="button" onClick={openSelectedConversation} disabled={!selectedContact}>
                   <MessageCircle className="h-4 w-4" />
                   Responder
                 </button>
-                <button type="button">
+                <button
+                  type="button"
+                  disabled
+                  title="A edição de tags deste contato fica no CRM da Inbox."
+                >
                   <Tag className="h-4 w-4" />
                   Tag
                 </button>
-                <button type="button">
+                <button
+                  type="button"
+                  disabled
+                  title="Seleção de campanha por contato ainda não está conectada nesta tela."
+                >
                   <ShieldCheck className="h-4 w-4" />
                   Campanha
                 </button>
               </div>
             </section>
             <section>
-              <h2>Saúde do contato</h2>
+              <h2>Indicadores</h2>
               <div className="nuoma-contact-health">
-                <strong>{selectedContact ? "8.4" : "—"}</strong>
-                <span>{selectedContact ? "Ótimo" : "Sem leitura"}</span>
+                <strong>{selectedContact ? "—" : "—"}</strong>
+                <span>{selectedContact ? "Sem indicador calculado" : "Sem seleção"}</span>
               </div>
               <dl className="nuoma-contact-facts">
                 <dt>Canal</dt>
                 <dd>{selectedContact?.primaryChannel ?? "—"}</dd>
                 <dt>Status</dt>
                 <dd>{selectedContact?.status ?? "—"}</dd>
+                <dt>Tags</dt>
+                <dd>{selectedContact?.tagIds.length ?? 0}</dd>
                 <dt>ID</dt>
                 <dd>#{selectedContact?.id ?? "—"}</dd>
               </dl>

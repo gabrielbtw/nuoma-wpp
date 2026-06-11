@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@nuoma/ui";
 
+import { ConfirmDangerAction } from "../components/ConfirmDangerAction.js";
 import { CampaignMetric, Metric } from "./CampaignOperationalPanels.js";
 import { SafeRemarketingConsole } from "./SafeRemarketingConsole.js";
 
@@ -51,6 +52,8 @@ type CampaignsDispatchPanelProps = {
   lastTick: CampaignTickResult | null;
   globalPreviewPending: boolean;
   globalEnqueuePending: boolean;
+  globalEnqueueConfirmation: string;
+  onGlobalEnqueueConfirmationChange: (value: string) => void;
   onReady: () => void;
   onEnqueue: () => void;
   onBatchReady: () => void;
@@ -87,6 +90,8 @@ export function CampaignsDispatchPanel({
   lastTick,
   globalPreviewPending,
   globalEnqueuePending,
+  globalEnqueueConfirmation,
+  onGlobalEnqueueConfirmationChange,
   onReady,
   onEnqueue,
   onBatchReady,
@@ -132,16 +137,29 @@ export function CampaignsDispatchPanel({
             <CardHeader>
               <CardTitle>Preparar disparo</CardTitle>
               <CardDescription>
-                A paleta abriu este fluxo em modo seguro. Use prévia antes de enfileirar.
+                A paleta abriu este fluxo em modo seguro. Use simulação antes de criar Jobs.
               </CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-wrap gap-3">
-              <Button variant="accent" loading={globalPreviewPending} onClick={onGlobalPreview}>
-                Rodar prévia
+            <CardContent className="flex flex-wrap items-start gap-3">
+              <Button
+                variant="accent"
+                loading={globalPreviewPending}
+                disabled={!selectedCampaignId}
+                onClick={onGlobalPreview}
+              >
+                Simular selecionada
               </Button>
-              <Button variant="soft" loading={globalEnqueuePending} onClick={onGlobalEnqueue}>
-                Enfileirar elegíveis
-              </Button>
+              <ConfirmDangerAction
+                buttonLabel="Disparar selecionada"
+                confirmText="DISPARAR"
+                value={globalEnqueueConfirmation}
+                onValueChange={onGlobalEnqueueConfirmationChange}
+                loading={globalEnqueuePending}
+                disabled={!selectedCampaignId}
+                onConfirm={onGlobalEnqueue}
+                description="Cria Jobs reais para a campanha selecionada no console seguro."
+                testId="campaign-intent-dispatch-confirm"
+              />
             </CardContent>
           </Card>
         </Animate>
@@ -153,7 +171,7 @@ export function CampaignsDispatchPanel({
             <CardHeader>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <CardTitle>Último tick</CardTitle>
+                  <CardTitle>Última execução</CardTitle>
                   <CardDescription>
                     {lastTick.dryRun
                       ? `${lastTick.plannedJobs.length} job(s) planejado(s), sem alterar fila`
@@ -168,7 +186,7 @@ export function CampaignsDispatchPanel({
             <CardContent>
               <div className="grid gap-3 md:grid-cols-5">
                 <Metric label="Campanhas" value={lastTick.campaignsScanned} />
-                <Metric label="Recipients" value={lastTick.recipientsScanned} />
+                <Metric label="Destinatários" value={lastTick.recipientsScanned} />
                 <Metric label="Jobs" value={lastTick.jobsCreated || lastTick.plannedJobs.length} />
                 <Metric
                   label="Evergreen"

@@ -29,8 +29,10 @@ import {
 import { useAuth } from "../auth/auth-context.js";
 import { trpc } from "../lib/trpc.js";
 import { LoginPage } from "../pages/LoginPage.js";
+import { isCampaignBuilderImmersive } from "../campaigns/campaign-search.js";
 import { CommandPalette } from "./CommandPalette.js";
-import { getShellShortcutItems, Sidebar, type ShellRuntimeStatus } from "./Sidebar.js";
+import { Sidebar, type ShellRuntimeStatus } from "./Sidebar.js";
+import { getShellShortcutItems, shellBreadcrumbForLocation } from "./nav-registry.js";
 
 type SystemMetrics = inferRouterOutputs<AppRouter>["system"]["metrics"];
 
@@ -41,7 +43,12 @@ export function ShellLayout() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const isAdmin = auth.user?.role === "admin";
-  const isFlowStudioRoute = router.state.location.pathname === "/campaigns";
+  const currentLocation = router.state.location;
+  const isFlowStudioRoute = isCampaignBuilderImmersive(
+    currentLocation.pathname,
+    currentLocation.searchStr,
+  );
+  const breadcrumb = shellBreadcrumbForLocation(currentLocation.pathname, currentLocation.searchStr);
   const metrics = trpc.system.metrics.useQuery(undefined, {
     enabled: isAdmin,
     refetchInterval: 10_000,
@@ -76,7 +83,7 @@ export function ShellLayout() {
         const target = getShellShortcutItems(isAdmin).find((item) => item.shortcut === event.key);
         if (target) {
           event.preventDefault();
-          void navigate({ to: target.to });
+          void navigate({ to: target.path });
           setMobileNavOpen(false);
         }
       }
@@ -145,7 +152,7 @@ export function ShellLayout() {
 
                 <div className="ml-0 flex min-w-0 items-center gap-2 sm:ml-auto">
                   <span className="hidden max-w-[16rem] truncate rounded-md border border-line-hairline bg-surface-1 px-2.5 py-1.5 font-mono text-[0.68rem] text-ink-soft lg:inline">
-                    {router.state.location.pathname}
+                    {breadcrumb}
                   </span>
                   <span
                     className={cn(
@@ -308,16 +315,16 @@ function runtimeStatusFromMetrics(
 
 function cdpLabel(status: ShellRuntimeStatus): string {
   if (status.unavailable) return "Sem métrica";
-  if (status.loading) return "Checando CDP";
-  if (status.error) return "CDP indisponível";
-  return status.cdpConnected ? "CDP ativo" : "CDP ausente";
+  if (status.loading) return "Checando sessão";
+  if (status.error) return "Sessão indisponível";
+  return status.cdpConnected ? "Sessão do navegador (CDP) ativa" : "Sessão do navegador ausente";
 }
 
 function operationLabel(status: ShellRuntimeStatus): string {
   if (status.unavailable) return "Métrica admin";
   if (status.loading) return "Checando";
   if (status.error) return "Métrica falhou";
-  if (status.workersTotal === 0) return "Sem worker";
+  if (status.workersTotal === 0) return "Sem processador";
   if (status.hasErrors) return "Atenção";
-  return `${status.workersOnline}/${status.workersTotal} workers`;
+  return `${status.workersOnline}/${status.workersTotal} processadores`;
 }

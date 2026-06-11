@@ -4,8 +4,6 @@ import type {
   CampaignStep,
   CampaignStepCondition,
   ChannelType,
-  Segment,
-  SegmentCondition,
 } from "@nuoma/contracts";
 import {
   Background,
@@ -22,6 +20,7 @@ import {
   type OnNodeDrag,
   type NodeProps,
   type NodeTypes,
+  type ReactFlowInstance,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
@@ -31,14 +30,12 @@ import {
   BadgeCheck,
   Bell,
   CheckCircle2,
-  ChevronDown,
   ClipboardList,
   Clock,
   FileText,
   FileUp,
   Flag,
   GitBranch,
-  HelpCircle,
   Image,
   Instagram,
   Link2,
@@ -52,7 +49,6 @@ import {
   PlayCircle,
   Plus,
   Route,
-  Search,
   Send,
   ShieldCheck,
   Sparkles,
@@ -61,11 +57,9 @@ import {
   Video,
   ZoomIn,
 } from "lucide-react";
-import { gsap } from "gsap";
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -97,98 +91,40 @@ import {
 } from "@nuoma/ui";
 
 import { trpc } from "../lib/trpc.js";
+import { buildAbVariantsMetadata } from "./lib/ab-variants.js";
+import {
+  buildActions,
+  buildSteps,
+  newActionDraft,
+  newConditionDraft,
+  newStepDraft,
+  type ActionDraft,
+  type BuilderActionType,
+  type BuilderStepType,
+  type ConditionDraft,
+  type StepDraft,
+} from "./lib/build-steps.js";
+import { parseCsvPreview, type CsvPreviewResult } from "./lib/csv-preview.js";
+import {
+  buildSegment,
+  buildSegmentFromDrafts,
+  type SegmentDraft,
+  type SegmentField,
+  type SegmentOperator,
+} from "./lib/segment.js";
+import { automationTemplates, campaignTemplates } from "./lib/templates.js";
+import {
+  conditionFieldErrors,
+  instagramSupportedStepTypes,
+  readyChecks as buildReadyChecks,
+  stepDraftFieldErrors,
+  unsupportedInstagramStepLabels,
+  type StepFieldErrors,
+} from "./lib/validation.js";
 
-type BuilderStepType = CampaignStep["type"];
-type BuilderActionType = AutomationAction["type"];
-type SegmentField = SegmentCondition["field"];
-type SegmentOperator = SegmentCondition["operator"];
 type BuilderTab = "base" | "audience" | "steps" | "preview";
 type CampaignWorkspaceTab = "overview" | "dispatch" | "recipients";
-
-interface StepDraft {
-  id: string;
-  label: string;
-  type: BuilderStepType;
-  delaySeconds: string;
-  template: string;
-  url: string;
-  linkText: string;
-  previewEnabled: boolean;
-  mediaAssetId: string;
-  fileName: string;
-  caption: string;
-  temporaryMessagesDuration: "24h" | "7d" | "90d";
-  conditions: ConditionDraft[];
-}
-
-interface StepFieldErrors {
-  template?: string;
-  url?: string;
-  linkText?: string;
-  mediaAssetId?: string;
-  fileName?: string;
-}
-
-interface ConditionFieldErrors {
-  value?: string;
-  targetStepId?: string;
-}
-
-interface ConditionDraft {
-  id: string;
-  type: CampaignStepCondition["type"];
-  action: CampaignStepCondition["action"];
-  value: string;
-  targetStepId: string;
-}
-
-interface ActionDraft {
-  id: string;
-  type: BuilderActionType;
-  step: StepDraft;
-  delayActionSeconds: string;
-  delayLabel: string;
-  branchLabel: string;
-  branchTargetActionId: string;
-  branchConditionField: SegmentField;
-  branchConditionOperator: SegmentOperator;
-  branchConditionValue: string;
-  tagId: string;
-  status: string;
-  reminderTitle: string;
-  dueAt: string;
-  notifyAttendantId: string;
-  notifyMessage: string;
-  triggerAutomationId: string;
-}
-
-interface SegmentDraft {
-  id: string;
-  field: SegmentField;
-  operator: SegmentOperator;
-  value: string;
-}
-
-interface CsvPreviewRow {
-  rowNumber: number;
-  phone: string;
-  name: string | null;
-  email: string | null;
-  valid: boolean;
-  duplicate: boolean;
-  errors: string[];
-}
-
-interface CsvPreviewResult {
-  headers: string[];
-  phoneHeader: string | null;
-  rows: CsvPreviewRow[];
-  totalRows: number;
-  validCount: number;
-  invalidCount: number;
-  duplicateCount: number;
-  errors: string[];
-}
+type DraftSaveState = "dirty" | "saving" | "saved" | "error";
 
 const stepTypes: Array<{ value: BuilderStepType; label: string }> = [
   { value: "temporary_messages", label: "Mensagens temporárias" },
@@ -199,7 +135,6 @@ const stepTypes: Array<{ value: BuilderStepType; label: string }> = [
   { value: "video", label: "Vídeo" },
   { value: "document", label: "Documento" },
 ];
-const instagramSupportedStepTypes = new Set<BuilderStepType>(["text", "link", "image", "video"]);
 
 const temporaryMessagesDurations: Array<{ value: "24h" | "7d" | "90d"; label: string }> = [
   { value: "24h", label: "24 horas" },
@@ -259,178 +194,6 @@ const builderTabs: Array<{ value: BuilderTab; label: string; description: string
   { value: "preview", label: "Preview", description: "Fluxo final" },
 ];
 
-let draftCounter = 0;
-
-const campaignTemplates: Array<{
-  id: string;
-  name: string;
-  description: string;
-  evergreen: boolean;
-  steps: Array<Partial<StepDraft> & Pick<StepDraft, "label" | "type">>;
-}> = [
-  {
-    id: "reactivation",
-    name: "Reativação WA",
-    description: "Mensagem curta, espera resposta e encerra se o lead interagir.",
-    evergreen: true,
-    steps: [
-      {
-        label: "Abrir conversa",
-        type: "text",
-        template: "Oi {{nome}}, posso te mandar uma atualização rápida?",
-        delaySeconds: "0",
-        conditions: [
-          {
-            id: "template-reactivation-replied",
-            type: "replied",
-            action: "exit",
-            value: "",
-            targetStepId: "",
-          },
-        ],
-      },
-      {
-        label: "Follow-up",
-        type: "text",
-        template:
-          "Passando só para não deixar seu retorno esfriar. Quer que eu te explique por aqui?",
-        delaySeconds: "86400",
-      },
-    ],
-  },
-  {
-    id: "quote",
-    name: "Orçamento com link",
-    description: "Texto inicial + link com preview para orçamento ou landing page.",
-    evergreen: false,
-    steps: [
-      {
-        label: "Contexto",
-        type: "text",
-        template: "Olá {{nome}}, deixei o orçamento organizado para você.",
-        delaySeconds: "0",
-      },
-      {
-        label: "Link do orçamento",
-        type: "link",
-        linkText: "Abrir orçamento",
-        url: "https://nuoma.com.br",
-        previewEnabled: true,
-        delaySeconds: "30",
-      },
-    ],
-  },
-  {
-    id: "twenty-four-hour",
-    name: "Janela 24h",
-    description: "Sequência que aguarda quando a conversa está fora da janela ativa.",
-    evergreen: false,
-    steps: [
-      {
-        label: "Checar janela",
-        type: "text",
-        template: "Oi {{nome}}, consigo continuar seu atendimento por aqui?",
-        delaySeconds: "0",
-        conditions: [
-          {
-            id: "template-window-wait",
-            type: "outside_window",
-            action: "wait",
-            value: "24h",
-            targetStepId: "",
-          },
-        ],
-      },
-    ],
-  },
-];
-
-const automationTemplates: Array<{
-  id: string;
-  name: string;
-  category: string;
-  description: string;
-  triggerType: AutomationTrigger["type"];
-  requireWithin24hWindow: boolean;
-  actions: ActionDraft[];
-  segmentDrafts: SegmentDraft[];
-}> = [
-  {
-    id: "reply-then-tag",
-    name: "Responder e taguear",
-    category: "Atendimento",
-    description: "Envia uma resposta curta, aplica tag e cria trilha auditável.",
-    triggerType: "message_received",
-    requireWithin24hWindow: true,
-    actions: [
-      {
-        ...newActionDraft(1),
-        step: {
-          ...newStepDraft(1),
-          label: "Resposta inicial",
-          template: "Recebi sua mensagem e vou te ajudar.",
-        },
-      },
-      { ...newActionDraft(2), type: "apply_tag", tagId: "1" },
-    ],
-    segmentDrafts: [
-      { id: "template-status", field: "status", operator: "neq", value: "bloqueado" },
-    ],
-  },
-  {
-    id: "delay-branch",
-    name: "Delay + branch",
-    category: "Follow-up",
-    description: "Aguarda antes do follow-up e registra um branch de elegibilidade.",
-    triggerType: "message_received",
-    requireWithin24hWindow: false,
-    actions: [
-      {
-        ...newActionDraft(1),
-        type: "delay",
-        delayActionSeconds: "3600",
-        delayLabel: "Aguardar 1h",
-      },
-      {
-        ...newActionDraft(2),
-        type: "branch",
-        branchLabel: "Se ainda ativo",
-        branchConditionField: "status",
-        branchConditionOperator: "neq",
-        branchConditionValue: "arquivado",
-      },
-      {
-        ...newActionDraft(3),
-        step: {
-          ...newStepDraft(3),
-          label: "Follow-up",
-          template: "Passando para retomar seu atendimento.",
-        },
-      },
-    ],
-    segmentDrafts: [],
-  },
-  {
-    id: "notify-and-trigger",
-    name: "Escalar atendimento",
-    category: "Operação",
-    description: "Notifica atendente e aciona uma automação filha com guarda anti-loop.",
-    triggerType: "tag_applied",
-    requireWithin24hWindow: false,
-    actions: [
-      {
-        ...newActionDraft(1),
-        type: "notify_attendant",
-        notifyMessage: "Lead precisa de retorno humano.",
-      },
-      { ...newActionDraft(2), type: "trigger_automation", triggerAutomationId: "1" },
-    ],
-    segmentDrafts: [
-      { id: "template-channel", field: "channel", operator: "eq", value: "whatsapp" },
-    ],
-  },
-];
-
 export function CampaignFlowBuilder({
   onOpenCampaignTab,
 }: {
@@ -476,6 +239,9 @@ export function CampaignFlowBuilder({
   const [abVariantTemplate, setAbVariantTemplate] = useState(
     "Oi {{nome}}, tenho uma sugestão objetiva para você.",
   );
+  const [saveState, setSaveState] = useState<DraftSaveState>("dirty");
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
+  const dirtyReadyRef = useRef(false);
 
   const stepBuildResult = useMemo(() => buildSteps(steps), [steps]);
   const stepBuildError = typeof stepBuildResult === "string" ? stepBuildResult : null;
@@ -483,25 +249,53 @@ export function CampaignFlowBuilder({
   const abTargetStep = previewSteps.find((step) => step.type === "text") ?? null;
   const unsupportedInstagramSteps =
     channel === "instagram" ? unsupportedInstagramStepLabels(steps) : [];
-  const readyChecks = [
-    { label: "Nome", ok: Boolean(name.trim()) },
-    { label: "Steps", ok: previewSteps.length > 0 && !stepBuildError },
-    { label: "Canal", ok: unsupportedInstagramSteps.length === 0 },
-    { label: "Público", ok: !csvPreview || csvPreview.validCount > 0 },
-    { label: "CSV", ok: !csvPreview || csvPreview.invalidCount === 0 },
-    { label: "A/B", ok: !abEnabled || Boolean(abTargetStep) },
-  ];
+  const readyChecks = buildReadyChecks({
+    name,
+    previewSteps,
+    stepBuildError,
+    channel,
+    steps,
+    csvPreview,
+    abEnabled,
+    abTargetStep,
+  });
 
-  function createDraft() {
+  useEffect(() => {
+    if (!dirtyReadyRef.current) {
+      dirtyReadyRef.current = true;
+      return;
+    }
+    setSaveState("dirty");
+  }, [
+    abControlLabel,
+    abControlWeight,
+    abEnabled,
+    abVariantLabel,
+    abVariantTemplate,
+    abVariantWeight,
+    channel,
+    csvPreview,
+    evergreen,
+    name,
+    overlayEnabled,
+    segmentEnabled,
+    segmentField,
+    segmentOperator,
+    segmentValue,
+    steps,
+  ]);
+
+  function validateDraft(): CampaignStep[] | null {
     if (!name.trim()) {
       toast.push({ title: "Nome obrigatório", variant: "warning" });
       setActiveTab("base");
-      return;
+      setTimeout(() => nameInputRef.current?.focus(), 0);
+      return null;
     }
     if (typeof stepBuildResult === "string") {
       toast.push({ title: "Revise os steps", description: stepBuildResult, variant: "warning" });
       setActiveTab("steps");
-      return;
+      return null;
     }
     if (unsupportedInstagramSteps.length > 0) {
       toast.push({
@@ -510,7 +304,7 @@ export function CampaignFlowBuilder({
         variant: "warning",
       });
       setActiveTab("steps");
-      return;
+      return null;
     }
     if (csvPreview && csvPreview.validCount === 0) {
       toast.push({
@@ -519,7 +313,7 @@ export function CampaignFlowBuilder({
         variant: "warning",
       });
       setActiveTab("audience");
-      return;
+      return null;
     }
     if (abEnabled && !stepBuildResult.some((step) => step.type === "text")) {
       toast.push({
@@ -528,11 +322,17 @@ export function CampaignFlowBuilder({
         variant: "warning",
       });
       setActiveTab("steps");
-      return;
+      return null;
     }
+    return stepBuildResult;
+  }
+
+  function createDraft(options: { afterSuccess?: () => void } = {}) {
+    const validSteps = validateDraft();
+    if (!validSteps) return;
     const abVariants = buildAbVariantsMetadata({
       enabled: abEnabled,
-      steps: stepBuildResult,
+      steps: validSteps,
       controlLabel: abControlLabel,
       controlWeight: abControlWeight,
       variantLabel: abVariantLabel,
@@ -540,12 +340,12 @@ export function CampaignFlowBuilder({
       variantTemplate: abVariantTemplate,
     });
 
-    createCampaign.mutate({
+    const payload = {
       name: name.trim(),
       channel,
       evergreen,
       segment: buildSegment(segmentEnabled, segmentField, segmentOperator, segmentValue),
-      steps: stepBuildResult,
+      steps: validSteps,
       metadata: {
         source: "visual_builder",
         builderVersion: "v2.10",
@@ -561,7 +361,34 @@ export function CampaignFlowBuilder({
             }
           : null,
       },
+    };
+    setSaveState("saving");
+    createCampaign.mutate(payload, {
+      onSuccess() {
+        setSaveState("saved");
+        options.afterSuccess?.();
+      },
+      onError() {
+        setSaveState("error");
+      },
     });
+  }
+
+  function testFlow() {
+    if (!validateDraft()) return;
+    setActiveTab("preview");
+  }
+
+  function reviewAndActivate() {
+    createDraft({ afterSuccess: () => onOpenCampaignTab?.("dispatch") ?? setActiveTab("preview") });
+  }
+
+  function focusNameInput() {
+    setActiveTab("base");
+    setTimeout(() => {
+      nameInputRef.current?.focus();
+      nameInputRef.current?.select();
+    }, 0);
   }
 
   function applyTemplate(templateId: string) {
@@ -623,58 +450,50 @@ export function CampaignFlowBuilder({
     });
   }
 
+  const draftStatusText = createCampaign.isPending
+    ? "Salvando..."
+    : saveState === "saved"
+      ? "Rascunho salvo"
+      : saveState === "error"
+        ? "Falha ao salvar. Tente novamente."
+        : stepBuildError
+          ? "Rascunho com erro"
+          : "Alterações não salvas";
+
   return (
     <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as BuilderTab)}>
       <div className="nuoma-flow-studio-v2" data-testid="campaign-flow-studio-v2">
         <header className="nuoma-flow-v2-topbar">
           <div className="nuoma-flow-v2-title">
-            <div className="nuoma-flow-v2-title-line">
-              <span>Flow Studio</span>
-              <span className="nuoma-flow-v2-title-slash">/</span>
-              <span>{name || "Lançamento Coleção Inverno"}</span>
-              <button type="button" aria-label="Editar nome do fluxo">
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <div className="nuoma-flow-v2-status">
-              <span />
-              Rascunho salvo
-            </div>
-          </div>
+	            <div className="nuoma-flow-v2-title-line">
+	              <span>Flow Studio</span>
+	              <span className="nuoma-flow-v2-title-slash">/</span>
+	              <span>{name || "Campanha sem nome"}</span>
+	              <button type="button" aria-label="Editar nome do fluxo" onClick={focusNameInput}>
+	                <Pencil className="h-3.5 w-3.5" />
+	              </button>
+	            </div>
+	            <div className="nuoma-flow-v2-status">
+	              <span />
+	              {draftStatusText}
+	            </div>
+	          </div>
 
-          <button
-            type="button"
-            className="nuoma-flow-v2-search"
-            onClick={() => setActiveTab("base")}
-            aria-label="Buscar contatos, campanhas e fluxos"
-          >
-            <Search className="h-4 w-4" />
-            <span>Buscar contatos, campanhas, fluxos...</span>
-            <kbd>⌘ K</kbd>
-          </button>
-
-          <div className="nuoma-flow-v2-account">
-            <button type="button" aria-label="Ajuda">
-              <HelpCircle className="h-4 w-4" />
-            </button>
-            <button type="button" aria-label="Notificações" className="nuoma-flow-v2-bell">
-              <Bell className="h-4 w-4" />
-              <span>6</span>
-            </button>
-            <button type="button" aria-label="Conta" className="nuoma-flow-v2-avatar">
-              RS
-            </button>
-            <button type="button" aria-label="Abrir menu da conta">
-              <ChevronDown className="h-4 w-4" />
-            </button>
-          </div>
-        </header>
+	          <div className="nuoma-flow-v2-account">
+	            <Badge variant={channel === "instagram" ? "warning" : "success"}>
+	              {channel === "instagram" ? "Instagram" : "WhatsApp"}
+	            </Badge>
+	            <Badge variant={readyChecks.some((check) => !check.ok) ? "warning" : "success"}>
+	              {readyChecks.filter((check) => !check.ok).length} pendência(s)
+	            </Badge>
+	          </div>
+	        </header>
 
         <div className="nuoma-flow-v2-actionbar">
           <button
             type="button"
             className="nuoma-flow-v2-button nuoma-flow-v2-button-outline"
-            onClick={() => setActiveTab("preview")}
+            onClick={testFlow}
           >
             <BadgeCheck className="h-4 w-4" />
             Testar fluxo
@@ -682,19 +501,16 @@ export function CampaignFlowBuilder({
           <button
             type="button"
             className="nuoma-flow-v2-button nuoma-flow-v2-button-dark"
-            onClick={() => onOpenCampaignTab?.("dispatch") ?? setActiveTab("preview")}
+            onClick={reviewAndActivate}
           >
-            Publicar depois
+            Revisar disparo
           </button>
           <div className="nuoma-flow-v2-activate-group">
             <button
               type="button"
-              onClick={() => onOpenCampaignTab?.("dispatch") ?? setActiveTab("preview")}
+              onClick={reviewAndActivate}
             >
               Revisar e ativar
-            </button>
-            <button type="button" aria-label="Mais opções de ativação">
-              <ChevronDown className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -750,7 +566,7 @@ export function CampaignFlowBuilder({
             <div className="nuoma-flow-v2-editor-panels" aria-label="Edição funcional do fluxo">
               <TabsContent value="base" data-testid="campaign-builder-base">
                 <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
-                  <div className="botforge-surface rounded-xl p-4">
+                  <div className="nuoma-compat-surface rounded-xl p-4">
                     <div className="mb-3 flex items-center gap-2 text-sm font-medium text-fg-primary">
                       <ClipboardList className="h-4 w-4 text-brand-cyan" />
                       Configuração
@@ -762,6 +578,7 @@ export function CampaignFlowBuilder({
                         errorId="campaign-name-error"
                       >
                         <Input
+                          ref={nameInputRef}
                           value={name}
                           invalid={!name.trim()}
                           aria-invalid={!name.trim()}
@@ -792,7 +609,7 @@ export function CampaignFlowBuilder({
                       </label>
                     </div>
                   </div>
-                  <div className="botforge-surface rounded-xl p-4">
+                  <div className="nuoma-compat-surface rounded-xl p-4">
                     <div className="mb-3 flex items-center gap-2 text-sm font-medium text-fg-primary">
                       <Sparkles className="h-4 w-4 text-brand-violet" />
                       Templates
@@ -955,6 +772,7 @@ export function CampaignFlowBuilder({
             stepBuildError={stepBuildError}
             createPending={createCampaign.isPending}
             onCreateDraft={createDraft}
+            onReviewAndActivate={reviewAndActivate}
             onOpenCampaignTab={onOpenCampaignTab}
           />
         </div>
@@ -997,15 +815,18 @@ function CampaignFlowCanvasBoard({
       }),
     [abEnabled, channel, csvPreview, evergreen, onOpenSteps, segmentEnabled, steps],
   );
-  const [nodes, setNodes, onNodesChange] = useNodesState<CampaignCanvasNode>(graph.nodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(graph.edges);
+	  const [nodes, setNodes, onNodesChange] = useNodesState<CampaignCanvasNode>(graph.nodes);
+	  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(graph.edges);
+	  const [flowInstance, setFlowInstance] =
+	    useState<ReactFlowInstance<CampaignCanvasNode, Edge> | null>(null);
+	  const [zoomPercent, setZoomPercent] = useState(100);
 
   useEffect(() => {
     setNodes(graph.nodes);
     setEdges(graph.edges);
   }, [graph.edges, graph.nodes, setEdges, setNodes]);
 
-  const handleNodeDragStop = useCallback<OnNodeDrag<CampaignCanvasNode>>(
+	  const handleNodeDragStop = useCallback<OnNodeDrag<CampaignCanvasNode>>(
     (_event, _node, currentNodes) => {
       const orderedStepIds = currentNodes
         .filter((node) => node.data.kind === "step" || node.data.kind === "branch")
@@ -1014,14 +835,23 @@ function CampaignFlowCanvasBoard({
       onReorderSteps(orderedStepIds);
     },
     [onReorderSteps],
-  );
+	  );
+	  const fitCanvas = useCallback(() => {
+	    void flowInstance?.fitView({ padding: 0.24, includeHiddenNodes: false, duration: 180 });
+	  }, [flowInstance]);
+	  const zoomCanvasIn = useCallback(() => {
+	    void flowInstance?.zoomIn({ duration: 140 });
+	  }, [flowInstance]);
+	  const zoomCanvasOut = useCallback(() => {
+	    void flowInstance?.zoomOut({ duration: 140 });
+	  }, [flowInstance]);
 
   return (
     <div className="nuoma-flow-v2-board" data-testid="campaign-flow-canvas-board">
       <div className="nuoma-flow-v2-board-toolbar" aria-label="Ferramentas do canvas">
-        <button type="button" aria-label="Selecionar" className="is-active" title="Selecionar">
-          <MousePointer2 className="h-4 w-4" />
-        </button>
+	        <button type="button" aria-label="Selecionar" className="is-active" title="Selecionar">
+	          <MousePointer2 className="h-4 w-4" />
+	        </button>
         <button
           type="button"
           aria-label="Editar passos"
@@ -1030,19 +860,24 @@ function CampaignFlowCanvasBoard({
         >
           <Route className="h-4 w-4" />
         </button>
-        <button type="button" aria-label="Ajustar tela" title="Ajustar tela">
-          <Maximize2 className="h-4 w-4" />
-        </button>
-        <span className="nuoma-flow-v2-toolbar-divider" />
-        <button type="button" aria-label="Reduzir zoom" title="Reduzir zoom">
-          <Minimize2 className="h-4 w-4" />
-        </button>
-        <button type="button" aria-label="Zoom atual" className="nuoma-flow-v2-zoom-label">
-          fit
-        </button>
-        <button type="button" aria-label="Aumentar zoom" title="Aumentar zoom">
-          <ZoomIn className="h-4 w-4" />
-        </button>
+	        <button type="button" aria-label="Ajustar tela" title="Ajustar tela" onClick={fitCanvas}>
+	          <Maximize2 className="h-4 w-4" />
+	        </button>
+	        <span className="nuoma-flow-v2-toolbar-divider" />
+	        <button type="button" aria-label="Reduzir zoom" title="Reduzir zoom" onClick={zoomCanvasOut}>
+	          <Minimize2 className="h-4 w-4" />
+	        </button>
+	        <button
+	          type="button"
+	          aria-label="Zoom atual"
+	          className="nuoma-flow-v2-zoom-label"
+	          onClick={fitCanvas}
+	        >
+	          {zoomPercent}%
+	        </button>
+	        <button type="button" aria-label="Aumentar zoom" title="Aumentar zoom" onClick={zoomCanvasIn}>
+	          <ZoomIn className="h-4 w-4" />
+	        </button>
         <span className="nuoma-flow-v2-toolbar-divider" />
         <button
           type="button"
@@ -1066,10 +901,15 @@ function CampaignFlowCanvasBoard({
           nodes={nodes}
           edges={edges}
           nodeTypes={campaignFlowNodeTypes}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onNodeDragStop={handleNodeDragStop}
-          fitView
+	          onNodesChange={onNodesChange}
+	          onEdgesChange={onEdgesChange}
+	          onNodeDragStop={handleNodeDragStop}
+	          onInit={(instance) => {
+	            setFlowInstance(instance);
+	            setZoomPercent(Math.round(instance.getZoom() * 100));
+	          }}
+	          onMoveEnd={(_event, viewport) => setZoomPercent(Math.round(viewport.zoom * 100))}
+	          fitView
           fitViewOptions={{ padding: 0.24, includeHiddenNodes: false }}
           minZoom={0.45}
           maxZoom={1.35}
@@ -1228,11 +1068,11 @@ function buildCampaignFlowGraph(inputGraph: {
   });
 
   const edges: Edge[] = [];
-  const markerEnd = { type: MarkerType.ArrowClosed, color: "rgba(157, 177, 188, 0.82)" };
+  const markerEnd = { type: MarkerType.ArrowClosed, color: "var(--nw-flow-edge)" };
   const defaultEdge = {
     type: "smoothstep",
     markerEnd,
-    style: { stroke: "rgba(157, 177, 188, 0.72)", strokeWidth: 2 },
+    style: { stroke: "var(--nw-flow-edge)", strokeWidth: 2 },
   };
   const firstStep = inputGraph.steps[0];
   edges.push({
@@ -1264,8 +1104,8 @@ function buildCampaignFlowGraph(inputGraph: {
           label: conditionLabel(condition),
           type: "smoothstep",
           markerEnd,
-          style: { stroke: "rgba(90, 170, 210, 0.82)", strokeWidth: 2 },
-          labelStyle: { fill: "rgb(244 244 248)", fontSize: 11, fontWeight: 600 },
+          style: { stroke: "var(--nw-flow-branch)", strokeWidth: 2 },
+          labelStyle: { fill: "var(--nw-flow-label)", fontSize: 11, fontWeight: 600 },
         });
       }
       if (condition.action === "exit") {
@@ -1276,8 +1116,8 @@ function buildCampaignFlowGraph(inputGraph: {
           label: conditionLabel(condition),
           type: "smoothstep",
           markerEnd,
-          style: { stroke: "rgba(214, 170, 96, 0.82)", strokeWidth: 2 },
-          labelStyle: { fill: "rgb(224 163 58)", fontSize: 11, fontWeight: 600 },
+          style: { stroke: "var(--nw-flow-exit)", strokeWidth: 2 },
+          labelStyle: { fill: "var(--nw-flow-exit)", fontSize: 11, fontWeight: 600 },
         });
       }
     });
@@ -1310,12 +1150,12 @@ function stepTone(step: StepDraft, channel: ChannelType, hasBranch: boolean): Ca
 }
 
 function flowToneColor(tone: CampaignCanvasTone) {
-  if (tone === "wa") return "rgb(43 184 126)";
-  if (tone === "ig") return "rgb(225 86 143)";
-  if (tone === "violet") return "rgb(124 124 255)";
-  if (tone === "danger") return "rgb(242 86 106)";
-  if (tone === "neutral") return "rgb(162 162 178)";
-  return "rgb(91 91 246)";
+  if (tone === "wa") return "var(--nw-flow-wa)";
+  if (tone === "ig") return "var(--nw-flow-ig)";
+  if (tone === "violet") return "var(--nw-flow-accent)";
+  if (tone === "danger") return "var(--nw-flow-danger)";
+  if (tone === "neutral") return "var(--nw-flow-neutral)";
+  return "var(--nw-flow-accent)";
 }
 
 function conditionLabel(condition: ConditionDraft) {
@@ -1346,6 +1186,7 @@ function FlowStudioInspector({
   stepBuildError,
   createPending,
   onCreateDraft,
+  onReviewAndActivate,
   onOpenCampaignTab,
 }: {
   activeTab: BuilderTab;
@@ -1358,6 +1199,7 @@ function FlowStudioInspector({
   stepBuildError: string | null;
   createPending: boolean;
   onCreateDraft: () => void;
+  onReviewAndActivate: () => void;
   onOpenCampaignTab?: (tab: CampaignWorkspaceTab) => void;
 }) {
   const readyCount = readyChecks.filter((check) => check.ok).length;
@@ -1367,7 +1209,7 @@ function FlowStudioInspector({
   const validationStatus = isFlowValid ? "valid" : "invalid";
   const estimatedAudience = csvPreview?.validCount
     ? csvPreview.validCount.toLocaleString("pt-BR")
-    : "28.450";
+    : "Sem estimativa";
   return (
     <aside className="nuoma-flow-v2-inspector" data-active-tab={activeTab}>
       <h2>Resumo e validação</h2>
@@ -1420,23 +1262,27 @@ function FlowStudioInspector({
           </span>
           <div>
             <strong>Safe Dispatch</strong>
-            <span>Entrega gradual ativada</span>
+            <span>{isFlowValid ? "Validação pronta" : "Validação pendente"}</span>
           </div>
           <span className="nuoma-flow-v2-toggle" />
         </div>
-        <p>Novos contatos entrarão de forma progressiva.</p>
+        <p>
+          {isFlowValid
+            ? "O fluxo pode seguir para revisão de disparo."
+            : "Resolva as pendências antes de criar Jobs de envio."}
+        </p>
         <div className="nuoma-flow-v2-safe-grid">
           <div>
-            <span>Início</span>
-            <strong>10%</strong>
+            <span>Checks ok</span>
+            <strong>{readyCount}/{readyChecks.length}</strong>
           </div>
           <div>
-            <span>Próximo aumento</span>
-            <strong>Em 30 min</strong>
+            <span>Pendências</span>
+            <strong>{failedChecks.length}</strong>
           </div>
           <div>
-            <span>Limite atual</span>
-            <strong>1.000 contatos</strong>
+            <span>Status</span>
+            <strong>{isFlowValid ? "Liberado" : "Revisar"}</strong>
           </div>
         </div>
       </section>
@@ -1453,7 +1299,7 @@ function FlowStudioInspector({
         <div className="nuoma-flow-v2-audience-value">{estimatedAudience}</div>
         <div className="nuoma-flow-v2-audience-foot">
           <span>Contatos elegíveis</span>
-          <strong>+8,2% vs. 7 dias</strong>
+          <strong>{csvPreview ? "CSV validado" : "Valide CSV ou segmento"}</strong>
         </div>
       </section>
 
@@ -1464,7 +1310,7 @@ function FlowStudioInspector({
           </span>
           <div>
             <strong>Passos do fluxo</strong>
-            <span>{Math.max(stepCount, 6)} passos</span>
+            <span>{stepCount} passos</span>
           </div>
           <button type="button" onClick={() => onOpenCampaignTab?.("recipients")}>
             Ver detalhes
@@ -1497,7 +1343,6 @@ function FlowStudioInspector({
             </ul>
           ) : null}
           {stepBuildError ? <p>{stepBuildError}</p> : null}
-          <button type="button">Saiba mais</button>
         </div>
       </section>
 
@@ -1506,12 +1351,12 @@ function FlowStudioInspector({
           type="button"
           className="nuoma-flow-v2-submit"
           disabled={createPending}
-          onClick={() => onOpenCampaignTab?.("dispatch") ?? onCreateDraft()}
+          onClick={onReviewAndActivate}
         >
           <Send className="h-4 w-4" />
           {createPending ? "Salvando..." : "Revisar e ativar fluxo"}
         </button>
-        <button type="button" className="nuoma-flow-v2-save" onClick={onCreateDraft}>
+        <button type="button" className="nuoma-flow-v2-save" disabled={createPending} onClick={onCreateDraft}>
           Salvar rascunho
         </button>
       </div>
@@ -1848,7 +1693,6 @@ function WorkflowViewer({
   abEnabled: boolean;
   className?: string;
 }) {
-  const rootRef = useRef<HTMLDivElement>(null);
   const nodes = [
     {
       id: "audience",
@@ -1883,29 +1727,9 @@ function WorkflowViewer({
     },
   ];
 
-  useLayoutEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    const items = Array.from(root.querySelectorAll<HTMLElement>("[data-workflow-node='true']"));
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      gsap.set(items, { opacity: 1, y: 0, scale: 1 });
-      return;
-    }
-    const timeline = gsap.timeline({ defaults: { ease: "power2.out" } });
-    timeline.fromTo(
-      items,
-      { opacity: 0, y: 12, scale: 0.98 },
-      { opacity: 1, y: 0, scale: 1, duration: 0.28, stagger: 0.04 },
-    );
-    return () => {
-      timeline.kill();
-    };
-  }, [nodes.length, channel, evergreen, csvPreview?.validCount, segmentEnabled, abEnabled]);
-
   return (
     <div
-      ref={rootRef}
-      className={cn("botforge-surface nuoma-flow-canvas rounded-lg p-4", className)}
+      className={cn("nuoma-compat-surface nuoma-flow-canvas rounded-lg p-4", className)}
       data-testid="campaign-workflow-viewer"
     >
       <div className="flex items-center gap-2 text-sm font-medium text-fg-primary">
@@ -1926,7 +1750,7 @@ function WorkflowViewer({
               <div
                 data-workflow-node="true"
                 data-testid="campaign-workflow-node"
-                className="botforge-readable rounded-xl px-3 py-3 transition-transform hover:-translate-y-0.5"
+                className="nuoma-compat-readable rounded-xl px-3 py-3 transition-transform hover:-translate-y-0.5"
               >
                 <div className="flex items-center gap-3">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-cyan/12 text-brand-cyan shadow-pressed-sm">
@@ -2125,7 +1949,7 @@ export function AutomationFlowBuilder() {
         <CardContent className="nuoma-flow-studio-canvas">
           <div className="nuoma-flow-studio-canvas-header">
             <div>
-              <p className="botforge-kicker">Automação draft</p>
+              <p className="nuoma-compat-kicker">Automação draft</p>
               <h2 className="mt-1 text-xl font-semibold text-fg-primary">{name || "Sem nome"}</h2>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -2676,7 +2500,7 @@ function AutomationStudioInspector({
   return (
     <aside className="nuoma-flow-studio-inspector">
       <div>
-        <p className="botforge-kicker">Inspector</p>
+        <p className="nuoma-compat-kicker">Inspector</p>
         <h3 className="mt-1 text-base font-semibold text-fg-primary">Saída segura</h3>
       </div>
 
@@ -2867,7 +2691,7 @@ function StepEditor({
             </SelectContent>
           </Select>
         </LabeledField>
-        <LabeledField label="Delay (s)">
+        <LabeledField label="Espera (s)">
           <Input
             inputMode="numeric"
             value={value.delaySeconds}
@@ -3523,7 +3347,7 @@ function AutomationPreviewPanel({
   error: string | null;
 }) {
   return (
-    <div className="botforge-surface rounded-xl p-4" data-testid="automation-flow-preview">
+    <div className="nuoma-compat-surface rounded-xl p-4" data-testid="automation-flow-preview">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-sm font-medium text-fg-primary">
@@ -3538,7 +3362,7 @@ function AutomationPreviewPanel({
       </div>
       {error ? <div className="mt-3 text-xs text-semantic-danger">{error}</div> : null}
       <div className="mt-4 grid gap-3 lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="botforge-readable rounded-lg p-3">
+        <div className="nuoma-compat-readable rounded-lg p-3">
           <div className="font-mono text-[0.62rem] uppercase tracking-widest text-fg-dim">
             Resumo
           </div>
@@ -3571,14 +3395,14 @@ function AutomationPreviewPanel({
         </div>
         <div className="grid gap-2">
           {actions.length === 0 ? (
-            <div className="botforge-readable rounded-lg px-3 py-4 text-xs text-fg-dim">
+            <div className="nuoma-compat-readable rounded-lg px-3 py-4 text-xs text-fg-dim">
               Nenhuma ação válida para prévia.
             </div>
           ) : (
             actions.map((action, index) => (
               <div
                 key={`${action.type}-${index}`}
-                className="botforge-readable grid grid-cols-[2rem_1fr_auto] items-center gap-3 rounded-lg px-3 py-2.5"
+                className="nuoma-compat-readable grid grid-cols-[2rem_1fr_auto] items-center gap-3 rounded-lg px-3 py-2.5"
                 data-testid="automation-preview-node"
                 data-action-type={action.type}
               >
@@ -3631,7 +3455,7 @@ function ActionBody({
   if (value.type === "delay") {
     return (
       <div className="grid gap-3 md:grid-cols-[10rem_1fr]">
-        <LabeledField label="Delay (s)">
+        <LabeledField label="Espera (s)">
           <Input
             inputMode="numeric"
             value={value.delayActionSeconds}
@@ -3879,357 +3703,6 @@ function IconButton({
   );
 }
 
-function newStepDraft(order: number): StepDraft {
-  draftCounter += 1;
-  return {
-    id: `step-${Date.now()}-${draftCounter}`,
-    label: `Step ${order}`,
-    type: "text",
-    delaySeconds: "0",
-    template: "Olá {{nome}}, tudo bem?",
-    url: "https://nuoma.com.br",
-    linkText: "Ver detalhes",
-    previewEnabled: true,
-    mediaAssetId: "",
-    fileName: "documento.pdf",
-    caption: "",
-    temporaryMessagesDuration: "24h",
-    conditions: [],
-  };
-}
-
-function newConditionDraft(): ConditionDraft {
-  draftCounter += 1;
-  return {
-    id: `condition-${Date.now()}-${draftCounter}`,
-    type: "replied",
-    action: "exit",
-    value: "",
-    targetStepId: "",
-  };
-}
-
-function newActionDraft(order: number): ActionDraft {
-  return {
-    id: `action-${Date.now()}-${order}-${Math.random().toString(36).slice(2, 8)}`,
-    type: "send_step",
-    step: newStepDraft(order),
-    delayActionSeconds: "300",
-    delayLabel: "Aguardar",
-    branchLabel: "Branch",
-    branchTargetActionId: "",
-    branchConditionField: "status",
-    branchConditionOperator: "eq",
-    branchConditionValue: "novo",
-    tagId: "",
-    status: "novo",
-    reminderTitle: "Retornar contato",
-    dueAt: "",
-    notifyAttendantId: "",
-    notifyMessage: "Lead precisa de atendimento humano.",
-    triggerAutomationId: "",
-  };
-}
-
-function buildSteps(steps: StepDraft[]): CampaignStep[] | string {
-  const built: CampaignStep[] = [];
-  for (const [index, step] of steps.entries()) {
-    const result = buildStep(step, index + 1);
-    if (typeof result === "string") {
-      return result;
-    }
-    built.push(result);
-  }
-  return built;
-}
-
-function unsupportedInstagramStepLabels(steps: StepDraft[]): string[] {
-  return steps
-    .filter((step) => !instagramSupportedStepTypes.has(step.type))
-    .map((step, index) => step.label.trim() || `Step ${index + 1}`);
-}
-
-function stepDraftFieldErrors(step: StepDraft, order: number): StepFieldErrors {
-  if (step.type === "text") {
-    return step.template.trim() ? {} : { template: `Step ${order}: mensagem vazia.` };
-  }
-
-  if (step.type === "link") {
-    return {
-      ...(!step.url.trim() ? { url: `Step ${order}: informe a URL.` } : {}),
-      ...(!step.linkText.trim() ? { linkText: `Step ${order}: informe o texto do link.` } : {}),
-    };
-  }
-
-  if (step.type === "temporary_messages") {
-    return {};
-  }
-
-  const mediaAssetId = Number.parseInt(step.mediaAssetId, 10);
-  return {
-    ...(!Number.isInteger(mediaAssetId) || mediaAssetId <= 0
-      ? { mediaAssetId: `Step ${order}: informe um Media Asset ID válido.` }
-      : {}),
-    ...(step.type === "document" && !step.fileName.trim()
-      ? { fileName: `Step ${order}: documento precisa de nome de arquivo.` }
-      : {}),
-  };
-}
-
-function conditionFieldErrors(
-  condition: ConditionDraft,
-  stepOrder: number,
-  conditionOrder: number,
-): ConditionFieldErrors {
-  const value = condition.value.trim();
-  const targetStepId = condition.targetStepId.trim();
-  return {
-    ...((condition.type === "has_tag" || condition.type === "channel_is") && !value
-      ? { value: `Step ${stepOrder}, condição ${conditionOrder}: informe o valor.` }
-      : {}),
-    ...(condition.action === "branch" && !targetStepId
-      ? {
-          targetStepId: `Step ${stepOrder}, condição ${conditionOrder}: branch precisa de destino.`,
-        }
-      : {}),
-  };
-}
-
-function buildStep(step: StepDraft, order: number): CampaignStep | string {
-  const id = step.id.replace(/[^a-zA-Z0-9_-]/g, "") || `step-${order}`;
-  const label = step.label.trim() || `Step ${order}`;
-  const delaySeconds = Math.max(0, Number.parseInt(step.delaySeconds || "0", 10) || 0);
-  const conditions = buildStepConditions(step, order);
-  if (typeof conditions === "string") {
-    return conditions;
-  }
-  const base = { id, label, delaySeconds, conditions };
-
-  if (step.type === "temporary_messages") {
-    return { ...base, type: "temporary_messages", duration: step.temporaryMessagesDuration };
-  }
-
-  if (step.type === "text") {
-    const template = step.template.trim();
-    return template ? { ...base, type: "text", template } : `Step ${order}: mensagem vazia.`;
-  }
-  if (step.type === "link") {
-    const text = step.linkText.trim();
-    const url = step.url.trim();
-    if (!text || !url) return `Step ${order}: link precisa de texto e URL.`;
-    return { ...base, type: "link", text, url, previewEnabled: step.previewEnabled };
-  }
-
-  const mediaAssetId = Number.parseInt(step.mediaAssetId, 10);
-  if (!Number.isInteger(mediaAssetId) || mediaAssetId <= 0) {
-    return `Step ${order}: informe um Media Asset ID válido.`;
-  }
-  const caption = step.caption.trim() || null;
-  if (step.type === "document") {
-    const fileName = step.fileName.trim();
-    return fileName
-      ? { ...base, type: "document", mediaAssetId, fileName, caption }
-      : `Step ${order}: documento precisa de nome de arquivo.`;
-  }
-  return { ...base, type: step.type, mediaAssetId, caption };
-}
-
-function buildStepConditions(step: StepDraft, order: number): CampaignStepCondition[] | string {
-  const built: CampaignStepCondition[] = [];
-  for (const [index, condition] of step.conditions.entries()) {
-    const value = condition.value.trim();
-    const targetStepId = condition.targetStepId.trim();
-    if ((condition.type === "has_tag" || condition.type === "channel_is") && !value) {
-      return `Step ${order}, condição ${index + 1}: informe o valor.`;
-    }
-    if (condition.action === "branch" && !targetStepId) {
-      return `Step ${order}, condição ${index + 1}: branch precisa de destino.`;
-    }
-    built.push({
-      type: condition.type,
-      action: condition.action,
-      value: value || null,
-      targetStepId: condition.action === "branch" ? targetStepId : null,
-    });
-  }
-  return built;
-}
-
-function buildActions(actions: ActionDraft[]): AutomationAction[] | string {
-  const built: AutomationAction[] = [];
-  for (const [index, action] of actions.entries()) {
-    const order = index + 1;
-    if (action.type === "send_step") {
-      const step = buildStep(action.step, order);
-      if (typeof step === "string") return step;
-      built.push({ id: action.id, type: "send_step", step });
-      continue;
-    }
-    if (action.type === "delay") {
-      const seconds = Number.parseInt(action.delayActionSeconds, 10);
-      if (!Number.isInteger(seconds) || seconds <= 0) {
-        return `Ação ${order}: delay precisa de segundos positivos.`;
-      }
-      built.push({
-        id: action.id,
-        type: "delay",
-        seconds,
-        label: action.delayLabel.trim() || null,
-      });
-      continue;
-    }
-    if (action.type === "branch") {
-      const label = action.branchLabel.trim();
-      if (!label) return `Ação ${order}: branch precisa de rótulo.`;
-      built.push({
-        id: action.id,
-        type: "branch",
-        label,
-        condition: {
-          operator: "and",
-          conditions: [
-            {
-              field: action.branchConditionField,
-              operator: action.branchConditionOperator,
-              value: parseSegmentDraftValue(
-                action.branchConditionOperator,
-                action.branchConditionValue,
-              ),
-            },
-          ],
-        },
-        targetActionId: action.branchTargetActionId.trim() || null,
-      });
-      continue;
-    }
-    if (action.type === "apply_tag" || action.type === "remove_tag") {
-      const tagId = Number.parseInt(action.tagId, 10);
-      if (!Number.isInteger(tagId) || tagId <= 0) {
-        return `Ação ${order}: informe um Tag ID válido.`;
-      }
-      built.push({ id: action.id, type: action.type, tagId });
-      continue;
-    }
-    if (action.type === "set_status") {
-      const status = action.status.trim();
-      if (!status) return `Ação ${order}: informe o status.`;
-      built.push({ id: action.id, type: "set_status", status });
-      continue;
-    }
-    const title = action.reminderTitle.trim();
-    const dueAt = toIsoDateTime(action.dueAt);
-    if (action.type === "create_reminder") {
-      if (!title || !dueAt) {
-        return `Ação ${order}: lembrete precisa de título e data.`;
-      }
-      built.push({ id: action.id, type: "create_reminder", title, dueAt });
-      continue;
-    }
-    if (action.type === "notify_attendant") {
-      const message = action.notifyMessage.trim();
-      if (!message) return `Ação ${order}: notificação precisa de mensagem.`;
-      const attendantId = Number.parseInt(action.notifyAttendantId, 10);
-      built.push({
-        id: action.id,
-        type: "notify_attendant",
-        attendantId: Number.isInteger(attendantId) && attendantId > 0 ? attendantId : null,
-        message,
-      });
-      continue;
-    }
-    const automationId = Number.parseInt(action.triggerAutomationId, 10);
-    if (!Number.isInteger(automationId) || automationId <= 0) {
-      return `Ação ${order}: informe a automação filha.`;
-    }
-    built.push({ id: action.id, type: "trigger_automation", automationId });
-  }
-  return built;
-}
-
-function buildAbVariantsMetadata(input: {
-  enabled: boolean;
-  steps: CampaignStep[];
-  controlLabel: string;
-  controlWeight: string;
-  variantLabel: string;
-  variantWeight: string;
-  variantTemplate: string;
-}) {
-  if (!input.enabled) {
-    return null;
-  }
-  const textStep = input.steps.find((step) => step.type === "text");
-  if (!textStep) {
-    return null;
-  }
-  return {
-    enabled: true,
-    assignment: "deterministic",
-    variants: [
-      {
-        id: "a",
-        label: input.controlLabel.trim() || "Controle",
-        weight: positiveWeight(input.controlWeight),
-        stepOverrides: {},
-      },
-      {
-        id: "b",
-        label: input.variantLabel.trim() || "Variante B",
-        weight: positiveWeight(input.variantWeight),
-        stepOverrides: {
-          [textStep.id]: {
-            template: input.variantTemplate.trim() || textStep.template,
-          },
-        },
-      },
-    ],
-  };
-}
-
-function buildSegment(
-  enabled: boolean,
-  field: SegmentField,
-  operator: SegmentOperator,
-  rawValue: string,
-): Segment | null {
-  if (!enabled) return null;
-  const value = parseSegmentDraftValue(operator, rawValue);
-  return {
-    operator: "and",
-    conditions: [{ field, operator, value }],
-  };
-}
-
-function buildSegmentFromDrafts(
-  enabled: boolean,
-  operator: "and" | "or",
-  drafts: SegmentDraft[],
-): Segment | null {
-  if (!enabled) return null;
-  const conditions = drafts
-    .map((draft) => ({
-      field: draft.field,
-      operator: draft.operator,
-      value: parseSegmentDraftValue(draft.operator, draft.value),
-    }))
-    .filter(
-      (condition) =>
-        condition.operator === "exists" ||
-        condition.operator === "not_exists" ||
-        condition.value !== "",
-    );
-  return conditions.length > 0 ? { operator, conditions } : null;
-}
-
-function parseSegmentDraftValue(operator: SegmentOperator, rawValue: string) {
-  return operator === "exists" || operator === "not_exists" ? null : parseSegmentValue(rawValue);
-}
-
-function positiveWeight(value: string) {
-  const parsed = Number.parseInt(value, 10);
-  return Number.isInteger(parsed) && parsed > 0 ? Math.min(parsed, 100) : 50;
-}
-
 function buildTrigger(
   type: AutomationTrigger["type"],
   channel: ChannelType,
@@ -4294,162 +3767,6 @@ function automationActionSummary(action: AutomationAction) {
     return `Vence em ${new Date(action.dueAt).toLocaleString("pt-BR")}`;
   if (action.type === "notify_attendant") return action.message;
   return "Aciona automação filha com guarda anti-loop";
-}
-
-function parseCsvPreview(text: string): CsvPreviewResult {
-  const lines = text
-    .replace(/^\uFEFF/, "")
-    .split(/\r?\n/)
-    .filter((line) => line.trim().length > 0);
-  if (lines.length === 0) {
-    return emptyCsvPreview(["CSV vazio."]);
-  }
-
-  const delimiter = detectCsvDelimiter(lines[0] ?? "");
-  const headers = parseCsvLine(lines[0] ?? "", delimiter).map((header) => header.trim());
-  const normalizedHeaders = headers.map(normalizeCsvHeader);
-  const phoneIndex = normalizedHeaders.findIndex((header) =>
-    ["telefone", "phone", "whatsapp", "celular", "numero", "number"].includes(header),
-  );
-  const nameIndex = normalizedHeaders.findIndex((header) =>
-    ["nome", "name", "contato", "contact"].includes(header),
-  );
-  const emailIndex = normalizedHeaders.findIndex((header) => ["email", "e-mail"].includes(header));
-  const seenPhones = new Set<string>();
-  const errors: string[] = [];
-
-  if (phoneIndex === -1) {
-    errors.push(
-      "Coluna de telefone não encontrada. Use telefone, phone, whatsapp, celular ou numero.",
-    );
-  }
-
-  const rows = lines.slice(1).map((line, index) => {
-    const cells = parseCsvLine(line, delimiter);
-    const rowNumber = index + 2;
-    const rawPhone = phoneIndex >= 0 ? (cells[phoneIndex] ?? "") : "";
-    const phone = normalizeCsvPhone(rawPhone);
-    const rowErrors: string[] = [];
-    if (!phone) {
-      rowErrors.push("telefone inválido");
-    }
-    const duplicate = Boolean(phone && seenPhones.has(phone));
-    if (duplicate) {
-      rowErrors.push("telefone duplicado");
-    }
-    if (phone && !duplicate) {
-      seenPhones.add(phone);
-    }
-    return {
-      rowNumber,
-      phone: phone ?? rawPhone.trim(),
-      name: nameIndex >= 0 ? cleanCsvCell(cells[nameIndex]) : null,
-      email: emailIndex >= 0 ? cleanCsvCell(cells[emailIndex]) : null,
-      valid: rowErrors.length === 0 && phoneIndex >= 0,
-      duplicate,
-      errors: rowErrors,
-    };
-  });
-
-  const duplicateCount = rows.filter((row) => row.duplicate).length;
-  const invalidCount = rows.filter((row) => !row.valid).length;
-  const previewErrors = [
-    ...errors,
-    ...rows.flatMap((row) => row.errors.map((error) => `Linha ${row.rowNumber}: ${error}`)),
-  ];
-
-  return {
-    headers,
-    phoneHeader: phoneIndex >= 0 ? (headers[phoneIndex] ?? null) : null,
-    rows,
-    totalRows: rows.length,
-    validCount: rows.length - invalidCount,
-    invalidCount,
-    duplicateCount,
-    errors: previewErrors,
-  };
-}
-
-function emptyCsvPreview(errors: string[]): CsvPreviewResult {
-  return {
-    headers: [],
-    phoneHeader: null,
-    rows: [],
-    totalRows: 0,
-    validCount: 0,
-    invalidCount: 0,
-    duplicateCount: 0,
-    errors,
-  };
-}
-
-function detectCsvDelimiter(header: string) {
-  const commaCount = (header.match(/,/g) ?? []).length;
-  const semicolonCount = (header.match(/;/g) ?? []).length;
-  return semicolonCount > commaCount ? ";" : ",";
-}
-
-function parseCsvLine(line: string, delimiter: string) {
-  const cells: string[] = [];
-  let current = "";
-  let insideQuotes = false;
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    const next = line[index + 1];
-    if (char === '"' && next === '"') {
-      current += '"';
-      index += 1;
-      continue;
-    }
-    if (char === '"') {
-      insideQuotes = !insideQuotes;
-      continue;
-    }
-    if (char === delimiter && !insideQuotes) {
-      cells.push(current.trim());
-      current = "";
-      continue;
-    }
-    current += char;
-  }
-  cells.push(current.trim());
-  return cells;
-}
-
-function cleanCsvCell(value: string | undefined) {
-  const cleaned = value?.trim();
-  return cleaned ? cleaned : null;
-}
-
-function normalizeCsvHeader(value: string) {
-  return value
-    .trim()
-    .toLocaleLowerCase("pt-BR")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9_-]/g, "");
-}
-
-function normalizeCsvPhone(value: string) {
-  const digits = value.replace(/\D/g, "");
-  if (digits.length < 10 || digits.length > 15) return null;
-  if (digits.startsWith("55")) return digits;
-  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
-  return digits;
-}
-
-function parseSegmentValue(value: string) {
-  const trimmed = value.trim();
-  if (/^\d+$/.test(trimmed)) return Number.parseInt(trimmed, 10);
-  if (trimmed === "true") return true;
-  if (trimmed === "false") return false;
-  return trimmed;
-}
-
-function toIsoDateTime(value: string) {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 function moveItem<T>(items: T[], index: number, direction: -1 | 1) {

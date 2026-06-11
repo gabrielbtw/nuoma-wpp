@@ -69,12 +69,12 @@
 }
 
 /* ----------------------------------------------------------------------------
- * Shared editorial vocabulary (replaces the old bespoke .botforge / .nuoma-glass
- * surfaces — same class names, rebuilt flat + token-driven so every page that
- * already references them adopts the new look).
+ * Shared compatibility vocabulary for pages still using pre-rebrand class names.
+ * Same selectors, rebuilt flat + token-driven so each page adopts the current look
+ * until it migrates to nw-* page styles.
  * ------------------------------------------------------------------------- */
 @layer components {
-  .botforge-surface {
+  .nuoma-compat-surface {
     position: relative;
     isolation: isolate;
     border-radius: 0.75rem;
@@ -108,7 +108,7 @@
   }
 
   /* Display title — Inter, tight, editorial */
-  .botforge-display {
+  .nuoma-compat-display {
     font-family: "Inter Variable", "Inter", system-ui, sans-serif;
     font-weight: 640;
     font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2rem);
@@ -119,7 +119,7 @@
   }
 
   /* Eyebrow / kicker — mono, uppercase */
-  .botforge-kicker {
+  .nuoma-compat-kicker {
     font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
     font-size: 0.6875rem;
     font-weight: 560;
@@ -128,7 +128,7 @@
     color: rgb(var(--color-fg-dim));
   }
 
-  .botforge-readable {
+  .nuoma-compat-readable {
     max-width: 62ch;
   }
 
@@ -184,11 +184,11 @@
   .nuoma-workspace-header > div {
     min-width: 0;
   }
-  .nuoma-workspace-header .botforge-display {
+  .nuoma-workspace-header .nuoma-compat-display {
     font-size: clamp(1.35rem, 1.1rem + 1vw, 1.75rem);
     line-height: 1.12;
   }
-  .nuoma-workspace-header p:not(.botforge-kicker) {
+  .nuoma-workspace-header p:not(.nuoma-compat-kicker) {
     margin-top: 0.45rem;
     max-width: 60ch;
     color: rgb(var(--color-fg-muted));
@@ -314,509 +314,7 @@
   }
 }
 
-/* ----------------------------------------------------------------------------
- * Dashboard "Signal Board" — rebuilt editorial. Flat panels, hairline grids,
- * mono labels, tabular numerics. No neon, no gradients.
- * ------------------------------------------------------------------------- */
 @layer components {
-  .nuoma-signal-board {
-    display: flex;
-    min-height: calc(100vh - 9rem);
-    flex-direction: column;
-    overflow: hidden;
-    border: 1px solid rgb(var(--color-border-subtle));
-    border-radius: 0.875rem;
-    background: rgb(var(--color-bg-base));
-  }
-
-  .nuoma-signal-titlebar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 1.1rem 1.25rem;
-    border-bottom: 1px solid rgb(var(--color-border-subtle));
-  }
-  .nuoma-signal-breadcrumb {
-    font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
-    font-size: 0.66rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: rgb(var(--color-fg-faint));
-  }
-  .nuoma-signal-heading {
-    margin-top: 0.5rem;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
-  .nuoma-signal-heading h2 {
-    margin: 0;
-    font-size: clamp(1.35rem, 1.1rem + 1vw, 1.75rem);
-    font-weight: 640;
-    letter-spacing: -0.02em;
-    color: rgb(var(--color-fg-primary));
-  }
-  .nuoma-signal-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  /* Raw buttons inside the board → editorial ghost/secondary */
-  .nuoma-signal-actions button,
-  .nuoma-signal-table button,
-  .nuoma-signal-panel button,
-  .nuoma-safe-check button {
-    display: inline-flex;
-    min-height: 2.1rem;
-    align-items: center;
-    justify-content: center;
-    gap: 0.4rem;
-    border: 1px solid rgb(var(--color-border-muted));
-    border-radius: 0.5rem;
-    background: rgb(var(--color-bg-surface));
-    padding: 0 0.75rem;
-    color: rgb(var(--color-fg-muted));
-    font-size: 0.78rem;
-    transition:
-      color 140ms ease,
-      background-color 140ms ease,
-      border-color 140ms ease;
-  }
-  .nuoma-signal-actions button:hover,
-  .nuoma-signal-table button:hover,
-  .nuoma-signal-panel button:hover {
-    color: rgb(var(--color-fg-primary));
-    border-color: rgb(var(--color-fg-faint));
-    background: rgb(var(--color-bg-elevated));
-  }
-
-  .nuoma-signal-tabs {
-    display: flex;
-    gap: 1.5rem;
-    overflow-x: auto;
-    padding: 0 1.25rem;
-    border-bottom: 1px solid rgb(var(--color-border-subtle));
-  }
-  .nuoma-signal-tabs span {
-    position: relative;
-    display: inline-flex;
-    min-height: 2.6rem;
-    align-items: center;
-    color: rgb(var(--color-fg-dim));
-    font-size: 0.82rem;
-    white-space: nowrap;
-    cursor: pointer;
-  }
-  .nuoma-signal-tabs .is-active {
-    color: rgb(var(--color-fg-primary));
-    font-weight: 560;
-  }
-  .nuoma-signal-tabs .is-active::after {
-    content: "";
-    position: absolute;
-    inset: auto 0 -1px 0;
-    height: 2px;
-    background: rgb(var(--color-accent));
-  }
-
-  .nuoma-signal-layout {
-    display: grid;
-    flex: 1;
-    min-height: 0;
-    grid-template-columns: minmax(0, 1fr) minmax(17rem, 20rem);
-  }
-  .nuoma-signal-main {
-    display: flex;
-    min-width: 0;
-    flex-direction: column;
-    gap: 0.85rem;
-    padding: 0.85rem;
-    border-right: 1px solid rgb(var(--color-border-subtle));
-    overflow: hidden;
-  }
-  .nuoma-signal-side {
-    display: flex;
-    min-width: 0;
-    flex-direction: column;
-    gap: 0.85rem;
-    padding: 0.85rem;
-    overflow: hidden;
-  }
-
-  .nuoma-signal-panel {
-    min-width: 0;
-    border: 1px solid rgb(var(--color-border-subtle));
-    border-radius: 0.625rem;
-    background: rgb(var(--color-bg-surface));
-  }
-  .nuoma-signal-panel-head {
-    display: flex;
-    min-height: 2.75rem;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 0.75rem 0.9rem 0;
-  }
-  .nuoma-signal-panel h3 {
-    margin: 0;
-    font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
-    font-size: 0.7rem;
-    font-weight: 560;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: rgb(var(--color-fg-dim));
-  }
-  .nuoma-signal-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    color: rgb(var(--color-fg-dim));
-    font-size: 0.68rem;
-  }
-  .nuoma-signal-legend span {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-  }
-  .nuoma-signal-legend i {
-    height: 0.4rem;
-    width: 0.4rem;
-    border-radius: 999px;
-  }
-  .nuoma-signal-legend .positive,
-  .nuoma-readiness-list .is-ok,
-  .nuoma-signal-name i[data-tone="positivo"] {
-    background: rgb(var(--color-semantic-success) / 0.18);
-    color: rgb(var(--color-semantic-success));
-  }
-  .nuoma-signal-legend .warning,
-  .nuoma-readiness-list .is-attention,
-  .nuoma-signal-name i[data-tone="atenção"] {
-    background: rgb(var(--color-semantic-warning) / 0.18);
-    color: rgb(var(--color-semantic-warning));
-  }
-  .nuoma-signal-legend .negative,
-  .nuoma-signal-name i[data-tone="negativo"] {
-    background: rgb(var(--color-semantic-danger) / 0.18);
-    color: rgb(var(--color-semantic-danger));
-  }
-
-  .nuoma-signal-table {
-    overflow-x: auto;
-    padding: 0.35rem 0.65rem 0.65rem;
-  }
-  .nuoma-signal-row {
-    display: grid;
-    min-width: 52rem;
-    grid-template-columns: 1.5fr 0.7fr 1.1fr 0.7fr 0.7fr 1.2fr;
-    align-items: center;
-    gap: 0.7rem;
-    border-top: 1px solid rgb(var(--color-border-subtle));
-    padding: 0.45rem 0.25rem;
-  }
-  .nuoma-signal-row-head {
-    border-top: 0;
-    color: rgb(var(--color-fg-faint));
-    font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
-    font-size: 0.64rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-  .nuoma-signal-name {
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    gap: 0.7rem;
-  }
-  .nuoma-signal-name i {
-    display: inline-flex;
-    height: 1.75rem;
-    width: 1.75rem;
-    flex: 0 0 auto;
-    align-items: center;
-    justify-content: center;
-    border-radius: 0.45rem;
-    font-size: 0.72rem;
-    font-style: normal;
-    font-weight: 640;
-  }
-  .nuoma-signal-name strong,
-  .nuoma-readiness-list strong,
-  .nuoma-audit-list strong,
-  .nuoma-rails-list strong,
-  .nuoma-safe-check strong {
-    display: block;
-    min-width: 0;
-    overflow: hidden;
-    color: rgb(var(--color-fg-primary));
-    font-size: 0.82rem;
-    font-weight: 560;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .nuoma-signal-name em,
-  .nuoma-readiness-list em,
-  .nuoma-audit-list em,
-  .nuoma-rails-list em,
-  .nuoma-safe-check em {
-    display: block;
-    margin-top: 0.1rem;
-    overflow: hidden;
-    color: rgb(var(--color-fg-dim));
-    font-size: 0.7rem;
-    font-style: normal;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .nuoma-sparkline svg,
-  .nuoma-impact-list svg {
-    display: block;
-    width: 100%;
-    height: 1.7rem;
-    fill: none;
-  }
-  .nuoma-sparkline polyline,
-  .nuoma-impact-list polyline {
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke: rgb(var(--color-accent-strong));
-  }
-  .nuoma-sparkline[data-tone="positivo"] polyline {
-    stroke: rgb(var(--color-semantic-success));
-  }
-  .nuoma-sparkline[data-tone="atenção"] polyline {
-    stroke: rgb(var(--color-semantic-warning));
-  }
-  .nuoma-sparkline[data-tone="negativo"] polyline {
-    stroke: rgb(var(--color-semantic-danger));
-  }
-  .nuoma-signal-value,
-  .is-positive {
-    color: rgb(var(--color-semantic-success));
-    font-weight: 560;
-    font-variant-numeric: tabular-nums;
-  }
-  .is-negative {
-    color: rgb(var(--color-semantic-danger));
-    font-weight: 560;
-  }
-  .nuoma-signal-table button {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .nuoma-signal-lower-grid {
-    display: grid;
-    min-height: 0;
-    flex: 1;
-    grid-template-columns: 0.95fr 1.1fr 0.95fr;
-    gap: 0.85rem;
-  }
-  .nuoma-signal-lower-grid .nuoma-signal-panel,
-  .nuoma-signal-side .nuoma-signal-panel {
-    padding: 0.8rem;
-  }
-
-  .nuoma-readiness-list,
-  .nuoma-audit-list,
-  .nuoma-rails-list,
-  .nuoma-impact-list {
-    margin-top: 0.75rem;
-    display: flex;
-    flex-direction: column;
-  }
-  .nuoma-readiness-list > div,
-  .nuoma-audit-list > div,
-  .nuoma-rails-list > div {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 0.65rem;
-    border-top: 1px solid rgb(var(--color-border-subtle));
-    padding: 0.55rem 0;
-  }
-  .nuoma-readiness-list > div:first-child,
-  .nuoma-audit-list > div:first-child,
-  .nuoma-rails-list > div:first-child {
-    border-top: 0;
-  }
-  .nuoma-readiness-list > div > span:first-child,
-  .nuoma-audit-list i {
-    display: inline-flex;
-    height: 1.6rem;
-    width: 1.6rem;
-    align-items: center;
-    justify-content: center;
-    border-radius: 999px;
-    font-style: normal;
-  }
-  .nuoma-audit-list i {
-    background: rgb(var(--color-accent) / 0.14);
-    color: rgb(var(--color-accent-strong));
-    font-size: 0.64rem;
-  }
-  .nuoma-readiness-list b,
-  .nuoma-rails-list b {
-    color: rgb(var(--color-semantic-success));
-    font-size: 0.68rem;
-    font-variant-numeric: tabular-nums;
-  }
-  .nuoma-rails-list > div {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .nuoma-safe-form {
-    margin-top: 0.85rem;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.55rem;
-  }
-  .nuoma-safe-form label {
-    font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
-    color: rgb(var(--color-fg-faint));
-    font-size: 0.64rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-  .nuoma-safe-form span {
-    margin-top: 0.25rem;
-    display: flex;
-    min-height: 2.1rem;
-    align-items: center;
-    border: 1px solid rgb(var(--color-border-subtle));
-    border-radius: 0.45rem;
-    background: rgb(var(--color-bg-base));
-    padding: 0 0.65rem;
-    color: rgb(var(--color-fg-primary));
-    font-size: 0.76rem;
-    text-transform: none;
-  }
-  .nuoma-safe-check {
-    margin-top: 0.85rem;
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 0.7rem;
-    border-radius: 0.55rem;
-    border: 1px solid rgb(var(--color-semantic-success) / 0.28);
-    background: rgb(var(--color-semantic-success) / 0.08);
-    padding: 0.7rem;
-    color: rgb(var(--color-semantic-success));
-  }
-  .nuoma-safe-check button {
-    border-color: transparent;
-    background: rgb(var(--color-semantic-success));
-    color: #04130c;
-    font-weight: 560;
-  }
-
-  .nuoma-impact-list {
-    gap: 0.55rem;
-  }
-  .nuoma-impact-list > div {
-    display: grid;
-    grid-template-columns: 0.85fr 1fr;
-    align-items: center;
-    gap: 0.75rem;
-    border-radius: 0.5rem;
-    border: 1px solid rgb(var(--color-border-subtle));
-    background: rgb(var(--color-bg-base));
-    padding: 0.6rem;
-  }
-  .nuoma-impact-list em {
-    display: block;
-    font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
-    color: rgb(var(--color-fg-faint));
-    font-size: 0.64rem;
-    font-style: normal;
-    text-transform: uppercase;
-  }
-  .nuoma-impact-list strong {
-    display: block;
-    margin-top: 0.15rem;
-    color: rgb(var(--color-fg-primary));
-    font-size: 1.15rem;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-  }
-  .nuoma-impact-list b {
-    display: block;
-    margin-top: 0.1rem;
-    color: rgb(var(--color-semantic-success));
-    font-size: 0.72rem;
-    font-weight: 560;
-  }
-
-  .nuoma-signal-timeline {
-    display: flex;
-    min-height: 4.5rem;
-    align-items: center;
-    gap: 0.65rem;
-    overflow-x: auto;
-    padding: 0.65rem 1.1rem;
-    border-top: 1px solid rgb(var(--color-border-subtle));
-  }
-  .nuoma-signal-timeline span {
-    position: relative;
-    display: inline-flex;
-    min-width: 8rem;
-    align-items: center;
-    gap: 0.5rem;
-    color: rgb(var(--color-fg-dim));
-    font-size: 0.78rem;
-    white-space: nowrap;
-  }
-  .nuoma-signal-timeline span:not(:last-child)::after {
-    content: "";
-    position: absolute;
-    inset: 50% -0.55rem auto 2rem;
-    height: 1px;
-    background: rgb(var(--color-border-muted));
-    transform: translateY(-50%);
-  }
-  .nuoma-signal-timeline i {
-    z-index: 1;
-    display: inline-flex;
-    height: 1.35rem;
-    width: 1.35rem;
-    align-items: center;
-    justify-content: center;
-    border-radius: 999px;
-    background: rgb(var(--color-bg-elevated));
-    color: rgb(var(--color-fg-dim));
-    font-size: 0.66rem;
-    font-style: normal;
-  }
-  .nuoma-signal-timeline .is-done {
-    color: rgb(var(--color-fg-primary));
-  }
-  .nuoma-signal-timeline .is-done i {
-    background: rgb(var(--color-semantic-success));
-    color: #04130c;
-  }
-
-  @media (max-width: 1280px) {
-    .nuoma-signal-layout,
-    .nuoma-signal-lower-grid {
-      grid-template-columns: 1fr;
-    }
-    .nuoma-signal-main {
-      border-right: 0;
-    }
-  }
-  @media (max-width: 760px) {
-    .nuoma-safe-form,
-    .nuoma-safe-check,
-    .nuoma-impact-list > div {
-      grid-template-columns: 1fr;
-    }
-  }
-
   /* ----- Generic fallbacks for other bespoke clusters (flow-v2, settings-v2,
    * contacts-v2, jobs-board, gauge) so they render as clean editorial surfaces
    * until their pages are individually reviewed. ----- */
@@ -2661,11 +2159,11 @@
   pointer-events: none;
 }
 
-.nuoma-route-frame .botforge-display {
+.nuoma-route-frame .nuoma-compat-display {
   max-width: 13ch;
 }
 
-.nuoma-route-frame :is(.botforge-display) {
+.nuoma-route-frame :is(.nuoma-compat-display) {
   text-shadow: 0 18px 46px rgba(0, 0, 0, 0.42);
 }
 
@@ -2695,21 +2193,21 @@
   min-width: 0;
 }
 
-.nuoma-workspace-header .botforge-display {
+.nuoma-workspace-header .nuoma-compat-display {
   margin-top: 0.1rem;
   max-width: none;
   font-size: 1.35rem !important;
   line-height: 1.08;
 }
 
-.nuoma-workspace-header p:not(.botforge-kicker) {
+.nuoma-workspace-header p:not(.nuoma-compat-kicker) {
   margin-top: 0.25rem;
   max-width: min(42rem, 70vw);
   font-size: 0.8rem;
   line-height: 1.4;
 }
 
-.nuoma-route-frame :is(section, article, form, ul) > .botforge-surface,
+.nuoma-route-frame :is(section, article, form, ul) > .nuoma-compat-surface,
 .nuoma-route-frame :is(section, article, form, ul) > .nuoma-glass-panel {
   border-radius: 0.5rem;
 }
@@ -4204,25 +3702,16 @@
   }
 }
 
-.botforge-surface::after {
+.nuoma-compat-surface::after {
   display: none;
 }
 
-.botforge-surface:hover::after {
+.nuoma-compat-surface:hover::after {
   display: none;
 }
 
-.botforge-title {
-  font-family: "Inter Variable", "Inter", system-ui, sans-serif;
-  font-weight: 760;
-  font-style: normal;
-  letter-spacing: 0;
-  line-height: 0.94;
-  color: rgb(var(--color-fg-primary));
-  text-wrap: balance;
-}
 
-.botforge-kicker {
+.nuoma-compat-kicker {
   font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
   font-size: 0.64rem;
   letter-spacing: 0;
@@ -4230,15 +3719,8 @@
   color: rgb(var(--color-brand-blue-soft));
 }
 
-.botforge-grid {
-  background:
-    linear-gradient(90deg, rgba(var(--color-contour-grid), 0.08) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(var(--color-contour-grid), 0.08) 1px, transparent 1px),
-    rgba(var(--color-bg-canvas), 0.68);
-  background-size: 28px 28px;
-}
 
-.botforge-readable {
+.nuoma-compat-readable {
   background: rgba(var(--color-bg-sunken), 0.88);
   border: 1px solid rgba(var(--color-border-subtle), 0.13);
   box-shadow:
@@ -4367,7 +3849,7 @@
     animation: none !important;
   }
 
-  .botforge-surface::after {
+  .nuoma-compat-surface::after {
     display: none;
   }
 
@@ -4400,10 +3882,10 @@
   animation: nuoma-fade-out 150ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* ── Orielo 2026 ──────────────────────────────────────────── */
+/* Legacy compatibility layer */
 
 /* Display headings — negative tracking permitted on large type only. */
-.botforge-display {
+.nuoma-compat-display {
   font-family: "Inter Variable", "Inter", system-ui, sans-serif;
   font-weight: 780;
   letter-spacing: 0;
@@ -5459,7 +4941,7 @@
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22) !important;
 }
 
-.nuoma-chatbots-card .botforge-surface::after {
+.nuoma-chatbots-card .nuoma-compat-surface::after {
   display: none;
 }
 
@@ -5818,4 +5300,3 @@
 [data-testid="inbox-message-bubble"] .text-fg-dim {
   color: #f4f4f8 !important;
 }
-

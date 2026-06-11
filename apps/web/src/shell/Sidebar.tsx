@@ -26,79 +26,26 @@ import {
   TooltipTrigger,
 } from "@nuoma/ui";
 
-interface NavItem {
-  to: string;
-  label: string;
-  icon: typeof LayoutDashboard;
-  shortcut: string;
-}
+import {
+  getShellNavSections,
+  type ShellNavSection,
+  type ShellRouteEntry,
+} from "./nav-registry.js";
 
-interface NavSection {
-  id: "operate" | "dispatch" | "system" | "dev";
-  label: string;
-  adminOnly?: boolean;
-  devOnly?: boolean;
-  items: NavItem[];
-}
-
-export const SHELL_NAV_SECTIONS: NavSection[] = [
-  {
-    id: "operate",
-    label: "Operar",
-    items: [
-      { to: "/inbox", label: "Inbox", icon: Inbox, shortcut: "2" },
-      { to: "/contacts", label: "Contatos", icon: Users, shortcut: "3" },
-    ],
-  },
-  {
-    id: "dispatch",
-    label: "Disparar",
-    items: [
-      { to: "/campaigns", label: "Campanhas", icon: Sparkles, shortcut: "4" },
-      { to: "/automations", label: "Automações", icon: Activity, shortcut: "5" },
-      { to: "/chatbots", label: "Chatbots", icon: Bot, shortcut: "6" },
-    ],
-  },
-  {
-    id: "system",
-    label: "Sistema",
-    adminOnly: true,
-    items: [
-      { to: "/", label: "Painel", icon: LayoutDashboard, shortcut: "1" },
-      { to: "/operations", label: "Operações", icon: Radio, shortcut: "o" },
-      { to: "/jobs", label: "Fila de envio", icon: ListChecks, shortcut: "7" },
-      { to: "/settings", label: "Configurações", icon: Settings, shortcut: "9" },
-    ],
-  },
-  {
-    id: "dev",
-    label: "Dev",
-    devOnly: true,
-    items: [
-      { to: "/implementation", label: "Implementação", icon: ClipboardList, shortcut: "8" },
-      { to: "/evidence", label: "Evidências", icon: FolderSearch, shortcut: "v" },
-      { to: "/dev/components", label: "Componentes", icon: Wrench, shortcut: "0" },
-    ],
-  },
-];
-
-export function getShellNavSections({
-  isAdmin,
-  isDev = import.meta.env.DEV,
-}: {
-  isAdmin: boolean;
-  isDev?: boolean;
-}): NavSection[] {
-  return SHELL_NAV_SECTIONS.filter((section) => {
-    if (section.adminOnly && !isAdmin) return false;
-    if (section.devOnly && !isDev) return false;
-    return true;
-  });
-}
-
-export function getShellShortcutItems(isAdmin: boolean, isDev = import.meta.env.DEV): NavItem[] {
-  return getShellNavSections({ isAdmin, isDev }).flatMap((section) => section.items);
-}
+const NAV_ICONS: Record<string, typeof LayoutDashboard> = {
+  "/": LayoutDashboard,
+  "/inbox": Inbox,
+  "/contacts": Users,
+  "/campaigns": Sparkles,
+  "/automations": Activity,
+  "/chatbots": Bot,
+  "/operations": Radio,
+  "/jobs": ListChecks,
+  "/settings": Settings,
+  "/implementation": ClipboardList,
+  "/evidence": FolderSearch,
+  "/dev/components": Wrench,
+};
 
 interface SidebarProps {
   mode?: "desktop" | "mobile";
@@ -127,8 +74,8 @@ export function Sidebar({
   const currentPath = router.location.pathname;
   const workspaceStatus = workspaceStatusFor(runtimeStatus);
   const sections = getShellNavSections({ isAdmin });
-  const primarySections = sections.filter((section) => !section.devOnly);
-  const devSection = sections.find((section) => section.devOnly);
+  const primarySections = sections.filter((section) => section.id !== "dev");
+  const devSection = sections.find((section) => section.id === "dev");
 
   return (
     <aside
@@ -213,7 +160,7 @@ function NavSectionBlock({
   mode,
   onNavigate,
 }: {
-  section: NavSection;
+  section: ShellNavSection;
   currentPath: string;
   mode: "desktop" | "mobile";
   onNavigate?: () => void;
@@ -231,9 +178,9 @@ function NavSectionBlock({
       <div className="flex flex-col gap-1">
         {section.items.map((item) => (
           <NavLink
-            key={item.to}
+            key={item.path}
             item={item}
-            active={isActive(currentPath, item.to)}
+            active={isActive(currentPath, item.path)}
             mode={mode}
             onNavigate={onNavigate}
           />
@@ -285,19 +232,19 @@ function NavLink({
   mode,
   onNavigate,
 }: {
-  item: NavItem;
+  item: ShellRouteEntry;
   active: boolean;
   mode: "desktop" | "mobile";
   onNavigate?: () => void;
 }) {
-  const Icon = item.icon;
+  const Icon = NAV_ICONS[item.path] ?? LayoutDashboard;
   const showLabel = mode === "mobile";
 
   return (
     <Tooltip delayDuration={150}>
       <TooltipTrigger asChild>
         <Link
-          to={item.to}
+          to={item.path}
           aria-label={item.label}
           onClick={onNavigate}
           className="relative rounded-md outline-none focus-visible:ring-2 focus-visible:ring-accent"
@@ -343,7 +290,7 @@ function NavLink({
       </TooltipTrigger>
       <TooltipContent side="right" className="flex items-center gap-2">
         <span>{item.label}</span>
-        <KeyboardShortcut keys={item.shortcut} />
+        {item.shortcut ? <KeyboardShortcut keys={item.shortcut} /> : null}
       </TooltipContent>
     </Tooltip>
   );

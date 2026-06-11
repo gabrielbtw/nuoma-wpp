@@ -125,8 +125,8 @@ export function SettingsPage() {
     <div className="flex min-h-[calc(100vh-6.5rem)] w-full max-w-none flex-col gap-4 pt-0">
       <Animate preset="rise-in">
         <header className="nuoma-workspace-header">
-          <p className="botforge-kicker">Configurações</p>
-          <h1 className="botforge-display mt-2 text-3xl md:text-4xl">
+          <p className="nuoma-compat-kicker">Configurações</p>
+          <h1 className="nuoma-compat-display mt-2 text-3xl md:text-4xl">
             Suas <span className="nuoma-gradient-text">preferências</span>.
           </h1>
         </header>
@@ -176,7 +176,7 @@ export function SettingsPage() {
                       {THEME_OPTIONS.map((option) => (
                         <label
                           key={option.value}
-                          className="botforge-readable group relative flex min-h-32 cursor-pointer flex-col justify-between rounded-xl p-4 transition-transform hover:-translate-y-0.5 hover:shadow-raised-sm"
+                          className="nuoma-compat-readable group relative flex min-h-32 cursor-pointer flex-col justify-between rounded-xl p-4 transition-transform hover:-translate-y-0.5 hover:shadow-raised-sm"
                         >
                           <span
                             data-theme={option.value}

@@ -20,7 +20,7 @@ import {
   useToast,
 } from "@nuoma/ui";
 import type { AutomationAction, ChatbotRuleMatch } from "@nuoma/contracts";
-import { Bot, FlaskConical, GripVertical, Plus, Regex } from "lucide-react";
+import { Bot, ChevronDown, ChevronUp, FlaskConical, GripVertical, Plus, Regex } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { validateChatbotDryRun } from "../chatbots/dry-run-validation.js";
@@ -64,10 +64,12 @@ const chatbotActionKinds: Array<{ value: ChatbotActionKind; label: string }> = [
 
 export function ChatbotsPage() {
   const chatbots = trpc.chatbots.list.useQuery();
+  const tags = trpc.tags.list.useQuery(undefined, { staleTime: 30_000 });
+  const automations = trpc.automations.list.useQuery(undefined, { staleTime: 30_000 });
   const utils = trpc.useUtils();
   const toast = useToast();
   const [body, setBody] = useState("Qual o preco?");
-  const [phone, setPhone] = useState("5531982066263");
+  const [phone, setPhone] = useState("");
   const [dryRunChannel, setDryRunChannel] = useState<DryRunChannel>("whatsapp");
   const [dryRunAttempted, setDryRunAttempted] = useState(false);
   const [selectedChatbotId, setSelectedChatbotId] = useState("");
@@ -78,10 +80,10 @@ export function ChatbotsPage() {
   const [regexProbe, setRegexProbe] = useState("Qual o preco?");
   const [actionKind, setActionKind] = useState<ChatbotActionKind>("send_step");
   const [responseText, setResponseText] = useState("Vou te mandar as opções por aqui.");
-  const [tagId, setTagId] = useState("1");
+  const [tagId, setTagId] = useState("");
   const [statusValue, setStatusValue] = useState("interessado");
   const [notifyMessage, setNotifyMessage] = useState("Chatbot pediu atendimento humano.");
-  const [automationId, setAutomationId] = useState("1");
+  const [automationId, setAutomationId] = useState("");
   const [variantsEnabled, setVariantsEnabled] = useState(true);
   const [variantA, setVariantA] = useState("Vou te mandar as opções por aqui.");
   const [variantB, setVariantB] = useState("Tenho duas opções para você comparar.");
@@ -98,7 +100,7 @@ export function ChatbotsPage() {
   const showDryRunBodyError = dryRunAttempted && Boolean(dryRunValidation.errors.body);
   const dryRunIdentityLabel =
     dryRunChannel === "instagram" ? "Instagram do teste" : "Telefone do teste";
-  const dryRunIdentityPlaceholder = dryRunChannel === "instagram" ? "@perfil" : "5531982066263";
+  const dryRunIdentityPlaceholder = dryRunChannel === "instagram" ? "@perfil" : "5511999999999";
   const executionHistory = trpc.chatbots.executionHistory.useQuery(
     {
       ...(Number.isInteger(selectedChatbotIdNumber) && selectedChatbotIdNumber > 0
@@ -158,10 +160,10 @@ export function ChatbotsPage() {
       const value = currentValue.trim();
       const looksLikePhone = /^\+?\d[\d\s().-]*$/.test(value);
       if (channel === "instagram" && (!value || looksLikePhone)) {
-        return "@perfil";
+        return "";
       }
       if (channel === "whatsapp" && (!value || value.startsWith("@"))) {
-        return "5531982066263";
+        return "";
       }
       return currentValue;
     });
@@ -228,8 +230,8 @@ export function ChatbotsPage() {
     <div className="flex min-h-[calc(100vh-6.5rem)] w-full max-w-none flex-col gap-4 pt-0">
       <Animate preset="rise-in">
         <header className="nuoma-workspace-header">
-          <p className="botforge-kicker">Chatbots</p>
-          <h1 className="botforge-display mt-2 text-3xl md:text-4xl">
+          <p className="nuoma-compat-kicker">Chatbots</p>
+          <h1 className="nuoma-compat-display mt-2 text-3xl md:text-4xl">
             Auto-resposta <span className="nuoma-gradient-text">priorizada</span>.
           </h1>
           <p className="text-sm text-fg-muted mt-3 max-w-xl">
@@ -508,9 +510,11 @@ export function ChatbotsPage() {
                     onResponseTextChange={setResponseText}
                     onTagIdChange={setTagId}
                     onStatusValueChange={setStatusValue}
-                    onNotifyMessageChange={setNotifyMessage}
-                    onAutomationIdChange={setAutomationId}
-                  />
+                      onNotifyMessageChange={setNotifyMessage}
+                      onAutomationIdChange={setAutomationId}
+                      tags={tags.data?.tags ?? []}
+                      automations={automations.data?.automations ?? []}
+                    />
                 </div>
 
                 <div className="grid gap-3 lg:grid-cols-[auto_1fr_1fr]">
@@ -603,6 +607,7 @@ function ChatbotRulesPanel({ chatbotId }: { chatbotId: number }) {
   const rules = trpc.chatbots.listRules.useQuery({ chatbotId, isActive: true });
   const variantStats = trpc.chatbots.summarizeVariantEvents.useQuery({ chatbotId });
   const utils = trpc.useUtils();
+  const toast = useToast();
   const [dragRuleId, setDragRuleId] = useState<number | null>(null);
   const updateRule = trpc.chatbots.updateRule.useMutation({
     async onSuccess() {
@@ -610,16 +615,40 @@ function ChatbotRulesPanel({ chatbotId }: { chatbotId: number }) {
     },
   });
 
-  async function swapPriority(targetRuleId: number) {
-    if (!dragRuleId || dragRuleId === targetRuleId || !rules.data) return;
-    const source = rules.data.rules.find((rule) => rule.id === dragRuleId);
+  async function swapRules(sourceRuleId: number, targetRuleId: number) {
+    if (sourceRuleId === targetRuleId || !rules.data) return;
+    const source = rules.data.rules.find((rule) => rule.id === sourceRuleId);
     const target = rules.data.rules.find((rule) => rule.id === targetRuleId);
     if (!source || !target) return;
-    await Promise.all([
-      updateRule.mutateAsync({ id: source.id, priority: target.priority }),
-      updateRule.mutateAsync({ id: target.id, priority: source.priority }),
-    ]);
-    setDragRuleId(null);
+    try {
+      await Promise.all([
+        updateRule.mutateAsync({ id: source.id, priority: target.priority }),
+        updateRule.mutateAsync({ id: target.id, priority: source.priority }),
+      ]);
+    } catch (error) {
+      toast.push({
+        title: "Falha ao reordenar",
+        description: error instanceof Error ? error.message : "Prioridades mantidas no servidor.",
+        variant: "danger",
+      });
+    } finally {
+      setDragRuleId(null);
+    }
+  }
+
+  function swapPriority(targetRuleId: number) {
+    if (!dragRuleId) return;
+    void swapRules(dragRuleId, targetRuleId);
+  }
+
+  function moveRule(ruleId: number, direction: "up" | "down") {
+    if (!rules.data) return;
+    const currentIndex = rules.data.rules.findIndex((rule) => rule.id === ruleId);
+    if (currentIndex < 0) return;
+    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    const target = rules.data.rules[targetIndex];
+    if (!target) return;
+    void swapRules(ruleId, target.id);
   }
 
   if (rules.isLoading) {
@@ -634,7 +663,7 @@ function ChatbotRulesPanel({ chatbotId }: { chatbotId: number }) {
 
   return (
     <div className="mt-4 grid gap-3">
-      {rules.data.rules.map((rule) => {
+      {rules.data.rules.map((rule, index) => {
         const abTest = readAbTest(rule.metadata);
         const statsByVariant = new Map(
           (variantStats.data?.variants ?? [])
@@ -648,10 +677,10 @@ function ChatbotRulesPanel({ chatbotId }: { chatbotId: number }) {
             data-testid="chatbot-rule-item"
             data-rule-id={rule.id}
             draggable
-            onDragStart={() => setDragRuleId(rule.id)}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={() => void swapPriority(rule.id)}
-          >
+	                  onDragStart={() => setDragRuleId(rule.id)}
+	                  onDragOver={(event) => event.preventDefault()}
+	                  onDrop={() => swapPriority(rule.id)}
+	                >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex min-w-0 items-start gap-2">
                 <GripVertical
@@ -666,8 +695,26 @@ function ChatbotRulesPanel({ chatbotId }: { chatbotId: number }) {
                   </p>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={rule.match.type === "fallback" ? "warning" : "neutral"}>
+	              <div className="flex flex-wrap items-center gap-2">
+	                <Button
+	                  variant="ghost"
+	                  size="xs"
+	                  aria-label={`Subir prioridade de ${rule.name}`}
+	                  disabled={index === 0 || updateRule.isPending}
+	                  onClick={() => moveRule(rule.id, "up")}
+	                >
+	                  <ChevronUp className="h-3.5 w-3.5" />
+	                </Button>
+	                <Button
+	                  variant="ghost"
+	                  size="xs"
+	                  aria-label={`Descer prioridade de ${rule.name}`}
+	                  disabled={index === rules.data.rules.length - 1 || updateRule.isPending}
+	                  onClick={() => moveRule(rule.id, "down")}
+	                >
+	                  <ChevronDown className="h-3.5 w-3.5" />
+	                </Button>
+	                <Badge variant={rule.match.type === "fallback" ? "warning" : "neutral"}>
                   {rule.match.type === "fallback" ? "fallback" : "match"}
                 </Badge>
                 <Badge variant={abTest?.enabled ? "cyan" : "neutral"}>
@@ -728,6 +775,8 @@ function ChatbotActionEditor({
   onStatusValueChange,
   onNotifyMessageChange,
   onAutomationIdChange,
+  tags,
+  automations,
 }: {
   actionKind: ChatbotActionKind;
   responseText: string;
@@ -740,6 +789,8 @@ function ChatbotActionEditor({
   onStatusValueChange: (value: string) => void;
   onNotifyMessageChange: (value: string) => void;
   onAutomationIdChange: (value: string) => void;
+  tags: Array<{ id: number; name: string }>;
+  automations: Array<{ id: number; name: string; status: string }>;
 }) {
   if (actionKind === "send_step") {
     return (
@@ -754,12 +805,19 @@ function ChatbotActionEditor({
   }
   if (actionKind === "apply_tag") {
     return (
-      <LabeledField label="Tag ID">
-        <Input
-          inputMode="numeric"
-          value={tagId}
-          onChange={(event) => onTagIdChange(event.target.value)}
-        />
+      <LabeledField label="Tag">
+        <Select value={tagId || undefined} onValueChange={onTagIdChange} disabled={tags.length === 0}>
+          <SelectTrigger aria-label="Tag para aplicar">
+            <SelectValue placeholder={tags.length === 0 ? "Nenhuma tag cadastrada" : "Selecione a tag"} />
+          </SelectTrigger>
+          <SelectContent>
+            {tags.map((tag) => (
+              <SelectItem key={tag.id} value={String(tag.id)}>
+                {tag.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </LabeledField>
     );
   }
@@ -781,12 +839,27 @@ function ChatbotActionEditor({
     );
   }
   return (
-    <LabeledField label="Automação ID">
-      <Input
-        inputMode="numeric"
-        value={automationId}
-        onChange={(event) => onAutomationIdChange(event.target.value)}
-      />
+    <LabeledField label="Automação">
+      <Select
+        value={automationId || undefined}
+        onValueChange={onAutomationIdChange}
+        disabled={automations.length === 0}
+      >
+        <SelectTrigger aria-label="Automação para disparar">
+          <SelectValue
+            placeholder={
+              automations.length === 0 ? "Nenhuma automação cadastrada" : "Selecione a automação"
+            }
+          />
+        </SelectTrigger>
+        <SelectContent>
+          {automations.map((automation) => (
+            <SelectItem key={automation.id} value={String(automation.id)}>
+              {automation.name} · {automation.status}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </LabeledField>
   );
 }
@@ -828,7 +901,7 @@ function buildChatbotAction(input: {
   }
   if (input.actionKind === "apply_tag") {
     const tagId = Number.parseInt(input.tagId, 10);
-    return Number.isInteger(tagId) && tagId > 0 ? { type: "apply_tag", tagId } : "Tag ID inválido.";
+    return Number.isInteger(tagId) && tagId > 0 ? { type: "apply_tag", tagId } : "Escolha uma tag.";
   }
   if (input.actionKind === "set_status") {
     const status = input.statusValue.trim();
@@ -841,7 +914,7 @@ function buildChatbotAction(input: {
   const automationId = Number.parseInt(input.automationId, 10);
   return Number.isInteger(automationId) && automationId > 0
     ? { type: "trigger_automation", automationId }
-    : "Automação ID inválida.";
+    : "Escolha uma automação.";
 }
 
 function buildChatbotVariantsMetadata(

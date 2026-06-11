@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { API_URL } from "../lib/api-url.js";
 import { trpc } from "../lib/trpc.js";
 import { INBOX_CONVERSATION_LIMIT } from "./conversation-list-config.js";
+import { compareConversationsByLastActivity } from "./conversation-sort.js";
 
 interface MessageAddedEvent {
   conversationId: number;
@@ -202,17 +203,7 @@ function reorderConversationCache(
           }
         : conversation,
     );
-    conversations.sort((a, b) => {
-      const aTime = Date.parse(a.lastMessageAt ?? "");
-      const bTime = Date.parse(b.lastMessageAt ?? "");
-      if (Number.isFinite(aTime) && Number.isFinite(bTime) && aTime !== bTime) {
-        return bTime - aTime;
-      }
-      if (Number.isFinite(aTime) !== Number.isFinite(bTime)) {
-        return Number.isFinite(bTime) ? 1 : -1;
-      }
-      return b.id - a.id;
-    });
+    conversations.sort(compareConversationsByLastActivity);
     return { conversations };
   });
 }

@@ -70,9 +70,9 @@ const TYPE_FILTERS: { id: TimelineTypeFilter; label: string }[] = [
   { id: "all", label: "Todos" },
   { id: "text", label: "Texto" },
   { id: "image", label: "Imagem" },
-  { id: "video", label: "Video" },
+  { id: "video", label: "Vídeo" },
   { id: "voice", label: "Voz" },
-  { id: "audio", label: "Audio" },
+  { id: "audio", label: "Áudio" },
   { id: "document", label: "Doc" },
   { id: "link", label: "Link" },
 ];
@@ -209,9 +209,7 @@ export function MessageTimeline({
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
-      const isTypingTarget =
-        target &&
-        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+      const isTypingTarget = isTimelineShortcutTarget(target);
       const isMod = event.metaKey || event.ctrlKey;
       if (isMod && event.key === "f" && conversationId != null) {
         event.preventDefault();
@@ -291,9 +289,9 @@ export function MessageTimeline({
     toast.push({
       title:
         kind === "reply"
-          ? "Resposta preparada"
+          ? "Citação preparada"
           : kind === "edit"
-            ? "Edição preparada"
+            ? "Texto reutilizado"
             : "Encaminhamento preparado",
       variant: "info",
     });
@@ -421,7 +419,7 @@ export function MessageTimeline({
             ))}
           </div>
           <TimelineFilterChip
-            label="Com midia"
+            label="Com mídia"
             active={mediaOnly}
             testId="timeline-filter-media"
             value="with-media"
@@ -454,6 +452,7 @@ export function MessageTimeline({
             <Search className="h-3.5 w-3.5 text-fg-dim" />
             <input
               type="search"
+              aria-label="Buscar nesta conversa"
               autoFocus
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -608,7 +607,15 @@ function MessageBubble({
       className={cn("flex", outgoing ? "justify-end" : "justify-start")}
     >
       <motion.div
+        role="button"
+        tabIndex={0}
         onClick={onSelect}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onSelect();
+          }
+        }}
         whileHover={{ y: -1 }}
         transition={{ type: "spring", stiffness: 300, damping: 22 }}
         className={cn(
@@ -654,7 +661,7 @@ function MessageBubble({
             {message.deletedAt && <Badge variant="danger">deletada</Badge>}
             {message.editedAt && <Badge variant="violet">editada</Badge>}
             {message.raw?.isForwarded === true && <Badge>encaminhada</Badge>}
-            {message.raw?.isReply === true && <Badge>reply</Badge>}
+            {message.raw?.isReply === true && <Badge>resposta</Badge>}
             {message.raw?.reactionText ? <Badge>reaction</Badge> : null}
             {isOptimisticMessage(message) && (
               <Badge variant={message.status === "failed" ? "danger" : "warning"}>
@@ -723,11 +730,11 @@ function MessageBubble({
                   )}
                 >
                   <RefreshCw className={cn("h-3 w-3", retrying && "animate-spin")} />
-                  {retrying ? "Tentando" : "Retry"}
+                  {retrying ? "Tentando..." : "Tentar novamente"}
                 </button>
               </TooltipTrigger>
               <TooltipContent>
-                {retrying ? "Retry em andamento" : "Tentar enviar esta mensagem novamente"}
+                {retrying ? "Reenvio em andamento" : "Tentar enviar esta mensagem novamente"}
               </TooltipContent>
             </Tooltip>
           )}
@@ -897,7 +904,7 @@ function MessageActions({
       />
       <MessageActionButton
         icon={Reply}
-        label={`Responder mensagem #${messageId}`}
+        label={`Citar mensagem #${messageId}`}
         testId="message-action-reply"
         onClick={onReply}
       />
@@ -950,6 +957,16 @@ function MessageActionButton({
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
+  );
+}
+
+function isTimelineShortcutTarget(target: HTMLElement | null): boolean {
+  if (!target) return false;
+  if (target.isContentEditable) return true;
+  return Boolean(
+    target.closest(
+      'input, textarea, select, button, a, [role="button"], [role="menu"], [role="dialog"], [data-radix-popper-content-wrapper]',
+    ),
   );
 }
 

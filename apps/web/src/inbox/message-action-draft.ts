@@ -36,6 +36,23 @@ export function messageActionText(message: Message): string {
   return `[${message.contentType}]`;
 }
 
+export function composerBodyForAction(input: {
+  actionDraft: MessageActionDraft | null | undefined;
+  text: string;
+}): string {
+  const body = input.text.trim();
+  if (!input.actionDraft || input.actionDraft.kind !== "reply") return body;
+  return `${quoteMessageText(input.actionDraft.excerpt)}\n\n${body}`;
+}
+
+export function quoteMessageText(text: string): string {
+  return text
+    .split(/\r?\n/)
+    .map((line) => `> ${line.trim()}`)
+    .join("\n")
+    .trim();
+}
+
 function messageActionExcerpt(text: string): string {
   const normalized = text.replace(/\s+/g, " ").trim();
   if (normalized.length <= 120) return normalized;

@@ -30,7 +30,7 @@ export function AutomationsPage() {
   const intent = usePageIntent();
   const toast = useToast();
   const [automationId, setAutomationId] = useState("");
-  const [phone, setPhone] = useState("31982066263");
+  const [phone, setPhone] = useState("");
   const [manualTriggerAttempted, setManualTriggerAttempted] = useState(false);
   const manualTriggerValidation = useMemo(
     () => validateAutomationManualTrigger({ automationId, phone }),
@@ -88,7 +88,7 @@ export function AutomationsPage() {
       id: manualTriggerValidation.automationId,
       phone: manualTriggerValidation.phone,
       dryRun: true,
-      allowedPhone: "5531982066263",
+      allowedPhone: manualTriggerValidation.phone,
     });
   }
 
@@ -115,8 +115,8 @@ export function AutomationsPage() {
     <div className="flex min-h-[calc(100vh-6.5rem)] w-full max-w-none flex-col gap-4 pt-0">
       <Animate preset="rise-in">
         <header className="nuoma-workspace-header">
-          <p className="botforge-kicker">Automações</p>
-          <h1 className="botforge-display mt-2 text-3xl md:text-4xl">
+          <p className="nuoma-compat-kicker">Automações</p>
+          <h1 className="nuoma-compat-display mt-2 text-3xl md:text-4xl">
             <span className="nuoma-gradient-text">Triggers</span> reativos.
           </h1>
           <p className="text-sm text-fg-muted mt-3 max-w-xl">

@@ -1,9 +1,14 @@
 import { useMemo, useState } from "react";
-import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
-
-import type { AppRouter } from "@nuoma/api";
 import { Animate, Button, Tabs, TabsContent, TabsList, TabsTrigger, useToast } from "@nuoma/ui";
 
+import { ConfirmDangerAction } from "../components/ConfirmDangerAction.js";
+import {
+  campaignSearchFromWindow,
+  parseCampaignSearch,
+  type CampaignTab,
+} from "../campaigns/campaign-search.js";
+import type { RouterInput, RouterOutput } from "../lib/api-types.js";
+import { COPY } from "../lib/copy.js";
 import { trpc } from "../lib/trpc.js";
 import { CampaignFlowBuilder } from "../flow-builder/FlowBuilder.js";
 import { CampaignsDispatchPanel } from "../campaigns/CampaignsDispatchPanel.js";
@@ -13,13 +18,11 @@ import {
   isCampaignOverlayEnabled,
 } from "../campaigns/CampaignsRecipientsPanel.js";
 
-type CampaignTickResult = inferRouterOutputs<AppRouter>["campaigns"]["tick"];
-type RemarketingBatchInput = inferRouterInputs<AppRouter>["campaigns"]["remarketingBatchReady"];
+type CampaignTickResult = RouterOutput["campaigns"]["tick"];
+type RemarketingBatchInput = RouterInput["campaigns"]["remarketingBatchReady"];
 type RemarketingBatchDispatchResult =
-  inferRouterOutputs<AppRouter>["campaigns"]["remarketingBatchDispatch"];
-type CampaignListItem = inferRouterOutputs<AppRouter>["campaigns"]["list"]["campaigns"][number];
-type CampaignTab = "overview" | "builder" | "dispatch" | "recipients";
-
+  RouterOutput["campaigns"]["remarketingBatchDispatch"];
+type CampaignListItem = RouterOutput["campaigns"]["list"]["campaigns"][number];
 export function CampaignsPage() {
   const campaigns = trpc.campaigns.list.useQuery();
   const utils = trpc.useUtils();
@@ -27,26 +30,29 @@ export function CampaignsPage() {
   const [lastBatchDispatch, setLastBatchDispatch] = useState<RemarketingBatchDispatchResult | null>(
     null,
   );
-  const [safeCampaignId, setSafeCampaignId] = useState<string>(() => initialCampaignIdFromUrl());
+  const [safeCampaignId, setSafeCampaignId] = useState<string>(() => {
+    const campaignId = campaignSearchFromWindow().campaignId;
+    return campaignId ? String(campaignId) : "";
+  });
   const [safeConfirm, setSafeConfirm] = useState("");
   const [safeBatchPhones, setSafeBatchPhones] = useState("");
-  const [safeBatchAllowedPhone, setSafeBatchAllowedPhone] = useState("5531982066263");
-  const [safeBatchAllowedInstagram, setSafeBatchAllowedInstagram] = useState("gabriell_braga");
+  const [safeBatchAllowedPhone, setSafeBatchAllowedPhone] = useState("");
+  const [safeBatchAllowedInstagram, setSafeBatchAllowedInstagram] = useState("");
   const [safeBatchConfirm, setSafeBatchConfirm] = useState("");
+  const [globalTickConfirm, setGlobalTickConfirm] = useState("");
   const [batchReadyKey, setBatchReadyKey] = useState<string | null>(null);
   const toast = useToast();
   const intent = usePageIntent();
-  const [activeTab, setActiveTab] = useState<CampaignTab>(initialCampaignTabFromUrl(intent));
+  const [activeTab, setActiveTab] = useState<CampaignTab>(() => campaignSearchFromWindow().tab);
   const builderImmersive = activeTab === "builder";
   const selectedSafeCampaignId = useMemo(() => {
     const parsed = Number(safeCampaignId);
     if (Number.isInteger(parsed) && parsed > 0) return parsed;
-    return campaigns.data?.campaigns[0]?.id ?? null;
-  }, [campaigns.data?.campaigns, safeCampaignId]);
+    return null;
+  }, [safeCampaignId]);
   const selectedSafeCampaign = useMemo(
     () =>
       campaigns.data?.campaigns.find((campaign) => campaign.id === selectedSafeCampaignId) ??
-      campaigns.data?.campaigns[0] ??
       null,
     [campaigns.data?.campaigns, selectedSafeCampaignId],
   );
@@ -84,7 +90,7 @@ export function CampaignsPage() {
       toast.push({
         title: result.canDispatch ? "Lote pronto" : "Lote bloqueado",
         description: result.canDispatch
-          ? `${result.summary.acceptedRecipients} recipient(s), ${result.summary.plannedJobs} job(s) previstos.`
+          ? `${result.summary.acceptedRecipients} destinatário(s), ${result.summary.plannedJobs} job(s) previstos.`
           : `${result.issues.filter((issue) => issue.severity === "error").length} bloqueio(s) no lote.`,
         variant: result.canDispatch ? "success" : "warning",
       });
@@ -103,7 +109,7 @@ export function CampaignsPage() {
       await utils.campaigns.list.invalidate();
       toast.push({
         title: "Lote enfileirado",
-        description: `${result.recipientsCreated} recipient(s), ${result.scheduler.jobsCreated} job(s) criados.`,
+        description: `${result.recipientsCreated} destinatário(s), ${result.scheduler.jobsCreated} job(s) criados.`,
         variant: "success",
       });
     },
@@ -116,7 +122,7 @@ export function CampaignsPage() {
       setLastTick(result);
       void utils.campaigns.list.invalidate();
       toast.push({
-        title: result.dryRun ? "Prévia calculada" : "Tick executado",
+        title: result.dryRun ? "Simulação calculada" : "Jobs criados",
         description: result.dryRun
           ? `${result.plannedJobs.length} job(s) seriam criados`
           : `${result.jobsCreated} job(s), ${result.recipientsCompleted} concluído(s), ${result.recipientsSkipped} pulado(s)`,
@@ -209,7 +215,7 @@ export function CampaignsPage() {
     });
     setSafeConfirm("");
   };
-  const runConfirmedTick = (input: { campaignId?: number; label: string }) => {
+  const runConfirmedTick = (input: { campaignId?: number; label: string; confirmText: string }) => {
     if (!input.campaignId) {
       toast.push({
         title: "Selecione uma campanha",
@@ -218,8 +224,7 @@ export function CampaignsPage() {
       });
       return;
     }
-    const confirmation = window.prompt(`Digite DISPARAR para enfileirar ${input.label}.`);
-    if (confirmation !== "DISPARAR") {
+    if (input.confirmText !== "DISPARAR") {
       toast.push({
         title: "Enfileiramento cancelado",
         description: "Confirmação textual obrigatória não foi preenchida.",
@@ -227,7 +232,8 @@ export function CampaignsPage() {
       });
       return;
     }
-    tick.mutate({ dryRun: false, campaignId: input.campaignId, confirmText: confirmation });
+    tick.mutate({ dryRun: false, campaignId: input.campaignId, confirmText: input.confirmText });
+    setGlobalTickConfirm("");
   };
   const toggleCampaignOverlay = (campaign: CampaignListItem) => {
     const enabled = !isCampaignOverlayEnabled(campaign.metadata);
@@ -272,32 +278,59 @@ export function CampaignsPage() {
       <Animate preset="rise-in">
         <header className="nuoma-workspace-header flex items-center justify-between gap-6">
           <div>
-            <p className="botforge-kicker">Campanhas</p>
-            <h1 className="botforge-display mt-1 text-3xl md:text-4xl">
+            <p className="nuoma-compat-kicker">Campanhas</p>
+            <h1 className="nuoma-compat-display mt-1 text-3xl md:text-4xl">
               Outbound <span className="nuoma-gradient-text">operacional</span>.
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-fg-muted">
-              Builder, disparo, recipients e auditoria em uma superfície compacta com guardrails
+              Builder, disparo, destinatários e auditoria em uma superfície compacta com guardrails
               fortes por canal.
             </p>
+            {selectedSafeCampaign ? (
+              <p className="mt-2 font-mono text-[0.68rem] uppercase tracking-widest text-fg-dim">
+                Selecionada: {selectedSafeCampaign.name} · {selectedSafeCampaign.channel} ·{" "}
+                {selectedSafeCampaign.status}
+              </p>
+            ) : (
+              <p className="mt-2 font-mono text-[0.68rem] uppercase tracking-widest text-semantic-warning">
+                Selecione uma campanha para simular ou disparar.
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button
               variant="soft"
               size="sm"
-              loading={isGlobalTickPending(true)}
-              onClick={() => tick.mutate({ dryRun: true })}
+              loading={selectedSafeCampaignId ? isCampaignTickPending(selectedSafeCampaignId, true) : isGlobalTickPending(true)}
+              disabled={!selectedSafeCampaignId}
+              onClick={() => {
+                if (!selectedSafeCampaignId) return;
+                tick.mutate({ dryRun: true, campaignId: selectedSafeCampaignId });
+              }}
             >
-              Prévia
+              Simular selecionada
             </Button>
-            <Button
-              variant="soft"
-              size="sm"
+            <ConfirmDangerAction
+              buttonLabel={`${COPY.disparar} selecionada`}
+              confirmText="DISPARAR"
+              value={globalTickConfirm}
+              onValueChange={setGlobalTickConfirm}
               loading={isGlobalTickPending(false)}
-              onClick={() => runConfirmedTick({ label: "todas as campanhas elegíveis" })}
-            >
-              Enfileirar
-            </Button>
+              disabled={!selectedSafeCampaignId}
+              onConfirm={() =>
+                runConfirmedTick({
+                  campaignId: selectedSafeCampaignId ?? undefined,
+                  label: selectedSafeCampaign?.name ?? "campanha selecionada",
+                  confirmText: globalTickConfirm,
+                })
+              }
+              description={
+                selectedSafeCampaign
+                  ? `Criará Jobs reais para ${selectedSafeCampaign.name}.`
+                  : "Disparo real exige campanha selecionada e texto de confirmação."
+              }
+              testId="campaign-global-dispatch-confirm"
+            />
           </div>
         </header>
       </Animate>
@@ -318,7 +351,7 @@ export function CampaignsPage() {
             Disparo
           </TabsTrigger>
           <TabsTrigger value="recipients" data-testid="campaign-tab-recipients">
-            Recipients
+            Destinatários
           </TabsTrigger>
         </TabsList>
 
@@ -362,12 +395,23 @@ export function CampaignsPage() {
             lastTick={lastTick}
             globalPreviewPending={isGlobalTickPending(true)}
             globalEnqueuePending={isGlobalTickPending(false)}
+            globalEnqueueConfirmation={globalTickConfirm}
+            onGlobalEnqueueConfirmationChange={setGlobalTickConfirm}
             onReady={runSafeReady}
             onEnqueue={runSafeEnqueue}
             onBatchReady={runBatchReady}
             onBatchDispatch={runBatchDispatch}
-            onGlobalPreview={() => tick.mutate({ dryRun: true })}
-            onGlobalEnqueue={() => runConfirmedTick({ label: "campanhas elegíveis" })}
+            onGlobalPreview={() => {
+              if (!selectedSafeCampaignId) return;
+              tick.mutate({ dryRun: true, campaignId: selectedSafeCampaignId });
+            }}
+            onGlobalEnqueue={() =>
+              runConfirmedTick({
+                campaignId: selectedSafeCampaignId ?? undefined,
+                label: selectedSafeCampaign?.name ?? "campanha selecionada",
+                confirmText: globalTickConfirm,
+              })
+            }
           />
         </TabsContent>
 
@@ -392,7 +436,9 @@ export function CampaignsPage() {
               onResume={(campaignId) => resumeCampaign.mutate({ id: campaignId })}
               onToggleOverlay={toggleCampaignOverlay}
               onPreview={(campaignId) => tick.mutate({ dryRun: true, campaignId })}
-              onEnqueue={(campaignId, label) => runConfirmedTick({ campaignId, label })}
+              onEnqueue={(campaignId, label, confirmText) =>
+                runConfirmedTick({ campaignId, label, confirmText })
+              }
               isPausePending={(campaignId) =>
                 pauseCampaign.isPending && pauseCampaign.variables?.id === campaignId
               }
@@ -415,15 +461,8 @@ export function CampaignsPage() {
 function usePageIntent() {
   return useMemo(() => {
     if (typeof window === "undefined") return null;
-    return new URLSearchParams(window.location.search).get("intent");
+    return parseCampaignSearch(window.location.search).intent;
   }, []);
-}
-
-function initialCampaignIdFromUrl() {
-  if (typeof window === "undefined") return "";
-  const value = new URLSearchParams(window.location.search).get("campaignId");
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? String(parsed) : "";
 }
 
 function remarketingBatchInput(input: {
@@ -475,15 +514,4 @@ function normalizeBatchKeyText(value: string | null | undefined): string {
     .replace(/\r\n/g, "\n")
     .trim()
     .toLowerCase();
-}
-
-function initialCampaignTabFromUrl(intent: string | null): CampaignTab {
-  if (typeof window !== "undefined") {
-    const tab = new URLSearchParams(window.location.search).get("tab");
-    if (tab === "overview" || tab === "builder" || tab === "dispatch" || tab === "recipients") {
-      return tab;
-    }
-  }
-  if (intent === "enqueue") return "dispatch";
-  return initialCampaignIdFromUrl() ? "dispatch" : "builder";
 }

@@ -64,8 +64,8 @@ export function OperationsPage() {
       <Animate preset="rise-in">
         <header className="nuoma-workspace-header flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="botforge-kicker">Operations</p>
-            <h1 className="botforge-display mt-2 text-3xl md:text-4xl">
+            <p className="nuoma-compat-kicker">Operations</p>
+            <h1 className="nuoma-compat-display mt-2 text-3xl md:text-4xl">
               Saúde <span className="nuoma-gradient-text">do envio</span>.
             </h1>
             <p className="mt-3 max-w-2xl text-sm text-fg-muted">

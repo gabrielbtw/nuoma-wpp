@@ -1,12 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { Badge, SignalDot, TimeAgo, cn, useToast } from "@nuoma/ui";
+import {
+  Badge,
+  Button,
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SignalDot,
+  TimeAgo,
+  VisuallyHidden,
+  cn,
+  useToast,
+} from "@nuoma/ui";
 import type { Message } from "@nuoma/contracts";
 
 import { Composer } from "../inbox/Composer.js";
 import { ContactSidebar } from "../inbox/ContactSidebar.js";
 import { ConversationList } from "../inbox/ConversationList.js";
 import { MessageTimeline } from "../inbox/MessageTimeline.js";
+import { compareConversationsByLastActivity } from "../inbox/conversation-sort.js";
 import { resolveConversationSyncPhone } from "../inbox/conversation-sync-target.js";
 import { INBOX_CONVERSATION_LIMIT } from "../inbox/conversation-list-config.js";
 import { conversationDisplayTitle } from "../inbox/conversation-display.js";
@@ -21,7 +33,9 @@ import { type InboxRealtimeState, useInboxEvents } from "../inbox/use-inbox-even
 import { trpc } from "../lib/trpc.js";
 
 export function InboxPage() {
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(() => initialConversationIdFromUrl());
+  const [userClearedSelection, setUserClearedSelection] = useState(false);
+  const [crmDrawerOpen, setCrmDrawerOpen] = useState(false);
   const [messageActionDraft, setMessageActionDraft] = useState<MessageActionDraft | null>(null);
   const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
   const [retryingMessageIds, setRetryingMessageIds] = useState<number[]>([]);
@@ -45,6 +59,7 @@ export function InboxPage() {
 
   useEffect(() => {
     setMessageActionDraft(null);
+    setCrmDrawerOpen(false);
   }, [selectedId]);
 
   const forceSync = trpc.conversations.forceSync.useMutation({
@@ -69,16 +84,17 @@ export function InboxPage() {
   });
   const retrySend = trpc.messages.send.useMutation();
 
-  // j/k navigate, esc close
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
-      if (
-        target &&
-        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
-      ) {
+      if (event.key === "Escape" && crmDrawerOpen) {
+        event.preventDefault();
+        setCrmDrawerOpen(false);
+        return;
+      }
+      if (isInboxShortcutTarget(target)) {
         if (event.key === "Escape") {
-          (target as HTMLElement).blur();
+          target?.blur();
         }
         return;
       }
@@ -88,23 +104,34 @@ export function InboxPage() {
       if (event.key === "j" || event.key === "ArrowDown") {
         event.preventDefault();
         const next = list[Math.min(idx + 1, list.length - 1)];
-        if (next) setSelectedId(next.id);
+        if (next) selectConversation(next.id);
       } else if (event.key === "k" || event.key === "ArrowUp") {
         event.preventDefault();
         const prev = list[Math.max(idx - 1, 0)];
-        if (prev) setSelectedId(prev.id);
+        if (prev) selectConversation(prev.id);
       } else if (event.key === "Escape") {
         if (messageActionDraft) {
           event.preventDefault();
           setMessageActionDraft(null);
           return;
         }
-        setSelectedId(null);
+        clearSelectedConversation();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [conversations.data, messageActionDraft, selectedId]);
+  }, [conversations.data, crmDrawerOpen, messageActionDraft, selectedId]);
+
+  function selectConversation(id: number) {
+    setUserClearedSelection(false);
+    setSelectedId(id);
+  }
+
+  function clearSelectedConversation() {
+    setUserClearedSelection(true);
+    setSelectedId(null);
+    setCrmDrawerOpen(false);
+  }
 
   function onForceSync() {
     if (!conversation) return;
@@ -152,17 +179,7 @@ export function InboxPage() {
             }
           : item,
       );
-      conversations.sort((a, b) => {
-        const aTime = Date.parse(a.lastMessageAt ?? "");
-        const bTime = Date.parse(b.lastMessageAt ?? "");
-        if (Number.isFinite(aTime) && Number.isFinite(bTime) && aTime !== bTime) {
-          return bTime - aTime;
-        }
-        if (Number.isFinite(aTime) !== Number.isFinite(bTime)) {
-          return Number.isFinite(bTime) ? 1 : -1;
-        }
-        return b.id - a.id;
-      });
+      conversations.sort(compareConversationsByLastActivity);
       return { conversations };
     });
     return optimistic;
@@ -257,8 +274,8 @@ export function InboxPage() {
       message.status !== "failed"
     ) {
       toast.push({
-        title: "Retry indisponível",
-        description: "Nesta fase o retry inline cobre apenas mensagens de texto outbound falhadas.",
+        title: "Reenvio indisponível",
+        description: "Nesta fase o reenvio cobre apenas mensagens de texto enviadas com falha.",
         variant: "warning",
       });
       return;
@@ -288,7 +305,7 @@ export function InboxPage() {
           }
           void utils.conversations.list.invalidate();
           void utils.jobs.list.invalidate();
-          toast.push({ title: "Retry enfileirado", variant: "success" });
+          toast.push({ title: "Reenvio enfileirado", variant: "success" });
         },
         onError(error) {
           setRetryingMessageIds((current) => current.filter((id) => id !== message.id));
@@ -297,7 +314,7 @@ export function InboxPage() {
           } else if (optimisticRetry) {
             markOptimisticSendFailed(optimisticRetry.clientMutationId, error.message);
           }
-          toast.push({ title: "Retry falhou", description: error.message, variant: "danger" });
+          toast.push({ title: "Reenvio falhou", description: error.message, variant: "danger" });
         },
       },
     );
@@ -307,11 +324,11 @@ export function InboxPage() {
     <div className="-mt-1 flex h-[calc(100vh-7rem)] min-h-[620px] flex-col gap-3 overflow-hidden">
       <header
         data-testid="inbox-realtime-header"
-        className="nuoma-workspace-header botforge-surface flex min-h-14 flex-wrap items-center justify-between gap-3 rounded-lg px-4 py-2.5"
+        className="nuoma-workspace-header nuoma-compat-surface flex min-h-14 flex-wrap items-center justify-between gap-3 rounded-lg px-4 py-2.5"
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <p className="botforge-kicker text-brand-cyan">Inbox</p>
+            <p className="nuoma-compat-kicker text-brand-cyan">Inbox</p>
             <Badge variant="cyan">operador</Badge>
           </div>
           <div className="mt-0.5 truncate font-mono text-[0.65rem] uppercase tracking-widest text-fg-dim">
@@ -320,12 +337,25 @@ export function InboxPage() {
           </div>
         </div>
         <RealtimeStatus state={realtime} />
+        <Button
+          variant="soft"
+          size="sm"
+          className="xl:hidden"
+          disabled={selectedId == null}
+          onClick={() => setCrmDrawerOpen(true)}
+        >
+          CRM
+        </Button>
       </header>
       <div
         data-testid="inbox-grid"
         className="grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_360px]"
       >
-        <ConversationList selectedId={selectedId} onSelect={setSelectedId} />
+        <ConversationList
+          selectedId={selectedId}
+          onSelect={selectConversation}
+          autoSelect={!userClearedSelection}
+        />
         <div className="flex min-w-0 flex-col gap-3 overflow-hidden">
           <MessageTimeline
             conversationId={selectedId}
@@ -355,8 +385,39 @@ export function InboxPage() {
           <ContactSidebar conversationId={selectedId} />
         </div>
       </div>
+      <Sheet open={crmDrawerOpen && selectedId != null} onOpenChange={setCrmDrawerOpen}>
+        <SheetContent
+          side="right"
+          className="w-[min(27rem,calc(100vw-1rem))] max-w-none overflow-hidden border-l border-contour-line/30 bg-bg-base p-0 text-fg-primary xl:hidden"
+        >
+          <VisuallyHidden>
+            <SheetTitle>CRM da conversa</SheetTitle>
+          </VisuallyHidden>
+          <div className="h-full overflow-y-auto pt-12">
+            <ContactSidebar conversationId={selectedId} />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
+}
+
+function isInboxShortcutTarget(target: HTMLElement | null): boolean {
+  if (!target) return false;
+  if (target.isContentEditable) return true;
+  return Boolean(
+    target.closest(
+      'input, textarea, select, button, a, [role="button"], [role="menu"], [role="dialog"], [data-radix-popper-content-wrapper]',
+    ),
+  );
+}
+
+function initialConversationIdFromUrl(): number | null {
+  if (typeof window === "undefined") return null;
+  const value = new URLSearchParams(window.location.search).get("conversationId");
+  if (!value) return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 function numericRawValue(value: unknown): number {

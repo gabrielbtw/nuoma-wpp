@@ -9,7 +9,7 @@
  *   2. tailwindcss/base (preflight)
  *   3. styles/tokens.css   — vars --nw-* (fonte da verdade) + camada compat --color-*
  *   4. tailwindcss/components + utilities
- *   5. styles/legacy.css   — CSS da era Editorial·Indigo, em extinção página a página
+ *   5. styles/legacy.css   — compatibilidade temporária para páginas ainda não migradas
  *   6. styles/pages/*.css  — CSS novo por página (vocabulário nw-*), adicionado por wave
  */
 

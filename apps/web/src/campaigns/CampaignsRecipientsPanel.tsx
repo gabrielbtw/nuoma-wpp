@@ -13,7 +13,9 @@ import {
   ErrorState,
   LoadingState,
 } from "@nuoma/ui";
+import { useState } from "react";
 
+import { ConfirmDangerAction } from "../components/ConfirmDangerAction.js";
 import {
   CampaignAbVariantsPanel,
   CampaignEvergreenPanel,
@@ -36,7 +38,7 @@ type CampaignsRecipientsPanelProps = {
   onResume: (campaignId: number) => void;
   onToggleOverlay: (campaign: CampaignListItem) => void;
   onPreview: (campaignId: number) => void;
-  onEnqueue: (campaignId: number, label: string) => void;
+  onEnqueue: (campaignId: number, label: string, confirmText: string) => void;
   isPausePending: (campaignId: number) => boolean;
   isResumePending: (campaignId: number) => boolean;
   isOverlayPending: (campaignId: number) => boolean;
@@ -59,6 +61,9 @@ export function CampaignsRecipientsPanel({
   isPreviewPending,
   isEnqueuePending,
 }: CampaignsRecipientsPanelProps) {
+  const [confirmByCampaign, setConfirmByCampaign] = useState<Record<number, string>>({});
+  const updateConfirm = (campaignId: number, value: string) =>
+    setConfirmByCampaign((current) => ({ ...current, [campaignId]: value }));
   return (
     <Card>
       <CardHeader>
@@ -88,7 +93,7 @@ export function CampaignsRecipientsPanel({
                   <div className="min-w-0">
                     <div className="truncate text-sm">{campaign.name}</div>
                     <div className="font-mono text-xs text-fg-dim">
-                      {campaign.steps.length} step(s) · {campaign.recipients.length} recipient(s)
+                      {campaign.steps.length} step(s) · {campaign.recipients.length} destinatário(s)
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-wrap justify-end gap-1">
@@ -146,19 +151,19 @@ export function CampaignsRecipientsPanel({
                     loading={isPreviewPending(campaign.id)}
                     onClick={() => onPreview(campaign.id)}
                   >
-                    Prévia
+                    Simular
                   </Button>
-                  <Button
-                    variant="soft"
-                    size="xs"
-                    data-testid="campaign-enqueue-button"
-                    data-campaign-id={campaign.id}
+                  <ConfirmDangerAction
+                    buttonLabel="Disparar"
+                    confirmText="DISPARAR"
+                    value={confirmByCampaign[campaign.id] ?? ""}
+                    onValueChange={(value) => updateConfirm(campaign.id, value)}
                     disabled={!isPausableCampaign(campaign.status)}
                     loading={isEnqueuePending(campaign.id)}
-                    onClick={() => onEnqueue(campaign.id, campaign.name)}
-                  >
-                    Enfileirar
-                  </Button>
+                    onConfirm={() => onEnqueue(campaign.id, campaign.name, confirmByCampaign[campaign.id] ?? "")}
+                    description={`Criará Jobs reais para ${campaign.name}.`}
+                    testId="campaign-enqueue-confirm"
+                  />
                 </div>
                 <CampaignPauseResumePanel
                   campaignId={campaign.id}

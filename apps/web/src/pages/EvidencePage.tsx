@@ -67,10 +67,10 @@ export function EvidencePage() {
       <Animate preset="rise-in">
         <header className="nuoma-workspace-header flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="botforge-kicker [color:rgb(var(--color-brand-cyan))]">
+            <p className="nuoma-compat-kicker [color:rgb(var(--color-brand-cyan))]">
               M37 Evidence Center
             </p>
-            <h1 className="botforge-display mt-2 text-3xl md:text-4xl">
+            <h1 className="nuoma-compat-display mt-2 text-3xl md:text-4xl">
               Provas <span className="nuoma-gradient-text">navegáveis</span>.
             </h1>
             <p className="mt-3 max-w-2xl text-sm text-fg-muted">

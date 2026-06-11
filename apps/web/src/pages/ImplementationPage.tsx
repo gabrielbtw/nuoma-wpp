@@ -72,8 +72,8 @@ export function ImplementationPage() {
       <Animate preset="rise-in">
         <header className="nuoma-workspace-header flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="botforge-kicker">Implementação</p>
-            <h1 className="botforge-display mt-2 text-3xl md:text-4xl">
+            <p className="nuoma-compat-kicker">Implementação</p>
+            <h1 className="nuoma-compat-display mt-2 text-3xl md:text-4xl">
               Execução <span className="nuoma-gradient-text">visível</span>.
             </h1>
             <p className="text-sm text-fg-muted mt-3 max-w-2xl">

@@ -57,10 +57,10 @@ const FALLBACK = {
   surface: "rgb(37 33 28)",
 } as const;
 
-export type ChartPalette = Record<keyof typeof VAR_NAMES, string> & { series: string[] };
+type ChartPalette = Record<keyof typeof VAR_NAMES, string> & { series: string[] };
 
 /** Reads token colours from the DOM; re-reads when the theme changes. */
-export function useChartPalette(): ChartPalette {
+function useChartPalette(): ChartPalette {
   const { resolved } = useTheme();
   return useMemo(() => {
     const read = (cssVar: string, fallback: string): string => {
@@ -301,7 +301,7 @@ export function GaugeChart({ value, max = 100, label, height = 280 }: GaugeChart
         </RadialBarChart>
       </ResponsiveContainer>
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-        <span className="botforge-display text-4xl tabular-nums">{value}</span>
+        <span className="nuoma-compat-display text-4xl tabular-nums">{value}</span>
         {label && (
           <span className="mt-1 font-mono text-[0.7rem] uppercase tracking-wider text-fg-dim">
             {label}

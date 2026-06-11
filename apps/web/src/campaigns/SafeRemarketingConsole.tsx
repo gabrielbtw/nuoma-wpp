@@ -92,9 +92,9 @@ export function SafeRemarketingConsole({
     batchReady?.canDispatch && batchConfirmation === batchReady.confirmText,
   );
   const selected =
-    campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? campaigns[0] ?? null;
+    campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? null;
   const batchChannel = selected?.channel === "instagram" ? "instagram" : "whatsapp";
-  const batchPlaceholder = batchChannel === "instagram" ? "gabriell_braga" : "5531982066263";
+  const batchPlaceholder = batchChannel === "instagram" ? "@perfil_teste" : "5511999999999";
   const batchAllowlistValue =
     batchChannel === "instagram" ? batchAllowedInstagram : batchAllowedPhone;
   const batchAllowlistChange =
@@ -107,8 +107,7 @@ export function SafeRemarketingConsole({
             <div>
               <CardTitle>Console seguro de remarketing</CardTitle>
               <CardDescription>
-                Dry-run forte, serialização por telefone e confirmação explícita antes de
-                enfileirar.
+                Simule bloqueios e confirme antes de criar Jobs de envio.
               </CardDescription>
             </div>
             <Badge variant={readiness?.canEnqueue ? "success" : "warning"}>
@@ -118,7 +117,7 @@ export function SafeRemarketingConsole({
         </CardHeader>
         <CardContent className="grid gap-4">
           <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
-            <Select value={selectedValue || String(selected?.id ?? "")} onValueChange={onSelect}>
+            <Select value={selectedValue} onValueChange={onSelect}>
               <SelectTrigger
                 aria-label="Campanha para remarketing seguro"
                 data-testid="safe-dispatch-campaign-select"
@@ -171,11 +170,11 @@ export function SafeRemarketingConsole({
             >
               <div className="grid gap-2 sm:grid-cols-6">
                 <CampaignMetric label="steps" value={readiness.summary.steps} />
-                <CampaignMetric label="recipients" value={readiness.summary.recipientsActive} />
+                <CampaignMetric label="destinatários" value={readiness.summary.recipientsActive} />
                 <CampaignMetric label="telefones" value={readiness.summary.phonesUnique} />
                 <CampaignMetric label="jobs" value={readiness.summary.plannedJobs} />
                 <CampaignMetric label="política" value={readiness.summary.policyMode} />
-                <CampaignMetric label="allowlist" value={readiness.summary.allowedPhones} />
+                <CampaignMetric label="lista permitida" value={readiness.summary.allowedPhones} />
               </div>
               <CampaignBlockingUxPanel
                 title="Bloqueios do disparo"
@@ -224,6 +223,7 @@ export function SafeRemarketingConsole({
                     Confirmação
                   </div>
                   <Input
+                    aria-label="Confirmação do disparo"
                     monospace
                     value={confirmation}
                     placeholder={readiness.confirmText}
@@ -259,8 +259,8 @@ export function SafeRemarketingConsole({
                 </div>
                 <div className="mt-0.5 text-xs text-fg-muted">
                   {batchChannel === "instagram"
-                    ? "Valida allowlist, lote inteiro e sessão Instagram antes de criar jobs."
-                    : "Valida allowlist, lote inteiro e temporaryMessages 24h/90d antes de criar jobs."}
+                    ? "Valida lista permitida, lote inteiro e sessão Instagram antes de criar Jobs."
+                    : "Valida lista permitida, lote inteiro e mensagens temporárias 24h/90d antes de criar Jobs."}
                 </div>
               </div>
               <Badge variant={batchReady?.canDispatch ? "success" : "warning"}>
@@ -268,6 +268,9 @@ export function SafeRemarketingConsole({
               </Badge>
             </div>
             <Textarea
+              aria-label={
+                batchChannel === "instagram" ? "Perfis Instagram do lote" : "Telefones do lote"
+              }
               rows={4}
               monospace
               value={batchPhones}
@@ -281,8 +284,8 @@ export function SafeRemarketingConsole({
               placeholder={batchPlaceholder}
               aria-label={
                 batchChannel === "instagram"
-                  ? "Instagram liberado para teste"
-                  : "Telefone liberado para teste"
+                  ? "Instagram do envio canário"
+                  : "Telefone do envio canário"
               }
               data-testid="safe-batch-allowlist-input"
               onChange={(event) => batchAllowlistChange(event.target.value)}
@@ -332,7 +335,7 @@ export function SafeRemarketingConsole({
                   <CampaignMetric label="aceitos" value={batchReady.summary.acceptedRecipients} />
                   <CampaignMetric label="rejeit." value={batchReady.summary.rejectedRecipients} />
                   <CampaignMetric label="jobs" value={batchReady.summary.plannedJobs} />
-                  <CampaignMetric label="policy" value={batchReady.summary.policyMode} />
+                  <CampaignMetric label="política" value={batchReady.summary.policyMode} />
                   <CampaignMetric
                     label="temp"
                     value={
@@ -443,7 +446,7 @@ export function SafeRemarketingConsole({
                 className="rounded-lg bg-bg-base px-3 py-2 text-xs text-fg-muted shadow-flat"
                 data-testid="safe-batch-last-dispatch"
               >
-                lote {lastBatchDispatch.batchDispatchId} · recipients{" "}
+                lote {lastBatchDispatch.batchDispatchId} · destinatários{" "}
                 {lastBatchDispatch.recipientsCreated} · jobs{" "}
                 {lastBatchDispatch.scheduler.jobsCreated}
               </div>
@@ -589,25 +592,25 @@ function issueResolution(issue: CampaignBlockIssue) {
     case "empty_message_step":
       return "Preencha os steps de texto/link sem mensagem útil.";
     case "no_active_recipients":
-      return "Inclua recipients queued/running ou use o lote real para criar novos alvos.";
+      return "Inclua destinatários na fila/em execução ou use o lote real para criar novos alvos.";
     case "invalid_recipient_phone":
-      return "Corrija os telefones dos recipients para números WhatsApp válidos.";
+      return "Corrija os telefones dos destinatários para números WhatsApp válidos.";
     case "invalid_recipient_instagram":
-      return "Corrija os Instagram dos recipients antes de disparar.";
+      return "Corrija os Instagram dos destinatários antes de disparar.";
     case "unsupported_instagram_steps":
       return "Mantenha na campanha Instagram apenas texto, link, imagem ou vídeo.";
     case "suppressed_contact":
       return "Remova contatos blocked/archived do disparo ou regularize o status do contato.";
     case "duplicate_recipient_phone":
-      return "Mantenha apenas um recipient ativo por telefone.";
+      return "Mantenha apenas um destinatário ativo por telefone.";
     case "recipient_already_waiting":
-      return "Aguarde os jobs anteriores finalizarem antes de reenfileirar.";
+      return "Aguarde os Jobs anteriores finalizarem antes de criar novos envios.";
     case "send_policy_blocks_recipients":
       return "Ajuste a allowlist ou retire os telefones fora da política atual.";
     case "production_without_canary_allowlist":
       return "Defina uma allowlist canária explícita antes do envio real.";
     case "dry_run_without_jobs":
-      return "Confira status, steps, delays e recipients: a prévia não encontrou job pronto.";
+      return "Confira status, Steps, esperas e destinatários: a simulação não encontrou Job pronto.";
     case "scheduler_preview_error":
       return "Resolva o erro retornado pela prévia do scheduler e rode a validação novamente.";
     case "temporary_messages_audit_only":
@@ -619,17 +622,17 @@ function issueResolution(issue: CampaignBlockIssue) {
     case "instagram_allowlist_required":
       return "Informe o Instagram canário autorizado antes de liberar o lote.";
     case "instagram_session_unavailable":
-      return "Suba o worker com sessão Instagram antes de validar o lote.";
+      return "Inicie o processador com sessão Instagram antes de validar o lote.";
     case "instagram_session_error":
-      return "Corrija o erro da sessão Instagram no worker e valide novamente.";
+      return "Corrija o erro da sessão Instagram no processador e valide novamente.";
     case "instagram_session_disconnected":
-      return "Reconecte o CDP/worker usado pelo Instagram.";
+      return "Reconecte a sessão do navegador (CDP) usada pelo Instagram.";
     case "instagram_session_not_authenticated":
-      return "Autentique o Instagram na sessão compartilhada do worker.";
+      return "Autentique o Instagram na sessão compartilhada do processador.";
     case "active_campaign_step_jobs":
       return "Finalize ou limpe campaign_step ativos antes de abrir outro lote real.";
     case "active_campaign_recipients":
-      return "Conclua recipients ativos antes de criar um novo lote para a campanha.";
+      return "Conclua destinatários ativos antes de criar um novo lote para a campanha.";
     case "empty_batch":
       return "Informe ao menos um telefone, Instagram ou contato no lote.";
     case "batch_has_rejections":
@@ -679,13 +682,13 @@ function rejectedReasonLabel(reason: string) {
     case "duplicate_recipient":
       return "Já existe recipient para este alvo";
     case "not_allowlisted_for_test_execution":
-      return "Fora da allowlist de teste";
+      return "Fora da lista permitida de teste";
     case "not_in_production_canary_allowlist":
-      return "Fora da allowlist canária";
+      return "Fora da lista permitida canária";
     case "instagram_allowlist_required":
-      return "Allowlist Instagram ausente";
+      return "Lista permitida do Instagram ausente";
     case "instagram_handle_not_allowed":
-      return "Instagram fora da allowlist";
+      return "Instagram fora da lista permitida";
     case "active_pipeline_for_instagram":
       return "Pipeline ativo para este Instagram";
     default:

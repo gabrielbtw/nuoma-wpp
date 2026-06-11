@@ -26,6 +26,7 @@ import { registerNuomaServiceWorker } from "./lib/push-subscription.js";
 import { TrpcProvider } from "./lib/trpc-provider.js";
 import { LoginPage } from "./pages/LoginPage.js";
 import { ShellLayout } from "./shell/ShellLayout.js";
+import type { ShellRouteAccess } from "./shell/nav-registry.js";
 
 import "./styles.css";
 
@@ -92,10 +93,36 @@ function LazyRoutePage({ Page, label }: { Page: LazyPage; label: string }) {
   );
 }
 
-function routePage(Page: LazyPage, label: string) {
+function routePage(Page: LazyPage, label: string, access: ShellRouteAccess = "operator") {
   return function RoutePage() {
-    return <LazyRoutePage Page={Page} label={label} />;
+    return <GuardedRoutePage Page={Page} label={label} access={access} />;
   };
+}
+
+function GuardedRoutePage({
+  Page,
+  label,
+  access,
+}: {
+  Page: LazyPage;
+  label: string;
+  access: ShellRouteAccess;
+}) {
+  const auth = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (access === "admin" && auth.user?.role !== "admin") {
+      void navigate({ to: "/inbox", replace: true });
+    }
+    if (access === "dev" && !import.meta.env.DEV) {
+      void navigate({ to: "/inbox", replace: true });
+    }
+  }, [access, auth.user?.role, navigate]);
+
+  if (access === "admin" && auth.user?.role !== "admin") return <RouteLoading />;
+  if (access === "dev" && !import.meta.env.DEV) return <RouteLoading />;
+  return <LazyRoutePage Page={Page} label={label} />;
 }
 
 function HomeRoute() {
@@ -174,38 +201,42 @@ const chatbotsRoute = createRoute({
 const jobsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/jobs",
-  component: routePage(JobsPage, "Fila de envio"),
+  component: routePage(JobsPage, "Fila de envio", "admin"),
 });
 
 const operationsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/operations",
-  component: routePage(OperationsPage, "Operações"),
+  component: routePage(OperationsPage, "Operações", "admin"),
 });
 
-const implementationRoute = createRoute({
-  getParentRoute: () => shellRoute,
-  path: "/implementation",
-  component: routePage(ImplementationPage, "Implementação"),
-});
+const implementationRoute = import.meta.env.DEV
+  ? createRoute({
+      getParentRoute: () => shellRoute,
+      path: "/implementation",
+      component: routePage(ImplementationPage, "Implementação", "dev"),
+    })
+  : null;
 
-const evidenceRoute = createRoute({
-  getParentRoute: () => shellRoute,
-  path: "/evidence",
-  component: routePage(EvidencePage, "Evidências"),
-});
+const evidenceRoute = import.meta.env.DEV
+  ? createRoute({
+      getParentRoute: () => shellRoute,
+      path: "/evidence",
+      component: routePage(EvidencePage, "Evidências", "dev"),
+    })
+  : null;
 
 const settingsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/settings",
-  component: routePage(SettingsPage, "Configurações"),
+  component: routePage(SettingsPage, "Configurações", "admin"),
 });
 
 const devComponentsRoute = DevComponentsPage
   ? createRoute({
       getParentRoute: () => shellRoute,
       path: "/dev/components",
-      component: routePage(DevComponentsPage, "Componentes"),
+      component: routePage(DevComponentsPage, "Componentes", "dev"),
     })
   : null;
 
@@ -218,9 +249,9 @@ const shellChildren = [
   chatbotsRoute,
   operationsRoute,
   jobsRoute,
-  implementationRoute,
-  evidenceRoute,
   settingsRoute,
+  ...(implementationRoute ? [implementationRoute] : []),
+  ...(evidenceRoute ? [evidenceRoute] : []),
   ...(devComponentsRoute ? [devComponentsRoute] : []),
 ];
 

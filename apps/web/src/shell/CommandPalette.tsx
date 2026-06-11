@@ -11,7 +11,7 @@ import {
   cn,
 } from "@nuoma/ui";
 
-import { getShellShortcutItems } from "./Sidebar.js";
+import { getShellShortcutItems } from "./nav-registry.js";
 
 interface Command {
   id: string;
@@ -45,11 +45,11 @@ export function CommandPalette({ open, onOpenChange, isAdmin }: CommandPalettePr
   const commands = useMemo<Command[]>(
     () => [
       ...getShellShortcutItems(isAdmin).map((item) => ({
-        id: `go.${item.to}`,
+        id: `go.${item.path}`,
         label: item.label,
         hint: item.shortcut,
         group: "Navegação" as const,
-        run: () => navigate({ to: item.to }),
+        run: () => navigate({ to: item.path }),
       })),
       {
         id: "action.contacts.create",
@@ -68,7 +68,7 @@ export function CommandPalette({ open, onOpenChange, isAdmin }: CommandPalettePr
       {
         id: "action.automations.trigger",
         label: "Testar automação manual",
-        hint: "Dry-run",
+        hint: "Simulação",
         group: "Ação",
         run: () => navigate({ to: "/automations", search: { intent: "trigger" } }),
       },
