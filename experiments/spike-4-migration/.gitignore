@@ -1,0 +1,6 @@
+reports/*.json
+snapshots/*.db
+snapshots/*.db-shm
+snapshots/*.db-wal
+node_modules
+npm-debug.log

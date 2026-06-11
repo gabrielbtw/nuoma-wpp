@@ -1,0 +1,25 @@
+{
+  "name": "spike-1-cdp-observer",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Spike 1 — Validate CDP MutationObserver can capture real WhatsApp messages with end-to-end latency p50<1s, p95<3s.",
+  "scripts": {
+    "smoke": "tsx run.ts --smoke",
+    "run": "tsx run.ts",
+    "inspect-details": "tsx run.ts --inspect-details",
+    "analyze": "tsx analyze.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.4.1",
+    "chrome-remote-interface": "^0.33.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/chrome-remote-interface": "^0.31.14",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

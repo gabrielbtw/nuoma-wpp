@@ -1,0 +1,22 @@
+{
+  "name": "spike-4-migration",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Spike 4 — Read V1 SQLite and validate a V2 migration dry-run.",
+  "scripts": {
+    "read": "tsx read-v1.ts",
+    "dryrun": "tsx dryrun.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.4.1",
+    "drizzle-orm": "^0.44.7"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
