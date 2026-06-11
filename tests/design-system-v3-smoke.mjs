@@ -37,8 +37,12 @@ for (const exported of [
 }
 
 const tokenSource = read("packages/ui/src/tokens/index.ts");
-for (const token of ["blue", "green", "teal", "blueSoft", "greenSoft", "tealSoft"]) {
-  assert.match(tokenSource, new RegExp(`${token}:`), `missing brand token ${token}`);
+for (const scale of ["surface", "ink", "accent", "line", "status", "channel", "chart"]) {
+  assert.match(tokenSource, new RegExp(`${scale}:`), `missing Carvão & Cobre scale ${scale}`);
+}
+
+for (const token of ["base", "hover", "muted", "on"]) {
+  assert.match(tokenSource, new RegExp(`${token}:`), `missing accent token ${token}`);
 }
 
 const scanned = [
@@ -70,7 +74,7 @@ for (const literal of forbiddenColorLiterals) {
 }
 
 console.log(
-  `design-system-v3|exports=ok|green_blue_palette=ok|concepts=${
+  `design-system-v3|exports=ok|carvao_cobre_palette=ok|concepts=${
     localConceptsPresent ? "local" : "skipped"
   }`,
 );
