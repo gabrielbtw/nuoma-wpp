@@ -12,6 +12,8 @@ import { createRepositories, openDb, runMigrations } from "@nuoma/db";
 
 import { buildApiApp } from "./app.js";
 
+const testAllowedPhone = "5531982066263";
+
 function cookieHeader(setCookie: string | string[] | undefined): string {
   if (!setCookie) return "";
   const list = Array.isArray(setCookie) ? setCookie : [setCookie];
@@ -1118,6 +1120,7 @@ describe("api health", () => {
         API_LOG_LEVEL: "silent",
         NODE_ENV: "test",
         API_JWT_SECRET: "test-secret-with-more-than-16-chars",
+        API_SEND_ALLOWED_PHONES: testAllowedPhone,
         DATABASE_URL: path.join(tempDir, "api.db"),
         API_CRM_STORAGE_CACHE_ROOT: path.join(tempDir, "crm-cache"),
         API_CRM_STORAGE_S3_BUCKET: "nuoma-crm-test",
@@ -2774,6 +2777,7 @@ describe("api health", () => {
         API_LOG_LEVEL: "silent",
         NODE_ENV: "test",
         API_JWT_SECRET: "test-secret-with-more-than-16-chars",
+        API_SEND_ALLOWED_PHONES: testAllowedPhone,
         DATABASE_URL: path.join(tempDir, "api.db"),
       }),
       db,
