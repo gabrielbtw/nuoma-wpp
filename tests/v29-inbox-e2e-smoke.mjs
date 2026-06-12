@@ -108,7 +108,7 @@ async function main() {
       throw new Error(`r shortcut did not prepare reply draft: ${replyKind}`);
     }
 
-    await firstTextBubble.click();
+    await blurActiveElement(page);
     await page.keyboard.press("e");
     const editKind = await draft.getAttribute("data-action-kind");
     if (editKind !== "edit") {
@@ -123,9 +123,6 @@ async function main() {
     await textarea.fill(editedText);
     const originalBodiesBeforeEsc = readMessageBodies(fixture.conversationId);
 
-    await firstTextBubble.click();
-    await page.keyboard.press("Escape");
-    await page.getByTestId("message-inspector").waitFor({ state: "hidden", timeout: 10_000 });
     await page.keyboard.press("Escape");
     await page.getByTestId("composer-action-draft").waitFor({ state: "hidden", timeout: 10_000 });
     await waitForComposerValue(page, "");
@@ -133,6 +130,29 @@ async function main() {
     if (JSON.stringify(originalBodiesAfterEsc) !== JSON.stringify(originalBodiesBeforeEsc)) {
       throw new Error("edit shortcut mutated persisted message bodies");
     }
+
+    await blurActiveElement(page);
+    await page.keyboard.press("Escape");
+    await page.getByTestId("message-inspector").waitFor({ state: "hidden", timeout: 10_000 });
+
+    await textarea.focus();
+    await page.keyboard.press("Escape");
+    await page
+      .getByTestId("inbox-message-timeline")
+      .getByText("Selecione uma conversa", { exact: true })
+      .waitFor({ state: "visible", timeout: 10_000 });
+    await page.waitForTimeout(300);
+    const visibleConversationAfterEsc = await page
+      .locator('[data-testid="inbox-message-bubble"]')
+      .count();
+    if (visibleConversationAfterEsc !== 0) {
+      throw new Error("Escape with composer focus did not close the selected conversation");
+    }
+    await row.click();
+    await page.getByTestId("inbox-message-timeline").waitFor({ state: "visible" });
+    await page.waitForFunction(
+      () => document.querySelectorAll('[data-testid="inbox-message-bubble"]').length === 4,
+    );
 
     await page.getByTestId("timeline-force-sync").click();
     await page.waitForTimeout(750);
@@ -172,7 +192,7 @@ async function main() {
     }
     const wppMode = await captureWhatsAppPrint(wppScreenshotPath);
     console.log(
-      `v29-inbox-e2e|conversation=${fixture.conversationId}|messages=4|filters=image/media/yesterday/search|reply=${replyKind}|edit=${editKind}|editMutatesPersisted=false|composerClearedOnCancel=true|syncJobsDelta=${syncJobsDelta}|sendJobsDelta=${sendJobsDelta}|blocking=${blocking.length}|app=${appScreenshotPath}|wpp=${wppScreenshotPath}|wppMode=${wppMode}`,
+      `v29-inbox-e2e|conversation=${fixture.conversationId}|messages=4|filters=image/media/yesterday/search|reply=${replyKind}|edit=${editKind}|editMutatesPersisted=false|composerClearedOnCancel=true|conversationClearedOnEsc=true|syncJobsDelta=${syncJobsDelta}|sendJobsDelta=${sendJobsDelta}|blocking=${blocking.length}|app=${appScreenshotPath}|wpp=${wppScreenshotPath}|wppMode=${wppMode}`,
     );
   } finally {
     await browser.close();
@@ -410,6 +430,14 @@ async function waitForComposerValue(page, expectedValue) {
     },
     { expected: expectedValue },
   );
+}
+
+async function blurActiveElement(page) {
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  });
 }
 
 async function assertVisibleBubbleTypes(page, expectedTypes) {

@@ -89,8 +89,14 @@ export function InboxPage() {
       if (event.defaultPrevented) return;
       const target = event.target as HTMLElement | null;
       if (isInboxShortcutTarget(target)) {
-        if (event.key === "Escape") {
+        if (event.key === "Escape" && !isTransientOverlayTarget(target)) {
+          event.preventDefault();
           target?.blur();
+          if (messageActionDraft) {
+            setMessageActionDraft(null);
+            return;
+          }
+          clearSelectedConversation();
         }
         return;
       }
@@ -410,6 +416,13 @@ function isInboxShortcutTarget(target: HTMLElement | null): boolean {
     target.closest(
       'input, textarea, select, button, a, [role="button"], [role="menu"], [role="dialog"], [data-radix-popper-content-wrapper]',
     ),
+  );
+}
+
+function isTransientOverlayTarget(target: HTMLElement | null): boolean {
+  if (!target) return false;
+  return Boolean(
+    target.closest('[role="dialog"], [role="menu"], [data-radix-popper-content-wrapper]'),
   );
 }
 

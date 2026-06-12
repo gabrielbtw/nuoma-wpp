@@ -113,6 +113,25 @@ Data: 2026-06-12
 - Evidencia detalhada:
   `docs/maintenance/REBRAND_PHASE_7_DOCS_CONTEXT_STATUS.md`.
 
+## Fase 8/9 — QA Visual e Validacao Final
+
+- Browser QA desktop/mobile executado em `http://127.0.0.1:3002`.
+- Prints finais salvos fora do repo em `/tmp/nuoma-rebrand-final/*.png`.
+- Overlay revalidado com Chrome for Testing/Chromium ativo via CDP e sessao
+  WhatsApp logada.
+- Bug encontrado e corrigido no Inbox: `Esc` com foco no composer agora cancela
+  draft ou fecha conversa, conforme o estado real.
+- `test:v29-inbox-e2e` cobre `conversationClearedOnEsc=true`.
+- `test:v2-screen-smoke` ajustado para aguardar navegacao SPA ao sair de
+  `/login`.
+- Validacao final repo-wide passou:
+  - `npm run lint`
+  - `npm run typecheck`
+  - `npm test`
+  - `npm run build`
+- Evidencia detalhada:
+  `docs/maintenance/REBRAND_PHASE_8_9_FINAL_QA_STATUS.md`.
+
 ## Pendente
 
 - Reduzir `legacy.css` ate a meta de 70% nas proximas ondas por pagina; a Fase

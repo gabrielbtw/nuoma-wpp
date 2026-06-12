@@ -210,7 +210,9 @@ async function fillLogin(page) {
 
 async function submitLogin(page) {
   await page.click('button[type="submit"]');
-  await page.waitForURL(`${webUrl}/`);
+  await page.waitForFunction(() => window.location.pathname !== "/login", null, {
+    timeout: 30_000,
+  });
 }
 
 async function isLoginScreen(page) {
