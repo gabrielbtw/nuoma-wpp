@@ -1,6 +1,6 @@
 # Component Inventory
 
-Data: 2026-06-11
+Data: 2026-06-12
 
 ## Canonico
 
@@ -10,26 +10,26 @@ Data: 2026-06-11
   reutilizavel para acoes destrutivas ou de disparo real.
 - `apps/web/src/components/charts/ThemedChart.tsx`: graficos devem ler tokens
   via CSS variables.
+- `apps/web/src/features/flow-builder/**`: FlowBuilder V2 canonico para
+  campanha e automacao, com canvas, inspector, biblioteca de blocos e reducer
+  de draft.
 
 ## Em Migracao
 
-- `apps/web/src/flow-builder/FlowBuilder.tsx`: ainda contem Campaign Builder e
-  Automation Builder no mesmo arquivo. Helpers puros ja foram extraidos para
-  `apps/web/src/flow-builder/lib/**`.
-- `apps/web/src/styles/legacy.css`: ainda importado globalmente e principal
-  fonte de classes legadas.
+- `apps/web/src/styles/legacy.css`: ainda importado globalmente para paginas
+  operacionais nao migradas (`Jobs`, `Implementation`, `Chatbots`, `Contacts`,
+  `Settings`, DEV components e trechos de Inbox).
 
 ## Removido
 
 - `apps/web/src/pet-overlay/**`.
 - `apps/web/src/shell/NuomaAssistant.tsx`.
+- `apps/web/src/flow-builder/FlowBuilder.tsx`.
 
 ## Pendencias
 
-- Criar componentes compartilhados reais do FlowBuilder:
-  - `NodeCard`
-  - `NodeDock`
-  - `CanvasChrome`
-  - `SaveStatus`
-- Dividir `ContactSidebar`, `Composer` e `MessageTimeline` em hooks/secoes apos
-  fechar a dieta de tokens.
+- Migrar o restante das paginas que usam `nuoma-compat-*`, `nuoma-glass-*`,
+  `nuoma-jobs-*` e `nuoma-implementation-*` para CSS de pagina ou Tailwind com
+  tokens `nw-*`.
+- Dividir `ContactSidebar`, `Composer` e `MessageTimeline` em hooks/secoes em
+  uma fase dedicada de hardening.
