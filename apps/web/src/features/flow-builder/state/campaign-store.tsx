@@ -16,7 +16,12 @@ import {
 } from "../../../flow-builder/lib/build-steps.js";
 import type { SegmentDraft } from "../../../flow-builder/lib/segment.js";
 import { stepRegistry } from "../config/step-registry.js";
-import { campaignStepToDraft, isoToLocalInput, newSegmentDraft, segmentToDrafts } from "./hydrate.js";
+import {
+  campaignStepToDraft,
+  isoToLocalInput,
+  newSegmentDraft,
+  segmentToDrafts,
+} from "./hydrate.js";
 
 export type BuilderSelection = { kind: "flow" } | { kind: "block"; id: string };
 
@@ -55,6 +60,14 @@ type MetaPatch = Partial<
 export type CampaignBuilderAction =
   | { type: "hydrate"; campaign: Campaign }
   | { type: "patchMeta"; patch: MetaPatch }
+  | {
+      type: "applyStarter";
+      patch: MetaPatch & {
+        name: string;
+        channel: ChannelType;
+        steps: StepDraft[];
+      };
+    }
   | { type: "addStep"; stepType: BuilderStepType; index?: number }
   | { type: "updateStep"; id: string; patch: Partial<StepDraft> }
   | { type: "removeStep"; id: string }
@@ -131,6 +144,15 @@ function campaignReducer(
     }
     case "patchMeta":
       return { ...state, ...action.patch, dirty: true };
+    case "applyStarter":
+      return {
+        ...state,
+        ...action.patch,
+        steps: action.patch.steps,
+        selection: { kind: "flow" },
+        dirty: true,
+        layoutVersion: state.layoutVersion + 1,
+      };
     case "addStep": {
       const draft = stepRegistry[action.stepType].createDraft(state.steps.length + 1);
       const index = action.index ?? state.steps.length;
@@ -263,7 +285,9 @@ const CampaignBuilderContext = createContext<CampaignBuilderContextValue | null>
 export function CampaignBuilderProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(campaignReducer, undefined, createInitialCampaignState);
   const value = useMemo(() => ({ state, dispatch }), [state]);
-  return <CampaignBuilderContext.Provider value={value}>{children}</CampaignBuilderContext.Provider>;
+  return (
+    <CampaignBuilderContext.Provider value={value}>{children}</CampaignBuilderContext.Provider>
+  );
 }
 
 export function useCampaignBuilder(): CampaignBuilderContextValue {

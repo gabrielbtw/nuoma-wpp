@@ -87,9 +87,7 @@ function CampaignBuilderInner() {
       const target = event.target as HTMLElement | null;
       const inField =
         target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable);
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
       if (event.key === "Escape" && state.selection.kind === "block" && !inField) {
         dispatch({ type: "select", selection: { kind: "flow" } });
       }
@@ -176,7 +174,17 @@ function CampaignBuilderInner() {
       });
       return null;
     }
-  }, [buildPayload, createCampaign, dispatch, navigate, state.campaignId, state.status, toast, updateCampaign, utils]);
+  }, [
+    buildPayload,
+    createCampaign,
+    dispatch,
+    navigate,
+    state.campaignId,
+    state.status,
+    toast,
+    updateCampaign,
+    utils,
+  ]);
 
   const publish = useCallback(async () => {
     const id = state.dirty || !state.campaignId ? await save() : state.campaignId;
@@ -309,9 +317,7 @@ function CampaignBuilderInner() {
                   step={selectedStep}
                   order={selectedStepIndex + 1}
                   channel={state.channel}
-                  onPatch={(patch) =>
-                    dispatch({ type: "updateStep", id: selectedStep.id, patch })
-                  }
+                  onPatch={(patch) => dispatch({ type: "updateStep", id: selectedStep.id, patch })}
                 />
                 <ConditionsEditor
                   step={selectedStep}
@@ -343,6 +349,7 @@ function CampaignBuilderInner() {
               <CampaignFlowSettings
                 state={state}
                 onPatch={(patch) => dispatch({ type: "patchMeta", patch })}
+                onApplyStarter={(draft) => dispatch({ type: "applyStarter", patch: draft })}
               />
             </InspectorShell>
           )}
