@@ -13,6 +13,8 @@ descoberta; detalhes ficam em docs carregadas sob demanda.
 - Roadmap ativo e delta por evidência: `docs/IMPROVEMENTS_ROADMAP.md`.
 - Contexto operacional detalhado: `docs/agent-context/CANONICAL_CONTEXT.md`.
 - Política de dieta de tokens: `docs/agent-context/SESSION_CONTEXT_DIET.md`.
+- Direção visual atual: Carvão & Cobre, documentada em
+  `docs/design-system/CARVAO_COBRE_TOKENS.md`.
 
 ## Invariantes
 
@@ -24,6 +26,8 @@ descoberta; detalhes ficam em docs carregadas sob demanda.
   `storage/**` ou artefatos gerados.
 - Smoke de envio real exige destino/canal conferido e evidência visual; se o
   teste for WhatsApp-only, registrar `IG nao aplicavel`.
+- UI de produto não pode ter dados fake, ações mortas ou controles
+  cenográficos.
 
 ## IC-1 e IC-2
 
@@ -45,6 +49,15 @@ npm run build
 Validações mínimas por camada estão no `AGENTS.md`. Para trabalho estreito,
 rode primeiro o workspace afetado e só depois a validação repo-wide quando a
 mudança cruzar camadas.
+
+## Skills ativas
+
+- `nuoma-v2-feature`: features/refactors V2.
+- `nuoma-worker-observability`: worker/CDP/queue/overlay.
+- `wa-session-runbook`: sessão Chromium/WhatsApp/Instagram.
+- `v1-to-v2-data-import` e `nuoma-cutover-checklist`: migração/cutover.
+- `wa-voice-regression`: IC-1 áudio.
+- `nuoma-review`: revisão técnica.
 
 ## Regras de trabalho
 

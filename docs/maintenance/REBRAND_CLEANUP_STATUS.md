@@ -100,6 +100,19 @@ Data: 2026-06-12
   uso ativo fora do proprio CSS.
 - Evidencia detalhada: `docs/maintenance/REBRAND_PHASE_6_CLEAN_CODE_STATUS.md`.
 
+## Fase 7 — Docs, Roadmap e Skills
+
+- Roadmap realinhado para Fastify, SSE global, docs existentes, companions V2 e
+  Carvão & Cobre como direção atual.
+- Criados `docs/architecture/V2_SYNC_ENGINE.md`,
+  `docs/architecture/V2_REALTIME.md` e `docs/design-system/MOTION.md`.
+- `AGENTS.md`, `CLAUDE.md` e `docs/agent-context/*` atualizados com ownership
+  de FlowBuilder/overlay, política contra UI fake e skills ativas.
+- `.claude/skills` reduzido para 7 skills canônicas; aliases e spikes antigos
+  preservados em `docs/legacy-skills/`.
+- Evidencia detalhada:
+  `docs/maintenance/REBRAND_PHASE_7_DOCS_CONTEXT_STATUS.md`.
+
 ## Pendente
 
 - Reduzir `legacy.css` ate a meta de 70% nas proximas ondas por pagina; a Fase

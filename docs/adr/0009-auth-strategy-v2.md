@@ -18,7 +18,8 @@ V2 implementa auth em duas fases:
 - **JWT**: signing via `jose`. Cookie httpOnly + Secure + SameSite=Lax. Expira 7 dias com refresh rotation.
 - **CSRF**: double-submit token em mutations (header `X-CSRF-Token` ↔ cookie `csrf-token`).
 - **Recovery**: `auth.requestPasswordReset` → email via SES (`AWS_SES_*` env) com token único expira 1h → `auth.resetPassword`.
-- **Rate limit**: 5 login attempts/15min por IP (Hono rate limiter), 3 password reset/h por email.
+- **Rate limit**: Fastify rate limit por IP, com política mais permissiva em
+  teste e janela curta em runtime local/produção.
 - **Audit**: cada login/logout/password change registrado em `audit_logs`.
 - **Multi-user schema desde dia 1**: tabela `users` com `email`, `password_hash`, `role` (admin|attendant|viewer), `display_name`. Single-user no V2 = `user_id=1` admin seeded.
 

@@ -6,7 +6,7 @@ Use este arquivo quando a tarefa exigir mais detalhe que o bootstrap do
 ## Arquitetura
 
 - `apps/api`: Fastify + tRPC/REST, autenticação, routers e serviços HTTP.
-- `apps/web`: React 19 + Vite + TanStack Query + Radix UI.
+- `apps/web`: React 19 + Vite + TanStack Query; Radix vem via `@nuoma/ui`.
 - `apps/worker`: Playwright/CDP, sync, envio guardado, overlay e artifacts.
 - `packages/contracts`: schemas, tipos e contratos compartilhados.
 - `packages/db`: Drizzle/SQLite, migrations e repositórios V2.
@@ -51,10 +51,10 @@ npm run legacy:typecheck
 
 ## Skills consolidadas
 
-- `nuoma-api`: contratos, routers, serviços e persistência V2.
-- `nuoma-feature`: páginas, componentes, builder, inbox, segmentação e
-  refactors web.
-- `nuoma-debug`: worker/CDP/sessão/observabilidade operacional.
-- `nuoma-migration`: V2.15 migração, backup, cutover e rollback.
+- `nuoma-v2-feature`: feature/refactor V2 com ownership e validação por camada.
+- `nuoma-worker-observability`: worker/CDP/fila/overlay/sync.
+- `wa-session-runbook`: sessão Chromium/WhatsApp/Instagram.
+- `v1-to-v2-data-import`: import/backfill de dados com backup e dry-run.
+- `nuoma-cutover-checklist`: cutover, rollback e go/no-go V2.15.
 - `wa-voice-regression`: IC-1 áudio nativo.
 - `nuoma-review`: revisão de diff e risco técnico.

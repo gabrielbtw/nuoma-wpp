@@ -42,6 +42,11 @@ Detalhes operacionais sob demanda: `docs/agent-context/CANONICAL_CONTEXT.md`.
   (`AI_COST_APPROVED=SIM` ou `SORA_BUDGET_APPROVED=SIM`).
 - Teste de envio real exige destino/canal conferido e evidência visual; se for
   WhatsApp-only, registrar `IG nao aplicavel`.
+- UI de produto não pode conter dado fabricado, ação morta, atalho falso ou
+  botão cenográfico. A ação precisa executar, navegar ou ficar desabilitada com
+  motivo visível.
+- Mudança visual em fluxo crítico exige smoke ou print desktop/mobile salvo fora
+  do repo, salvo quando a alteração for puramente documental.
 
 ## Ownership
 
@@ -82,6 +87,9 @@ API e componentes compartilhados.
 Não pode alterar schema, query, migration, regra server-side, worker/CDP,
 dependências ou configs sem handoff.
 
+FlowBuilder canônico fica em `apps/web/src/features/flow-builder/**`; qualquer
+mudança de contrato de campanha, automação ou chatbot chama `core-api` primeiro.
+
 Validação mínima:
 
 ```bash
@@ -103,6 +111,9 @@ guards, seletores e recuperação de sessão.
 
 Não pode alterar contratos públicos, migrations, DB, UI do produto ou configs
 sem handoff.
+
+Overlay/HUD WhatsApp é responsabilidade `worker-runtime`; preservar root id,
+test ids, bridge globals, `data-nuoma-*`, foco mínimo e sessão Chromium ativa.
 
 Validação mínima:
 

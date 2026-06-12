@@ -2,7 +2,10 @@
 
 ## Status
 
-Aceita. Reconcilia direção visual após carregar skills `frontend-design` e `react-three-fiber` + ler [`.impeccable.md`](../../.impeccable.md).
+Histórica. Reconcilia a direção visual inicial após carregar skills
+`frontend-design` e `react-three-fiber` + ler [`.impeccable.md`](../../.impeccable.md).
+A web canônica atual foi supersedida pelo rebrand Carvão & Cobre em
+2026-06-12.
 
 ## Contexto
 
@@ -63,13 +66,14 @@ Fase V2.14a (10 itens, opcional): mapa topográfico interativo no dashboard hero
 ## Consequências
 
 - **Bom**: Identidade visual única ("what app is this?"), distinção clara entre superfície base e camadas flutuantes, performance preservada (glass só onde precisa).
-- **Custo**: Designer/dev precisa internalizar a regra de "quando aplicar glass". Doc clara em `docs/design-system/V2_LIQUID_GLASS_TOKENS.md` e `docs/design-system/V2_CARTOGRAPHIC_TOKENS.md`.
+- **Custo**: Designer/dev precisa internalizar que este ADR é histórico; guias
+  atuais ficam nos docs Carvão & Cobre.
 
 ## Referências
 
 - [`.impeccable.md`](../../.impeccable.md)
-- [docs/design-system/V2_CARTOGRAPHIC_TOKENS.md](../design-system/V2_CARTOGRAPHIC_TOKENS.md) (a ser criado)
-- [docs/design-system/V2_LIQUID_GLASS_TOKENS.md](../design-system/V2_LIQUID_GLASS_TOKENS.md) (a ser criado)
-- [docs/design-system/V2_R3F_CARTOGRAPHY.md](../design-system/V2_R3F_CARTOGRAPHY.md) (a ser criado)
+- [docs/design-system/CARVAO_COBRE_TOKENS.md](../design-system/CARVAO_COBRE_TOKENS.md)
+- [docs/design-system/COMPONENT_INVENTORY.md](../design-system/COMPONENT_INVENTORY.md)
+- [docs/design-system/MOTION.md](../design-system/MOTION.md)
 - Skill `frontend-design` (carregada Abril 2026)
 - Skill `react-three-fiber` (carregada Abril 2026)

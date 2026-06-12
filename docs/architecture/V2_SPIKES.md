@@ -137,7 +137,7 @@ Decisão: G.2 aprovado localmente para ADR 0007/V2.12. Antes de prometer UX host
 
 ### Escopo
 
-- Backend mínimo (Hono OU Fastify): WebSocket endpoint `/ws/screencast`.
+- Backend mínimo Fastify: WebSocket endpoint `/ws/screencast`.
 - Conecta CDP ao Chromium do worker, ativa `Page.startScreencast` (JPEG q=80, max 1280×720, 30fps).
 - Cada `Page.screencastFrame` event → encode base64 → envia ao client via WS.
 - Client `<canvas>` renderiza frames em rAF.
@@ -146,7 +146,7 @@ Decisão: G.2 aprovado localmente para ADR 0007/V2.12. Antes de prometer UX host
 ### Fora de escopo
 
 - NÃO inclui auth (assume rede confiável durante spike).
-- NÃO inclui Liquid Glass wrapper.
+- NÃO inclui wrapper visual; direção atual de produto é Carvão & Cobre.
 - NÃO inclui mobile/touch.
 - NÃO inclui multi-touch.
 - NÃO trata reconnect com backoff (só identifica se cai ou não).

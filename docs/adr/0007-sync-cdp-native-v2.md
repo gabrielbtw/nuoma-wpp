@@ -77,6 +77,6 @@ V2 sync usa **Playwright como dono da sessão** + **CDP como camada de eventos/c
 
 ## Referências
 
-- [docs/architecture/V2_SYNC_ENGINE.md](../architecture/V2_SYNC_ENGINE.md) (a ser criado)
+- [docs/architecture/V2_SYNC_ENGINE.md](../architecture/V2_SYNC_ENGINE.md)
 - Skill `cdp-event-recorder` em `.claude/skills/`
 - Roadmap V2.6 (25 itens)

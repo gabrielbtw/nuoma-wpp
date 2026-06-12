@@ -76,14 +76,16 @@ bloqueadores:
 - Aliases de compatibilidade ainda existem em `apps/web/src/styles/tokens.css`
   e `packages/ui/src/tailwind/preset.ts`.
 
-O subagente de docs tambem confirmou pendencias para Fase 7:
+O subagente de docs tambem confirmou pendencias para Fase 7. Resolvidas em
+2026-06-12 na Fase 7, com registro em
+`docs/maintenance/REBRAND_PHASE_7_DOCS_CONTEXT_STATUS.md`:
 
-- Roadmap ainda menciona `Hono`, embora a stack canonica seja Fastify.
-- Roadmap marca docs inexistentes como concluidos, incluindo
+- Resolvido: roadmap mencionava `Hono`, embora a stack canonica seja Fastify.
+- Resolvido: roadmap marcava docs inexistentes como concluidos, incluindo
   `docs/architecture/V2_SYNC_ENGINE.md`.
-- A narrativa Liquid Glass/Cartographic ainda aparece como atual em trechos do
-  roadmap; Carvao & Cobre deve ser registrado como direcao atual.
-- Chrome/Safari extensions existem e precisam entrar no roadmap real.
+- Resolvido: a narrativa Liquid Glass/Cartographic aparecia como atual em
+  trechos do roadmap; Carvao & Cobre foi registrado como direcao atual.
+- Resolvido: Chrome/Safari extensions existem e entraram no roadmap real.
 
 ## Proximo Passo
 

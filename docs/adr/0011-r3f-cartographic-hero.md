@@ -1,8 +1,9 @@
-# ADR 0011 — R3F Cartographic Hero (opcional, V2.14a)
+# ADR 0011 — R3F Cartographic Hero (histórico/opcional, V2.14a)
 
 ## Status
 
-Aceita como **opcional**. Pode ser adiada se cronograma apertar.
+Histórica e **opcional**. A direção visual atual da web canônica é Carvão &
+Cobre; este ADR fica preservado apenas como ideia futura não iniciada.
 
 ## Contexto
 

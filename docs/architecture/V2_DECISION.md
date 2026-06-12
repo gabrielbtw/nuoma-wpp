@@ -91,7 +91,8 @@ Tudo abaixo só é endereçado **depois** dos spikes verdes:
 
 - 24 docs de arquitetura/runbooks (criar conforme necessidade real)
 - 8 agents customizados (criar 1-2 só pra spikes)
-- Design system V2 (Cartographic + Glass selectivo + R3F)
+- Design system V2; a direção histórica Cartographic/Glass foi supersedida na
+  web canônica pelo rebrand Carvão & Cobre.
 - Inbox V2, Campaigns V2, Chatbots V2 visuais
 - Tauri/Electron eval (Fase 12 do plano original — fica como ideia distante)
 

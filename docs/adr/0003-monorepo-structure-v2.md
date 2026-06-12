@@ -23,7 +23,7 @@ nuoma-wpp-v2/
 ├── packages/
 │   ├── contracts/  # Zod schemas shared by api/web/worker
 │   ├── db/         # Drizzle schema + repos
-│   ├── ui/         # Liquid Glass + Cartographic primitives
+│   ├── ui/         # shared UI primitives + Carvao & Cobre tokens
 │   └── config/     # env validation, constants
 ├── infra/
 │   ├── docker/

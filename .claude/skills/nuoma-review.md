@@ -1,21 +1,21 @@
 ---
 name: nuoma-review
-description: Review Nuoma code changes for bugs, regressions, ownership violations, missing tests and operational risk. Findings first, with file/line evidence.
+description: Revisar mudanças Nuoma por bug, regressao, ownership, teste ausente, risco operacional e divergencia com docs.
 user_invocable: true
 ---
 
 # /nuoma-review
 
-Use code-review posture.
+Use postura de code review.
 
 ## Checklist
 
-- Respect ownership in `AGENTS.md`.
-- Look for behavioral regressions, data loss, race conditions and missing validation.
-- Check API/DB contract changes before frontend/worker assumptions.
-- Check worker/session changes against IC-1, IC-2 and real-send evidence rules.
-- Prefer focused evidence over broad architecture recap.
+- Comecar por achados ordenados por severidade.
+- Referenciar arquivo/linha e comportamento afetado.
+- Checar ownership em `AGENTS.md`.
+- Conferir contratos/API/DB antes de aceitar suposicoes do frontend/worker.
+- Verificar IC-1, IC-2, envio real e preservacao da sessao Chromium quando
+  houver worker/CDP.
+- Para UI critica, exigir teste renderizado ou print quando aplicavel.
 
-## Output
-
-Lead with findings ordered by severity. Use file paths and exact lines. If no issues, say so and note residual validation risk.
+Se nao houver achados, dizer claramente e listar risco residual/teste faltante.
