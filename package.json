@@ -74,6 +74,7 @@
     "test:v211-real-media": "node tests/v211-real-media-smoke.mjs",
     "test:v211-real-inbound": "node tests/v211-real-inbound-smoke.mjs",
     "test:v211-message-send-receive": "node tests/v211-message-send-receive-smoke.mjs",
+    "test:rebrand-real-canary": "tsx tests/rebrand-real-canary-smoke.ts",
     "test:v211-real-round-complete": "node tests/v211-real-round-complete-smoke.mjs",
     "test:v212-streaming-unit": "npm run test --workspace @nuoma/api -- src/services/streaming-cdp.test.ts",
     "test:v212-streaming-cdp": "npm run test:v212-streaming-unit && tsx tests/v212-streaming-cdp-strong-smoke.ts",
