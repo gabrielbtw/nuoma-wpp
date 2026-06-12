@@ -1252,8 +1252,8 @@ describe("Nuoma WhatsApp overlay injection", () => {
       expect(state.panelText).toContain("Ação rápida");
       expect(state.panelText).toContain("Disparar campanha");
       expect(state.panelText).toContain("Disparar automação");
-      expect(state.panelText).toContain("Criou 1 recipient(s) e 1 job(s).");
-      expect(state.panelText).toContain("Criou 1 job(s) e aplicou 0 acao(oes).");
+      expect(state.panelText).toContain("Criou 1 destinatário(s) e 1 tarefa(s).");
+      expect(state.panelText).toContain("Criou 1 tarefa(s) e aplicou 0 ação(ões).");
     } finally {
       await browser.close();
     }
@@ -1362,8 +1362,8 @@ describe("Nuoma WhatsApp overlay injection", () => {
       expect(state.panelText).toContain("VIP");
       expect(state.panelText).toContain("Lead quente");
       expect(state.panelText).toContain("Retornar lead");
-      expect(state.panelText).toContain("Histórico automações");
-      expect(state.panelText).toContain("Automation #42 disparada");
+      expect(state.panelText).toContain("Histórico de automações");
+      expect(state.panelText).toContain("Automação #42 disparada");
       expect(state.hasSyncIndicator).toBe(true);
       expect(state.hasQuickTag).toBe(true);
       expect(state.hasQuickStatus).toBe(true);

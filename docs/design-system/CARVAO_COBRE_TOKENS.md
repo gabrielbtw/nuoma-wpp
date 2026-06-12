@@ -35,6 +35,16 @@ host. Valores atuais:
 - `--nwo-accent-hover: #FF7A45`
 - `--nwo-line: #2A2621`
 
+Diretriz visual da Fase 5:
+
+- FAB flat, radius 10, marca cobre e dot de status por
+  `data-nuoma-visual-state`.
+- Painel solido com hairline, sem vidro/glow e com foco em cobre.
+- Ações primarias usam cobre com texto escuro; ações secundarias ficam ghost
+  com hairline.
+- Header do painel sempre mostra produto (`NUOMA CRM`), titulo/nome e telefone
+  mono quando detectado.
+
 ## Gate De Qualidade
 
 Antes de fechar a Fase 1:

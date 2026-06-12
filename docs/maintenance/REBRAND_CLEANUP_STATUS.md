@@ -54,6 +54,23 @@ Data: 2026-06-11
   - `npm run test:v210-campaign-builder-mobile`
   - `npm run test:v210-flow-builders`
 
+## Fase 5 — Overlay HUD WhatsApp
+
+- Overlay retematizado em `apps/worker/src/features/overlay/inject.ts` com
+  Carvao & Cobre via tokens locais `--nwo-*`.
+- Contratos preservados: root id, test ids, bindings globais, classes
+  `.nuoma-brand-*`, `.nuoma-panel-body`, `.nuoma-action`, `.nuoma-section`,
+  z-index e Shadow DOM isolado.
+- Header do painel mostra `NUOMA CRM`, nome/titulo e telefone mono sempre
+  visivel quando detectado.
+- Microcopy acentuada no painel: `Automações`, `Últimas mensagens`, `número`,
+  `ação`, `ID único`, `Lembrar amanhã`.
+- Evidencia detalhada: `docs/maintenance/REBRAND_PHASE_5_OVERLAY_HUD_STATUS.md`.
+- Smokes de Fase 5 passaram com WhatsApp via CDP ativo:
+  - `npm run test:v211-overlay-unit`
+  - `npm run test:v211-overlay-contracts`
+  - `npm run test:v211-overlay-suite`
+
 ## Pendente
 
 - Reduzir `legacy.css` ate a meta de 70% nas proximas ondas por pagina.

@@ -318,10 +318,10 @@ async function readPanelState(page: Page) {
         if (!summaryText && sectionText.includes("Resumo")) {
           summaryText = sectionText;
         }
-        if (!automationText && sectionText.includes("Automacoes")) {
+        if (!automationText && sectionText.includes("Automações")) {
           automationText = sectionText;
         }
-        if (!messagesText && sectionText.includes("Ultimas mensagens")) {
+        if (!messagesText && sectionText.includes("Últimas mensagens")) {
           messagesText = sectionText;
         }
         if (!notesText && sectionText.includes("Notas")) {
@@ -340,7 +340,7 @@ async function readPanelState(page: Page) {
         hasMessages: Boolean(messagesText),
         hasNotes: Boolean(notesText),
         hasFixtureSummary: text.includes("Resumo") && text.includes("V2.11.5 Painel Smoke"),
-        hasFixtureAutomations: text.includes("Automacoes") && text.includes("Boas-vindas"),
+        hasFixtureAutomations: text.includes("Automações") && text.includes("Boas-vindas"),
         hasFixtureNotes: text.includes("Notas") && text.includes("Nota M33"),
         sectionTexts,
         text,
