@@ -31,4 +31,4 @@ Documentos operacionais de manutencao e gates de estabilizacao.
 | Rebrand Fase 8 | validada              | Browser QA e prints em `/tmp/nuoma-rebrand-final/*.png`                 |
 | Rebrand Fase 9 | validada              | `lint`, `typecheck`, `npm test`, `build` e smokes criticos passaram     |
 | FlowBuilder UX | validada              | painel de criar campanha compacto com starters reais e prints em `/tmp` |
-| Real canary    | validado com ressalva | WhatsApp/Instagram enviados; WA worker confirmou errado e retentou      |
+| Real canary    | validado              | WhatsApp/Instagram enviados; confirmacao WA corrigida e revalidada      |

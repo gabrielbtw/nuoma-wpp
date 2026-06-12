@@ -121,6 +121,13 @@ Data: 2026-06-12
 - Prints finais salvos fora do repo em `/tmp/nuoma-rebrand-final/*.png`.
 - Overlay revalidado com Chrome for Testing/Chromium ativo via CDP e sessao
   WhatsApp logada.
+- Smoke real solicitado foi executado com allowlist:
+  - WhatsApp `5531982066263`
+  - Instagram `gabriell_braga`
+  - Evidencia em `docs/maintenance/REBRAND_REAL_SEND_CANARY_STATUS.md`.
+- Bug de confirmacao WhatsApp encontrado no smoke real foi corrigido em
+  `apps/worker/src/sync/cdp.ts` e revalidado com job `3049` como `completed`,
+  `attempts=1` e exatamente uma bolha no DOM.
 - Bug encontrado e corrigido no Inbox: `Esc` com foco no composer agora cancela
   draft ou fecha conversa, conforme o estado real.
 - `test:v29-inbox-e2e` cobre `conversationClearedOnEsc=true`.
@@ -138,5 +145,5 @@ Data: 2026-06-12
 
 - Corrigir duplicacoes/aliases de tokens `brand-*` quando a camada compat puder
   morrer sem afetar paginas legadas/DEV.
-- Envio real IG/WhatsApp deve continuar em smoke dedicado com allowlist,
-  evidencia visual e registro de campanha quando solicitado.
+- Proximos envios reais IG/WhatsApp continuam exigindo smoke dedicado com
+  allowlist, evidencia visual e registro de campanha quando solicitado.
