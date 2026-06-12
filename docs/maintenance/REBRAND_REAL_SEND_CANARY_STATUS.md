@@ -63,12 +63,49 @@ Instagram:
 - O smoke reaproveita evidencia visual existente quando o mesmo token ja foi enviado.
 - O smoke usa `external_thread_id` real do Instagram quando disponivel, evitando a busca fragil do composer novo.
 
-## Divida aberta
+## Correcao da confirmacao WhatsApp
 
-Corrigir a confirmacao visual do worker WhatsApp:
+Status: corrigido em 2026-06-12.
+
+Mudanca:
 
 - Arquivo: `apps/worker/src/sync/cdp.ts`
-- Area: `inspectOutgoingTextBubble`
-- Sintoma: `document.querySelectorAll(".message-out")` retorna zero na UI atual do WhatsApp Web.
-- Impacto: envio real pode sair no WhatsApp, mas o worker marca o job como failed e retenta.
-- Proxima acao: atualizar o detector de bolha de saida para a DOM atual do WhatsApp Web e adicionar teste/smoke dedicado antes de reabilitar retentativas > 1 no canario.
+- Area: `inspectOutgoingTextBubble` e `inspectOutgoingBubble`
+- O detector preserva `.message-out` para DOM antigo.
+- O detector agora tambem usa `#main [data-id]` visivel, com evidencia de saida por `aria-label="Voce:"`/`aria-label="You:"`, `tail-out`, `msg-*` e `wds-ic-*`.
+- Status de entrega agora reconhece os marcadores atuais `wds-ic-read`, `wds-ic-check`, `aria-label="Entregue"` e equivalentes antigos `msg-dblcheck-*`.
+
+Regressao automatizada:
+
+```bash
+npm run test --workspace @nuoma/worker -- src/sync/cdp.test.ts
+npm run typecheck --workspace @nuoma/worker
+npm run lint --workspace @nuoma/worker
+npm run test --workspace @nuoma/worker
+```
+
+Resultado:
+
+- `src/sync/cdp.test.ts`: 22 testes passaram.
+- Worker completo: 127 testes passaram.
+
+Validacao live sem novo envio:
+
+- A expressao corrigida foi executada na sessao real do Chrome/CDP contra o token `REBRAND-20260612012411-WA`.
+- Resultado: `externalId=3EB0B1F8088AEFDD34C225`, `deliveryStatus=read`, `hasExpectedText=true`.
+
+Canario real WhatsApp-only depois da correcao:
+
+```text
+whatsapp-fix-canary|token=REBRAND-FIX-20260612044907|job=3049|status=completed|attempts=1|matches=1|shot=data/rebrand-real-canary/REBRAND-FIX-20260612044907-whatsapp-fix.png|report=data/rebrand-real-canary/REBRAND-FIX-20260612044907-whatsapp-fix-report.json
+```
+
+Evidencia:
+
+- Relatorio JSON: `data/rebrand-real-canary/REBRAND-FIX-20260612044907-whatsapp-fix-report.json`
+- Print WhatsApp: `data/rebrand-real-canary/REBRAND-FIX-20260612044907-whatsapp-fix.png`
+- Job `3049`: `completed`, `attempts=1`, `last_error=null`
+- Mensagem `199810`: `status=sent`, `external_id=3EB08A94BB843092E3A538`
+- DOM WhatsApp: exatamente 1 bolha para `REBRAND-FIX-20260612044907-WA`
+
+Instagram nao foi reenviado nesta validacao corretiva; o canario Instagram anterior continua registrado acima.

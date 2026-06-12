@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { chromium, type Page } from "playwright";
 
 import {
   PROFILE_PHOTO_SEEN_BY_THREAD_CAP,
   getProfilePhotoSeenByThread,
   isReadyChatState,
+  outgoingBubbleStatusExpression,
+  outgoingTextBubbleRootExpression,
   parseTemporaryMessagesDuration,
   removeCdpClientListeners,
   setProfilePhotoSeenByThread,
@@ -309,6 +312,78 @@ describe("CDP WhatsApp readiness", () => {
         { requireComposer: false },
       ),
     ).toBe(true);
+  });
+});
+
+describe("CDP outgoing WhatsApp bubble inspection", () => {
+  async function evaluateOutgoingBubbleStatus(page: Page, expectedTexts: string[]) {
+    return page.evaluate((expression) => {
+      return Function(`return (${expression});`)() as unknown;
+    }, outgoingBubbleStatusExpression(outgoingTextBubbleRootExpression(expectedTexts), expectedTexts));
+  }
+
+  it("detects current WhatsApp outbound data-id bubbles without message-out classes", async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+
+    try {
+      await page.setContent(`
+        <main id="app">
+          <section id="pane-side">
+            <div data-id="preview_REBRAND">Smoke real rebrand WhatsApp REBRAND-WA</div>
+          </section>
+          <section id="main">
+            <div data-id="3EB0CURRENTWA">
+              <div role="row">
+                <span aria-label="Você:"></span>
+                <span>Smoke real rebrand WhatsApp REBRAND-WA</span>
+                <span aria-label=" Entregue ">wds-ic-read</span>
+              </div>
+            </div>
+          </section>
+        </main>
+      `);
+
+      const status = await evaluateOutgoingBubbleStatus(page, [
+        "Smoke real rebrand WhatsApp REBRAND-WA",
+      ]);
+
+      expect(status).toMatchObject({
+        externalId: "3EB0CURRENTWA",
+        hasError: false,
+        deliveryStatus: "read",
+        hasExpectedText: true,
+      });
+    } finally {
+      await browser.close();
+    }
+  });
+
+  it("ignores matching inbound data-id bubbles in the active chat", async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+
+    try {
+      await page.setContent(`
+        <main id="app">
+          <section id="main">
+            <div data-id="false_5531982066263@c.us_INBOUND">
+              <div role="row">
+                <span>Smoke real rebrand WhatsApp REBRAND-WA</span>
+              </div>
+            </div>
+          </section>
+        </main>
+      `);
+
+      const status = await evaluateOutgoingBubbleStatus(page, [
+        "Smoke real rebrand WhatsApp REBRAND-WA",
+      ]);
+
+      expect(status).toBeNull();
+    } finally {
+      await browser.close();
+    }
   });
 });
 

@@ -236,6 +236,101 @@ interface OutgoingBubbleStatus {
   hasExpectedText: boolean;
 }
 
+export function outgoingTextBubbleRootExpression(expectedTexts: string[]): string {
+  return `
+      (() => {
+        const expectedTexts = ${JSON.stringify(expectedTexts)};
+        const normalizeText = (value) => String(value || "").replace(/\\s+/g, " ").trim();
+        const containsExpectedText = (node) => {
+          const text = normalizeText(node.textContent);
+          return expectedTexts.some((expectedText) => text.includes(expectedText));
+        };
+        const isVisible = (node) => {
+          if (!(node instanceof HTMLElement)) return false;
+          const rect = node.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0;
+        };
+        const isOutgoing = (node) => {
+          const dataId = String(node.getAttribute("data-id") || "");
+          if (dataId.startsWith("true_")) return true;
+          if (node.matches(".message-out, [class*='message-out']")) return true;
+          if (node.querySelector(".message-out, [class*='message-out'], [aria-label='Você:'], [aria-label='You:']")) return true;
+          const text = normalizeText(node.textContent).toLowerCase();
+          return text.includes("tail-out") ||
+            text.includes("msg-dblcheck") ||
+            text.includes("msg-check") ||
+            text.includes("wds-ic-read") ||
+            text.includes("wds-ic-check");
+        };
+        const chatRoot = document.querySelector("#main") || document;
+        const selectors = "[data-id], .message-out, [class*='message-out']";
+        const candidates = Array.from(chatRoot.querySelectorAll(selectors)).reverse();
+        if (chatRoot !== document) {
+          candidates.push(...Array.from(document.querySelectorAll(".message-out, [class*='message-out']")).reverse());
+        }
+        const seen = new Set();
+        for (const candidate of candidates) {
+          if (!(candidate instanceof HTMLElement)) continue;
+          const root = candidate.closest("[data-id]") || candidate;
+          if (!(root instanceof HTMLElement) || seen.has(root)) continue;
+          seen.add(root);
+          if (!isVisible(root) || !isOutgoing(root) || !containsExpectedText(root)) continue;
+          return root;
+        }
+        return null;
+      })()
+    `;
+}
+
+export function outgoingBubbleStatusExpression(
+  rootExpression: string,
+  expectedText: string[] | null,
+): string {
+  return `
+        (() => {
+          const root = ${rootExpression};
+          if (!(root instanceof HTMLElement)) {
+            return null;
+          }
+          const dataNode = root.matches("[data-id]")
+            ? root
+            : root.closest("[data-id]") || root.querySelector("[data-id]");
+          const externalId = dataNode ? dataNode.getAttribute("data-id") : root.getAttribute("data-id");
+          const text = String(root.textContent || "");
+          const normalizedText = text.replace(/\\s+/g, " ").trim();
+          const expectedTexts = ${JSON.stringify(expectedText ?? [])};
+          const ariaText = Array.from(root.querySelectorAll("[aria-label]"))
+            .map((node) => String(node.getAttribute("aria-label") || ""))
+            .join(" ");
+          const statusText = (text + " " + ariaText).toLowerCase();
+          const hasError = Boolean(root.querySelector("span[data-icon='ic-error'], span[data-icon='msg-error'], [data-icon='ic-error'], [data-icon='msg-error']")) ||
+            /(^|\\s)ic-error(\\s|$)/i.test(text) ||
+            /\\b(msg-error|wds-ic-error)\\b/i.test(statusText) ||
+            /\\b(falha|failed|erro|error)\\b/i.test(statusText);
+          const deliveryStatus = root.querySelector("span[data-icon='msg-dblcheck-ack']") ||
+              /\\b(msg-dblcheck-ack|wds-ic-read|lida|read)\\b/i.test(statusText)
+            ? "read"
+            : root.querySelector("span[data-icon='msg-dblcheck']") ||
+                /\\b(msg-dblcheck|wds-ic-delivered|entregue|delivered)\\b/i.test(statusText)
+              ? "delivered"
+              : root.querySelector("span[data-icon='msg-check']") ||
+                  /\\b(msg-check|wds-ic-check|enviada|enviado|sent)\\b/i.test(statusText)
+                ? "sent"
+                : root.querySelector("span[data-icon='msg-time']") ||
+                    /\\b(msg-time|wds-ic-time|pendente|pending)\\b/i.test(statusText)
+                  ? "pending"
+                  : "unknown";
+          return {
+            externalId,
+            text,
+            hasError,
+            deliveryStatus,
+            hasExpectedText: ${expectedText === null ? "true" : "expectedTexts.some((expectedText) => normalizedText.includes(expectedText))"}
+          };
+        })()
+      `;
+}
+
 interface BrowserProfilePhotoSnapshot {
   thread: SyncThreadRef | null;
   dataBase64: string;
@@ -2932,19 +3027,7 @@ export async function startSyncEngine(input: {
 
   async function inspectOutgoingTextBubble(body: string): Promise<OutgoingBubbleStatus | null> {
     const expectedTexts = textProofCandidates(body);
-    return inspectOutgoingBubble(
-      `
-      (() => {
-        const expectedTexts = ${JSON.stringify(expectedTexts)};
-        const messages = Array.from(document.querySelectorAll(".message-out")).reverse();
-        return messages.find((message) => {
-          const text = String(message.textContent || "").replace(/\\s+/g, " ").trim();
-          return expectedTexts.some((expectedText) => text.includes(expectedText));
-        }) || null;
-      })()
-    `,
-      expectedTexts,
-    );
+    return inspectOutgoingBubble(outgoingTextBubbleRootExpression(expectedTexts), expectedTexts);
   }
 
   async function inspectOutgoingBubbleByExternalId(
@@ -2969,35 +3052,7 @@ export async function startSyncEngine(input: {
       return null;
     }
     const result = await client.Runtime.evaluate({
-      expression: `
-        (() => {
-          const root = ${rootExpression};
-          if (!(root instanceof HTMLElement)) {
-            return null;
-          }
-          const dataNode = root.matches("[data-id]")
-            ? root
-            : root.closest("[data-id]") || root.querySelector("[data-id]");
-          const externalId = dataNode ? dataNode.getAttribute("data-id") : root.getAttribute("data-id");
-          const text = String(root.textContent || "");
-          const normalizedText = text.replace(/\\s+/g, " ").trim();
-          const expectedTexts = ${JSON.stringify(expectedText ?? [])};
-          const hasError = Boolean(root.querySelector("span[data-icon='ic-error'], span[data-icon='msg-error'], [data-icon='ic-error'], [data-icon='msg-error']")) ||
-            /(^|\\s)ic-error(\\s|$)/i.test(text);
-          const deliveryStatus = root.querySelector("span[data-icon='msg-dblcheck-ack']") ? "read"
-            : root.querySelector("span[data-icon='msg-dblcheck']") ? "delivered"
-            : root.querySelector("span[data-icon='msg-check']") ? "sent"
-            : root.querySelector("span[data-icon='msg-time']") ? "pending"
-            : "unknown";
-          return {
-            externalId,
-            text,
-            hasError,
-            deliveryStatus,
-            hasExpectedText: ${expectedText === null ? "true" : "expectedTexts.some((expectedText) => normalizedText.includes(expectedText))"}
-          };
-        })()
-      `,
+      expression: outgoingBubbleStatusExpression(rootExpression, expectedText),
       awaitPromise: false,
       returnByValue: true,
       includeCommandLineAPI: false,
