@@ -80,9 +80,10 @@ Alterados:
 | `npm run test:artifact-retention`     | passou | `artifact-retention-policy-smoke                                                           | status=ok` |
 | `npm run test:product-confidence`     | passou | `product-confidence-smoke                                                                  | status=ok  | checks=8`  |
 
-`npm run format:check` nao foi executado. A Fase 0 ja registrou divida global
-de Prettier em 280 arquivos; rodar formatter amplo nesta fase geraria churn fora
-do escopo.
+`npm run format:check` nao foi executado nesta fase. A Fase 0 ja registrava
+divida global de Prettier em 280 arquivos; rodar formatter amplo aqui geraria
+churn fora do escopo. A divida foi fechada depois em 2026-06-12; ver
+`docs/maintenance/PHASE_2_DEBT_CLOSURE.md`.
 
 ## Drift Checks
 

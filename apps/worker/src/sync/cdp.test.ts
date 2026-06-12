@@ -317,9 +317,15 @@ describe("CDP WhatsApp readiness", () => {
 
 describe("CDP outgoing WhatsApp bubble inspection", () => {
   async function evaluateOutgoingBubbleStatus(page: Page, expectedTexts: string[]) {
-    return page.evaluate((expression) => {
-      return Function(`return (${expression});`)() as unknown;
-    }, outgoingBubbleStatusExpression(outgoingTextBubbleRootExpression(expectedTexts), expectedTexts));
+    return page.evaluate(
+      (expression) => {
+        return Function(`return (${expression});`)() as unknown;
+      },
+      outgoingBubbleStatusExpression(
+        outgoingTextBubbleRootExpression(expectedTexts),
+        expectedTexts,
+      ),
+    );
   }
 
   it("detects current WhatsApp outbound data-id bubbles without message-out classes", async () => {

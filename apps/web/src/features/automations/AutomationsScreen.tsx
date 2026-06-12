@@ -334,10 +334,7 @@ function ManualTestRail() {
         </div>
       </header>
       <div className="mt-4 grid gap-3">
-        <Field
-          label="ID da automação"
-          error={showIdError ? validation.errors.automationId : null}
-        >
+        <Field label="ID da automação" error={showIdError ? validation.errors.automationId : null}>
           <Input
             placeholder="ex.: 3"
             inputMode="numeric"

@@ -94,7 +94,9 @@
     border-radius: 9999px;
     background: rgb(var(--nw-surface-1));
     border: 2px solid rgb(var(--nw-line-strong));
-    transition: border-color 150ms ease, opacity 150ms ease;
+    transition:
+      border-color 150ms ease,
+      opacity 150ms ease;
   }
   .nwfb-canvas .react-flow__handle-top.nwfb-handle,
   .nwfb-canvas .react-flow__handle-bottom.nwfb-handle {

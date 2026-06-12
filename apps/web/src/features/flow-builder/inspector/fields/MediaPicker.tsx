@@ -1,13 +1,6 @@
 import type { MediaAssetType } from "@nuoma/contracts";
 
-import {
-  Field,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@nuoma/ui";
+import { Field, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@nuoma/ui";
 
 import { trpc } from "../../../../lib/trpc.js";
 

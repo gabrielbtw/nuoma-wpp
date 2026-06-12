@@ -92,9 +92,7 @@ function AutomationBuilderInner() {
       const target = event.target as HTMLElement | null;
       const inField =
         target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable);
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
       if (event.key === "Escape" && state.selection.kind === "block" && !inField) {
         dispatch({ type: "select", selection: { kind: "flow" } });
       }
@@ -203,7 +201,17 @@ function AutomationBuilderInner() {
       });
       return null;
     }
-  }, [buildPayload, createAutomation, dispatch, navigate, state.automationId, state.status, toast, updateAutomation, utils]);
+  }, [
+    buildPayload,
+    createAutomation,
+    dispatch,
+    navigate,
+    state.automationId,
+    state.status,
+    toast,
+    updateAutomation,
+    utils,
+  ]);
 
   const publish = useCallback(async () => {
     const id = state.dirty || !state.automationId ? await save() : state.automationId;

@@ -101,6 +101,6 @@ real:
 | `npm run test:v211-overlay-unit`               | passou    |
 | `npm run test:v211-overlay-fab`                | passou    |
 
-Esta retomada nao substitui o gate repo-wide acima: `format:check` continua
-registrado como divida preexistente. O status detalhado esta em
-`docs/maintenance/REBRAND_PHASE_0_STATUS.md`.
+Esta rodada nao substituiu o gate repo-wide acima na epoca: `format:check`
+ficou registrado como divida preexistente. A divida foi fechada depois em
+2026-06-12; ver `docs/maintenance/PHASE_2_DEBT_CLOSURE.md`.

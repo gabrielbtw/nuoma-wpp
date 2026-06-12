@@ -1,4 +1,9 @@
-import type { Automation, AutomationStatus, AutomationTrigger, ChannelType } from "@nuoma/contracts";
+import type {
+  Automation,
+  AutomationStatus,
+  AutomationTrigger,
+  ChannelType,
+} from "@nuoma/contracts";
 import {
   createContext,
   useContext,

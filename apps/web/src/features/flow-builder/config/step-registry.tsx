@@ -10,7 +10,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { newStepDraft, type BuilderStepType, type StepDraft } from "../../../flow-builder/lib/build-steps.js";
+import {
+  newStepDraft,
+  type BuilderStepType,
+  type StepDraft,
+} from "../../../flow-builder/lib/build-steps.js";
 import { instagramSupportedStepTypes } from "../../../flow-builder/lib/validation.js";
 
 /** Visual tone of a block — resolved to token-driven classes by FlowNodeCard. */

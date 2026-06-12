@@ -19,7 +19,11 @@ function optionLabel(options: Array<{ value: string; label: string }>, value: st
 function stepBubble(step: StepDraft): SimEvent {
   switch (step.type) {
     case "text":
-      return { kind: "bubble", stepType: "text", lines: [step.template.trim() || "(mensagem vazia)"] };
+      return {
+        kind: "bubble",
+        stepType: "text",
+        lines: [step.template.trim() || "(mensagem vazia)"],
+      };
     case "link":
       return {
         kind: "bubble",
@@ -30,7 +34,9 @@ function stepBubble(step: StepDraft): SimEvent {
       return {
         kind: "bubble",
         stepType: "voice",
-        lines: [step.mediaAssetId ? `Voice note · asset #${step.mediaAssetId}` : "Voice note pendente"],
+        lines: [
+          step.mediaAssetId ? `Voice note · asset #${step.mediaAssetId}` : "Voice note pendente",
+        ],
       };
     case "image":
     case "video":

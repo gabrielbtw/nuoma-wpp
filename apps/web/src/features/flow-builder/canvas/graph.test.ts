@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { newConditionDraft } from "../../../flow-builder/lib/build-steps.js";
 import { stepRegistry } from "../config/step-registry.js";
-import {
-  createInitialAutomationState,
-  createActionFromBlock,
-} from "../state/automation-store.js";
+import { createInitialAutomationState, createActionFromBlock } from "../state/automation-store.js";
 import { createInitialCampaignState } from "../state/campaign-store.js";
 import { buildAutomationGraph, buildCampaignGraph } from "./graph.js";
 import { insertIndexForY, layoutVertical } from "./layout.js";

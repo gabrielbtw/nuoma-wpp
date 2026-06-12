@@ -51,9 +51,7 @@ async function main() {
     await page.getByTestId("builder-inspector").waitFor({ state: "visible", timeout: 10_000 });
     await page.getByTestId("flow-canvas").waitFor({ state: "visible", timeout: 10_000 });
 
-    const automationLibraryBlocks = await page
-      .locator('[data-testid^="library-block-"]')
-      .count();
+    const automationLibraryBlocks = await page.locator('[data-testid^="library-block-"]').count();
     if (automationLibraryBlocks < 15) {
       throw new Error(`expected complete automation block library, got ${automationLibraryBlocks}`);
     }
@@ -63,8 +61,7 @@ async function main() {
     await page.getByTestId("library-block-action:branch").click();
     await page.getByTestId("library-block-action:notify_attendant").click();
     await page.waitForFunction(
-      () =>
-        document.querySelectorAll('[data-testid="flow-canvas"] .react-flow__node').length >= 5,
+      () => document.querySelectorAll('[data-testid="flow-canvas"] .react-flow__node').length >= 5,
       undefined,
       { timeout: 10_000 },
     );
@@ -73,7 +70,12 @@ async function main() {
       .count();
     const automationCanvasText = await page.getByTestId("flow-canvas").innerText();
     const normalizedAutomationCanvasText = automationCanvasText.toLowerCase();
-    for (const expected of ["Mensagem de texto", "Aguardar", "Condição / Branch", "Notificar atendente"]) {
+    for (const expected of [
+      "Mensagem de texto",
+      "Aguardar",
+      "Condição / Branch",
+      "Notificar atendente",
+    ]) {
       if (!normalizedAutomationCanvasText.includes(expected.toLowerCase())) {
         throw new Error(`automation canvas missing ${expected}: ${automationCanvasText}`);
       }
@@ -108,7 +110,9 @@ async function main() {
     }
     for (const expected of ["send_step", "delay", "branch", "notify_attendant"]) {
       if (!automationActions.some((action) => action.type === expected)) {
-        throw new Error(`persisted automation missing ${expected}: ${createdAutomation.actions_json}`);
+        throw new Error(
+          `persisted automation missing ${expected}: ${createdAutomation.actions_json}`,
+        );
       }
     }
 

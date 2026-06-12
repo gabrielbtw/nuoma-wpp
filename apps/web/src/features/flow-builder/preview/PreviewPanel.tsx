@@ -3,15 +3,7 @@ import { motion } from "framer-motion";
 import { CircleAlert, Send, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import {
-  Button,
-  Field,
-  IconButton,
-  Input,
-  SegmentedControl,
-  Switch,
-  useToast,
-} from "@nuoma/ui";
+import { Button, Field, IconButton, Input, SegmentedControl, Switch, useToast } from "@nuoma/ui";
 
 import { trpc } from "../../../lib/trpc.js";
 import {

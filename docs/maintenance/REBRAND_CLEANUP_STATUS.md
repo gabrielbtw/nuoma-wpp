@@ -52,6 +52,8 @@ Data: 2026-06-12
 - `npm run test --workspace @nuoma/web`: passou.
 - `npm run test:design-system-v3`: passou.
 - `npm run lint`: passou.
+- `npm run format:check`: passou.
+- `npm run phase2:validate`: passou.
 
 ## Fase 4 — FlowBuilder V2
 

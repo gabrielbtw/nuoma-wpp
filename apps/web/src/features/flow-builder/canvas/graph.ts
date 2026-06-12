@@ -223,7 +223,11 @@ export function buildCampaignGraph(state: CampaignBuilderState): BuilderGraph {
   state.steps.forEach((step) => {
     step.conditions.forEach((condition, index) => {
       const label = conditionTypeLabel(condition.type);
-      if (condition.action === "branch" && condition.targetStepId && stepIds.has(condition.targetStepId)) {
+      if (
+        condition.action === "branch" &&
+        condition.targetStepId &&
+        stepIds.has(condition.targetStepId)
+      ) {
         edges.push(
           annotatedEdge(
             `branch-${step.id}-${index}`,

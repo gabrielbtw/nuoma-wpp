@@ -36,13 +36,13 @@ truth; no contract changes are required (and none were made).
 Premium dark "command center" SaaS. References mined for patterns (not
 copied):
 
-| Reference | Pattern taken |
-|---|---|
-| ManyChat | Vertical flow spine, block cards with config summary, right-side inspector, chat preview |
-| Zapier canvas | "+" affordance between steps, clear step numbering, validation surfaced inline |
-| Typebot/Botpress | Block library grouped by category, drag-to-canvas |
-| Linear | Quiet chrome, keyboard-friendly, hairline separators, restrained motion |
-| Vercel dashboard | Card grids with status chips, empty states with a single CTA |
+| Reference        | Pattern taken                                                                            |
+| ---------------- | ---------------------------------------------------------------------------------------- |
+| ManyChat         | Vertical flow spine, block cards with config summary, right-side inspector, chat preview |
+| Zapier canvas    | "+" affordance between steps, clear step numbering, validation surfaced inline           |
+| Typebot/Botpress | Block library grouped by category, drag-to-canvas                                        |
+| Linear           | Quiet chrome, keyboard-friendly, hairline separators, restrained motion                  |
+| Vercel dashboard | Card grids with status chips, empty states with a single CTA                             |
 
 Hard rules (from the Carvão & Cobre rebrand, phase 1 already merged):
 
@@ -57,14 +57,14 @@ Hard rules (from the Carvão & Cobre rebrand, phase 1 already merged):
 
 ## 3. Main screens & routes
 
-| Route | Screen | File |
-|---|---|---|
-| `/campaigns` | Campaigns hub: card list + KPIs + operational consoles (Disparo, Destinatários) | `features/campaigns/CampaignsScreen.tsx` |
-| `/campaigns/new` | Campaign builder (create) | `features/flow-builder/screens/CampaignBuilderScreen.tsx` |
-| `/campaigns/$campaignId/edit` | Campaign builder (edit) | same screen, loads `campaigns.get` |
-| `/automations` | Automations hub: card list + KPIs + safe manual test | `features/automations/AutomationsScreen.tsx` |
-| `/automations/new` | Automation builder (create) | `features/flow-builder/screens/AutomationBuilderScreen.tsx` |
-| `/automations/$automationId/edit` | Automation builder (edit) | same screen, loads `automations.get` |
+| Route                             | Screen                                                                          | File                                                        |
+| --------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `/campaigns`                      | Campaigns hub: card list + KPIs + operational consoles (Disparo, Destinatários) | `features/campaigns/CampaignsScreen.tsx`                    |
+| `/campaigns/new`                  | Campaign builder (create)                                                       | `features/flow-builder/screens/CampaignBuilderScreen.tsx`   |
+| `/campaigns/$campaignId/edit`     | Campaign builder (edit)                                                         | same screen, loads `campaigns.get`                          |
+| `/automations`                    | Automations hub: card list + KPIs + safe manual test                            | `features/automations/AutomationsScreen.tsx`                |
+| `/automations/new`                | Automation builder (create)                                                     | `features/flow-builder/screens/AutomationBuilderScreen.tsx` |
+| `/automations/$automationId/edit` | Automation builder (edit)                                                       | same screen, loads `automations.get`                        |
 
 The builder screens render **full-bleed** (own grid, no shell page padding),
 with a top bar that links back to the hub. The Chatbots page is out of scope
@@ -205,11 +205,11 @@ mutations already handled by the shared client.
 
 Endpoints used by the rebuild (all pre-existing — **no backend changes**):
 
-| Domain | Procedures |
-|---|---|
-| Campaigns | `list`, `get`, `create`, `update`, `pause`, `resume`, `ready`, `tick` (dry/real), `execute` (dry/real, allowlist), `remarketingBatchReady/Dispatch` (kept in ops consoles) |
-| Automations | `list`, `get`, `create`, `update`, `test`, `trigger` (dry/real, allowlist) |
-| Support | `tags.list`, `media.list` (type-filtered, for media steps), `attendants` (notify action uses free id input for now) |
+| Domain      | Procedures                                                                                                                                                                 |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Campaigns   | `list`, `get`, `create`, `update`, `pause`, `resume`, `ready`, `tick` (dry/real), `execute` (dry/real, allowlist), `remarketingBatchReady/Dispatch` (kept in ops consoles) |
+| Automations | `list`, `get`, `create`, `update`, `test`, `trigger` (dry/real, allowlist)                                                                                                 |
+| Support     | `tags.list`, `media.list` (type-filtered, for media steps), `attendants` (notify action uses free id input for now)                                                        |
 
 Persistence model — the backend stores **ordered arrays**, not node positions:
 
@@ -419,15 +419,15 @@ the allowlisted destination only.
 **No new dependencies were added.** Everything needed was already installed
 and justified by prior decisions:
 
-| Library | Why |
-|---|---|
-| `@xyflow/react` 12 | Canvas/nodes/edges/minimap — locked product decision (ManyChat-style canvas) |
-| `framer-motion` | Panel slide-overs, inspector switches, node mount transitions |
-| Radix primitives via `@nuoma/ui` | Accessible dialogs, selects, switches, tabs, tooltips |
-| `lucide-react` | Icon set (step/action icons) |
-| `@tanstack/react-query` + `trpc` | Server state, mutations, invalidation |
-| `@tanstack/react-router` | New builder routes with params |
-| Tailwind 3 + `@nuoma/ui` preset | Token-driven styling (Carvão & Cobre) |
+| Library                          | Why                                                                          |
+| -------------------------------- | ---------------------------------------------------------------------------- |
+| `@xyflow/react` 12               | Canvas/nodes/edges/minimap — locked product decision (ManyChat-style canvas) |
+| `framer-motion`                  | Panel slide-overs, inspector switches, node mount transitions                |
+| Radix primitives via `@nuoma/ui` | Accessible dialogs, selects, switches, tabs, tooltips                        |
+| `lucide-react`                   | Icon set (step/action icons)                                                 |
+| `@tanstack/react-query` + `trpc` | Server state, mutations, invalidation                                        |
+| `@tanstack/react-router`         | New builder routes with params                                               |
+| Tailwind 3 + `@nuoma/ui` preset  | Token-driven styling (Carvão & Cobre)                                        |
 
 Explicitly rejected: Zustand (reducer suffices, §9), DnD Kit (XYFlow's own
 DnD covers library→canvas and node drag), React Hook Form/Zod-on-client

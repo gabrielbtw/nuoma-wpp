@@ -155,8 +155,8 @@ export function BuilderTopBar({
           </DialogDescription>
           {errorCount > 0 ? (
             <p className="mt-3 flex items-start gap-2 rounded-md bg-status-error/10 px-3 py-2 text-xs leading-5 text-status-error">
-              <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              O fluxo tem {errorCount} pendência(s). Resolva antes de publicar.
+              <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />O fluxo tem {errorCount}{" "}
+              pendência(s). Resolva antes de publicar.
             </p>
           ) : null}
           <div className="mt-5 flex justify-end gap-2">

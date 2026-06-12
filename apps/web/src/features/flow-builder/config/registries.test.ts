@@ -10,9 +10,7 @@ import {
 import { stepRegistry } from "./step-registry.js";
 
 const contractStepTypes = campaignStepSchema.options.map((option) => option.shape.type.value);
-const contractActionTypes = automationActionSchema.options.map(
-  (option) => option.shape.type.value,
-);
+const contractActionTypes = automationActionSchema.options.map((option) => option.shape.type.value);
 
 describe("step registry", () => {
   it("covers every campaign step type defined in the contract", () => {
@@ -22,7 +20,12 @@ describe("step registry", () => {
   it("creates drafts that build into valid contract steps after minimal fill", () => {
     for (const definition of Object.values(stepRegistry)) {
       const draft = definition.createDraft(1);
-      if (!draft.mediaAssetId && draft.type !== "text" && draft.type !== "link" && draft.type !== "temporary_messages") {
+      if (
+        !draft.mediaAssetId &&
+        draft.type !== "text" &&
+        draft.type !== "link" &&
+        draft.type !== "temporary_messages"
+      ) {
         draft.mediaAssetId = "1";
       }
       const built = buildStep(draft, 1);
@@ -62,9 +65,11 @@ describe("action registry", () => {
 
 describe("block library", () => {
   it("exposes all step types for campaigns", () => {
-    expect(campaignLibraryBlocks().map((block) => block.key).sort()).toEqual(
-      contractStepTypes.map((type) => `step:${type}`).sort(),
-    );
+    expect(
+      campaignLibraryBlocks()
+        .map((block) => block.key)
+        .sort(),
+    ).toEqual(contractStepTypes.map((type) => `step:${type}`).sort());
   });
 
   it("exposes messages plus non-send actions for automations", () => {

@@ -108,7 +108,9 @@ async function assertCampaignBuilderMobileNotice(page) {
     throw new Error(`mobile builder notice is not visible: ${JSON.stringify(diagnostics)}`);
   }
   if (!diagnostics.bodyHidden) {
-    throw new Error(`mobile builder body should be hidden under 900px: ${JSON.stringify(diagnostics)}`);
+    throw new Error(
+      `mobile builder body should be hidden under 900px: ${JSON.stringify(diagnostics)}`,
+    );
   }
   if (!diagnostics.text.includes("tela maior")) {
     throw new Error(`mobile builder notice copy mismatch: ${JSON.stringify(diagnostics)}`);

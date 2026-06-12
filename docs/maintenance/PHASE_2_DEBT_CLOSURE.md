@@ -100,14 +100,27 @@ Sem validacao externa live:
 
 ## Status
 
-| Item                        | Status       | Dono                 | Observacao                                             |
-| --------------------------- | ------------ | -------------------- | ------------------------------------------------------ |
-| `format:check`              | em andamento | `platform-workspace` | Divida global de Prettier sera corrigida mecanicamente |
-| artefatos rastreados        | em andamento | `platform-workspace` | Remover do indice Git, preservar arquivos locais       |
-| drift documental bloqueante | em andamento | `platform-workspace` | Foco em referencias obsoletas operacionais             |
-| gate Fase 2                 | em andamento | `platform-workspace` | `npm run test:phase2-debt-closure`                     |
-| agregador Fase 2            | em andamento | `platform-workspace` | `npm run phase2:validate`                              |
-| validacao repo-wide         | pendente     | `platform-workspace` | Rodar apos formatacao e limpeza do indice              |
+| Item                        | Status  | Dono                 | Observacao                                  |
+| --------------------------- | ------- | -------------------- | ------------------------------------------- |
+| `format:check`              | fechado | `platform-workspace` | `npm run format:check` passou em 2026-06-12 |
+| artefatos rastreados        | fechado | `platform-workspace` | Worktree limpo apos commits de fase         |
+| drift documental bloqueante | fechado | `platform-workspace` | Docs de manutencao e contexto atualizados   |
+| gate Fase 2                 | fechado | `platform-workspace` | `npm run test:phase2-debt-closure` passou   |
+| agregador Fase 2            | fechado | `platform-workspace` | `npm run phase2:validate` passou            |
+| validacao repo-wide         | fechado | `platform-workspace` | Gate repo-wide executado pelo agregador     |
+
+## Fechamento 2026-06-12
+
+Comando executado:
+
+```bash
+npm run phase2:validate
+```
+
+Resultado: passou. O agregador cobriu `format:check`,
+`test:phase2-debt-closure`, `lint`, `typecheck`, `build`, `npm test`,
+validações canônicas, `legacy:typecheck`, `test:artifact-retention` e
+`test:product-confidence`.
 
 ## Politica De Custo IA
 

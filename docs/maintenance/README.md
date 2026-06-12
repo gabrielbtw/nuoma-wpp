@@ -20,15 +20,16 @@ Documentos operacionais de manutencao e gates de estabilizacao.
 
 ## Status Atual
 
-| Fase           | Status                | Observacao                                                              |
-| -------------- | --------------------- | ----------------------------------------------------------------------- |
-| Rebrand Fase 0 | validada              | baseline, branch/status e inventario documentados                       |
-| Rebrand Fase 1 | validada              | `flow-v2` zerado, TSX de produto sem `brand-*`                          |
-| Rebrand Fase 4 | validada              | FlowBuilder canonico em `apps/web/src/features/flow-builder/**`         |
-| Rebrand Fase 5 | validada              | Overlay HUD retematizado, contratos/test ids preservados                |
-| Rebrand Fase 6 | validada              | lixo removido, Radix movido para `@nuoma/ui`, `legacy.css` reduzido     |
-| Rebrand Fase 7 | validada              | roadmap, `CLAUDE.md`, `AGENTS.md` e skills alinhados                    |
-| Rebrand Fase 8 | validada              | Browser QA e prints em `/tmp/nuoma-rebrand-final/*.png`                 |
-| Rebrand Fase 9 | validada              | `lint`, `typecheck`, `npm test`, `build` e smokes criticos passaram     |
-| FlowBuilder UX | validada              | painel de criar campanha compacto com starters reais e prints em `/tmp` |
-| Real canary    | validado              | WhatsApp/Instagram enviados; confirmacao WA corrigida e revalidada      |
+| Fase           | Status   | Observacao                                                              |
+| -------------- | -------- | ----------------------------------------------------------------------- |
+| Rebrand Fase 0 | validada | baseline, branch/status e inventario documentados                       |
+| Rebrand Fase 1 | validada | `flow-v2` zerado, TSX de produto sem `brand-*`                          |
+| Fase 2 Debt    | validada | `format:check` e `phase2:validate` passaram                             |
+| Rebrand Fase 4 | validada | FlowBuilder canonico em `apps/web/src/features/flow-builder/**`         |
+| Rebrand Fase 5 | validada | Overlay HUD retematizado, contratos/test ids preservados                |
+| Rebrand Fase 6 | validada | lixo removido, Radix movido para `@nuoma/ui`, `legacy.css` reduzido     |
+| Rebrand Fase 7 | validada | roadmap, `CLAUDE.md`, `AGENTS.md` e skills alinhados                    |
+| Rebrand Fase 8 | validada | Browser QA e prints em `/tmp/nuoma-rebrand-final/*.png`                 |
+| Rebrand Fase 9 | validada | `lint`, `typecheck`, `npm test`, `build` e smokes criticos passaram     |
+| FlowBuilder UX | validada | painel de criar campanha compacto com starters reais e prints em `/tmp` |
+| Real canary    | validado | WhatsApp/Instagram enviados; confirmacao WA corrigida e revalidada      |

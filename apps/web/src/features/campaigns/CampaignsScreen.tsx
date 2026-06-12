@@ -48,7 +48,8 @@ export function CampaignsScreen() {
   const ops = useCampaignOps(list);
 
   const initialSearch = useMemo(() => {
-    if (typeof window === "undefined") return { tab: "overview" as const, campaignId: null, intent: null };
+    if (typeof window === "undefined")
+      return { tab: "overview" as const, campaignId: null, intent: null };
     return parseCampaignSearch(window.location.search);
   }, []);
 

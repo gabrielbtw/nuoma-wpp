@@ -42,8 +42,8 @@ export function StepFields({ step, order, channel, showDelay = true, onPatch }: 
     <div className="grid gap-3.5">
       {unsupported ? (
         <p className="rounded-md border border-status-warn/40 bg-status-warn/10 px-3 py-2 text-xs leading-5 text-status-warn">
-          Este tipo de bloco não é suportado no Instagram. Troque o canal do fluxo ou remova o
-          bloco antes de publicar.
+          Este tipo de bloco não é suportado no Instagram. Troque o canal do fluxo ou remova o bloco
+          antes de publicar.
         </p>
       ) : null}
 

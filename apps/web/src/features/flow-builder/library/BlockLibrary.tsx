@@ -34,8 +34,7 @@ export function BlockLibrary({ blocks, channel, onAdd }: BlockLibraryProps) {
     if (!term) return blocks;
     return blocks.filter(
       (block) =>
-        block.label.toLowerCase().includes(term) ||
-        block.description.toLowerCase().includes(term),
+        block.label.toLowerCase().includes(term) || block.description.toLowerCase().includes(term),
     );
   }, [blocks, query]);
 
