@@ -22,7 +22,9 @@ Status: validada
   padrao explicito.
 - `packages/ui` passou a declarar Radix como dependencia propria. `apps/web`
   nao declara mais Radix porque nao importa esses pacotes diretamente.
-- `apps/web/src/styles/legacy.css` caiu de 4264 para 2112 linhas.
+- `apps/web/src/styles/legacy.css` caiu de 4264 para 2112 linhas nesta fase.
+  Na Fase 8/9, o split mecanico de workspaces legados concluiu a meta e deixou
+  o arquivo com 759 linhas.
 
 ## Diagrama
 

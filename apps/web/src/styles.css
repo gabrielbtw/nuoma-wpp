@@ -24,6 +24,7 @@
 @import "tailwindcss/utilities";
 
 @import "./styles/legacy.css";
+@import "./styles/pages/compat-workspaces.css";
 
 @import "./styles/pages/shell.css";
 @import "./styles/pages/login.css";

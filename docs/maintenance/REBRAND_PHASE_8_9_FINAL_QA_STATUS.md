@@ -37,7 +37,7 @@ Arquivos fora do repo:
 
 Relatorio do screen matrix:
 
-- `data/v2-screen-smoke-2026-06-12T03-43-15-450Z/REPORT.md`
+- `data/v2-screen-smoke-2026-06-12T03-50-29-278Z/REPORT.md`
 
 ## QA manual/Browser
 
@@ -72,6 +72,9 @@ Relatorio do screen matrix:
 - `tests/v2-screen-smoke-matrix.mjs`
   - `submitLogin` agora espera a SPA sair de `/login`, em vez de exigir uma
     navegacao full-load para `/`.
+- `apps/web/src/styles/legacy.css`
+  - Reduzido para 759 linhas por split mecanico de CSS de workspaces legados em
+    `apps/web/src/styles/pages/compat-workspaces.css`.
 
 ## Validacao automatizada
 
@@ -120,6 +123,8 @@ Resultados destacados:
   passaram com CDP; `overlay-campaign-data` ficou `skipped` porque o banco
   atual nao tem campanha `overlayEnabled`.
 - `test:v2-screen-smoke`: 13 itens renderizados e report gerado.
+- Validacao apos split de `legacy.css`: `npm run build --workspace @nuoma/web`,
+  `npm run test:design-system-v3` e `npm run test:v2-screen-smoke` passaram.
 
 Observacoes:
 
@@ -138,4 +143,5 @@ Observacoes:
 - Overlay WhatsApp preservou contratos e passou com sessao real via CDP.
 - Inbox nao anuncia mais um atalho que falha no composer.
 - Confirmacoes destrutivas de Jobs estao protegidas por texto.
+- `legacy.css` atingiu a meta de reducao maior que 70%.
 - Matriz final automatizada passou.

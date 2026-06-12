@@ -96,8 +96,10 @@ Data: 2026-06-12
   bloqueia esse padrao explicitamente, alem de `*.log`.
 - Dependencias Radix usadas apenas por `packages/ui/src/**` foram removidas de
   `apps/web/package.json` e movidas para `dependencies` de `@nuoma/ui`.
-- `legacy.css` foi reduzido de 4264 para 2112 linhas, removendo seletores sem
-  uso ativo fora do proprio CSS.
+- `legacy.css` foi reduzido de 4264 para 759 linhas. Seletores de workspaces
+  legados ainda necessarios foram movidos para
+  `apps/web/src/styles/pages/compat-workspaces.css`, mantendo a ordem de import
+  efetiva.
 - Evidencia detalhada: `docs/maintenance/REBRAND_PHASE_6_CLEAN_CODE_STATUS.md`.
 
 ## Fase 7 — Docs, Roadmap e Skills
@@ -134,9 +136,6 @@ Data: 2026-06-12
 
 ## Pendente
 
-- Reduzir `legacy.css` ate a meta de 70% nas proximas ondas por pagina; a Fase
-  6 removeu o bloco morto comprovado, mas paginas operacionais ainda usam
-  classes compat.
 - Corrigir duplicacoes/aliases de tokens `brand-*` quando a camada compat puder
   morrer sem afetar paginas legadas/DEV.
 - Envio real IG/WhatsApp deve continuar em smoke dedicado com allowlist,
