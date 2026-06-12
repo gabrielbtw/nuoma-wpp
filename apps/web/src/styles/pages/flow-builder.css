@@ -1,0 +1,166 @@
+/* Flow Builder V2 — builder shell + XYFlow theming (vocabulário nw-*).
+ * Layout estrutural e overrides de biblioteca; o resto é Tailwind nos TSX. */
+
+@layer components {
+  /* Rotas imersivas: o builder ocupa o main inteiro, sem scroll externo. */
+  .nw-shell-frame-flow .nw-shell-main {
+    overflow: hidden;
+  }
+  .nw-shell-frame-flow .nw-shell-route-frame {
+    height: 100%;
+  }
+
+  .nwfb-shell {
+    @apply flex h-full min-h-0 flex-col bg-surface-0;
+  }
+
+  .nwfb-body {
+    @apply grid min-h-0 flex-1;
+    grid-template-columns: 264px minmax(0, 1fr) 360px;
+  }
+
+  .nwfb-library {
+    @apply min-h-0 overflow-hidden border-r border-line-hairline bg-surface-1;
+  }
+
+  .nwfb-stage {
+    @apply relative min-h-0 min-w-0 overflow-hidden bg-surface-0;
+  }
+
+  .nwfb-inspector {
+    @apply min-h-0 overflow-hidden border-l border-line-hairline bg-surface-1;
+  }
+
+  .nwfb-small-screen {
+    @apply hidden;
+  }
+
+  @media (max-width: 1279px) {
+    .nwfb-body {
+      grid-template-columns: 232px minmax(0, 1fr) 332px;
+    }
+  }
+
+  @media (max-width: 1023px) {
+    .nwfb-body {
+      grid-template-columns: minmax(0, 1fr) 320px;
+    }
+    .nwfb-library {
+      @apply hidden;
+    }
+  }
+
+  @media (max-width: 899px) {
+    .nwfb-body {
+      @apply hidden;
+    }
+    .nwfb-small-screen {
+      @apply flex flex-1 flex-col items-center justify-center px-6 text-center;
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Node card details                                                    */
+  /* ------------------------------------------------------------------ */
+  .nwfb-node-summary {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* "+" nos edges de sequência (EdgeLabelRenderer) */
+  .nwfb-edge-add {
+    @apply pointer-events-auto absolute flex h-6 w-6 items-center justify-center rounded-full;
+    @apply border border-line-soft bg-surface-3 text-ink-soft shadow-raised;
+    @apply transition-colors duration-150;
+    opacity: 0.55;
+  }
+  .nwfb-edge-add:hover {
+    @apply border-accent bg-accent text-accent-on;
+    opacity: 1;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* XYFlow overrides                                                     */
+  /* ------------------------------------------------------------------ */
+  .nwfb-canvas {
+    background: rgb(var(--nw-surface-0));
+  }
+
+  .nwfb-canvas .react-flow__handle.nwfb-handle {
+    width: 10px;
+    height: 10px;
+    border-radius: 9999px;
+    background: rgb(var(--nw-surface-1));
+    border: 2px solid rgb(var(--nw-line-strong));
+    transition: border-color 150ms ease, opacity 150ms ease;
+  }
+  .nwfb-canvas .react-flow__handle-top.nwfb-handle,
+  .nwfb-canvas .react-flow__handle-bottom.nwfb-handle {
+    opacity: 0.55;
+  }
+  .nwfb-canvas .react-flow__handle.nwfb-handle-branch {
+    border-color: rgb(var(--nw-accent));
+    opacity: 0.85;
+  }
+  .nwfb-canvas .react-flow__handle.nwfb-handle-side {
+    opacity: 0;
+  }
+  .nwfb-canvas .nwfb-node:hover .react-flow__handle.nwfb-handle,
+  .nwfb-canvas .react-flow__node.selected .react-flow__handle.nwfb-handle {
+    opacity: 1;
+  }
+
+  .nwfb-canvas .react-flow__node {
+    font-family: inherit;
+  }
+
+  .nwfb-canvas .react-flow__edge-path {
+    transition: stroke 150ms ease;
+  }
+
+  .nwfb-canvas .react-flow__attribution {
+    background: transparent;
+  }
+  .nwfb-canvas .react-flow__attribution a {
+    color: rgb(var(--nw-ink-soft));
+  }
+
+  .nwfb-canvas .react-flow__controls {
+    @apply overflow-hidden rounded-lg border border-line-hairline shadow-raised;
+    background: rgb(var(--nw-surface-2));
+  }
+  .nwfb-canvas .react-flow__controls-button {
+    background: rgb(var(--nw-surface-2));
+    border-bottom: 1px solid rgb(var(--nw-line-hairline));
+    color: rgb(var(--nw-ink-soft));
+    width: 28px;
+    height: 28px;
+  }
+  .nwfb-canvas .react-flow__controls-button:hover {
+    background: rgb(var(--nw-surface-3));
+    color: rgb(var(--nw-ink-strong));
+  }
+  .nwfb-canvas .react-flow__controls-button svg {
+    fill: currentColor;
+    max-width: 12px;
+    max-height: 12px;
+  }
+
+  .nwfb-canvas .react-flow__minimap {
+    @apply overflow-hidden rounded-lg border border-line-hairline;
+    background: rgb(var(--nw-surface-1));
+  }
+  .nwfb-canvas .react-flow__minimap-mask {
+    fill: rgb(var(--nw-surface-0) / 0.72);
+  }
+  .nwfb-canvas .react-flow__minimap-node {
+    fill: rgb(var(--nw-surface-5));
+    stroke: none;
+  }
+
+  .nwfb-canvas .react-flow__edge.selected .react-flow__edge-path {
+    stroke: rgb(var(--nw-accent));
+  }
+}

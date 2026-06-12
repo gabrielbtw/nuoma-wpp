@@ -23,19 +23,13 @@ async function main() {
     const page = await context.newPage();
 
     await login(page);
-    await page.goto(`${webUrl}/campaigns?tab=builder`, { waitUntil: "domcontentloaded" });
-    await page.getByTestId("campaign-flow-studio-v2").waitFor({
-      state: "visible",
-      timeout: 10_000,
-    });
+    await page.goto(`${webUrl}/campaigns/new`, { waitUntil: "domcontentloaded" });
+    await page.getByTestId("campaign-builder").waitFor({ state: "visible", timeout: 10_000 });
+    await page
+      .getByTestId("builder-small-screen-notice")
+      .waitFor({ state: "visible", timeout: 10_000 });
 
-    await page.getByTestId("campaign-template-card").first().click();
-    await page.getByTestId("campaign-builder-steps").waitFor({
-      state: "visible",
-      timeout: 10_000,
-    });
-
-    const diagnostics = await assertCampaignBuilderMobile(page);
+    const diagnostics = await assertCampaignBuilderMobileNotice(page);
     await page.screenshot({ path: screenshotPath, fullPage: true });
 
     const a11y = await analyzeA11y(page);
@@ -50,8 +44,8 @@ async function main() {
     console.log(
       [
         "v210-campaign-builder-mobile",
-        `nodes=${diagnostics.visibleNodeCount}`,
-        `stageScrollable=${diagnostics.stage?.scrollable ? "true" : "false"}`,
+        `smallScreenNotice=${diagnostics.noticeVisible ? "true" : "false"}`,
+        `bodyHidden=${diagnostics.bodyHidden ? "true" : "false"}`,
         `documentOverflowPx=${diagnostics.documentOverflowPx}`,
         `a11yViolations=${a11y.violations.length}`,
         `blocking=${a11y.blocking.length}`,
@@ -73,31 +67,7 @@ async function login(page) {
   await page.waitForURL(`${webUrl}/`, { timeout: 10_000 });
 }
 
-async function assertCampaignBuilderMobile(page) {
-  await page.getByTestId("campaign-flow-canvas-board").waitFor({
-    state: "visible",
-    timeout: 10_000,
-  });
-  await page.getByTestId("campaign-xyflow-canvas").waitFor({
-    state: "visible",
-    timeout: 10_000,
-  });
-
-  for (const tab of ["base", "audience", "steps", "preview"]) {
-    await page.getByTestId(`campaign-builder-tab-${tab}`).waitFor({
-      state: "visible",
-      timeout: 5_000,
-    });
-  }
-
-  await page.waitForFunction(
-    () =>
-      document.querySelectorAll('[data-testid="campaign-xyflow-canvas"] .react-flow__node')
-        .length >= 3,
-    undefined,
-    { timeout: 10_000 },
-  );
-
+async function assertCampaignBuilderMobileNotice(page) {
   const diagnostics = await page.evaluate(() => {
     const rectData = (element) => {
       const rect = element?.getBoundingClientRect();
@@ -110,21 +80,11 @@ async function assertCampaignBuilderMobile(page) {
       };
     };
 
-    const studio = document.querySelector('[data-testid="campaign-flow-studio-v2"]');
-    const board = document.querySelector('[data-testid="campaign-flow-canvas-board"]');
-    const canvas = document.querySelector('[data-testid="campaign-xyflow-canvas"]');
-    const stage = canvas?.closest(".nuoma-flow-v2-stage");
-    const nodes = Array.from(canvas?.querySelectorAll(".react-flow__node") ?? []).map((node) => {
-      const rect = node.getBoundingClientRect();
-      return {
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
-      };
-    });
-    const builderTabs = ["base", "audience", "steps", "preview"].map((tab) => ({
-      tab,
-      rect: rectData(document.querySelector(`[data-testid="campaign-builder-tab-${tab}"]`)),
-    }));
+    const shell = document.querySelector('[data-testid="campaign-builder"]');
+    const body = document.querySelector(".nwfb-body");
+    const notice = document.querySelector('[data-testid="builder-small-screen-notice"]');
+    const noticeStyle = notice ? getComputedStyle(notice) : null;
+    const bodyStyle = body ? getComputedStyle(body) : null;
 
     return {
       viewport: {
@@ -132,46 +92,29 @@ async function assertCampaignBuilderMobile(page) {
         height: window.innerHeight,
       },
       documentOverflowPx: Math.max(0, document.documentElement.scrollWidth - window.innerWidth),
-      studio: rectData(studio),
-      board: rectData(board),
-      canvas: rectData(canvas),
-      visibleNodeCount: nodes.filter((node) => node.width > 0 && node.height > 0).length,
-      stage: stage
-        ? {
-            clientWidth: stage.clientWidth,
-            scrollWidth: stage.scrollWidth,
-            overflowX: getComputedStyle(stage).overflowX,
-            scrollable: stage.scrollWidth > stage.clientWidth + 16,
-          }
-        : null,
-      builderTabs,
+      shell: rectData(shell),
+      notice: rectData(notice),
+      body: rectData(body),
+      noticeVisible: Boolean(notice && noticeStyle && noticeStyle.display !== "none"),
+      bodyHidden: Boolean(body && bodyStyle && bodyStyle.display === "none"),
+      text: notice?.textContent?.replace(/\s+/g, " ").trim() ?? "",
     };
   });
 
-  if (!diagnostics.studio || diagnostics.studio.width < 320 || diagnostics.studio.height < 640) {
-    throw new Error(`mobile flow studio collapsed: ${JSON.stringify(diagnostics)}`);
+  if (!diagnostics.shell || diagnostics.shell.width < 320 || diagnostics.shell.height < 640) {
+    throw new Error(`mobile flow shell collapsed: ${JSON.stringify(diagnostics)}`);
   }
-  if (!diagnostics.board || diagnostics.board.width < 900 || diagnostics.board.height < 500) {
-    throw new Error(`mobile canvas board collapsed: ${JSON.stringify(diagnostics)}`);
+  if (!diagnostics.noticeVisible || !diagnostics.notice || diagnostics.notice.height < 160) {
+    throw new Error(`mobile builder notice is not visible: ${JSON.stringify(diagnostics)}`);
   }
-  if (!diagnostics.canvas || diagnostics.canvas.width < 900 || diagnostics.canvas.height < 420) {
-    throw new Error(`mobile react-flow canvas collapsed: ${JSON.stringify(diagnostics)}`);
+  if (!diagnostics.bodyHidden) {
+    throw new Error(`mobile builder body should be hidden under 900px: ${JSON.stringify(diagnostics)}`);
   }
-  if (diagnostics.visibleNodeCount < 3) {
-    throw new Error(`mobile canvas rendered too few nodes: ${JSON.stringify(diagnostics)}`);
-  }
-  if (!diagnostics.stage?.scrollable || !["auto", "scroll"].includes(diagnostics.stage.overflowX)) {
-    throw new Error(
-      `mobile canvas stage is not internally scrollable: ${JSON.stringify(diagnostics)}`,
-    );
+  if (!diagnostics.text.includes("tela maior")) {
+    throw new Error(`mobile builder notice copy mismatch: ${JSON.stringify(diagnostics)}`);
   }
   if (diagnostics.documentOverflowPx > 8) {
     throw new Error(`mobile page leaks horizontal overflow: ${JSON.stringify(diagnostics)}`);
-  }
-  if (
-    diagnostics.builderTabs.some((tab) => !tab.rect || tab.rect.width < 120 || tab.rect.height < 48)
-  ) {
-    throw new Error(`mobile builder tabs are not reachable: ${JSON.stringify(diagnostics)}`);
   }
 
   return diagnostics;

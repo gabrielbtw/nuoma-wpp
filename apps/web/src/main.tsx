@@ -39,10 +39,24 @@ const InboxPage = lazy(() =>
   import("./pages/InboxPage.js").then((module) => ({ default: module.InboxPage })),
 );
 const CampaignsPage = lazy(() =>
-  import("./pages/CampaignsPage.js").then((module) => ({ default: module.CampaignsPage })),
+  import("./features/campaigns/CampaignsScreen.js").then((module) => ({
+    default: module.CampaignsScreen,
+  })),
+);
+const CampaignBuilderPage = lazy(() =>
+  import("./features/flow-builder/screens/CampaignBuilderScreen.js").then((module) => ({
+    default: module.CampaignBuilderScreen,
+  })),
 );
 const AutomationsPage = lazy(() =>
-  import("./pages/AutomationsPage.js").then((module) => ({ default: module.AutomationsPage })),
+  import("./features/automations/AutomationsScreen.js").then((module) => ({
+    default: module.AutomationsScreen,
+  })),
+);
+const AutomationBuilderPage = lazy(() =>
+  import("./features/flow-builder/screens/AutomationBuilderScreen.js").then((module) => ({
+    default: module.AutomationBuilderScreen,
+  })),
 );
 const ChatbotsPage = lazy(() =>
   import("./pages/ChatbotsPage.js").then((module) => ({ default: module.ChatbotsPage })),
@@ -188,10 +202,34 @@ const campaignsRoute = createRoute({
   component: routePage(CampaignsPage, "Campanhas"),
 });
 
+const campaignNewRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/campaigns/new",
+  component: routePage(CampaignBuilderPage, "Builder de campanha"),
+});
+
+const campaignEditRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/campaigns/$campaignId/edit",
+  component: routePage(CampaignBuilderPage, "Builder de campanha"),
+});
+
 const automationsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: "/automations",
   component: routePage(AutomationsPage, "Automações"),
+});
+
+const automationNewRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/automations/new",
+  component: routePage(AutomationBuilderPage, "Builder de automação"),
+});
+
+const automationEditRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/automations/$automationId/edit",
+  component: routePage(AutomationBuilderPage, "Builder de automação"),
 });
 
 const chatbotsRoute = createRoute({
@@ -247,7 +285,11 @@ const shellChildren = [
   inboxRoute,
   contactsRoute,
   campaignsRoute,
+  campaignNewRoute,
+  campaignEditRoute,
   automationsRoute,
+  automationNewRoute,
+  automationEditRoute,
   chatbotsRoute,
   operationsRoute,
   jobsRoute,

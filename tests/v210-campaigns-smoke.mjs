@@ -35,86 +35,71 @@ async function main() {
     await page.click('button[type="submit"]');
     await page.waitForURL(`${webUrl}/`);
 
-    await page.goto(`${webUrl}/campaigns?tab=builder`, { waitUntil: "domcontentloaded" });
-    await page.getByTestId("campaign-builder-base").waitFor({ state: "visible", timeout: 10_000 });
+    await page.goto(`${webUrl}/campaigns`, { waitUntil: "domcontentloaded" });
+    await page.getByTestId("campaigns-new").waitFor({ state: "visible", timeout: 10_000 });
 
-    await page.getByTestId("campaign-template-card").first().click();
-    await page.getByTestId("campaign-builder-steps").waitFor({ state: "visible", timeout: 10_000 });
-    await page.getByTestId("campaign-step-condition-row").first().waitFor({
-      state: "visible",
-      timeout: 10_000,
-    });
-    const validationBeforeInvalid = await waitForFlowValidation(page, "valid");
-    if (validationBeforeInvalid.status !== "valid") {
+    // Builder V2: rota dedicada, canvas + biblioteca + inspector
+    await page.goto(`${webUrl}/campaigns/new`, { waitUntil: "domcontentloaded" });
+    await page.getByTestId("builder-topbar").waitFor({ state: "visible", timeout: 10_000 });
+    await page.getByTestId("block-library").waitFor({ state: "visible", timeout: 10_000 });
+    await page.getByTestId("builder-inspector").waitFor({ state: "visible", timeout: 10_000 });
+    await page
+      .getByTestId("flow-node-block")
+      .first()
+      .waitFor({ state: "visible", timeout: 10_000 });
+
+    const validationBeforeInvalid = await readFlowChecklist(page);
+    if (validationBeforeInvalid.failed !== 0) {
       throw new Error(
         `expected campaign builder validation to start valid: ${JSON.stringify(validationBeforeInvalid)}`,
       );
     }
-    const firstMessageTextarea = page.getByTestId("campaign-step-message-1");
-    const originalMessage = await firstMessageTextarea.inputValue();
-    await firstMessageTextarea.fill("");
-    const validationAfterInvalid = await waitForFlowValidation(page, "invalid");
-    const messageError = page.getByTestId("campaign-step-message-1-error");
-    await messageError.waitFor({
-      state: "visible",
-      timeout: 5_000,
-    });
-    const messageErrorText = (await messageError.textContent()) ?? "";
-    const messageFieldInvalid = await firstMessageTextarea.getAttribute("aria-invalid");
-    if (
-      validationAfterInvalid.status !== "invalid" ||
-      validationAfterInvalid.failedChecks < 1 ||
-      !messageErrorText.includes("Step 1: mensagem vazia.") ||
-      validationAfterInvalid.text.includes("Fluxo válido") ||
-      messageFieldInvalid !== "true"
-    ) {
-      throw new Error(
-        `campaign builder validation did not surface invalid step inline: ${JSON.stringify(validationAfterInvalid)}`,
-      );
+
+    // Seleciona o bloco inicial e esvazia a mensagem -> erro inline no node
+    await page.getByTestId("flow-node-block").first().click();
+    const messageInput = page.getByTestId("step-message-input");
+    await messageInput.waitFor({ state: "visible", timeout: 5_000 });
+    const originalMessage = await messageInput.inputValue();
+    await messageInput.fill("");
+    await page
+      .getByTestId("flow-node-errors")
+      .first()
+      .waitFor({ state: "visible", timeout: 5_000 });
+    const messageFieldInvalid = await messageInput.getAttribute("aria-invalid");
+    if (messageFieldInvalid !== "true") {
+      throw new Error("campaign builder did not flag the empty message field as invalid");
     }
-    await firstMessageTextarea.fill(originalMessage || "Olá {{nome}}, tudo bem?");
-    const validationAfterRestore = await waitForFlowValidation(page, "valid");
-    await page.getByTestId("campaign-step-message-1-error").waitFor({
-      state: "detached",
-      timeout: 5_000,
-    });
-    if (validationAfterRestore.status !== "valid") {
+
+    // Restaura a mensagem -> erro some
+    await messageInput.fill(originalMessage || "Olá {{nome}}, tudo bem?");
+    await page.getByTestId("flow-node-errors").waitFor({ state: "detached", timeout: 5_000 });
+
+    // Biblioteca: adiciona um segundo bloco de texto
+    await page.getByTestId("library-block-step:text").click();
+    await page.waitForTimeout(200);
+    const builderBlocks = await page.getByTestId("flow-node-block").count();
+    if (builderBlocks < 2) {
+      throw new Error(`block library click did not add a node: blocks=${builderBlocks}`);
+    }
+
+    // Deseleciona (clique no pane) -> checklist do fluxo volta válido
+    await page.locator(".react-flow__pane").click({ position: { x: 16, y: 16 } });
+    const validationAfterRestore = await readFlowChecklist(page);
+    if (validationAfterRestore.failed !== 0 || validationAfterRestore.total < 3) {
       throw new Error(
         `campaign builder validation did not recover after fixing step: ${JSON.stringify(validationAfterRestore)}`,
       );
     }
 
-    await page.getByTestId("campaign-builder-tab-audience").click();
+    // Prévia da conversa com o número canário padrão
+    await page.getByTestId("builder-open-preview").click();
+    await page.getByTestId("preview-panel").waitFor({ state: "visible", timeout: 5_000 });
+    await page.getByTestId("chat-simulator").waitFor({ state: "visible", timeout: 5_000 });
     await page
-      .getByTestId("campaign-csv-text")
-      .fill(
-        [
-          "nome,telefone,email",
-          `Canario,+55 31 98206-6263,canario@nuoma.local`,
-          `Duplicado,${canaryPhone},duplicado@nuoma.local`,
-          "Invalido,abc,invalido@nuoma.local",
-        ].join("\n"),
-      );
-    await page.getByTestId("campaign-csv-process").click();
-    await page.getByTestId("campaign-csv-rows").waitFor({ state: "visible", timeout: 10_000 });
-    const csvDiagnostics = await page.getByTestId("campaign-csv-rows").evaluate((element) => {
-      const rows = Array.from(element.querySelectorAll("[data-valid]"));
-      return {
-        rows: rows.length,
-        valid: rows.filter((row) => row.getAttribute("data-valid") === "true").length,
-        invalid: rows.filter((row) => row.getAttribute("data-valid") === "false").length,
-      };
-    });
-    if (csvDiagnostics.rows !== 3 || csvDiagnostics.valid !== 1 || csvDiagnostics.invalid !== 2) {
-      throw new Error(`CSV preview diagnostics mismatch: ${JSON.stringify(csvDiagnostics)}`);
-    }
-
-    await page.getByTestId("campaign-builder-tab-preview").click();
-    await page.getByTestId("campaign-preview-panel").waitFor({ state: "visible", timeout: 10_000 });
-    const workflowNodes = await page.getByTestId("campaign-workflow-node").count();
-    if (workflowNodes < 5) {
-      throw new Error(`workflow viewer rendered too few nodes: ${workflowNodes}`);
-    }
+      .getByTestId("chat-simulator")
+      .getByText(canaryPhone)
+      .waitFor({ state: "visible", timeout: 5_000 });
+    const previewRows = await page.getByTestId("chat-simulator-event").count();
 
     await page.goto(`${webUrl}/campaigns?tab=recipients`, { waitUntil: "domcontentloaded" });
     await page
@@ -174,12 +159,18 @@ async function main() {
       throw new Error(`virtual table broke after scroll: ${JSON.stringify(afterScroll)}`);
     }
 
-    await page
-      .getByRole("button", { name: /^Prévia$/ })
-      .first()
-      .click();
-    await page.getByTestId("campaign-tab-dispatch").click();
-    await page.getByText("Último tick").waitFor({ state: "visible", timeout: 10_000 });
+    await page.goto(
+      `${webUrl}/campaigns?tab=dispatch&intent=enqueue&campaignId=${fixture.canaryCampaignId}`,
+      { waitUntil: "domcontentloaded" },
+    );
+    await page.getByTestId("campaign-tab-dispatch").waitFor({ state: "visible", timeout: 10_000 });
+    await page.getByText("Selecionada: V2.10 Smoke Scheduler Canary").waitFor({
+      state: "visible",
+      timeout: 10_000,
+    });
+    await page.getByRole("button", { name: "Simular selecionada" }).click();
+    await page.getByText("Última execução").waitFor({ state: "visible", timeout: 10_000 });
+    await page.waitForTimeout(500);
     await page.getByText(canaryPhone).first().waitFor({ state: "visible", timeout: 10_000 });
 
     const campaignStepJobsAfter = countCampaignStepJobs();
@@ -206,7 +197,20 @@ async function main() {
     const wppMode = await captureWhatsAppPrint(wppScreenshotPath);
     pauseSchedulerCanary(fixture.canaryCampaignId);
     console.log(
-      `v210-campaigns|csv=${csvDiagnostics.valid}/${csvDiagnostics.invalid}|workflowNodes=${workflowNodes}|virtualTotal=${virtualTable.total}|virtualRendered=${virtualTable.rendered}|dryRunPhone=${canaryPhone}|campaignStepJobsDelta=${campaignStepJobsDelta}|blocking=${blocking.length}|app=${appScreenshotPath}|wpp=${wppScreenshotPath}|wppMode=${wppMode}`,
+      [
+        "v210-campaigns",
+        `builderBlocks=${builderBlocks}`,
+        `checklist=${validationAfterRestore.total - validationAfterRestore.failed}/${validationAfterRestore.total}`,
+        `previewRows=${previewRows}`,
+        `virtualTotal=${virtualTable.total}`,
+        `virtualRendered=${virtualTable.rendered}`,
+        `dryRunPhone=${canaryPhone}`,
+        `campaignStepJobsDelta=${campaignStepJobsDelta}`,
+        `blocking=${blocking.length}`,
+        `app=${appScreenshotPath}`,
+        `wpp=${wppScreenshotPath}`,
+        `wppMode=${wppMode}`,
+      ].join("|"),
     );
   } finally {
     await browser.close();
@@ -365,28 +369,17 @@ async function captureWhatsAppPrint(outputPath) {
   }
 }
 
-async function readFlowValidation(page) {
-  return page.getByTestId("campaign-flow-validation-card").evaluate((element) => ({
-    status: element.getAttribute("data-status"),
-    text: element.textContent ?? "",
-    failedChecks: Array.from(
+async function readFlowChecklist(page) {
+  return page.getByTestId("campaign-flow-checklist").evaluate((element) => {
+    const checks = Array.from(
       element.querySelectorAll('[data-testid="campaign-flow-validation-check"]'),
-    ).filter((check) => check.getAttribute("data-ok") === "false").length,
-  }));
-}
-
-async function waitForFlowValidation(page, status, includesText) {
-  const selector = `[data-testid="campaign-flow-validation-card"][data-status="${status}"]`;
-  await page.locator(selector).waitFor({ state: "visible", timeout: 5_000 });
-  if (includesText) {
-    await page.waitForFunction(
-      ({ selector: targetSelector, includesText: targetText }) =>
-        document.querySelector(targetSelector)?.textContent?.includes(targetText),
-      { selector, includesText },
-      { timeout: 5_000 },
     );
-  }
-  return readFlowValidation(page);
+    return {
+      total: checks.length,
+      failed: checks.filter((check) => check.getAttribute("data-ok") === "false").length,
+      text: element.textContent ?? "",
+    };
+  });
 }
 
 async function assertHttp(url, label) {

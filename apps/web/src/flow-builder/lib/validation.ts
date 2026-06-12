@@ -94,7 +94,7 @@ export function readyChecks(input: {
     input.channel === "instagram" ? unsupportedInstagramStepLabels(input.steps) : [];
   return [
     { label: "Nome", ok: Boolean(input.name.trim()) },
-    { label: "Steps", ok: input.previewSteps.length > 0 && !input.stepBuildError },
+    { label: "Blocos", ok: input.previewSteps.length > 0 && !input.stepBuildError },
     { label: "Canal", ok: unsupportedInstagramSteps.length === 0 },
     { label: "Público", ok: !input.csvPreview || input.csvPreview.validCount > 0 },
     { label: "CSV", ok: !input.csvPreview || input.csvPreview.invalidCount === 0 },

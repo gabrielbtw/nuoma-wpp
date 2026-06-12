@@ -43,7 +43,7 @@ const routes = [
     version: "V2.10",
     name: "Campanhas e remarketing",
     path: "/campaigns",
-    waitText: "Visão geral",
+    waitText: "Fluxos de saída",
     file: "05-v210-campaigns-remarketing.png",
     details: "Builder, recipients, readiness e painel de lote real com guardas M30.3.",
     action: validateRemarketingBatchPanel,
@@ -110,7 +110,7 @@ const routes = [
     path: "/dev/components",
     waitTestId: "dev-components-page",
     file: "12-v28-components.png",
-    details: "Inventario visual do design system Cartographic Operations.",
+    details: "Inventario visual do design system Carvao & Cobre.",
   },
 ];
 
@@ -204,8 +204,8 @@ async function waitForRouteSignal(page, route) {
 }
 
 async function fillLogin(page) {
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Senha").fill(password);
+  await page.locator("#email").fill(email);
+  await page.locator("#password").fill(password);
 }
 
 async function submitLogin(page) {

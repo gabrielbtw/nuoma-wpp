@@ -37,8 +37,27 @@ Data: 2026-06-11
 - `npm run test --workspace @nuoma/web -- --run`: passou.
 - `npm run test:design-system-v3`: passou.
 
+## Fase 4 — FlowBuilder V2
+
+- Nova arquitetura ativa em `apps/web/src/features/flow-builder/**`.
+- Rotas dedicadas:
+  - `/campaigns/new`
+  - `/campaigns/$campaignId/edit`
+  - `/automations/new`
+  - `/automations/$automationId/edit`
+- Builder antigo `apps/web/src/flow-builder/FlowBuilder.tsx` removido.
+- Painel `Criar campanha` reimaginado para caber na coluna real do inspector
+  (~359px) e validado com print final sem clipping.
+- Evidencia detalhada: `docs/maintenance/REBRAND_PHASE_4_FLOWBUILDER_V2_STATUS.md`.
+- Smokes de Fase 4 passaram com WhatsApp via CDP ativo:
+  - `npm run test:v210-campaigns`
+  - `npm run test:v210-campaign-builder-mobile`
+  - `npm run test:v210-flow-builders`
+
 ## Pendente
 
 - Reduzir `legacy.css` ate a meta de 70% nas proximas ondas por pagina.
 - Corrigir duplicacoes/aliases de tokens `brand-*` quando a camada compat puder
   morrer sem afetar paginas legadas/DEV.
+- Envio real IG/WhatsApp deve continuar em smoke dedicado com allowlist,
+  evidencia visual e registro de campanha quando solicitado.

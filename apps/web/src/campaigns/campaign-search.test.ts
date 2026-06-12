@@ -23,9 +23,19 @@ describe("campaign search", () => {
     });
   });
 
-  it("detects immersive builder only for campaigns builder tab", () => {
+  it("keeps legacy builder deep link immersive while it redirects", () => {
     expect(isCampaignBuilderImmersive("/campaigns", "?tab=builder")).toBe(true);
     expect(isCampaignBuilderImmersive("/campaigns", "?tab=dispatch")).toBe(false);
     expect(isCampaignBuilderImmersive("/inbox", "?tab=builder")).toBe(false);
+  });
+
+  it("detects the dedicated builder routes as immersive", () => {
+    expect(isCampaignBuilderImmersive("/campaigns/new")).toBe(true);
+    expect(isCampaignBuilderImmersive("/campaigns/42/edit")).toBe(true);
+    expect(isCampaignBuilderImmersive("/automations/new")).toBe(true);
+    expect(isCampaignBuilderImmersive("/automations/7/edit")).toBe(true);
+    expect(isCampaignBuilderImmersive("/campaigns")).toBe(false);
+    expect(isCampaignBuilderImmersive("/automations")).toBe(false);
+    expect(isCampaignBuilderImmersive("/campaigns/abc/edit")).toBe(false);
   });
 });

@@ -44,65 +44,50 @@ async function main() {
     await page.click('button[type="submit"]');
     await page.waitForURL(`${webUrl}/`);
 
-    await page.goto(`${webUrl}/automations`, { waitUntil: "domcontentloaded" });
-    await page.getByTestId("automation-template-gallery").waitFor({ state: "visible" });
-    const automationTemplates = await page.getByTestId("automation-template-card").count();
-    if (automationTemplates < 3) {
-      throw new Error(`expected at least 3 automation templates, got ${automationTemplates}`);
+    await page.goto(`${webUrl}/automations/new`, { waitUntil: "domcontentloaded" });
+    await page.getByTestId("automation-builder").waitFor({ state: "visible", timeout: 10_000 });
+    await page.getByTestId("builder-topbar").waitFor({ state: "visible", timeout: 10_000 });
+    await page.getByTestId("block-library").waitFor({ state: "visible", timeout: 10_000 });
+    await page.getByTestId("builder-inspector").waitFor({ state: "visible", timeout: 10_000 });
+    await page.getByTestId("flow-canvas").waitFor({ state: "visible", timeout: 10_000 });
+
+    const automationLibraryBlocks = await page
+      .locator('[data-testid^="library-block-"]')
+      .count();
+    if (automationLibraryBlocks < 15) {
+      throw new Error(`expected complete automation block library, got ${automationLibraryBlocks}`);
     }
 
-    await page.getByText("Delay + branch", { exact: true }).click();
-    await page.getByTestId("automation-flow-canvas-board").waitFor({
-      state: "visible",
-      timeout: 10_000,
-    });
-    await page.getByTestId("automation-xyflow-canvas").waitFor({
-      state: "visible",
-      timeout: 10_000,
-    });
+    await page.getByLabel("Nome do fluxo").fill("Escalar atendimento");
+    await page.getByTestId("library-block-action:delay").click();
+    await page.getByTestId("library-block-action:branch").click();
+    await page.getByTestId("library-block-action:notify_attendant").click();
     await page.waitForFunction(
       () =>
-        document.querySelectorAll('[data-testid="automation-xyflow-canvas"] .react-flow__node')
-          .length >= 4,
+        document.querySelectorAll('[data-testid="flow-canvas"] .react-flow__node').length >= 5,
       undefined,
       { timeout: 10_000 },
     );
     const automationCanvasNodes = await page
-      .locator('[data-testid="automation-xyflow-canvas"] .react-flow__node')
+      .locator('[data-testid="flow-canvas"] .react-flow__node')
       .count();
-    const automationCanvasTypes = await page
-      .locator('[data-testid="automation-xyflow-canvas"] [data-testid="automation-canvas-node"]')
-      .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-action-type") ?? ""));
-    for (const expected of ["delay", "branch", "send_step"]) {
-      if (!automationCanvasTypes.includes(expected)) {
-        throw new Error(
-          `automation canvas missing ${expected}: ${automationCanvasTypes.join(",")}`,
-        );
+    const automationCanvasText = await page.getByTestId("flow-canvas").innerText();
+    const normalizedAutomationCanvasText = automationCanvasText.toLowerCase();
+    for (const expected of ["Mensagem de texto", "Aguardar", "Condição / Branch", "Notificar atendente"]) {
+      if (!normalizedAutomationCanvasText.includes(expected.toLowerCase())) {
+        throw new Error(`automation canvas missing ${expected}: ${automationCanvasText}`);
       }
-    }
-    await page.getByTestId("automation-flow-preview").waitFor({ state: "visible" });
-    const delayBranchTypes = await actionTypesFromPreview(page);
-    for (const expected of ["delay", "branch", "send_step"]) {
-      if (!delayBranchTypes.includes(expected)) {
-        throw new Error(`automation preview missing ${expected}: ${delayBranchTypes.join(",")}`);
-      }
-    }
-    const draggableActions = await page
-      .getByTestId("automation-action-row")
-      .evaluateAll((rows) => rows.filter((row) => row.getAttribute("draggable") === "true").length);
-    if (draggableActions < 3) {
-      throw new Error(`expected draggable automation actions, got ${draggableActions}`);
     }
 
-    await page.getByText("Escalar atendimento", { exact: true }).click();
-    await page.getByTestId("automation-flow-preview").waitFor({ state: "visible" });
-    const notifyTriggerTypes = await actionTypesFromPreview(page);
-    for (const expected of ["notify_attendant", "trigger_automation"]) {
-      if (!notifyTriggerTypes.includes(expected)) {
-        throw new Error(`automation preview missing ${expected}: ${notifyTriggerTypes.join(",")}`);
-      }
+    await page.getByTestId("builder-open-preview").click();
+    await page.getByTestId("preview-panel").waitFor({ state: "visible", timeout: 10_000 });
+    await page.getByTestId("chat-simulator").waitFor({ state: "visible", timeout: 10_000 });
+    const automationPreviewEvents = await page.getByTestId("chat-simulator-event").count();
+    if (automationPreviewEvents < 4) {
+      throw new Error(`automation preview rendered too few events: ${automationPreviewEvents}`);
     }
-    await page.getByRole("button", { name: "Criar rascunho" }).click();
+
+    await page.getByTestId("builder-save").click();
     await page.getByText("Automacao criada").or(page.getByText("Automação criada")).waitFor({
       state: "visible",
       timeout: 10_000,
@@ -113,13 +98,18 @@ async function main() {
     }
     const automationMetadata = JSON.parse(createdAutomation.metadata_json);
     const automationActions = JSON.parse(createdAutomation.actions_json);
-    if (!automationMetadata.actionRegistry?.includes("trigger_automation")) {
-      throw new Error("automation action registry metadata missing trigger_automation");
+    if (automationMetadata.source !== "flow_builder_v2") {
+      throw new Error(`automation metadata source mismatch: ${createdAutomation.metadata_json}`);
     }
     if (
       !automationActions.every((action) => typeof action.id === "string" && action.id.length > 0)
     ) {
       throw new Error("persisted automation actions must carry ids for branch targeting");
+    }
+    for (const expected of ["send_step", "delay", "branch", "notify_attendant"]) {
+      if (!automationActions.some((action) => action.type === expected)) {
+        throw new Error(`persisted automation missing ${expected}: ${createdAutomation.actions_json}`);
+      }
     }
 
     await page.screenshot({ path: automationScreenshotPath, fullPage: true });
@@ -130,6 +120,8 @@ async function main() {
     await page.getByTestId("chatbot-rule-builder").waitFor({ state: "visible" });
     await page.getByTestId("chatbot-dry-run-chatbot-select").click();
     await page.getByRole("option", { name: "V2.10.26-34 Smoke" }).click();
+    await page.getByTestId("chatbot-dry-run-identity").fill(canaryPhone);
+    await page.getByTestId("chatbot-dry-run-body").fill("Qual o preco?");
     await page
       .getByTestId("chatbot-rule-item")
       .first()
@@ -175,9 +167,9 @@ async function main() {
     console.log(
       [
         "v210-flow-builders",
-        `automationTemplates=${automationTemplates}`,
+        `automationLibraryBlocks=${automationLibraryBlocks}`,
         `automationCanvasNodes=${automationCanvasNodes}`,
-        `draggableActions=${draggableActions}`,
+        `automationPreviewEvents=${automationPreviewEvents}`,
         `automationCreated=${createdAutomation.id}`,
         `chatbot=${fixture.chatbotId}`,
         `priorityHandles=${priorityHandles}`,
@@ -365,12 +357,6 @@ function countSendJobsForPhone(phone) {
   } finally {
     db.close();
   }
-}
-
-async function actionTypesFromPreview(page) {
-  return page
-    .getByTestId("automation-preview-node")
-    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-action-type") ?? ""));
 }
 
 async function blockingAxeViolations(page) {

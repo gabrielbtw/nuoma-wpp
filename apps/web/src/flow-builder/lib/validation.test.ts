@@ -104,7 +104,7 @@ describe("validation helpers", () => {
       }),
     ).toEqual([
       { label: "Nome", ok: true },
-      { label: "Steps", ok: true },
+      { label: "Blocos", ok: true },
       { label: "Canal", ok: false },
       { label: "Público", ok: false },
       { label: "CSV", ok: false },

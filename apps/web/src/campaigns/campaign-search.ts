@@ -37,6 +37,10 @@ export function campaignSearchFromWindow(): CampaignSearchState {
   return parseCampaignSearch(window.location.search);
 }
 
+const FLOW_BUILDER_ROUTE = /^\/(campaigns|automations)\/(new|\d+\/edit)\/?$/;
+
 export function isCampaignBuilderImmersive(pathname: string, search = ""): boolean {
+  if (FLOW_BUILDER_ROUTE.test(pathname)) return true;
+  // Legacy deep link (?tab=builder) still renders immersive while it redirects.
   return pathname === "/campaigns" && parseCampaignSearch(search).tab === "builder";
 }
