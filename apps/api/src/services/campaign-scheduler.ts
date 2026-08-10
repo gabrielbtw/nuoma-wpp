@@ -503,6 +503,20 @@ async function enqueueRecipientNextStep(input: {
           completedAt: input.now.toISOString(),
         },
       });
+      await input.repos.systemEvents.create({
+        userId: input.userId,
+        type: "campaign.recipient_completed",
+        severity: "info",
+        payload: JSON.stringify({
+          campaignId: input.campaign.id,
+          recipientId: input.recipient.id,
+          contactId: input.recipient.contactId ?? null,
+          channel: target.channel,
+          phone: target.phone ?? null,
+          instagramHandle: target.instagramHandle ?? null,
+          source: "campaign_scheduler",
+        }),
+      });
       input.result.recipientsCompleted += 1;
       return;
     }

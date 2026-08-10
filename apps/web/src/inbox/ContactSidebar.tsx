@@ -687,7 +687,7 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                       <div className="truncate text-xs font-medium text-fg-primary">
                         {automationFeedback.automationName}
                       </div>
-                      <div className="mt-1 font-mono text-[0.65rem] uppercase tracking-widest text-fg-dim">
+                      <div className="mt-1 font-mono text-[0.65rem] uppercase tracking-widest text-fg-muted">
                         {automationFeedback.dryRun ? "simulação" : "execução"} ·{" "}
                         {automationFeedback.eligible ? "elegível" : "bloqueada"}
                       </div>
@@ -701,7 +701,7 @@ export function ContactSidebar({ conversationId }: ContactSidebarProps) {
                     </Badge>
                   </div>
                   {automationFeedback.reasons.length > 0 ? (
-                    <div className="mt-2 truncate font-mono text-[0.65rem] text-fg-dim">
+                    <div className="mt-2 truncate font-mono text-[0.65rem] text-fg-muted">
                       {automationFeedback.reasons.map(formatAutomationReason).join(", ")}
                     </div>
                   ) : null}

@@ -232,7 +232,7 @@ function AutomationCard({
           <h3 className="truncate font-display text-sm font-semibold text-ink-strong">
             {automation.name}
           </h3>
-          <p className="mt-0.5 font-mono text-[0.62rem] uppercase tracking-[0.14em] text-ink-faint">
+          <p className="mt-0.5 font-mono text-[0.62rem] uppercase tracking-[0.14em] text-ink-soft">
             #{automation.id} · {automation.category}
           </p>
         </div>
@@ -330,7 +330,7 @@ function ManualTestRail() {
           <h2 className="font-display text-sm font-semibold text-ink-strong">
             Teste manual seguro
           </h2>
-          <p className="text-[0.68rem] text-ink-faint">Simulação — sem job, sem envio.</p>
+          <p className="text-[0.68rem] text-ink-soft">Simulação — sem job, sem envio.</p>
         </div>
       </header>
       <div className="mt-4 grid gap-3">
@@ -354,6 +354,7 @@ function ManualTestRail() {
             inputMode="tel"
             monospace
             value={phone}
+            aria-label="Telefone de teste da automação"
             invalid={showPhoneError}
             onChange={(event) => setPhone(event.target.value)}
             className="h-9 text-xs"

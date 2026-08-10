@@ -2,6 +2,11 @@ import type { FastifyBaseLogger } from "fastify";
 
 import type { Repositories } from "@nuoma/db";
 
+import {
+  dispatchAutomationDomainEvent,
+  isAutomationDomainEventType,
+} from "./automation-event-dispatcher.js";
+import { triggerChatbotsForInboundMessage } from "./chatbot-trigger.js";
 import { triggerAutomationForPhone } from "./automation-trigger.js";
 import { normalizePhone } from "./send-policy.js";
 
@@ -13,9 +18,12 @@ export interface AutomationEngineDaemon {
 
 export interface AutomationEngineTickResult {
   scannedMessages: number;
+  scannedEvents: number;
   automationsEvaluated: number;
+  chatbotsEvaluated: number;
   triggered: number;
   jobsCreated: number;
+  chatbotRepliesCreated: number;
   actionsApplied: number;
   skipped: Array<{ messageId: number; automationId?: number; reason: string }>;
 }
@@ -33,9 +41,16 @@ export function createAutomationEngineDaemon(input: {
   let timer: NodeJS.Timeout | null = null;
   let running = false;
   let cursor = 0;
+  let eventCursor = 0;
 
   async function seedCursor() {
     cursor = await input.repos.messages.latestId(input.userId);
+    const latestEvent = await input.repos.systemEvents.list({
+      userId: input.userId,
+      order: "desc",
+      limit: 1,
+    });
+    eventCursor = latestEvent[0]?.id ?? 0;
   }
 
   async function tick(): Promise<AutomationEngineTickResult> {
@@ -49,15 +64,26 @@ export function createAutomationEngineDaemon(input: {
         afterId: cursor,
         limit: 100,
       });
+      const domainEvents = (
+        await input.repos.systemEvents.list({
+          userId: input.userId,
+          afterId: eventCursor,
+          order: "asc",
+          limit: 100,
+        })
+      ).filter((event) => isAutomationDomainEventType(event.type));
       const automations = (await input.repos.automations.list(input.userId)).filter(
         (automation) =>
           automation.status === "active" && automation.trigger.type === "message_received",
       );
       const result: AutomationEngineTickResult = {
         scannedMessages: messages.length,
+        scannedEvents: domainEvents.length,
         automationsEvaluated: 0,
+        chatbotsEvaluated: 0,
         triggered: 0,
         jobsCreated: 0,
+        chatbotRepliesCreated: 0,
         actionsApplied: 0,
         skipped: [],
       };
@@ -125,9 +151,56 @@ export function createAutomationEngineDaemon(input: {
           result.jobsCreated += triggered.jobsCreated;
           result.actionsApplied += triggered.actionsApplied;
         }
+
+        const chatbot = await triggerChatbotsForInboundMessage({
+          repos: input.repos,
+          userId: input.userId,
+          message,
+          conversation,
+          contact,
+          phone,
+          instagramHandle,
+        });
+        result.chatbotsEvaluated += chatbot.chatbotsEvaluated;
+        result.jobsCreated += chatbot.jobsCreated;
+        result.chatbotRepliesCreated += chatbot.jobsCreated;
+        if (chatbot.reasons.length > 0 && chatbot.reasons[0] !== "no_chatbot") {
+          result.skipped.push({
+            messageId: message.id,
+            reason: `chatbot:${chatbot.reasons.join(",")}`,
+          });
+        }
       }
 
-      if (messages.length > 0 || result.triggered > 0 || result.skipped.length > 0) {
+      for (const event of domainEvents) {
+        eventCursor = Math.max(eventCursor, event.id);
+        const dispatched = await dispatchAutomationDomainEvent({
+          repos: input.repos,
+          userId: input.userId,
+          event,
+          allowedPhone: input.allowedPhone,
+          allowedPhones: input.allowedPhones,
+          sendPolicyMode: input.sendPolicyMode,
+        });
+        result.automationsEvaluated += dispatched.automationsEvaluated;
+        result.triggered += dispatched.triggered;
+        result.jobsCreated += dispatched.jobsCreated;
+        result.actionsApplied += dispatched.actionsApplied;
+        for (const skipped of dispatched.skipped) {
+          result.skipped.push({
+            messageId: 0,
+            automationId: skipped.automationId,
+            reason: `event:${event.id}:${skipped.reason}`,
+          });
+        }
+      }
+
+      if (
+        messages.length > 0 ||
+        domainEvents.length > 0 ||
+        result.triggered > 0 ||
+        result.skipped.length > 0
+      ) {
         await input.repos.systemEvents.create({
           userId: input.userId,
           type: "automation.engine.tick",
@@ -203,9 +276,12 @@ function deriveWhatsappPhoneIdentity(input: {
 function emptyResult(): AutomationEngineTickResult {
   return {
     scannedMessages: 0,
+    scannedEvents: 0,
     automationsEvaluated: 0,
+    chatbotsEvaluated: 0,
     triggered: 0,
     jobsCreated: 0,
+    chatbotRepliesCreated: 0,
     actionsApplied: 0,
     skipped: [],
   };

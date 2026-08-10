@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchLink } from "@trpc/client";
+import { httpBatchLink, httpLink, splitLink } from "@trpc/client";
 import { useMemo, type ReactNode } from "react";
 import superjson from "superjson";
 
@@ -26,21 +26,19 @@ export function TrpcProvider({ children }: { children: ReactNode }) {
     () =>
       trpc.createClient({
         links: [
-          httpBatchLink({
-            url: `${API_URL}/trpc`,
-            transformer: superjson,
-            // Keep comma-joined tRPC paths small enough for the Fastify route matcher.
-            maxItems: 4,
-            fetch(input, init) {
-              const headers = new Headers(init?.headers);
-              const csrf = csrfFromCookie();
-              if (csrf) headers.set("x-csrf-token", csrf);
-              return fetch(input, {
-                ...init,
-                credentials: "include",
-                headers,
-              });
+          splitLink({
+            condition(operation) {
+              return (
+                operation.path === "chatbots.listRules" ||
+                operation.path === "chatbots.summarizeVariantEvents"
+              );
             },
+            true: httpLink({ ...trpcHttpOptions() }),
+            false: httpBatchLink({
+              ...trpcHttpOptions(),
+              // Keep comma-joined tRPC paths small enough for the Fastify route matcher.
+              maxItems: 4,
+            }),
           }),
         ],
       }),
@@ -52,4 +50,21 @@ export function TrpcProvider({ children }: { children: ReactNode }) {
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     </trpc.Provider>
   );
+}
+
+function trpcHttpOptions() {
+  return {
+    url: `${API_URL}/trpc`,
+    transformer: superjson,
+    fetch(input: RequestInfo | URL, init?: RequestInit) {
+      const headers = new Headers(init?.headers);
+      const csrf = csrfFromCookie();
+      if (csrf) headers.set("x-csrf-token", csrf);
+      return fetch(input, {
+        ...init,
+        credentials: "include",
+        headers,
+      });
+    },
+  };
 }

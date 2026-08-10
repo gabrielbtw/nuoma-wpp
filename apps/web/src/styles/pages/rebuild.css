@@ -1,0 +1,1129 @@
+/*
+ * Nuoma Signal Room — reconstrução visual transversal.
+ *
+ * A UI passa a funcionar como uma sala de operação: chrome quieto, painéis
+ * densos e legíveis, cobre reservado para intenção e cores de canal/status
+ * apenas onde elas carregam significado. Este arquivo fica por último de
+ * propósito: ele unifica as superfícies ainda servidas pelo layer compat sem
+ * alterar contratos, test ids ou comportamento de cada rota.
+ */
+
+:root {
+  --nw-radius-control: 0.75rem;
+  --nw-radius-panel: 1.125rem;
+  --nw-radius-shell: 1.375rem;
+  --nw-panel-border: rgb(var(--nw-line-hairline));
+  --nw-panel-fill: rgb(var(--nw-surface-1));
+  --nw-panel-raised: rgb(var(--nw-surface-2));
+}
+
+html {
+  min-height: 100%;
+  background: rgb(var(--nw-surface-deep));
+  text-rendering: optimizeLegibility;
+}
+
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  background: rgb(var(--nw-surface-deep));
+  color: rgb(var(--nw-ink-strong));
+  font-family:
+    "Inter Variable",
+    "Inter",
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgb(var(--nw-accent) / 0.32);
+  color: rgb(var(--nw-ink-strong));
+}
+
+*:focus-visible {
+  outline: 2px solid rgb(var(--nw-accent));
+  outline-offset: 3px;
+}
+
+* {
+  scrollbar-color: rgb(var(--nw-line-strong)) transparent;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgb(var(--nw-line-strong));
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--nw-ink-faint));
+  background-clip: padding-box;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Application shell                                                          */
+/* -------------------------------------------------------------------------- */
+
+.nw-shell-app {
+  isolation: isolate;
+  background:
+    radial-gradient(58rem 42rem at 82% -18%, rgb(var(--nw-status-info) / 0.075), transparent 62%),
+    radial-gradient(44rem 34rem at 28% 110%, rgb(var(--nw-accent) / 0.05), transparent 68%),
+    rgb(var(--nw-surface-deep));
+}
+
+.nw-shell-app::before {
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  background-image:
+    linear-gradient(rgb(var(--nw-ink-strong) / 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--nw-ink-strong) / 0.018) 1px, transparent 1px);
+  background-position: -1px -1px;
+  background-size: 4.5rem 4.5rem;
+  content: "";
+  mask-image: linear-gradient(to bottom, black, transparent 72%);
+  pointer-events: none;
+}
+
+.nw-shell-frame {
+  gap: 0.9rem;
+  padding: 0.9rem 0.9rem 0.9rem 0;
+  background: transparent;
+}
+
+.nw-shell-sidebar {
+  z-index: 2;
+}
+
+.nw-shell-sidebar-panel {
+  border: 1px solid var(--nw-panel-border);
+  border-left: 0;
+  border-radius: 0 var(--nw-radius-shell) var(--nw-radius-shell) 0;
+  background:
+    linear-gradient(155deg, rgb(var(--nw-surface-3) / 0.54), transparent 26rem),
+    rgb(var(--nw-surface-0));
+  box-shadow:
+    0 24px 56px -32px rgb(0 0 0 / 0.82),
+    inset -1px 0 rgb(255 255 255 / 0.025);
+}
+
+.nw-shell-brand {
+  border: 1px solid transparent;
+  border-radius: var(--nw-radius-control);
+}
+
+.nw-shell-brand:hover {
+  border-color: rgb(var(--nw-line-hairline));
+  background: rgb(var(--nw-ink-strong) / 0.04);
+}
+
+.nw-shell-brand span > span:last-child {
+  color: rgb(var(--nw-ink-faint));
+  letter-spacing: 0.14em;
+}
+
+.nw-shell-nav-item {
+  min-height: 2.75rem;
+  border-radius: 0.72rem;
+  border-color: transparent;
+}
+
+.nw-shell-nav-item:hover {
+  border-color: rgb(var(--nw-line-hairline));
+  background: rgb(var(--nw-ink-strong) / 0.045);
+}
+
+.nw-shell-nav-item .text-accent {
+  color: rgb(var(--nw-accent));
+}
+
+.nw-shell-workspace {
+  border-color: rgb(var(--nw-line-hairline));
+  border-radius: var(--nw-radius-panel);
+  background: rgb(var(--nw-surface-1) / 0.72);
+  box-shadow: var(--nw-shadow-inset);
+}
+
+.nw-shell-topbar {
+  min-height: 4rem;
+  margin: 0 0.3rem 0.2rem 0;
+  border: 1px solid rgb(var(--nw-line-hairline));
+  border-radius: var(--nw-radius-panel);
+  background: rgb(var(--nw-surface-0) / 0.82);
+  box-shadow:
+    0 18px 42px -30px rgb(0 0 0 / 0.78),
+    inset 0 1px rgb(255 255 255 / 0.02);
+  padding-inline: 0.85rem;
+}
+
+.nw-shell-topbar > button,
+.nw-shell-topbar > div > button {
+  border-radius: 0.72rem;
+}
+
+.nw-shell-main {
+  min-width: 0;
+  padding: 1rem clamp(1rem, 1.7vw, 2.25rem) clamp(1.5rem, 2.4vw, 2.75rem);
+  background: transparent;
+}
+
+.nw-shell-route-frame {
+  width: 100%;
+  min-height: 100%;
+}
+
+.nw-shell-frame-flow {
+  padding: 0;
+}
+
+.nw-shell-frame-flow .nw-shell-sidebar-panel {
+  border-radius: 0 var(--nw-radius-shell) var(--nw-radius-shell) 0;
+}
+
+.nw-shell-frame-flow .nw-shell-main {
+  margin: 0;
+  padding: 0;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Foundation for legacy-compatible surfaces                                  */
+/* -------------------------------------------------------------------------- */
+
+.nuoma-compat-surface,
+.nuoma-glass-panel,
+.nuoma-glass-elevated {
+  border: 1px solid var(--nw-panel-border);
+  border-radius: var(--nw-radius-panel);
+  background: rgb(var(--nw-surface-1));
+  box-shadow: var(--nw-shadow-raised);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.nuoma-compat-readable {
+  border-color: rgb(var(--nw-line-hairline));
+  border-radius: var(--nw-radius-control);
+  background: rgb(var(--nw-surface-deep));
+  box-shadow: var(--nw-shadow-inset);
+}
+
+.nuoma-compat-kicker {
+  color: rgb(var(--nw-accent));
+  font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+}
+
+.nuoma-compat-display {
+  color: rgb(var(--nw-ink-strong));
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+}
+
+.nuoma-gradient-text {
+  background: linear-gradient(115deg, rgb(var(--nw-ink-strong)), rgb(var(--nw-accent-hover)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.nw-shell-route-frame .nuoma-workspace-header,
+.nw-shell-route-frame > div:not(.nwfb-shell) > header:first-child:not(.nw-dashboard-hero) {
+  position: relative;
+  min-height: auto;
+  border: 0;
+  border-bottom: 1px solid rgb(var(--nw-line-hairline));
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0 0 1.15rem;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.nw-shell-route-frame .nuoma-workspace-header::after,
+.nw-shell-route-frame > div:not(.nwfb-shell) > header:first-child::after {
+  display: none;
+}
+
+.nuoma-workspace-header .nuoma-compat-display {
+  font-size: clamp(2rem, 2.7vw, 3rem) !important;
+}
+
+.nuoma-workspace-header p:not(.nuoma-compat-kicker) {
+  color: rgb(var(--nw-ink-soft));
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+[data-testid="campaign-card"],
+[data-testid="automation-card"] {
+  border-radius: var(--nw-radius-panel) !important;
+  background:
+    linear-gradient(145deg, rgb(var(--nw-surface-3) / 0.45), transparent 42%),
+    rgb(var(--nw-surface-1)) !important;
+  box-shadow: var(--nw-shadow-raised);
+}
+
+[data-testid="campaign-card"]:hover,
+[data-testid="automation-card"]:hover {
+  border-color: rgb(var(--nw-line-strong)) !important;
+  box-shadow: var(--nw-shadow-lifted) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Login                                                                      */
+/* -------------------------------------------------------------------------- */
+
+.nw-login-page {
+  background:
+    radial-gradient(44rem 40rem at 18% 20%, rgb(var(--nw-accent) / 0.12), transparent 62%),
+    radial-gradient(48rem 36rem at 100% 100%, rgb(var(--nw-status-info) / 0.09), transparent 62%),
+    rgb(var(--nw-surface-deep));
+}
+
+.nw-login-page::before {
+  position: absolute;
+  inset: 1rem;
+  border: 1px solid rgb(var(--nw-line-hairline) / 0.72);
+  border-radius: 1.75rem;
+  content: "";
+  opacity: 0.82;
+  pointer-events: none;
+}
+
+.nw-login-grid {
+  gap: clamp(1rem, 2vw, 2rem);
+  padding: clamp(1rem, 2vw, 2rem);
+}
+
+.nw-login-aside {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgb(var(--nw-line-hairline));
+  border-radius: 1.4rem;
+  background:
+    linear-gradient(145deg, rgb(var(--nw-surface-3) / 0.8), transparent 46%),
+    rgb(var(--nw-surface-0));
+  box-shadow: var(--nw-shadow-lifted);
+}
+
+.nw-login-aside::after {
+  position: absolute;
+  right: -6rem;
+  bottom: -8rem;
+  width: 25rem;
+  height: 25rem;
+  border: 1px solid rgb(var(--nw-accent) / 0.18);
+  border-radius: 999px;
+  box-shadow:
+    0 0 0 2.8rem rgb(var(--nw-accent) / 0.035),
+    0 0 0 5.7rem rgb(var(--nw-accent) / 0.022);
+  content: "";
+  pointer-events: none;
+}
+
+.nw-login-eyebrow {
+  width: fit-content;
+  border-color: rgb(var(--nw-line-soft));
+  border-radius: 999px;
+  background: rgb(var(--nw-surface-deep) / 0.65);
+  color: rgb(var(--nw-ink-base));
+}
+
+.nw-login-aside h1 {
+  max-width: 14ch;
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-weight: 600;
+  letter-spacing: -0.045em;
+}
+
+.nw-login-aside > div:last-child {
+  position: relative;
+  z-index: 1;
+}
+
+.nw-login-signal {
+  border-color: rgb(var(--nw-line-hairline));
+  border-radius: var(--nw-radius-panel);
+  background: rgb(var(--nw-surface-deep) / 0.56);
+  box-shadow: var(--nw-shadow-inset);
+}
+
+.nw-login-panel-wrap {
+  position: relative;
+  background: transparent;
+}
+
+.nw-login-card {
+  max-width: 27rem;
+  border-color: rgb(var(--nw-line-soft));
+  border-radius: 1.35rem;
+  background:
+    linear-gradient(145deg, rgb(var(--nw-surface-3) / 0.34), transparent 52%),
+    rgb(var(--nw-surface-1));
+  box-shadow: var(--nw-shadow-lifted);
+}
+
+.nw-login-card h2 {
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  letter-spacing: -0.03em;
+}
+
+@media (min-width: 900px) {
+  .nw-login-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(25rem, 31rem);
+  }
+
+  .nw-login-aside {
+    display: flex !important;
+    min-height: 0;
+  }
+
+  .nw-login-panel-wrap {
+    min-height: 0;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Dashboard                                                                  */
+/* -------------------------------------------------------------------------- */
+
+.nw-dashboard-page {
+  gap: 1.15rem;
+}
+
+.nw-dashboard-hero {
+  position: relative;
+  overflow: hidden;
+  min-height: 12.5rem;
+  border-color: rgb(var(--nw-line-hairline));
+  border-radius: var(--nw-radius-shell);
+  background:
+    radial-gradient(36rem 22rem at 3% 0%, rgb(var(--nw-accent) / 0.14), transparent 62%),
+    linear-gradient(110deg, rgb(var(--nw-surface-2)), rgb(var(--nw-surface-1)));
+  box-shadow: var(--nw-shadow-lifted);
+  padding: clamp(1.4rem, 3vw, 2.4rem);
+}
+
+.nw-dashboard-hero::after {
+  position: absolute;
+  top: -13rem;
+  right: -9rem;
+  width: 34rem;
+  height: 34rem;
+  border: 1px solid rgb(var(--nw-ink-strong) / 0.08);
+  border-radius: 999px;
+  box-shadow:
+    0 0 0 3.25rem rgb(var(--nw-ink-strong) / 0.018),
+    0 0 0 6.5rem rgb(var(--nw-ink-strong) / 0.012);
+  content: "";
+  pointer-events: none;
+}
+
+.nw-dashboard-hero > div:first-child {
+  position: relative;
+  z-index: 1;
+}
+
+.nw-dashboard-hero h1 {
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-weight: 600;
+  letter-spacing: -0.045em;
+}
+
+.nw-dashboard-health {
+  z-index: 1;
+  border-color: rgb(var(--nw-line-soft));
+  border-radius: var(--nw-radius-panel);
+  background: rgb(var(--nw-surface-deep) / 0.52);
+  box-shadow: var(--nw-shadow-raised);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.nw-dashboard-metrics {
+  gap: 0.85rem;
+}
+
+.nw-dashboard-tile,
+.nw-dashboard-panel {
+  border-color: rgb(var(--nw-line-hairline));
+  border-radius: var(--nw-radius-panel);
+  background: rgb(var(--nw-surface-1));
+  box-shadow: var(--nw-shadow-raised);
+}
+
+.nw-dashboard-tile {
+  position: relative;
+  min-height: 11.5rem;
+  overflow: hidden;
+  padding: 1.15rem;
+}
+
+.nw-dashboard-tile::after {
+  position: absolute;
+  right: 1.1rem;
+  bottom: 1.05rem;
+  width: 2.1rem;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  content: "";
+  opacity: 0.46;
+}
+
+.nw-dashboard-tile-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.75rem;
+}
+
+.nw-dashboard-panel {
+  padding: 1.15rem;
+}
+
+.nw-dashboard-queue-row,
+.nw-dashboard-channel-row,
+.nw-dashboard-action {
+  border-color: rgb(var(--nw-line-hairline));
+  border-radius: var(--nw-radius-control);
+  background: rgb(var(--nw-surface-deep) / 0.64);
+  box-shadow: var(--nw-shadow-inset);
+}
+
+.nw-dashboard-queue-row {
+  min-height: 5rem;
+}
+
+.nw-dashboard-queue-row::before {
+  width: 0.3rem;
+  height: 2.5rem;
+}
+
+.nw-dashboard-channel-row {
+  min-height: 4.85rem;
+}
+
+.nw-dashboard-channel-mark {
+  border: 1px solid rgb(var(--nw-line-hairline));
+  border-radius: 0.75rem;
+  background: rgb(var(--nw-surface-2));
+}
+
+.nw-dashboard-action {
+  min-height: 4.5rem;
+}
+
+.nw-dashboard-action:hover,
+.nw-dashboard-action:focus-visible {
+  border-color: rgb(var(--nw-accent));
+  background: rgb(var(--nw-surface-2));
+  box-shadow: var(--nw-shadow-raised);
+}
+
+.nw-dashboard-action-icon {
+  border: 1px solid rgb(var(--nw-line-hairline));
+  border-radius: 0.72rem;
+  background: rgb(var(--nw-surface-2));
+}
+
+/* -------------------------------------------------------------------------- */
+/* Inbox and contact record                                                   */
+/* -------------------------------------------------------------------------- */
+
+[data-testid="inbox-realtime-header"] {
+  min-height: 4.2rem;
+  border-color: rgb(var(--nw-line-hairline));
+  border-radius: var(--nw-radius-panel);
+  background:
+    linear-gradient(115deg, rgb(var(--nw-surface-3) / 0.55), transparent 42%),
+    rgb(var(--nw-surface-1));
+  box-shadow: var(--nw-shadow-raised);
+}
+
+[data-testid="inbox-grid"] {
+  gap: 0.85rem;
+}
+
+[data-testid="inbox-conversation-list"],
+[data-testid="inbox-message-timeline"],
+[data-testid="inbox-contact-sidebar"],
+[data-testid="inbox-composer"] {
+  border-color: rgb(var(--nw-line-hairline));
+  border-radius: var(--nw-radius-panel);
+  background: rgb(var(--nw-surface-1));
+  box-shadow: var(--nw-shadow-raised);
+}
+
+[data-testid="inbox-conversation-list"] > div:first-child {
+  border-color: rgb(var(--nw-line-hairline));
+  background: linear-gradient(180deg, rgb(var(--nw-surface-2) / 0.72), transparent);
+}
+
+[data-testid="inbox-conversation-row"] {
+  border: 1px solid transparent;
+  border-radius: 0.85rem;
+}
+
+[data-testid="inbox-conversation-row"][data-active="true"] {
+  border-color: rgb(var(--nw-accent) / 0.55);
+  background: rgb(var(--nw-accent) / 0.1) !important;
+  box-shadow:
+    inset 3px 0 rgb(var(--nw-accent)),
+    var(--nw-shadow-flat) !important;
+}
+
+[data-testid="inbox-conversation-row"]:hover {
+  border-color: rgb(var(--nw-line-soft));
+  background: rgb(var(--nw-surface-2));
+}
+
+[data-testid="inbox-message-bubble"] {
+  border-radius: 1.05rem !important;
+  box-shadow: var(--nw-shadow-flat);
+}
+
+[data-testid="inbox-grid"] .text-fg-dim,
+[data-testid="inbox-grid"] .text-fg-muted {
+  color: rgb(var(--nw-ink-soft)) !important;
+}
+
+[data-testid="inbox-grid"] [class*="bg-bg-base"],
+[data-testid="inbox-grid"] [class*="bg-bg-surface"] {
+  border-color: rgb(var(--nw-line-hairline));
+}
+
+.nuoma-ops-split {
+  border-color: rgb(var(--nw-line-hairline));
+  border-radius: var(--nw-radius-shell);
+  background: rgb(var(--nw-surface-1));
+  box-shadow: var(--nw-shadow-lifted);
+}
+
+.nuoma-ops-panel {
+  border-color: rgb(var(--nw-line-hairline));
+  background: rgb(var(--nw-surface-1));
+}
+
+.nuoma-ops-panel:first-child {
+  background: linear-gradient(180deg, rgb(var(--nw-surface-2) / 0.55), rgb(var(--nw-surface-1)));
+}
+
+.nuoma-contact-detail-panel {
+  background:
+    radial-gradient(38rem 24rem at 50% 0%, rgb(var(--nw-status-info) / 0.055), transparent 66%),
+    rgb(var(--nw-surface-1));
+}
+
+.nuoma-ops-panel h2,
+.nuoma-ops-panel-head h2 {
+  color: rgb(var(--nw-ink-strong));
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-size: 1.08rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.nuoma-ops-panel p,
+.nuoma-ops-panel-head p {
+  color: rgb(var(--nw-ink-soft));
+}
+
+.nuoma-ops-search {
+  border: 1px solid rgb(var(--nw-line-hairline));
+  border-radius: var(--nw-radius-control);
+  background: rgb(var(--nw-surface-deep));
+  box-shadow: var(--nw-shadow-inset);
+}
+
+.nuoma-contact-list {
+  gap: 0.25rem;
+}
+
+.nuoma-contact-list li {
+  border-radius: 0.85rem;
+}
+
+.nuoma-contact-list li:hover {
+  background: rgb(var(--nw-surface-2));
+}
+
+.nuoma-contact-list li.is-active {
+  border-color: rgb(var(--nw-accent) / 0.5);
+  background: rgb(var(--nw-accent) / 0.08);
+  box-shadow: inset 3px 0 rgb(var(--nw-accent));
+}
+
+.nuoma-contact-avatar {
+  border-color: rgb(var(--nw-line-soft));
+  background: rgb(var(--nw-surface-3));
+  color: rgb(var(--nw-ink-strong));
+}
+
+.nuoma-contact-list strong,
+.nuoma-contact-titlebar h2,
+.nuoma-contact-metrics strong {
+  color: rgb(var(--nw-ink-strong));
+}
+
+.nuoma-contact-list em,
+.nuoma-contact-metrics span {
+  color: rgb(var(--nw-ink-soft));
+}
+
+.nuoma-contact-titlebar {
+  border-color: rgb(var(--nw-line-hairline));
+}
+
+.nuoma-contact-titlebar h2 {
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+
+.nuoma-contact-metrics > div {
+  border-color: rgb(var(--nw-line-hairline));
+  border-radius: var(--nw-radius-control);
+  background: rgb(var(--nw-surface-deep) / 0.68);
+  box-shadow: var(--nw-shadow-inset);
+}
+
+.nuoma-contact-thread {
+  border-color: rgb(var(--nw-line-hairline));
+  background:
+    linear-gradient(rgb(var(--nw-line-hairline) / 0.22) 1px, transparent 1px),
+    rgb(var(--nw-surface-deep) / 0.52);
+  background-size: 100% 2rem;
+}
+
+.nuoma-contact-message {
+  border-color: rgb(var(--nw-line-hairline));
+  border-radius: 1rem 1rem 1rem 0.35rem;
+  background: rgb(var(--nw-surface-2));
+  box-shadow: var(--nw-shadow-raised);
+}
+
+.nuoma-contact-message.is-outbound {
+  border-color: rgb(var(--nw-accent) / 0.58);
+  border-radius: 1rem 1rem 0.35rem;
+  background: linear-gradient(135deg, rgb(var(--nw-accent) / 0.18), rgb(var(--nw-surface-2)) 66%);
+}
+
+.nuoma-contact-message span {
+  color: rgb(var(--nw-ink-soft));
+}
+
+.nuoma-contact-message p {
+  color: rgb(var(--nw-ink-strong));
+}
+
+.nuoma-contact-composer button,
+.nuoma-contact-action-grid button {
+  border-color: rgb(var(--nw-line-hairline));
+  border-radius: var(--nw-radius-control);
+  background: rgb(var(--nw-surface-deep));
+  color: rgb(var(--nw-ink-base));
+}
+
+.nuoma-contact-composer button:hover,
+.nuoma-contact-action-grid button:not(:disabled):hover {
+  border-color: rgb(var(--nw-accent));
+  background: rgb(var(--nw-surface-2));
+  color: rgb(var(--nw-ink-strong));
+}
+
+.nuoma-contact-side-panel section {
+  border-color: rgb(var(--nw-line-hairline));
+}
+
+.nuoma-contact-health {
+  border: 1px solid rgb(var(--nw-status-ok) / 0.25);
+  border-radius: var(--nw-radius-control);
+  background: rgb(var(--nw-status-ok) / 0.1);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Jobs and settings                                                          */
+/* -------------------------------------------------------------------------- */
+
+.nuoma-jobs-stat,
+.nuoma-jobs-main,
+.nuoma-jobs-side,
+.nuoma-settings-main,
+.nuoma-settings-side {
+  border-color: rgb(var(--nw-line-hairline));
+  border-radius: var(--nw-radius-panel);
+  background: rgb(var(--nw-surface-1));
+  box-shadow: var(--nw-shadow-raised);
+}
+
+.nuoma-jobs-stat {
+  padding: 1.15rem;
+}
+
+.nuoma-jobs-stat em,
+.nuoma-jobs-stat small,
+.nuoma-jobs-timeline span,
+.nuoma-settings-side p,
+.nuoma-settings-side dt {
+  color: rgb(var(--nw-ink-soft));
+}
+
+.nuoma-jobs-stat strong,
+.nuoma-jobs-side h2,
+.nuoma-settings-side h2 {
+  color: rgb(var(--nw-ink-strong));
+}
+
+.nuoma-jobs-row {
+  border-color: rgb(var(--nw-line-hairline));
+  color: rgb(var(--nw-ink-base));
+}
+
+.nuoma-jobs-row:hover:not(.is-head) {
+  background: rgb(var(--nw-surface-2));
+}
+
+.nuoma-jobs-row.is-head {
+  color: rgb(var(--nw-ink-soft));
+  letter-spacing: 0.1em;
+}
+
+.nuoma-jobs-gates span,
+.nuoma-jobs-side button,
+.nuoma-settings-gates span {
+  border-color: rgb(var(--nw-line-hairline));
+  border-radius: var(--nw-radius-control);
+  background: rgb(var(--nw-surface-deep));
+  color: rgb(var(--nw-ink-base));
+}
+
+.nuoma-jobs-side section,
+.nuoma-settings-side section {
+  border-color: rgb(var(--nw-line-hairline));
+}
+
+.nuoma-settings-main [role="tablist"] {
+  width: 100%;
+  overflow-x: auto;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Automation, chatbot, evidence and implementation workspaces               */
+/* -------------------------------------------------------------------------- */
+
+.nuoma-automation-v2,
+.nuoma-chatbots-v2,
+.nuoma-evidence-v2,
+.nuoma-implementation-v2 {
+  gap: 1rem;
+}
+
+.nuoma-automation-rail,
+.nuoma-automation-inspector,
+.nuoma-evidence-rail,
+.nuoma-evidence-side,
+.nuoma-implementation-rail,
+.nuoma-implementation-board,
+.nuoma-implementation-markdown,
+.nuoma-evidence-card,
+.nuoma-chatbots-card {
+  border-color: rgb(var(--nw-line-hairline)) !important;
+  border-radius: var(--nw-radius-panel) !important;
+  background: rgb(var(--nw-surface-1)) !important;
+  box-shadow: var(--nw-shadow-raised) !important;
+}
+
+.nuoma-automation-rail > section,
+.nuoma-automation-inspector > section,
+.nuoma-evidence-rail > section,
+.nuoma-evidence-side > section,
+.nuoma-implementation-rail > section,
+.nuoma-implementation-markdown > section {
+  border-color: rgb(var(--nw-line-hairline));
+}
+
+.nuoma-automation-rail > section {
+  border-color: rgb(var(--nw-line-hairline));
+}
+
+.nuoma-automation-metrics div,
+.nuoma-implementation-tile,
+.nuoma-evidence-tile,
+.nuoma-evidence-root,
+.nuoma-evidence-latest,
+.nuoma-implementation-source-path,
+.nuoma-implementation-column,
+.nuoma-implementation-column li,
+.nuoma-implementation-pre {
+  border-color: rgb(var(--nw-line-hairline));
+  border-radius: var(--nw-radius-control);
+  background: rgb(var(--nw-surface-deep) / 0.62);
+}
+
+.nuoma-automation-primary {
+  border-color: rgb(var(--nw-accent)) !important;
+  background: rgb(var(--nw-accent)) !important;
+  color: rgb(var(--nw-accent-on)) !important;
+}
+
+.nuoma-automation-list li,
+.nuoma-evidence-queue li {
+  border-color: rgb(var(--nw-line-hairline));
+  background: rgb(var(--nw-surface-deep) / 0.62);
+}
+
+.nuoma-automation-list li:hover {
+  background: rgb(var(--nw-surface-2));
+}
+
+.nuoma-evidence-filters button {
+  border-color: rgb(var(--nw-line-hairline));
+  border-radius: var(--nw-radius-control);
+  background: rgb(var(--nw-surface-deep));
+  color: rgb(var(--nw-ink-base));
+}
+
+.nuoma-evidence-filters button:hover,
+.nuoma-evidence-filters button.is-active {
+  border-color: rgb(var(--nw-accent) / 0.62);
+  background: rgb(var(--nw-accent) / 0.1);
+  color: rgb(var(--nw-accent-hover));
+}
+
+.nuoma-implementation-column[data-status="done"] {
+  border-top-color: rgb(var(--nw-status-ok));
+}
+
+.nuoma-implementation-column[data-status="partial"] {
+  border-top-color: rgb(var(--nw-accent));
+}
+
+.nuoma-chatbots-card [data-testid="chatbot-card"],
+.nuoma-chatbots-card [data-testid="chatbot-rule-item"],
+.nuoma-chatbots-card [data-testid="chatbot-ab-variant-stats"] {
+  border-color: rgb(var(--nw-line-hairline)) !important;
+  border-radius: var(--nw-radius-control) !important;
+  background: rgb(var(--nw-surface-deep) / 0.62) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Flow builder                                                               */
+/* -------------------------------------------------------------------------- */
+
+.nwfb-shell {
+  background:
+    radial-gradient(42rem 30rem at 50% -20%, rgb(var(--nw-status-info) / 0.07), transparent 66%),
+    rgb(var(--nw-surface-deep));
+}
+
+.nwfb-shell > header {
+  min-height: 4.1rem;
+  border-color: rgb(var(--nw-line-hairline));
+  background: rgb(var(--nw-surface-0));
+  box-shadow: 0 10px 28px -22px rgb(0 0 0 / 0.85);
+}
+
+.nwfb-body {
+  gap: 0.75rem;
+  padding: 0.75rem;
+  grid-template-columns: 17.25rem minmax(0, 1fr) 23rem;
+}
+
+.nwfb-library,
+.nwfb-inspector,
+.nwfb-stage {
+  border: 1px solid rgb(var(--nw-line-hairline));
+  border-radius: var(--nw-radius-panel);
+  background: rgb(var(--nw-surface-1));
+  box-shadow: var(--nw-shadow-raised);
+}
+
+.nwfb-stage {
+  overflow: hidden;
+  background:
+    radial-gradient(30rem 24rem at 50% 0%, rgb(var(--nw-accent) / 0.055), transparent 68%),
+    rgb(var(--nw-surface-0));
+}
+
+.nwfb-canvas {
+  background: transparent;
+}
+
+.nwfb-canvas .react-flow__controls,
+.nwfb-canvas .react-flow__minimap {
+  border-color: rgb(var(--nw-line-soft));
+  border-radius: var(--nw-radius-control);
+  background: rgb(var(--nw-surface-1) / 0.94);
+  box-shadow: var(--nw-shadow-raised);
+}
+
+.nwfb-canvas .react-flow__controls-button {
+  border-color: rgb(var(--nw-line-hairline));
+  background: transparent;
+}
+
+.nwfb-canvas .react-flow__controls-button:hover {
+  background: rgb(var(--nw-surface-3));
+}
+
+.nwfb-node {
+  border-radius: 1rem !important;
+  background:
+    linear-gradient(145deg, rgb(var(--nw-surface-3) / 0.48), transparent 50%),
+    rgb(var(--nw-surface-2)) !important;
+  box-shadow: var(--nw-shadow-raised) !important;
+}
+
+.nwfb-node-end {
+  background: rgb(var(--nw-surface-2));
+  box-shadow: var(--nw-shadow-raised);
+}
+
+.nwfb-edge-add {
+  border-color: rgb(var(--nw-line-soft));
+  border-radius: 0.72rem;
+  background: rgb(var(--nw-surface-2));
+}
+
+/* -------------------------------------------------------------------------- */
+/* Responsive composition                                                     */
+/* -------------------------------------------------------------------------- */
+
+@media (max-width: 1279px) {
+  .nw-shell-frame {
+    gap: 0.65rem;
+    padding: 0.65rem 0.65rem 0.65rem 0;
+  }
+
+  .nwfb-body {
+    grid-template-columns: 15.5rem minmax(0, 1fr) 20.5rem;
+  }
+}
+
+@media (max-width: 1023px) {
+  .nw-shell-frame {
+    padding: 0;
+  }
+
+  .nw-shell-topbar {
+    margin: 0;
+    border-top: 0;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+  }
+
+  .nw-shell-main {
+    padding: 1rem;
+  }
+
+  .nuoma-ops-split,
+  .nuoma-jobs-layout,
+  .nuoma-settings-v2,
+  .nuoma-automation-v2,
+  .nuoma-chatbots-v2,
+  .nuoma-evidence-v2,
+  .nuoma-implementation-v2 {
+    grid-template-columns: 1fr;
+  }
+
+  .nuoma-ops-panel {
+    border-right: 0;
+    border-bottom: 1px solid rgb(var(--nw-line-hairline));
+  }
+
+  .nuoma-ops-panel:last-child {
+    border-bottom: 0;
+  }
+
+  .nuoma-settings-side,
+  .nuoma-automation-inspector {
+    position: static;
+    max-height: none;
+  }
+}
+
+@media (max-width: 899px) {
+  .nwfb-body {
+    padding: 0;
+  }
+
+  .nwfb-small-screen {
+    background: rgb(var(--nw-surface-deep));
+  }
+}
+
+@media (max-width: 760px) {
+  .nw-shell-main {
+    padding: 0.85rem;
+  }
+
+  .nw-dashboard-hero {
+    min-height: auto;
+    padding: 1.35rem;
+  }
+
+  .nw-dashboard-hero::after {
+    right: -17rem;
+  }
+
+  .nw-dashboard-tile,
+  .nw-dashboard-panel {
+    border-radius: 1rem;
+  }
+
+  .nuoma-workspace-header .nuoma-compat-display {
+    font-size: 2rem !important;
+  }
+
+  .nuoma-contact-titlebar,
+  .nuoma-contact-metrics,
+  .nuoma-contact-composer,
+  .nuoma-contact-action-grid,
+  .nuoma-jobs-stats,
+  .nuoma-automation-metrics,
+  .nuoma-evidence-summary,
+  .nuoma-implementation-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .nuoma-contact-thread {
+    padding: 0.85rem;
+  }
+
+  .nuoma-contact-message {
+    width: min(100%, 34rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

@@ -10,7 +10,7 @@ export const TabsList = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<type
     <RadixTabs.List
       ref={ref}
       className={cn(
-        "inline-flex items-center gap-1 p-1.5 rounded-xl bg-surface-2/56 shadow-inset",
+        "inline-flex items-center gap-1 rounded-xl border border-line-hairline bg-surface-deep/72 p-1",
         className,
       )}
       {...props}
@@ -26,8 +26,8 @@ export const TabsTrigger = forwardRef<
   <RadixTabs.Trigger
     ref={ref}
     className={cn(
-      "px-4 py-1.5 text-sm font-medium rounded-md text-ink",
-      "data-[state=active]:bg-surface-4/72 data-[state=active]:text-ink-strong data-[state=active]:shadow-raised",
+      "rounded-lg px-4 py-1.5 text-sm font-medium text-ink",
+      "data-[state=active]:bg-surface-3 data-[state=active]:text-ink-strong data-[state=active]:shadow-raised",
       "outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-1",
       "transition-shadow duration-base",
       className,

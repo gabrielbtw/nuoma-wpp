@@ -16,21 +16,24 @@ export interface ButtonProps extends HTMLMotionProps<"button"> {
 
 const VARIANTS: Record<ButtonVariant, string> = {
   // Primary action — copper fill with dark ink.
-  primary: "border border-accent/80 bg-accent text-accent-on shadow-flat hover:bg-accent-hover",
+  primary:
+    "border border-accent/90 bg-accent text-accent-on shadow-flat hover:border-accent-hover hover:bg-accent-hover",
   secondary:
     "border border-line-hairline bg-surface-2 text-ink hover:border-line-soft hover:bg-surface-3 hover:text-ink-strong",
-  soft: "bg-ink-strong/[0.05] text-ink hover:bg-ink-strong/[0.09] hover:text-ink-strong",
-  ghost: "bg-transparent text-ink hover:bg-ink-strong/[0.06] hover:text-ink-strong",
-  accent: "border border-accent/80 bg-accent text-accent-on shadow-flat hover:bg-accent-hover",
+  soft: "border border-transparent bg-ink-strong/[0.05] text-ink hover:border-line-hairline hover:bg-ink-strong/[0.09] hover:text-ink-strong",
+  ghost:
+    "border border-transparent bg-transparent text-ink hover:border-line-hairline hover:bg-ink-strong/[0.06] hover:text-ink-strong",
+  accent:
+    "border border-accent/90 bg-accent text-accent-on shadow-flat hover:border-accent-hover hover:bg-accent-hover",
   danger:
     "border border-status-error/30 bg-status-error/10 text-status-error hover:bg-status-error/16",
 };
 
 const SIZES: Record<ButtonSize, string> = {
-  xs: "h-7 px-3 text-xs gap-1.5 rounded-md",
-  sm: "h-9 px-4 text-sm gap-1.5 rounded-md",
-  md: "h-10 px-5 text-sm gap-2 rounded-md",
-  lg: "h-12 px-6 text-[0.95rem] gap-2.5 rounded-lg",
+  xs: "h-7 gap-1.5 rounded-lg px-3 text-xs",
+  sm: "h-9 gap-1.5 rounded-lg px-4 text-sm",
+  md: "h-10 gap-2 rounded-xl px-5 text-sm",
+  lg: "h-12 gap-2.5 rounded-xl px-6 text-[0.95rem]",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -60,7 +63,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         whileTap={disabled || loading || shouldReduceMotion ? undefined : { y: 1, scale: 0.985 }}
         transition={{ type: "spring", stiffness: 400, damping: 24 }}
         className={cn(
-          "inline-flex items-center justify-center font-medium tracking-tight",
+          "inline-flex items-center justify-center font-medium tracking-[-0.01em]",
           "whitespace-nowrap",
           "outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-0",
           "transition-colors duration-fast ease-out",

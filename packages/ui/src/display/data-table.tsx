@@ -54,7 +54,10 @@ export function DataTable<T>({
   if (rows.length === 0) {
     return (
       <div
-        className={cn("rounded-lg border border-line-hairline/40 bg-surface-deep/40", className)}
+        className={cn(
+          "rounded-[1.125rem] border border-line-hairline bg-surface-deep/40",
+          className,
+        )}
       >
         <EmptyState title={emptyTitle} description={emptyDescription} className="py-12" />
       </div>
@@ -62,10 +65,15 @@ export function DataTable<T>({
   }
 
   return (
-    <div className={cn("overflow-hidden rounded-lg border border-line-hairline/40", className)}>
+    <div
+      className={cn(
+        "overflow-hidden rounded-[1.125rem] border border-line-hairline bg-surface-1 shadow-flat",
+        className,
+      )}
+    >
       <div className="overflow-x-auto">
         <table className="min-w-full border-collapse text-left text-sm">
-          <thead className="bg-surface-deep/72 text-xs uppercase tracking-wider text-ink-soft">
+          <thead className="bg-surface-deep/72 text-xs uppercase tracking-[0.1em] text-ink-soft">
             <tr>
               {selectable ? (
                 <th className="w-11 px-3 py-3">
@@ -91,11 +99,11 @@ export function DataTable<T>({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-line-hairline/24 bg-surface-1/72">
+          <tbody className="divide-y divide-line-hairline/70 bg-surface-1/72">
             {rows.map((row) => {
               const key = getRowKey(row);
               return (
-                <tr key={key} className="transition-colors hover:bg-surface-4/44">
+                <tr key={key} className="transition-colors hover:bg-surface-3/62">
                   {selectable ? (
                     <td className="w-11 px-3 py-3">
                       <Checkbox

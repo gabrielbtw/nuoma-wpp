@@ -170,7 +170,11 @@ export function JobsPage() {
                     ) : !all.data || all.data.jobs.length === 0 ? (
                       <EmptyState description="Fila vazia." />
                     ) : (
-                      <div className="nuoma-jobs-table">
+                      <div
+                        className="nuoma-jobs-table"
+                        tabIndex={0}
+                        aria-label="Tabela de jobs em fila"
+                      >
                         <div className="nuoma-jobs-row is-head">
                           <span>ID</span>
                           <span>Tipo</span>
@@ -219,7 +223,11 @@ export function JobsPage() {
                     ) : !dead.data || dead.data.jobs.length === 0 ? (
                       <EmptyState description="Nenhum job morto." />
                     ) : (
-                      <div className="nuoma-jobs-table">
+                      <div
+                        className="nuoma-jobs-table"
+                        tabIndex={0}
+                        aria-label="Tabela de jobs mortos"
+                      >
                         <div className="nuoma-jobs-row is-head">
                           <span>ID</span>
                           <span>Tipo</span>

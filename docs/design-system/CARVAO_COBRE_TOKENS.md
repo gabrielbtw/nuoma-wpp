@@ -22,6 +22,35 @@ Carvao & Cobre e a direcao visual atual da web canonica e do overlay WhatsApp.
 | `--nw-channel-*` | WhatsApp, Instagram, system |
 | `--nw-chart-*`   | graficos                    |
 
+## Signal Room Rebuild (2026-07-09)
+
+A interface web passou por uma reconstrucao visual transversal com a direcao
+**Signal Room**: grafite mineral, tipografia editorial apenas para hierarquia,
+chrome silencioso e cobre reservado para intencao do operador. A leitura de
+dados, estados e canais continua sendo a prioridade.
+
+- `apps/web/src/styles/pages/rebuild.css` e carregado por ultimo em
+  `apps/web/src/styles.css`. Ele unifica shell, login, dashboard, Inbox,
+  contatos, administracao e Flow Builder sem trocar rotas, contratos, test ids
+  ou logica de produto.
+- `apps/web/src/styles/tokens.css` e `packages/ui/src/tokens/index.ts` mantem
+  os mesmos valores de superficie, tinta, status, canais e graficos.
+- Componentes compartilhados preservam suas APIs; somente a pele interna de
+  `Button`, `Input`, `Card`, `Badge`, `Tabs` e `DataTable` foi atualizada.
+- Os aliases `bg-*`, `fg-*`, `semantic-*` e `nuoma-*` permanecem durante a
+  migracao. Nao remover `legacy.css` ou `compat-workspaces.css` ate que todos
+  os consumidores tenham sido migrados por rota.
+
+Principios de aplicacao:
+
+- Cobre identifica acao primaria e foco; nao deve virar cor decorativa de
+  metricas.
+- Verde, amarelo, vermelho e azul representam apenas estados operacionais.
+- WhatsApp e Instagram usam apenas `--nw-channel-wa` e `--nw-channel-ig`.
+- Cards agrupam decisao e contexto; listas, tabelas e timelines carregam a
+  maior parte da informacao operacional.
+- O Flow Builder continua em modo canvas escuro, isolado do chrome comum.
+
 ## Overlay
 
 O overlay usa prefixo `--nwo-*` para evitar vazamento de tokens da pagina

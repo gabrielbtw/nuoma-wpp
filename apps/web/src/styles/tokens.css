@@ -12,42 +12,44 @@
 [data-theme="editorial"] {
   color-scheme: dark;
 
-  /* Superfícies — carvão quente, elevação numérica (0 = canvas) */
-  --nw-surface-deep: 10 9 8;
-  --nw-surface-0: 14 13 11;
-  --nw-surface-1: 21 19 16;
-  --nw-surface-2: 26 24 20;
-  --nw-surface-3: 31 28 24;
-  --nw-surface-4: 37 33 28;
-  --nw-surface-5: 45 41 35;
+  /* Superfícies — grafite azulado, elevação numérica (0 = canvas).
+   * O contraste é propositalmente baixo no chrome e alto no dado: a interface
+   * some para que conversa, contato e operação tenham prioridade. */
+  --nw-surface-deep: 6 10 15;
+  --nw-surface-0: 10 15 21;
+  --nw-surface-1: 15 21 29;
+  --nw-surface-2: 20 28 37;
+  --nw-surface-3: 27 36 47;
+  --nw-surface-4: 35 45 57;
+  --nw-surface-5: 46 58 72;
 
-  /* Tinta — off-white quente */
-  --nw-ink-strong: 245 242 236;
-  --nw-ink-base: 178 171 159;
-  --nw-ink-soft: 148 141 130;
-  --nw-ink-faint: 132 126 115;
+  /* Tinta — branco mineral, legível sem brilho estourado. */
+  --nw-ink-strong: 244 247 250;
+  --nw-ink-base: 185 196 207;
+  --nw-ink-soft: 143 158 173;
+  --nw-ink-faint: 112 129 145;
 
-  /* Acento único — cobre. `on` é a tinta sobre superfícies cobre (AA). */
-  --nw-accent: 232 100 44;
-  --nw-accent-hover: 255 122 69;
-  --nw-accent-muted: 156 74 38;
-  --nw-accent-on: 26 13 6;
+  /* Acento único — cobre-sinal. `on` mantém AA sobre o preenchimento. */
+  --nw-accent: 255 139 71;
+  --nw-accent-hover: 255 169 105;
+  --nw-accent-muted: 160 78 39;
+  --nw-accent-on: 31 17 9;
 
-  /* Linhas */
-  --nw-line-hairline: 42 38 33;
-  --nw-line-soft: 58 53 45;
-  --nw-line-strong: 82 75 65;
+  /* Linhas — frias, discretas e mais precisas em superfícies densas. */
+  --nw-line-hairline: 42 53 65;
+  --nw-line-soft: 61 75 90;
+  --nw-line-strong: 88 104 121;
 
   /* Status operacional */
-  --nw-status-ok: 52 199 123;
-  --nw-status-warn: 230 176 28;
-  --nw-status-error: 240 90 86;
-  --nw-status-info: 92 162 250;
+  --nw-status-ok: 70 211 151;
+  --nw-status-warn: 245 194 76;
+  --nw-status-error: 246 112 111;
+  --nw-status-info: 116 179 255;
 
   /* Canais */
-  --nw-channel-wa: 43 209 126;
-  --nw-channel-ig: 225 86 143;
-  --nw-channel-sys: 232 100 44;
+  --nw-channel-wa: 57 211 142;
+  --nw-channel-ig: 239 102 165;
+  --nw-channel-sys: 255 139 71;
 
   --nw-flow-edge: rgb(var(--nw-line-strong));
   --nw-flow-branch: rgb(var(--nw-status-info));
@@ -61,20 +63,20 @@
   --nw-flow-neutral: rgb(var(--nw-ink-soft));
 
   /* Data-viz — paleta dedicada (ThemedChart lê daqui, nunca duplica) */
-  --nw-chart-1: 232 100 44;
-  --nw-chart-2: 217 164 91;
-  --nw-chart-3: 92 162 250;
-  --nw-chart-4: 52 199 123;
-  --nw-chart-5: 196 145 220;
-  --nw-chart-6: 240 90 86;
-  --nw-chart-grid: 42 38 33;
-  --nw-chart-label: 141 134 123;
+  --nw-chart-1: 255 139 71;
+  --nw-chart-2: 238 190 115;
+  --nw-chart-3: 116 179 255;
+  --nw-chart-4: 70 211 151;
+  --nw-chart-5: 201 153 239;
+  --nw-chart-6: 246 112 111;
+  --nw-chart-grid: 42 53 65;
+  --nw-chart-label: 143 158 173;
 
   /* Profundidade — hairline rings + sombras baixas, sem glow */
-  --nw-shadow-flat: 0 0 0 1px rgb(255 255 255 / 0.05);
-  --nw-shadow-raised: 0 6px 18px -8px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.06);
-  --nw-shadow-lifted: 0 28px 64px -24px rgb(0 0 0 / 0.66), 0 0 0 1px rgb(255 255 255 / 0.07);
-  --nw-shadow-inset: inset 0 2px 6px rgb(0 0 0 / 0.42);
+  --nw-shadow-flat: 0 0 0 1px rgb(255 255 255 / 0.045);
+  --nw-shadow-raised: 0 12px 30px -18px rgb(0 0 0 / 0.68), 0 0 0 1px rgb(255 255 255 / 0.055);
+  --nw-shadow-lifted: 0 30px 72px -28px rgb(0 0 0 / 0.78), 0 0 0 1px rgb(255 255 255 / 0.07);
+  --nw-shadow-inset: inset 0 1px 0 rgb(255 255 255 / 0.025), inset 0 2px 8px rgb(0 0 0 / 0.4);
 
   /* ==========================================================================
    * CAMADA COMPAT (deprecated) — aliases antigos resolvendo para tokens novos.
@@ -168,8 +170,8 @@
   --gradient-accent: linear-gradient(120deg, rgb(var(--nw-accent)), rgb(var(--nw-accent-hover)));
   --gradient-aura: radial-gradient(
     120% 120% at 0% 0%,
-    rgb(var(--nw-accent) / 0.08),
-    transparent 60%
+    rgb(var(--nw-accent) / 0.09),
+    transparent 62%
   );
-  --gradient-glass: linear-gradient(180deg, rgb(255 255 255 / 0.02), transparent 60%);
+  --gradient-glass: linear-gradient(180deg, rgb(255 255 255 / 0.028), transparent 60%);
 }

@@ -3,13 +3,13 @@
 import Database from "better-sqlite3";
 import path from "node:path";
 
-const DB_PATH = process.env.DATABASE_PATH || "./storage/database/nuoma.db";
+const DB_PATH = process.env.DATABASE_PATH || process.env.DATABASE_URL || "./data/nuoma-v2.db";
 const db = new Database(path.resolve(DB_PATH));
 
 interface Row {
   title: string;
   last_message_at: string | null;
-  last_message_preview: string | null;
+  last_preview: string | null;
   msg_count: number;
   placeholder_count: number;
 }
@@ -20,9 +20,14 @@ const rows = db
   SELECT
     c.title,
     c.last_message_at,
-    c.last_message_preview,
+    c.last_preview,
     (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) as msg_count,
-    (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id AND json_extract(m.meta_json, '$.placeholder') = 1) as placeholder_count
+    (
+      SELECT COUNT(*)
+      FROM messages m
+      WHERE m.conversation_id = c.id
+        AND json_extract(COALESCE(m.raw_json, '{}'), '$.placeholder') = 1
+    ) as placeholder_count
   FROM conversations c
   WHERE c.channel = 'whatsapp'
   ORDER BY datetime(COALESCE(c.last_message_at, c.updated_at)) DESC
@@ -77,7 +82,7 @@ for (let i = 0; i < rows.length; i++) {
   const previewText =
     r.placeholder_count > 0 && r.msg_count === r.placeholder_count
       ? "(placeholder)"
-      : truncate(r.last_message_preview, 25);
+      : truncate(r.last_preview, 25);
 
   console.log(` ${num} │ ${title} │ ${msgs} │ ${time} │ ${previewText}`);
 

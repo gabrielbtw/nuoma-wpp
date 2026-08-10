@@ -45,6 +45,10 @@ async function main() {
 
     await page.goto(`${webUrl}/chatbots`, { waitUntil: "domcontentloaded" });
     await page.getByText("V2.10.35 Smoke A/B").waitFor({ state: "visible", timeout: 10_000 });
+    await page.getByTestId("chatbot-dry-run-chatbot-select").click();
+    await page.getByRole("option", { name: "V2.10.35 Smoke A/B" }).click();
+    await page.getByTestId("chatbot-dry-run-identity").fill(canaryPhone);
+    await page.getByTestId("chatbot-dry-run-body").fill("Qual o preco?");
     const abPanel = page.locator(
       `[data-testid="chatbot-ab-test-panel"][data-rule-id="${fixture.ruleId}"]`,
     );

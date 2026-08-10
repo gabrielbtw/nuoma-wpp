@@ -3,9 +3,9 @@ import { forwardRef, type InputHTMLAttributes, type TextareaHTMLAttributes } fro
 import { cn } from "../utils/cn.js";
 
 const baseField = cn(
-  "w-full bg-surface-1 text-ink-strong placeholder:text-ink-faint",
-  "rounded-md border border-line-soft outline-none",
-  "focus:border-accent focus:ring-2 focus:ring-accent/30",
+  "w-full border border-line-hairline bg-surface-deep text-ink-strong placeholder:text-ink-faint",
+  "rounded-xl outline-none",
+  "hover:border-line-soft focus:border-accent focus:ring-2 focus:ring-accent/24",
   "transition-colors duration-fast ease-out",
   "disabled:opacity-50 disabled:cursor-not-allowed",
 );

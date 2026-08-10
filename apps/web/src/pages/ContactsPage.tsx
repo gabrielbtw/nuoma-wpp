@@ -205,29 +205,56 @@ export function ContactsPage() {
             </CardHeader>
             <CardContent>
               <form className="grid gap-3 md:grid-cols-2" onSubmit={submitContact}>
-                <Input
-                  required
-                  placeholder="Nome"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                />
-                <Input
-                  placeholder="Telefone"
-                  inputMode="tel"
-                  value={phone}
-                  onChange={(event) => setPhone(event.target.value)}
-                />
-                <Input
-                  placeholder="@instagram"
-                  value={instagramHandle}
-                  onChange={(event) => setInstagramHandle(event.target.value)}
-                />
-                <Textarea
-                  placeholder="Notas"
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                  className="md:col-span-2"
-                />
+                <label
+                  className="grid gap-1.5 text-xs font-medium text-ink-soft"
+                  htmlFor="contact-name"
+                >
+                  Nome
+                  <Input
+                    id="contact-name"
+                    required
+                    placeholder="Ex.: Ana Ribeiro"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                  />
+                </label>
+                <label
+                  className="grid gap-1.5 text-xs font-medium text-ink-soft"
+                  htmlFor="contact-phone"
+                >
+                  Telefone
+                  <Input
+                    id="contact-phone"
+                    placeholder="Ex.: (31) 99999-0000"
+                    inputMode="tel"
+                    value={phone}
+                    onChange={(event) => setPhone(event.target.value)}
+                  />
+                </label>
+                <label
+                  className="grid gap-1.5 text-xs font-medium text-ink-soft"
+                  htmlFor="contact-instagram"
+                >
+                  Instagram
+                  <Input
+                    id="contact-instagram"
+                    placeholder="Ex.: @ana.ribeiro"
+                    value={instagramHandle}
+                    onChange={(event) => setInstagramHandle(event.target.value)}
+                  />
+                </label>
+                <label
+                  className="grid gap-1.5 text-xs font-medium text-ink-soft md:col-span-2"
+                  htmlFor="contact-notes"
+                >
+                  Notas
+                  <Textarea
+                    id="contact-notes"
+                    placeholder="Contexto útil para a equipe"
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value)}
+                  />
+                </label>
                 <div className="md:col-span-2 flex justify-end">
                   <Button
                     type="submit"

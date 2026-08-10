@@ -133,7 +133,7 @@ export function SettingsPage() {
       </Animate>
 
       <Animate preset="rise-in" delaySeconds={0.1}>
-        <section className="nuoma-settings-v2">
+        <section className="nuoma-settings-v2" data-testid="settings-page">
           <Tabs defaultValue="general" className="nuoma-settings-main">
             <TabsList>
               <TabsTrigger value="general">Geral</TabsTrigger>

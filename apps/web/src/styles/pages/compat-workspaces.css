@@ -189,7 +189,7 @@
 .nuoma-contact-metrics span {
   display: block;
   margin-top: 0.55rem;
-  color: #6e6e80;
+  color: rgb(var(--color-fg-muted));
   font-size: 0.68rem;
   text-transform: uppercase;
 }
@@ -234,7 +234,7 @@
 
 .nuoma-contact-message span {
   display: block;
-  color: #6e6e80;
+  color: rgb(var(--color-fg-muted));
   font-size: 0.66rem;
   text-transform: uppercase;
 }
@@ -500,7 +500,7 @@
 
 .nuoma-jobs-row.is-head {
   border-top: 0;
-  color: #6e6e80;
+  color: rgb(var(--color-fg-muted));
   font-size: 0.66rem;
   text-transform: uppercase;
 }

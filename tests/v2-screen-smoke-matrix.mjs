@@ -11,15 +11,21 @@ const password = process.env.SMOKE_PASSWORD ?? "nuoma-dev-admin-123";
 const databaseUrl = path.resolve(process.env.DATABASE_URL ?? "data/nuoma-v2.db");
 const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 const outputDir = path.resolve(
-  process.env.V2_SCREEN_SMOKE_DIR ?? `data/v2-screen-smoke-${timestamp}`,
+  process.env.V2_SCREEN_SMOKE_DIR ??
+    path.join("/tmp", "nuoma-full-audit", "menu-matrix", timestamp),
 );
+
+const viewports = [
+  { id: "desktop", label: "Desktop 1440x980", width: 1440, height: 980 },
+  { id: "mobile", label: "Mobile 390x844", width: 390, height: 844 },
+];
 
 const routes = [
   {
     version: "V2.8",
     name: "Dashboard operacional",
     path: "/",
-    waitTestId: "operational-metrics-panel",
+    waitTestId: "dashboard-operational-metrics",
     file: "02-v28-dashboard.png",
     details: "Shell autenticado, metricas operacionais, workers, CDP, fila e DLQ.",
   },
@@ -100,7 +106,7 @@ const routes = [
     version: "V2.8",
     name: "Settings e push",
     path: "/settings",
-    waitText: "Sessão",
+    waitTestId: "settings-page",
     file: "11-v28-settings.png",
     details: "Sessao, tema, push, integracoes e diagnostico local-first.",
   },
@@ -123,60 +129,82 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
   const report = [];
   try {
-    const context = await browser.newContext({
-      viewport: { width: 1440, height: 980 },
-      serviceWorkers: "block",
-    });
-    const page = await context.newPage();
-
-    await page.goto(`${webUrl}/login`, { waitUntil: "networkidle" });
-    await fillLogin(page);
-    await page.screenshot({ path: path.join(outputDir, "01-v24-login.png"), fullPage: true });
-    report.push({
-      version: "V2.4",
-      name: "Login/Auth",
-      test: "Tela de login carrega e aceita credenciais locais.",
-      print: path.join(outputDir, "01-v24-login.png"),
-      details: "Cookies httpOnly/CSRF sao emitidos apos submit.",
-    });
-    await submitLogin(page);
-
-    for (const route of routes) {
-      await page.goto(`${webUrl}${route.path}`, { waitUntil: "domcontentloaded" });
-      if (await isLoginScreen(page)) {
-        await fillLogin(page);
-        await submitLogin(page);
-        await page.goto(`${webUrl}${route.path}`, { waitUntil: "domcontentloaded" });
-      }
-      let waitWarning = await waitForRouteSignal(page, route);
-      if (await isLoginScreen(page)) {
-        await fillLogin(page);
-        await submitLogin(page);
-        await page.goto(`${webUrl}${route.path}`, { waitUntil: "domcontentloaded" });
-        waitWarning = await waitForRouteSignal(page, route);
-      }
-      const extra = route.action ? await route.action(page, fixture) : null;
-      const screenshotPath = path.join(outputDir, route.file);
-      await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
-      await page.waitForTimeout(700);
-      const blocking = await blockingA11yViolations(page);
-      await page.screenshot({ path: screenshotPath, fullPage: true });
-      report.push({
-        version: route.version,
-        name: route.name,
-        test: route.details,
-        print: screenshotPath,
-        details: [
-          extra ?? "Tela renderizada.",
-          waitWarning ? `wait_warn=${waitWarning}` : "wait=ok",
-          blocking.length > 0
-            ? `a11y_warn=${blocking.map((item) => `${item.id}:${item.impact}`).join(",")}`
-            : "a11y_blocking=0",
-        ].join(" "),
+    for (const viewport of viewports) {
+      const context = await browser.newContext({
+        viewport: { width: viewport.width, height: viewport.height },
+        serviceWorkers: "block",
       });
-    }
+      const page = await context.newPage();
+      const runtimeIssues = [];
+      page.on("pageerror", (error) => {
+        runtimeIssues.push(`pageerror:${error.message}`);
+      });
+      page.on("console", (message) => {
+        if (message.type() === "error") {
+          runtimeIssues.push(`console:${message.text()}`);
+        }
+      });
+      page.on("response", (response) => {
+        if (response.status() >= 400) {
+          runtimeIssues.push(`response:${response.status()}:${response.url()}`);
+        }
+      });
 
-    await context.close();
+      await page.goto(`${webUrl}/login`, { waitUntil: "networkidle" });
+      await fillLogin(page);
+      const loginPath = path.join(outputDir, `${viewport.id}-01-v24-login.png`);
+      await assertNoVisibleAppErrors(page, "Login/Auth");
+      await page.screenshot({ path: loginPath, fullPage: true });
+      report.push({
+        version: "V2.4",
+        name: `Login/Auth (${viewport.label})`,
+        test: "Tela de login carrega e aceita credenciais locais.",
+        print: loginPath,
+        details: "Campos renderizados; sessao da matriz autenticada pela API local.",
+      });
+      await loginViaApi(context);
+      await page.goto(`${webUrl}/`, { waitUntil: "domcontentloaded" });
+
+      for (const route of routes) {
+        const issueStart = runtimeIssues.length;
+        await navigateWithinApp(page, route.path);
+        let waitWarning = await waitForRouteSignal(page, route);
+        if (await isLoginScreen(page)) {
+          await loginViaApi(context);
+          await navigateWithinApp(page, route.path);
+          waitWarning = await waitForRouteSignal(page, route);
+        }
+        const extra =
+          route.action && viewport.id === "desktop" ? await route.action(page, fixture) : null;
+        const screenshotPath = path.join(outputDir, `${viewport.id}-${route.file}`);
+        await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
+        await page.waitForTimeout(700);
+        await assertNoVisibleAppErrors(page, `${route.name} ${viewport.label}`);
+        const blocking = await blockingA11yViolations(page);
+        const routeIssues = runtimeIssues.slice(issueStart).filter(isBlockingRuntimeIssue);
+        if (routeIssues.length > 0) {
+          throw new Error(
+            `${route.name} ${viewport.label} emitted runtime issue(s): ${routeIssues.join(" | ")}`,
+          );
+        }
+        await page.screenshot({ path: screenshotPath, fullPage: true });
+        report.push({
+          version: route.version,
+          name: `${route.name} (${viewport.label})`,
+          test: route.details,
+          print: screenshotPath,
+          details: [
+            extra ?? "Tela renderizada.",
+            waitWarning ? `wait_warn=${waitWarning}` : "wait=ok",
+            blocking.length > 0
+              ? `a11y_warn=${blocking.map((item) => `${item.id}:${item.impact}`).join(",")}`
+              : "a11y_blocking=0",
+          ].join(" "),
+        });
+      }
+
+      await context.close();
+    }
   } finally {
     await browser.close();
   }
@@ -203,6 +231,46 @@ async function waitForRouteSignal(page, route) {
   }
 }
 
+async function navigateWithinApp(page, targetPath) {
+  await page.goto(`${webUrl}${targetPath}`, { waitUntil: "domcontentloaded" });
+}
+
+async function assertNoVisibleAppErrors(page, label) {
+  const forbiddenTexts = [
+    "Algo deu errado",
+    "Unable to transform response from server",
+    "Internal Server Error",
+    "Failed to fetch",
+  ];
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const bodyText = await page
+      .locator("body")
+      .innerText({ timeout: 5_000 })
+      .catch(() => "");
+    const forbidden = forbiddenTexts.filter((text) => bodyText.includes(text));
+    const viteOverlay = await page.locator("vite-error-overlay").count();
+    if (forbidden.length === 0 && viteOverlay === 0) return;
+    if (attempt === 3) {
+      if (viteOverlay > 0) {
+        throw new Error(`${label} rendered Vite error overlay`);
+      }
+      throw new Error(`${label} rendered visible app error(s): ${forbidden.join(", ")}`);
+    }
+    await page.waitForTimeout(attempt * 5_000);
+    await page.reload({ waitUntil: "domcontentloaded" });
+  }
+}
+
+function isBlockingRuntimeIssue(issue) {
+  if (/401 \\(Unauthorized\\)|favicon|ResizeObserver loop/i.test(issue)) return false;
+  if (/^response:429:.*\/trpc\/(auth\.me|auth\.refresh|system\.metrics)\b/i.test(issue)) {
+    return false;
+  }
+  if (/^console:Failed to load resource/i.test(issue)) return false;
+  if (/Download the React DevTools/i.test(issue)) return false;
+  return true;
+}
+
 async function fillLogin(page) {
   await page.locator("#email").fill(email);
   await page.locator("#password").fill(password);
@@ -215,6 +283,40 @@ async function submitLogin(page) {
   });
 }
 
+async function loginViaApi(context) {
+  let response = null;
+  for (let attempt = 1; attempt <= 6; attempt++) {
+    response = await fetch(`${apiUrl}/trpc/auth.login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ json: { email, password } }),
+    });
+    if (response.status !== 429) break;
+    const retryAfterSeconds = Number(response.headers.get("retry-after") ?? 0);
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.max(retryAfterSeconds * 1000, attempt * 5_000)),
+    );
+  }
+  if (!response.ok) {
+    throw new Error(`auth.login failed for screen smoke: ${response.status}`);
+  }
+  const setCookies =
+    typeof response.headers.getSetCookie === "function"
+      ? response.headers.getSetCookie()
+      : [response.headers.get("set-cookie")].filter(Boolean);
+  const cookies = setCookies
+    .map((item) => item.split(";")[0])
+    .map((pair) => {
+      const [name, ...rest] = pair.split("=");
+      return { name, value: rest.join("="), url: webUrl };
+    })
+    .filter((cookie) => cookie.name && cookie.value);
+  if (cookies.length === 0) {
+    throw new Error("auth.login did not return cookies for screen smoke");
+  }
+  await context.addCookies(cookies);
+}
+
 async function isLoginScreen(page) {
   if (new URL(page.url()).pathname === "/login") return true;
   return await page
@@ -224,10 +326,9 @@ async function isLoginScreen(page) {
 }
 
 async function validateRemarketingBatchPanel(page, fixture) {
-  if (page.url() !== `${webUrl}/campaigns?campaignId=${fixture.campaignId}`) {
-    await page.goto(`${webUrl}/campaigns?campaignId=${fixture.campaignId}`, {
-      waitUntil: "domcontentloaded",
-    });
+  const targetPath = `/campaigns?campaignId=${fixture.campaignId}`;
+  if (`${new URL(page.url()).pathname}${new URL(page.url()).search}` !== targetPath) {
+    await page.goto(`${webUrl}${targetPath}`, { waitUntil: "domcontentloaded" });
   }
   await openCampaignDispatchTab(page);
   await page.getByTestId("safe-batch-dispatch-panel").waitFor({

@@ -1,11 +1,10 @@
 /**
  * Nuoma Carvão & Cobre — design tokens.
  *
- * Identidade única dark: canvas carvão quente, tinta off-white quente,
- * separadores hairline e UM acento cobre reservado a ação, foco e estado
- * vivo. Superfícies numeradas por elevação, status separado de acento,
- * paleta de gráfico dedicada. Sem glass, sem glow, sem gradiente atrás
- * de dado denso, sem segunda cor de marca.
+ * Identidade única dark: canvas grafite mineral, tinta clara, separadores
+ * precisos e UM acento cobre reservado a ação, foco e estado vivo.
+ * Superfícies numeradas por elevação, status separado de acento e paleta de
+ * gráfico dedicada. Sem glass, sem glow e sem gradiente atrás de dado denso.
  *
  * O preset Tailwind lê CSS variables (definidas em apps/web
  * src/styles/tokens.css) por nome; estes valores JS são a fonte da verdade
@@ -16,52 +15,52 @@
 export const colors = {
   /** Elevação numérica: deep < 0 (canvas) < 1..5 (modal/hover). */
   surface: {
-    deep: "10 9 8",
-    0: "14 13 11",
-    1: "21 19 16",
-    2: "26 24 20",
-    3: "31 28 24",
-    4: "37 33 28",
-    5: "45 41 35",
+    deep: "6 10 15",
+    0: "10 15 21",
+    1: "15 21 29",
+    2: "20 28 37",
+    3: "27 36 47",
+    4: "35 45 57",
+    5: "46 58 72",
   },
   ink: {
-    strong: "245 242 236",
-    base: "178 171 159",
-    soft: "148 141 130",
-    faint: "132 126 115",
+    strong: "244 247 250",
+    base: "185 196 207",
+    soft: "143 158 173",
+    faint: "112 129 145",
   },
   /** Acento único — cobre. `on` é a tinta sobre superfícies cobre (AA). */
   accent: {
-    base: "232 100 44",
-    hover: "255 122 69",
-    muted: "156 74 38",
-    on: "26 13 6",
+    base: "255 139 71",
+    hover: "255 169 105",
+    muted: "160 78 39",
+    on: "31 17 9",
   },
   line: {
-    hairline: "42 38 33",
-    soft: "58 53 45",
-    strong: "82 75 65",
+    hairline: "42 53 65",
+    soft: "61 75 90",
+    strong: "88 104 121",
   },
   status: {
-    ok: "52 199 123",
-    warn: "230 176 28",
-    error: "240 90 86",
-    info: "92 162 250",
+    ok: "70 211 151",
+    warn: "245 194 76",
+    error: "246 112 111",
+    info: "116 179 255",
   },
   channel: {
-    wa: "43 209 126",
-    ig: "225 86 143",
-    sys: "232 100 44",
+    wa: "57 211 142",
+    ig: "239 102 165",
+    sys: "255 139 71",
   },
   chart: {
-    1: "232 100 44",
-    2: "217 164 91",
-    3: "92 162 250",
-    4: "52 199 123",
-    5: "196 145 220",
-    6: "240 90 86",
-    grid: "42 38 33",
-    label: "141 134 123",
+    1: "255 139 71",
+    2: "238 190 115",
+    3: "116 179 255",
+    4: "70 211 151",
+    5: "201 153 239",
+    6: "246 112 111",
+    grid: "42 53 65",
+    label: "143 158 173",
   },
 } as const;
 
@@ -120,7 +119,7 @@ export const spacing = {
 
 /**
  * Escala tipográfica fluida. `eyebrow` é o label mono; `body` o tamanho de
- * leitura. Display/h1/h2 são servidos em Space Grotesk via font-display.
+ * leitura. Display/h1/h2 recebem uma serif editorial via font-display.
  * Tupla = [size, { lineHeight, letterSpacing, fontWeight }].
  */
 export const fontSize = {
@@ -235,8 +234,8 @@ export const microGrid = {
 
 export const fontFamily = {
   sans: '"Inter Variable", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-  display: '"Space Grotesk Variable", "Space Grotesk", "Inter Variable", system-ui, sans-serif',
-  serif: '"Space Grotesk Variable", "Space Grotesk", "Inter Variable", system-ui, sans-serif',
+  display: '"Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif',
+  serif: '"Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif',
   mono: '"JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace',
 } as const;
 

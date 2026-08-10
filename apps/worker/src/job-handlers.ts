@@ -3612,18 +3612,24 @@ function chatbotReplyBodyFromPayload(job: Job): string {
 }
 
 function campaignJobAuditTarget(job: Job, phone: string | null): Record<string, string | null> {
+  const normalizedPhone = normalizePhone(
+    phone ??
+      stringFromPayload(job.payload.phone) ??
+      stringFromPayload(job.payload.recipientNormalizedValue),
+  );
   const instagramHandle =
     normalizeInstagramHandle(stringFromPayload(job.payload.instagramHandle)) ??
     normalizeInstagramHandle(stringFromPayload(job.payload.username)) ??
-    normalizeInstagramHandle(stringFromPayload(job.payload.recipientNormalizedValue));
-  const normalizedPhone = normalizePhone(phone ?? stringFromPayload(job.payload.phone));
+    (normalizedPhone
+      ? null
+      : normalizeInstagramHandle(stringFromPayload(job.payload.recipientNormalizedValue)));
   return {
-    targetKey: instagramHandle
-      ? `ig:${instagramHandle}`
-      : normalizedPhone
-        ? `wa:${normalizedPhone}`
+    targetKey: normalizedPhone
+      ? `wa:${normalizedPhone}`
+      : instagramHandle
+        ? `ig:${instagramHandle}`
         : null,
-    instagramHandle,
+    instagramHandle: normalizedPhone ? null : instagramHandle,
   };
 }
 

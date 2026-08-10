@@ -62,6 +62,20 @@ export async function applyOverlayQuickAction(input: {
             tagId,
           });
     const contact = await input.repos.contacts.findById(target.contact.id);
+    if (changed) {
+      await input.repos.systemEvents.create({
+        userId: input.userId,
+        type: input.action === "applyTag" ? "contact.tag_applied" : "contact.tag_removed",
+        severity: "info",
+        payload: JSON.stringify({
+          contactId: target.contact.id,
+          phone: target.phone,
+          tagId,
+          source: input.source,
+          action: input.action,
+        }),
+      });
+    }
     await auditQuickAction({
       repos: input.repos,
       userId: input.userId,

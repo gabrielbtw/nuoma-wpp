@@ -19,6 +19,9 @@ Data: 2026-06-12
 - `apps/web/src/styles/legacy.css`: ainda importado globalmente para paginas
   operacionais nao migradas (`Jobs`, `Implementation`, `Chatbots`, `Contacts`,
   `Settings`, DEV components e trechos de Inbox).
+- `apps/web/src/styles/pages/rebuild.css`: camada final do Signal Room que
+  normaliza visualmente as rotas ainda atendidas por CSS de compatibilidade,
+  preservando seus contratos enquanto a migracao por rota nao termina.
 
 ## Removido
 
@@ -31,5 +34,8 @@ Data: 2026-06-12
 - Migrar o restante das paginas que usam `nuoma-compat-*`, `nuoma-glass-*`,
   `nuoma-jobs-*` e `nuoma-implementation-*` para CSS de pagina ou Tailwind com
   tokens `nw-*`.
+- Depois da migracao por rota, absorver as regras hoje em `rebuild.css` nos
+  estilos de cada superficie e remover aliases, hexadecimais e `!important` do
+  layer de compatibilidade.
 - Dividir `ContactSidebar`, `Composer` e `MessageTimeline` em hooks/secoes em
   uma fase dedicada de hardening.

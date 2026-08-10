@@ -465,6 +465,8 @@ export interface SyncSendDocumentMessageResult {
   externalId: string | null;
   fileName: string;
   mimeType: string;
+  previewAttachmentCount?: number;
+  sentByInternalFallback?: boolean;
   captionSent: boolean;
   visibleMessageCountBefore: number;
   visibleMessageCountAfter: number;
@@ -2254,21 +2256,60 @@ export async function startSyncEngine(input: {
     });
     await bindingQueue;
 
-    await clearDocumentPreviewAttachments();
-    await attachDocumentFile(documentInput.filePath);
-    const preview = await waitForDocumentPreview(8_000);
-    if (preview.attachments !== 1) {
-      throw new Error(
-        `send_document expected exactly one preview attachment, got ${preview.attachments}`,
-      );
-    }
     const caption = documentInput.caption?.trim() ?? "";
     let captionSent = false;
-    if (caption) {
-      captionSent = await tryInsertAttachmentCaption(caption);
+    let previewAttachmentCount = 0;
+    let sentByInternalFallback = false;
+    try {
+      const fallback = await sendMediaViaWhatsAppInternal({
+        file: {
+          filePath: documentInput.filePath,
+          fileName: documentInput.fileName,
+          mimeType: documentInput.mimeType,
+        },
+        caption,
+        mediaType: "document",
+      });
+      sentByInternalFallback = true;
+      previewAttachmentCount = 1;
+      captionSent = Boolean(caption);
+      input.logger.info(
+        {
+          fileName: documentInput.fileName,
+          mimeType: documentInput.mimeType,
+          chatId: fallback.chatId,
+        },
+        "send_document sent via WhatsApp internal media API before visual attachment flow",
+      );
+      await clearDocumentPreviewAttachments().catch((error: unknown) => {
+        input.logger.debug(
+          { error },
+          "send_document preview cleanup after internal fallback failed",
+        );
+      });
+      await waitForAttachmentPreviewClosed(5_000);
+    } catch (error) {
+      input.logger.warn(
+        { error, fileName: documentInput.fileName, mimeType: documentInput.mimeType },
+        "send_document internal media API failed before visual attachment flow; falling back to WhatsApp UI attachment",
+      );
     }
-    await dismissStartingConversationDialog();
-    await clickSendButton();
+    if (!sentByInternalFallback) {
+      await clearDocumentPreviewAttachments();
+      await attachDocumentFile(documentInput.filePath);
+      const preview = await waitForDocumentPreview(20_000, documentInput.fileName);
+      if (preview.attachments !== 1) {
+        throw new Error(
+          `send_document expected exactly one preview attachment, got ${preview.attachments}`,
+        );
+      }
+      previewAttachmentCount = preview.attachments;
+      if (caption) {
+        captionSent = await tryInsertAttachmentCaption(caption);
+      }
+      await dismissStartingConversationDialog();
+      await clickSendButton();
+    }
     const after = await waitForDocumentSendResult({
       reason,
       reconcileScope: "send-document",
@@ -2300,6 +2341,8 @@ export async function startSyncEngine(input: {
       externalId,
       fileName: documentInput.fileName,
       mimeType: documentInput.mimeType,
+      previewAttachmentCount,
+      sentByInternalFallback,
       captionSent,
       visibleMessageCountBefore,
       visibleMessageCountAfter,
@@ -2729,7 +2772,7 @@ export async function startSyncEngine(input: {
       mimeType: string;
     };
     caption: string;
-    mediaType: "image" | "video" | "audio";
+    mediaType: "image" | "video" | "audio" | "document";
     isPtt?: boolean;
     isAudio?: boolean;
   }): Promise<{ chatId: string | null }> {
@@ -3403,7 +3446,10 @@ export async function startSyncEngine(input: {
     }
   }
 
-  async function waitForDocumentPreview(timeoutMs: number): Promise<{ attachments: number }> {
+  async function waitForDocumentPreview(
+    timeoutMs: number,
+    fileName: string,
+  ): Promise<{ attachments: number }> {
     if (!client) {
       return { attachments: 0 };
     }
@@ -3411,18 +3457,50 @@ export async function startSyncEngine(input: {
     while (Date.now() < deadline) {
       const result = await client.Runtime.evaluate({
         expression: `
-          (() => {
+          ((expectedFileName) => {
             const body = String(document.body?.innerText || "");
             const incompatible = /arquivo que você tentou adicionar não é compatível|file you tried to add is not supported/i.test(body);
-            const attachments = document.querySelectorAll("[aria-label^='Miniatura de documento'], [aria-label^='Document thumbnail']").length;
-            const sendVisible = Boolean(Array.from(document.querySelectorAll("[aria-label^='Enviar'], [aria-label^='Send'], span[data-icon*='send'], span[data-icon*='end-filled']"))
+            const sendLabels = Array.from(document.querySelectorAll("[role='button'][aria-label], button[aria-label], div[aria-label]"))
+              .map((item) => {
+                const label = String(item.getAttribute("aria-label") || "");
+                const target = item.closest("button") || item.closest("[role='button']") || item;
+                const rect = target.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0 ? label : "";
+              })
+              .filter(Boolean);
+            const sendVisible = sendLabels.some((label) =>
+              /(send|enviar).*(selected|selecionad)|\\d+\\s+(selected|selecionad)/i.test(label)
+            ) || Boolean(Array.from(document.querySelectorAll("[aria-label^='Enviar'], [aria-label^='Send'], span[data-icon*='send'], span[data-icon*='end-filled']"))
               .find((item) => {
                 const target = item.closest("button") || item.closest("[role='button']") || item;
                 const rect = target.getBoundingClientRect();
                 return rect.width > 0 && rect.height > 0;
               }));
-            return { attachments, sendVisible, incompatible };
-          })()
+            const selectedCounts = sendLabels
+              .map((label) => {
+                const match = label.match(/(\\d+)\\s+(?:selected|selecionad)/i);
+                return match ? Number(match[1]) : 0;
+              })
+              .filter((count) => Number.isFinite(count) && count > 0);
+            const selectedCount = selectedCounts.length ? Math.max(...selectedCounts) : 0;
+            const documentThumbnails = Array.from(document.querySelectorAll("[aria-label^='Miniatura de documento'], [aria-label^='Document thumbnail']"))
+              .filter((item) => {
+                const rect = item.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              }).length;
+            const removeVisible = Boolean(Array.from(document.querySelectorAll("[aria-label='Remover anexo'], [aria-label='Remove attachment']"))
+              .find((item) => {
+                const target = item.closest("button") || item.closest("[role='button']") || item;
+                const rect = target.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              }));
+            const fileNameVisible = expectedFileName
+              ? body.includes(expectedFileName) || body.includes(expectedFileName.replace(/\\.pdf$/i, ""))
+              : false;
+            const attachments = Math.max(selectedCount, documentThumbnails, removeVisible || fileNameVisible ? 1 : 0);
+            const previewVisible = documentThumbnails > 0 || removeVisible || fileNameVisible;
+            return { attachments, sendVisible, previewVisible, incompatible };
+          })(${JSON.stringify(fileName)})
         `,
         awaitPromise: false,
         returnByValue: true,
@@ -3436,7 +3514,8 @@ export async function startSyncEngine(input: {
         isRecord(value) &&
         typeof value.attachments === "number" &&
         value.attachments > 0 &&
-        value.sendVisible === true
+        value.sendVisible === true &&
+        value.previewVisible === true
       ) {
         return { attachments: value.attachments };
       }

@@ -474,7 +474,12 @@ export function MessageTimeline({
             )}
           </div>
         )}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4">
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto px-5 py-4"
+          tabIndex={0}
+          aria-label="Mensagens da conversa"
+        >
           {messages.isLoading ? (
             <LoadingState />
           ) : messages.error ? (

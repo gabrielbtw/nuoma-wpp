@@ -10,6 +10,7 @@ import {
   updateContactInputSchema,
   type ImportContactRow,
 } from "@nuoma/contracts";
+import type { Repositories } from "@nuoma/db";
 
 import { protectedCsrfProcedure, protectedProcedure, router } from "../init.js";
 
@@ -18,6 +19,49 @@ const updateContactBodySchema = updateContactInputSchema.omit({ userId: true });
 const searchContactsBodySchema = searchContactsInputSchema.omit({ userId: true });
 
 type ParsedContactRow = ImportContactRow & { sourceRow: number };
+
+async function emitContactTagEvents(input: {
+  repos: Repositories;
+  userId: number;
+  contactId: number;
+  phone: string | null;
+  previousTagIds: number[];
+  nextTagIds: number[];
+  source: string;
+}) {
+  const previous = new Set(input.previousTagIds);
+  const next = new Set(input.nextTagIds);
+  for (const tagId of input.nextTagIds) {
+    if (!previous.has(tagId)) {
+      await input.repos.systemEvents.create({
+        userId: input.userId,
+        type: "contact.tag_applied",
+        severity: "info",
+        payload: JSON.stringify({
+          contactId: input.contactId,
+          phone: input.phone,
+          tagId,
+          source: input.source,
+        }),
+      });
+    }
+  }
+  for (const tagId of input.previousTagIds) {
+    if (!next.has(tagId)) {
+      await input.repos.systemEvents.create({
+        userId: input.userId,
+        type: "contact.tag_removed",
+        severity: "info",
+        payload: JSON.stringify({
+          contactId: input.contactId,
+          phone: input.phone,
+          tagId,
+          source: input.source,
+        }),
+      });
+    }
+  }
+}
 
 const csvHeaderAliases = {
   email: ["email", "e-mail", "mail"],
@@ -213,10 +257,23 @@ export const contactsRouter = router({
       }
     }
 
+    const previous =
+      input.tagIds !== undefined ? await ctx.repos.contacts.findById(input.id) : null;
     const contact = await ctx.repos.contacts.update({
       ...input,
       userId: ctx.user.id,
     });
+    if (contact && previous && input.tagIds !== undefined) {
+      await emitContactTagEvents({
+        repos: ctx.repos,
+        userId: ctx.user.id,
+        contactId: contact.id,
+        phone: contact.phone,
+        previousTagIds: previous.tagIds,
+        nextTagIds: contact.tagIds,
+        source: "contacts.update",
+      });
+    }
     return { contact };
   }),
 
